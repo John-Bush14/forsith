@@ -183,8 +183,6 @@ pub fn CreateDevice() -> VkPhysicalDevice { unsafe {
     let result = vk_create_device(
         best_physical_device.expect("No physical devices found!"), &device_create_info, std::ptr::null(), &mut device
     );
-    
-    panic!();
 
     if result == 0 {return device;}
     

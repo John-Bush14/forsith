@@ -114,7 +114,6 @@ pub struct VkPhysicalDeviceLimits {
     non_coherent_atom_size: u64,
 }
 
-// Similarly define VkPhysicalDeviceSparseProperties
 #[repr(C)]
 pub struct VkPhysicalDeviceSparseProperties {
     residency_standard2_d_block_shape: u32,
