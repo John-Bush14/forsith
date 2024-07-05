@@ -121,8 +121,8 @@ pub fn CreateDevice() -> VkPhysicalDevice { unsafe {
         match properties.device_type {
             1 => {score += 1000;},
             2 => {score += 500;},
-            3 => {score += 200;},
-            4 => {score += 250;},
+            3 => {score += 250;},
+            4 => {score += 125;},
             _ => {}
         }
 
@@ -142,14 +142,14 @@ pub fn CreateDevice() -> VkPhysicalDevice { unsafe {
     vk_get_physical_device_queue_family_properties(
         best_physical_device.unwrap(), &mut device_queue_family_properties_len, std::ptr::null_mut()
     );
-    
+
     let mut device_queue_family_properties: Vec<VkQueueFamilyProperties> = Vec::with_capacity(device_queue_family_properties_len as usize);
     device_queue_family_properties.set_len(device_queue_family_properties_len as usize);
 
     vk_get_physical_device_queue_family_properties(
         best_physical_device.unwrap(), &mut device_queue_family_properties_len, device_queue_family_properties.as_mut_ptr()
     );
-
+    
     let vk_create_device: extern "C" fn(
         VkPhysicalDevice, *const VkDeviceCreateInfo, *const c_void, *mut VkDevice
     ) -> super::VkResult = std::mem::transmute(super::load_vulkan_function(VK_CREATE_DEVICE_CSTRING()));
@@ -183,6 +183,8 @@ pub fn CreateDevice() -> VkPhysicalDevice { unsafe {
     let result = vk_create_device(
         best_physical_device.expect("No physical devices found!"), &device_create_info, std::ptr::null(), &mut device
     );
+    
+    panic!();
 
     if result == 0 {return device;}
     

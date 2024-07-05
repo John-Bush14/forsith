@@ -9,8 +9,8 @@ pub const VK_GET_PHYSICAL_DEVICE_QUEUE_FAMILY_PROPERTIES_CSTRING: fn() -> CStrin
 
 #[repr(C)]
 pub struct VkQueueFamilyProperties {
-    flags: u32,
-    count: u32,
+    pub flags: u32,
+    pub count: u32,
     timestamp_valid_bits: u32,
     min_image_transfer_granulatity: c_void
 }
