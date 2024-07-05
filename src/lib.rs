@@ -14,6 +14,6 @@ mod tests {
 
     #[test]
     fn template() {
-        vulkan::get_lib();
+        vulkan::CreateDevice();
     }
 }
