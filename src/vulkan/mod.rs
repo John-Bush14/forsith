@@ -1,14 +1,16 @@
-use std::ffi::CString;
+pub use std::ffi::CString;
 use std::ptr;
-use std::os::raw::{c_void, c_char};
+pub use std::os::raw::{c_void, c_char};
 use std::sync::{Once, ONCE_INIT, Mutex};
 
 pub mod abstractions;
 
 pub mod initialisation;
-pub use initialisation::{VkInstance, CreateInstance};
+pub use initialisation::{VkInstance, CreateInstance, CreateDevice};
 
 pub type VkResult = i32;
+
+pub type VkStructureType = u32;
 
 extern "C" {
     fn dlopen(filename: *const c_char, flag: i32) -> *mut c_void;
@@ -18,6 +20,14 @@ extern "C" {
 
 pub fn vk_make_version(major: u32, minor: u32, patch: u32) -> u32 {
     ((major << 22) | (minor << 12) | patch)
+}
+
+pub unsafe fn load_vulkan_function(name: CString) -> *const c_void {
+    let func_ptr = dlsym(get_lib(), name.as_ptr());
+    if func_ptr.is_null() {
+        panic!("Failed to load function: {:?}", name);
+    }
+    return func_ptr;
 }
 
 const RTLD_NOW: i32 = 2;
