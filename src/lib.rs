@@ -14,6 +14,6 @@ mod tests {
 
     #[test]
     fn template() {
-        vulkan::CreateDevice();
+        get_device();
     }
 }

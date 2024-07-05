@@ -6,7 +6,7 @@ use std::sync::{Once, ONCE_INIT, Mutex};
 pub mod abstractions;
 
 pub mod initialisation;
-pub use initialisation::{VkInstance, CreateInstance, CreateDevice};
+pub use initialisation::{VkInstance, CreateInstance, CreateDevice, VkDevice};
 
 pub type VkResult = i32;
 
@@ -34,8 +34,10 @@ const RTLD_NOW: i32 = 2;
 
 static mut VULKAN_LIB: Option<*mut c_void> = None;
 static mut INSTANCE: Option<VkInstance> = None;
+static mut DEVICE: Option<VkDevice> = None;
 static LIB_ONCE: Once = ONCE_INIT;
 static INST_ONCE: Once = ONCE_INIT;
+static DEVICE_ONCE: Once = ONCE_INIT;
 
 pub fn get_lib() -> *mut c_void {
     unsafe {
@@ -56,4 +58,12 @@ pub fn get_instance() -> VkInstance {unsafe {
     });
 
     return INSTANCE.unwrap()
+}}
+
+pub fn get_device() -> VkDevice {unsafe {
+    DEVICE_ONCE.call_once(|| {
+        DEVICE = Some(CreateDevice())
+    });
+
+    return DEVICE.unwrap()
 }}
