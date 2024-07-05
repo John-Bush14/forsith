@@ -28,6 +28,24 @@ pub use physical_device::{
     VkPhysicalDeviceSparseProperties,
 };
 
+mod window;
+pub use window::{
+    XWindowAttributes,
+    XOpenDisplay,
+    XDefaultScreen,
+    XRootWindow,
+    XCreateWindow,
+    XStoreName,
+    XMapWindow,
+    XSelectInput,
+    XNextEvent,
+    XDestroyWindow,
+    XCloseDisplay,
+    XEvent,
+    CW_EVENT_MASK,
+    EXPOSURE_MASK
+};
+
 pub fn CreateInstance(name: String, version: u32) -> VkInstance { unsafe {
     let app_name = CString::new(name).unwrap();
     let engine_name = CString::new("Forsith").unwrap();
@@ -187,4 +205,68 @@ pub fn CreateDevice() -> VkPhysicalDevice { unsafe {
     if result == 0 {return device;}
     
     panic!("vkCreateDevice failed!");
+}}
+
+pub fn CreateWindow(name: &str) { unsafe {
+    let display = XOpenDisplay(std::ptr::null()) as *mut c_void;  
+    if display.is_null() {panic!("XOpenDisplay failed! :'(");}
+
+    let screen_number = XDefaultScreen(display);
+    let root_window = XRootWindow(display, screen_number);
+    
+    let mut window_attributes: XWindowAttributes = std::mem::zeroed();
+    window_attributes.background_pixel = 0;
+    window_attributes.event_mask = EXPOSURE_MASK as i64;
+
+    let window = XCreateWindow(
+        display,
+        root_window,
+        100,
+        100,
+        800,
+        600,
+        1,
+        0,
+        1,
+        std::ptr::null_mut(),
+        CW_EVENT_MASK,
+        &window_attributes as *const XWindowAttributes,
+    );  
+
+    let window_title = CString::new(name.to_string()).expect("CString::new failed");
+    XStoreName(display, window, window_title.as_ptr());
+    
+    // Map (show) the window
+    XMapWindow(display, window);
+
+    // Select input events to listen for
+    XSelectInput(display, window, EXPOSURE_MASK as i64);
+
+    // Event loop
+    let mut event: XEvent = std::mem::zeroed();
+    loop {
+        XNextEvent(display, &mut event);
+        match event.r#type {
+            0 => {
+                XDestroyWindow(display, window);
+                XCloseDisplay(display);
+            },
+            
+            2 => {}, // key down
+            3 => {}, // key up
+
+            4 => {}, // mouse down
+            5 => {}, // mouse up
+            
+            6 => {} // mouse movement? not working.
+
+            7 => {}, // startup / meta data change
+
+            _ => {panic!("{:?}", event.r#type);}
+        }
+       
+        println!("{:?}", event.r#type);
+    }
+    
+    panic!();
 }}

@@ -6,7 +6,7 @@ use std::sync::{Once, ONCE_INIT, Mutex};
 pub mod abstractions;
 
 pub mod initialisation;
-pub use initialisation::{VkInstance, CreateInstance, CreateDevice, VkDevice};
+pub use initialisation::{VkInstance, CreateInstance, CreateDevice, VkDevice, CreateWindow};
 
 pub type VkResult = i32;
 

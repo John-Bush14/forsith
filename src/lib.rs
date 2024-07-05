@@ -15,5 +15,6 @@ mod tests {
     #[test]
     fn template() {
         get_device();
+        CreateWindow("Test");
     }
 }
