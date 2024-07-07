@@ -1,5 +1,9 @@
-pub use super::vulkan::abstractions::Texture;
-pub use super::vulkan::abstractions::Vertex;
+pub struct Texture {}
+
+pub struct Vertex {
+    pub x: f32,
+    pub y: f32
+}
 
 #[macro_export]
 macro_rules! impl_default_setgets_drawable {

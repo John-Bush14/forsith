@@ -252,7 +252,7 @@ pub fn CreateWindow(name: &str) { unsafe {
                 XCloseDisplay(display);
             },
             
-            2 => {}, // key down
+            2 => {break;}, // key down
             3 => {}, // key up
 
             4 => {}, // mouse down

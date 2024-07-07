@@ -1,7 +1,7 @@
 use super::{CString, c_void, c_char};
 
 pub const CW_EVENT_MASK: u64 = 1 << 11;
-pub const EXPOSURE_MASK: i64 = 0x0001 | 0x0002 | 0x0004 | 0x0008 | 0x0010;
+pub const EXPOSURE_MASK: i64 = 0x0001 | 0x0002 | 0x0004 | 0x0008 | 0x0010 | 0x2000;
 
 #[repr(C)]
 pub struct XWindowAttributes {

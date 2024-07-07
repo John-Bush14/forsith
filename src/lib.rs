@@ -1,8 +1,8 @@
 pub mod globals;
 pub use globals::*;
 
-pub mod vulkan;
-pub use vulkan::*;
+//pub mod vulkan;
+//pub use vulkan::*;
 
 pub mod drawables;
 
@@ -14,7 +14,5 @@ mod tests {
 
     #[test]
     fn template() {
-        get_device();
-        CreateWindow("Test");
     }
 }
