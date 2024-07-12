@@ -1,9 +1,3 @@
-use ash::{vk, Entry, Instance, Device};
-use ash::{
-    extensions::ext::DebugReport,
-    version::{EntryV1_0, InstanceV1_0},
-};
-
 mod initialisation;
 use initialisation::{};
 
@@ -11,12 +5,6 @@ mod drop;
 
 #[derive(Clone)]
 struct Engine {
-    entry: Entry,
-    instance: Instance,
-    debug_report_callback: Option<(DebugReport, vk::DebugReportCallbackEXT)>,
-    physical_device: vk::PhysicalDevice,
-    device: Device,
-    graphics_queue: vk::Queue
 }
 
 static mut ENGINE: Option<Engine> = None;
