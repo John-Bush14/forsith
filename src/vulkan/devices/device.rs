@@ -1,19 +1,28 @@
 use super::{CString, c_void, c_char};
 
+use crate::vulkan::{
+    devices::{
+        physical_device::{
+            VkPhysicalDevice
+        }
+    },
+    VkResult
+};
+
+
 pub type VkDevice = u64;
 
-pub const VK_CREATE_DEVICE_CSTRING: fn() -> CString = || CString::new("vkCreateDevice").unwrap();
 
-pub const VK_GET_PHYSICAL_DEVICE_QUEUE_FAMILY_PROPERTIES_CSTRING: fn() -> CString = 
-    || CString::new("vkGetPhysicalDeviceQueueFamilyProperties").unwrap();
-
-#[repr(C)]
-pub struct VkQueueFamilyProperties {
-    pub flags: u32,
-    pub count: u32,
-    timestamp_valid_bits: u32,
-    min_image_transfer_granulatity: c_void
+#[link(name = "vulkan")]
+extern "C" {
+    pub fn vkCreateDevice(
+        physical_device: VkPhysicalDevice,
+        device_create_info: *const VkDeviceCreateInfo, 
+        _: *const c_void,
+        device: *mut VkDevice
+    ) -> VkResult;
 }
+
 
 #[repr(C)]
 pub struct VkDeviceQueueCreateInfo {

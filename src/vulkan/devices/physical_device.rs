@@ -1,9 +1,79 @@
 use super::{CString, c_void, c_char};
 
+use crate::vulkan::{
+    instance::{
+        VkInstance
+    },
+    window::{
+        VkSurfaceKHR
+    },
+    VkResult,
+    VkBool32
+};
+
+
 pub type VkPhysicalDevice = u64;
 
 pub type VkPhysicalDeviceType = u32;
 
+
+#[link(name = "vulkan")]
+extern "C" {
+    pub fn vkEnumeratePhysicalDevices(
+        instance: VkInstance,
+        physical_device_count: *mut u32,
+        physical_devices: *mut VkPhysicalDevice
+    ) -> VkResult;
+
+    pub fn vkGetPhysicalDeviceProperties(
+        physical_device: VkPhysicalDevice, 
+        properties: *mut VkPhysicalDeviceProperties
+    ) -> VkResult;
+
+    pub fn vkGetPhysicalDeviceSurfaceSupportKHR(
+        physical_device: VkPhysicalDevice,
+        queue_family: u32,
+        surface: VkSurfaceKHR,
+        physical_device_surface_supports_KHR: *mut VkBool32
+    ) -> VkResult;
+
+    pub fn vkGetPhysicalDeviceQueueFamilyProperties(
+        physical_device: VkPhysicalDevice,
+        queue_family_properties_count: *mut u32, 
+        queue_family_properties: *mut VkQueueFamilyProperties
+    ) -> c_void;
+}
+
+
+#[repr(C)]
+pub struct VkQueueFamilyProperties {
+    pub flags: u32,
+    pub count: u32,
+    timestamp_valid_bits: u32,
+    min_image_transfer_granulatity: c_void
+}
+
+#[repr(C)]
+pub struct VkPhysicalDeviceSparseProperties {
+    residency_standard2_d_block_shape: u32,
+    residency_standard2_d_multisample_block_shape: u32,
+    residency_standard3_d_block_shape: u32,
+    residency_aligned_mip_size: u32,
+    residency_non_resident_strict: u32,
+}
+
+#[repr(C)]
+pub struct VkPhysicalDeviceProperties {
+    pub api_version: u32,
+    pub driver_version: u32,
+    pub vendor_id: u32,
+    pub device_id: u32,
+    pub device_type: VkPhysicalDeviceType,
+    pub device_name: [c_char; 256],
+    pipeline_cache_uuid: [u8; 16],
+    pub limits: VkPhysicalDeviceLimits,
+    sparse_properties: VkPhysicalDeviceSparseProperties
+}
 #[repr(C)]
 pub struct VkPhysicalDeviceLimits {
     max_image_dimension1_d: u32,
@@ -112,26 +182,4 @@ pub struct VkPhysicalDeviceLimits {
     optimal_buffer_copy_offset_alignment: u64,
     optimal_buffer_copy_row_pitch_alignment: u64,
     non_coherent_atom_size: u64,
-}
-
-#[repr(C)]
-pub struct VkPhysicalDeviceSparseProperties {
-    residency_standard2_d_block_shape: u32,
-    residency_standard2_d_multisample_block_shape: u32,
-    residency_standard3_d_block_shape: u32,
-    residency_aligned_mip_size: u32,
-    residency_non_resident_strict: u32,
-}
-
-#[repr(C)]
-pub struct VkPhysicalDeviceProperties {
-    pub api_version: u32,
-    pub driver_version: u32,
-    pub vendor_id: u32,
-    pub device_id: u32,
-    pub device_type: VkPhysicalDeviceType,
-    pub device_name: [c_char; 256],
-    pipeline_cache_uuid: [u8; 16],
-    pub limits: VkPhysicalDeviceLimits,
-    sparse_properties: VkPhysicalDeviceSparseProperties
 }

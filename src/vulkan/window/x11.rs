@@ -1,10 +1,30 @@
-use super::{CString, c_void, c_char};
+use crate::vulkan::{
+    instance::{
+        VkInstance
+    },
+    window::{
+        VkSurfaceKHR
+    },
+    VkResult
+};
+
+use std::ffi::{CString, c_void, c_char};
+
 
 pub const CW_EVENT_MASK: u64 = 1 << 11;
 pub const EXPOSURE_MASK: i64 = 0x0001 | 0x0002 | 0x0004 | 0x0008 | 0x0010 | 0x2000;
 
+
+pub struct XWindow {
+    pub handle: u64,
+    pub root_handle: u64,
+    pub display: *mut c_void,
+    pub attributes: XWindowCreateAttributes
+}
+
+
 #[repr(C)]
-pub struct XWindowAttributes {
+pub struct XWindowCreateAttributes {
     pub background_pixmap: u64,
     pub background_pixel: u64,
     pub border_pixmap: u64,
@@ -28,6 +48,25 @@ pub struct XEvent {
     // other fields as needed
 }
 
+#[repr(C)]
+pub struct VkXlibSurfaceCreateInfoKHR {
+    pub s_type: super::super::VkStructureType,
+    pub p_next: *const c_void,
+    pub flags: u32,
+    pub dpy: *mut c_void,
+    pub window: u64
+}
+
+#[link(name="vulkan")]
+extern "C" {
+    pub fn vkCreateXlibSurfaceKHR(
+        instance: VkInstance,
+        create_info: *const VkXlibSurfaceCreateInfoKHR,
+        _: *const c_void,
+        surface_khr: *mut VkSurfaceKHR
+    ) -> VkResult;
+}
+
 #[link(name = "X11")]
 extern "C" {
     pub fn XOpenDisplay(display_name: *const c_char) -> *mut c_void;
@@ -45,7 +84,7 @@ extern "C" {
         class: u32,
         visual: *mut c_void,
         valuemask: u64,
-        attributes: *const XWindowAttributes,
+        attributes: *const XWindowCreateAttributes,
     ) -> u64;
     pub fn XStoreName(display: *mut c_void, window: u64, window_name: *const c_char);
     pub fn XMapWindow(display: *mut c_void, window: u64);
