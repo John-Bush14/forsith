@@ -20,6 +20,9 @@ use std::fmt;
 pub const CW_EVENT_MASK: u64 = 1 << 11;
 pub const EXPOSURE_MASK: i64 = 0x0001 | 0x0002 | 0x0004 | 0x0008 | 0x0010 | 0x2000;
 
+pub type Bool = i32;
+
+pub type XAtom = u64;
 
 type Window = u64;
 
@@ -29,6 +32,7 @@ pub struct XWindow {
     pub handle: u64,
     pub root_handle: u64,
     pub display: *mut c_void,
+    pub delete_window_protocol: XAtom
 }
 
 
@@ -46,7 +50,7 @@ pub struct XWindowCreateAttributes {
     pub save_under: bool,
     pub event_mask: i64,
     pub do_not_propagate_mask: i64,
-    pub override_redirect: bool,
+    pub override_redirect: Bool,
     pub colormap: u64,
     pub cursor: u64,
 }
@@ -67,14 +71,14 @@ pub struct XWindowAttributes {
     pub backing_store: i32,
     pub backing_planes: u64,
     pub backing_pixel: u64,
-    pub save_under: bool,
+    pub save_under: Bool,
     pub colormap: u64,
-    pub map_installed: bool,
+    pub map_installed: Bool,
     pub map_state: i32,
     pub all_event_masks: i64,
     pub your_event_mask: i64,
     pub do_not_propagate_mask: i64,
-    pub override_redirect: bool,
+    pub override_redirect: Bool,
     pub screen: *mut c_void,
 }
 
@@ -84,7 +88,8 @@ pub union XEvent {
     pub button: XButtonEvent,
     pub key: XKeyEvent,
     pub error: XErrorEvent,
-    pub destroy_window: XDestroyWindowEvent
+    pub destroy_window: XDestroyWindowEvent,
+    pub client_message: XClientMessageEvent
     // other fields as needed
 }
 
@@ -93,7 +98,7 @@ pub union XEvent {
 pub struct XButtonEvent {
     pub type_: i32,
     pub serial: u64,
-    pub send_event: bool,
+    pub send_event: Bool,
     pub display: *mut c_void,
     pub window: Window,
     pub root: Window,
@@ -105,7 +110,7 @@ pub struct XButtonEvent {
     pub y_root: i32,
     pub state: u32,
     pub button: u32,
-    pub same_screen: bool,
+    pub same_screen: Bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -113,7 +118,7 @@ pub struct XButtonEvent {
 pub struct XDestroyWindowEvent {
     pub type_: i32,
     pub serial: u64,
-    pub send_event: bool,
+    pub send_event: Bool,
     pub display: *mut c_void,
     pub event: Window,
     pub window: Window,
@@ -133,10 +138,29 @@ pub struct XErrorEvent {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(C)]
+pub struct XClientMessageEvent {
+    pub type_: i32,
+    pub serial: u64,
+    pub send_event: Bool,
+    pub display: *mut c_void,
+    pub window: Window,
+    pub message_type: XAtom,
+    pub format: i32,
+    pub data: ClientMessageData,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+#[repr(C)]
+pub struct ClientMessageData {
+    pub longs: [i64; 5],
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[repr(C)]
 pub struct XKeyEvent {
     pub type_: i32,
     pub serial: u64,
-    pub send_event: bool,
+    pub send_event: Bool,
     pub display: *mut c_void,
     pub window: Window,
     pub root: Window,
@@ -148,7 +172,7 @@ pub struct XKeyEvent {
     pub y_root: i32,
     pub state: u32,
     pub keycode: u32,
-    pub same_screen: bool,
+    pub same_screen: Bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -217,6 +241,8 @@ extern "C" {
     pub fn XCheckMaskEvent(display: *mut c_void, mask: u32, event: *mut u64) -> u32;
     pub fn XPending(display: *mut c_void) -> i32;
     pub fn XGetWindowAttributes(display: *mut c_void, window: u64, attributes: *mut XWindowAttributes) -> i32;
+    pub fn XInternAtom(display: *mut c_void, atom_name: *const c_char, only_if_exists: Bool) -> XAtom;
+    pub fn XSetWMProtocols(display: *mut c_void, window: Window, protocols: *const XAtom, count: i32);
 }
 
 pub const KeyPress: i32 = 2;

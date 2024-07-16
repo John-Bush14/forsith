@@ -15,11 +15,15 @@ use crate::vulkan::{
             XPending,
             XWindowCreateAttributes,
             XGetWindowAttributes,
+            XInternAtom,
+            XSetWMProtocols,
             XEvent,
             XWindow,
             VkXlibSurfaceCreateInfoKHR,
             XVisual,
             XWindowAttributes,
+            Bool,
+            XAtom,
             vkCreateXlibSurfaceKHR,
             vkGetPhysicalDeviceXlibPresentationSupportKHR,
         },
@@ -55,6 +59,14 @@ impl Window for XWindow {
             if unsafe {XPending(self.display)} > 0 {unsafe {XNextEvent(self.display, &mut event)};}
 
             function();
+
+            if unsafe{event.type_} == x11::ClientMessage {
+                let protocol = unsafe {event.client_message.data.longs[0] as XAtom};
+
+                if protocol == self.delete_window_protocol {
+                    break;
+                }
+            }
 
             unsafe { if event.type_  != 0 {println!("{}", event)}};
 
@@ -95,8 +107,6 @@ impl Window for XWindow {
         window_attributes.background_pixel = 0;
         window_attributes.event_mask = EXPOSURE_MASK;
 
-        let mut visual: XVisual = std::mem::zeroed();
-
         let window = XCreateWindow(
             display,
             root_window,
@@ -116,12 +126,30 @@ impl Window for XWindow {
             display: display,
             handle: window,
             root_handle: root_window,
+            delete_window_protocol: 0
         };
     }}
 
-    fn init_window(&self, name: String) { unsafe {
+    fn init_window(&mut self, name: String) { unsafe {
         let window_title = CString::new(name).expect("CString::new failed");
         XStoreName(self.display, self.handle, window_title.as_ptr());
+
+        let wm_protocols_str = CString::new("WM_PROTOCOLS").unwrap();
+        let wm_delete_window_str = CString::new("WM_DELETE_WINDOW").unwrap();
+
+        let wm_protocols = XInternAtom(self.display, wm_protocols_str.as_ptr(), 0);
+        let wm_delete_window = XInternAtom(self.display, wm_delete_window_str.as_ptr(), 0);
+
+        self.delete_window_protocol = wm_delete_window;
+
+        let mut protocols = [wm_delete_window];
+
+        XSetWMProtocols(
+            self.display,
+            self.handle,
+            protocols.as_mut_ptr(),
+            protocols.len() as i32,
+        );
     
         // Map (show) the window
         XMapWindow(self.display, self.handle);

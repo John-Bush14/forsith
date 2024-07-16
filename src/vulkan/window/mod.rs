@@ -30,7 +30,7 @@ pub trait Window {
 
     fn init_connection() -> Self where Self: Sized;
     
-    fn init_window(&self, name: String);
+    fn init_window(&mut self, name: String);
 
     fn create_surfaceKHR(&self, instance: crate::vulkan::instance::VkInstance) -> VkSurfaceKHR;
 
@@ -52,7 +52,7 @@ impl Window for dummy {
 
     fn init_connection() -> Self where Self: Sized {todo!();}
     
-    fn init_window(&self, name: String) {todo!();}
+    fn init_window(&mut self, name: String) {todo!();}
 
     fn create_surfaceKHR(&self, instance: crate::vulkan::instance::VkInstance) -> VkSurfaceKHR {todo!();}
 

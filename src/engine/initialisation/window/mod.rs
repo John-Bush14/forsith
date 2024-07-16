@@ -21,7 +21,7 @@ impl super::super::Engine {
     }}
 }
 
-impl super::super::Engine { pub fn finalize_connection(&mut self, connection: Box<dyn Window>, name: String) { unsafe {
+impl super::super::Engine { pub fn finalize_connection(&mut self, mut connection: Box<dyn Window>, name: String) { unsafe {
     connection.init_window(name);
     self.window = connection;
 }}}
