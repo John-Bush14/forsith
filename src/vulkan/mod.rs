@@ -30,3 +30,5 @@ pub mod devices;
 pub mod window;
 
 pub mod instance;
+
+pub mod swapchain;

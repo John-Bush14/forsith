@@ -1,6 +1,7 @@
 mod instance;
 mod device;
 mod window;
+mod swapchain;
 
 use crate::vulkan::{
     instance::{
@@ -29,8 +30,13 @@ impl super::Engine {
             event_func: event_loop,
             instance: 0,
             device: 0,
+            physical_device: 0,
             surface_khr: 0,
-            window: Box::new(dummy {})
+            window: Box::new(dummy {}),
+            swapchain: std::mem::zeroed(),
+            swapchain_image_format: 0,
+            swapchain_images: vec!(),
+            swapchain_extent: std::mem::zeroed()
         };
 
 
@@ -45,12 +51,14 @@ impl super::Engine {
 
         let mut test_window_connections = super::Engine::create_test_connections(supported_instance_extensions);
 
-        let chosen_window_connection = engine.create_device(test_window_connections);
+        let (chosen_window_connection, presentation_queue, graphics_queue) = engine.create_device(test_window_connections);
 
         engine.finalize_connection(chosen_window_connection, engine.app_name.clone());
         
 
         engine.create_surface_KHR(engine.instance);
+
+        engine.create_swapchain(presentation_queue, graphics_queue);
 
         engine.window.start_loop(event_loop);
 

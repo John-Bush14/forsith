@@ -35,7 +35,7 @@ use std::ffi::{
 };
 
 
-impl super::super::Engine { pub fn create_device(&mut self, mut test_window_connections: Vec<Box<dyn Window>>) -> Box<dyn Window> { unsafe {
+impl super::super::Engine { pub fn create_device(&mut self, mut test_window_connections: Vec<Box<dyn Window>>) -> (Box<dyn Window>, u32, u32) { unsafe {
     let instance = self.instance;
 
     let mut physical_device_count: u32 = 0;
@@ -94,6 +94,7 @@ impl super::super::Engine { pub fn create_device(&mut self, mut test_window_conn
             return score;
         }).expect("No supported physical devices!");
 
+    self.physical_device = best_physical_device;    
 
     let queue_priorities = [1.0f32];
 
@@ -147,7 +148,7 @@ impl super::super::Engine { pub fn create_device(&mut self, mut test_window_conn
         best_physical_device, &device_create_info, std::ptr::null(), &mut device
     );
 
-    if result == 0 {self.device = device; return test_window_connections.remove(chosen_window_connection);}
+    if result == 0 {self.device = device; return (test_window_connections.remove(chosen_window_connection), presentation_queue, graphics_queue);}
     
     panic!("vkCreateDevice failed!");
 }}}
