@@ -42,8 +42,21 @@ extern "C" {
         queue_family_properties_count: *mut u32, 
         queue_family_properties: *mut VkQueueFamilyProperties
     ) -> c_void;
+
+    pub fn vkEnumerateDeviceExtensionProperties(
+        physical_device: VkPhysicalDevice,
+        layer_name: *const c_char,
+        property_count: *mut u32,
+        properties: *mut VkExtensionProperties
+    ) -> VkResult;
 }
 
+
+#[repr(C)]
+pub struct VkExtensionProperties {
+    pub extension_name: [c_char; 256],
+    spec_version: u32
+}
 
 #[repr(C)]
 pub struct VkQueueFamilyProperties {

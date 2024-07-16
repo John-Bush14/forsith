@@ -2,11 +2,13 @@ use crate::vulkan::{
     devices::{
         physical_device::{
             VkPhysicalDevice,
+            VkExtensionProperties,
             VkQueueFamilyProperties,
             vkEnumeratePhysicalDevices,
             vkGetPhysicalDeviceProperties,
             vkGetPhysicalDeviceQueueFamilyProperties,
-            vkGetPhysicalDeviceSurfaceSupportKHR
+            vkGetPhysicalDeviceSurfaceSupportKHR,
+            vkEnumerateDeviceExtensionProperties
         },
         device::{
             VkDevice,
@@ -16,69 +18,66 @@ use crate::vulkan::{
         }
     },
     window::{
-        VkSurfaceKHR
+        VkSurfaceKHR,
+        Window
     },
     VkBool32
 };
 
-fn get_physical_device_queue_properties(physical_device: VkPhysicalDevice) -> Vec<VkQueueFamilyProperties> { unsafe {
-    let mut device_queue_family_properties_len: u32 = 0;
+use crate::{
+    vk_enumerate_to_vec,
+    prepare_extensions
+};
 
-    vkGetPhysicalDeviceQueueFamilyProperties(
-        physical_device, &mut device_queue_family_properties_len, std::ptr::null_mut()
-    );
+use std::ffi::{
+    c_char,
+    CString
+};
 
-    let mut device_queue_family_properties: Vec<VkQueueFamilyProperties> = Vec::with_capacity(device_queue_family_properties_len as usize);
-    device_queue_family_properties.set_len(device_queue_family_properties_len as usize);
 
-    vkGetPhysicalDeviceQueueFamilyProperties(
-        physical_device, &mut device_queue_family_properties_len, device_queue_family_properties.as_mut_ptr()
-    );
-    
-    return device_queue_family_properties;
-}}
-
-impl super::super::Engine { pub fn create_device(&mut self) { unsafe {
+impl super::super::Engine { pub fn create_device(&mut self, mut test_window_connections: Vec<Box<dyn Window>>) -> Box<dyn Window> { unsafe {
     let instance = self.instance;
 
     let mut physical_device_count: u32 = 0;
-    let mut physical_devices: Vec<VkPhysicalDevice> = Vec::new();
+    let mut physical_devices: Vec<VkPhysicalDevice> = vk_enumerate_to_vec!(
+        vkEnumeratePhysicalDevices,
+        VkPhysicalDevice,
+        instance,
+    );
 
-    let result = vkEnumeratePhysicalDevices(instance, &mut physical_device_count, std::ptr::null_mut());
-    if result != 0 || physical_device_count == 0 {
-        panic!("Failed to enumerate physical devices");
-    }   
-
-    physical_devices.resize(physical_device_count as usize, 0);
-    let result = vkEnumeratePhysicalDevices(instance, &mut physical_device_count, physical_devices.as_mut_ptr());
-    if result != 0 {
-        panic!("Failed to enumerate physical devices");
-    }
-    
     let mut best_score = 0;
     
-    let (&best_physical_device, graphics_queue, presentation_queue) = physical_devices
+    let (&best_physical_device, graphics_queue, presentation_queue, chosen_window_connection) = physical_devices
         .iter() 
         .map(|device| {
-            let family_queue_properties = get_physical_device_queue_properties(device.clone());
+            let family_queue_properties = vk_enumerate_to_vec!(vkGetPhysicalDeviceQueueFamilyProperties, VkQueueFamilyProperties, device.clone(),);
             
             let graphics_queue = family_queue_properties.iter().position(|x| x.flags & 0x00000001 != 0);
             
             let mut presentation_queue: Option<usize> = None;
+            let mut window_connection: Option<usize> = None;
             
-            for i in 0..family_queue_properties.len() {
-                let mut queue_supports_KHR: VkBool32 = 0;
-                vkGetPhysicalDeviceSurfaceSupportKHR(device.clone(), i as u32, self.surface_khr.clone(), &mut queue_supports_KHR); 
-                if queue_supports_KHR == 1 {presentation_queue = Some(i); break;}
+            for i in 0..family_queue_properties.len() { 
+                for connection in 0..test_window_connections.len() {
+                    if test_window_connections[connection].supports_physical_device_queue(device.clone(), i as u32) {
+                        presentation_queue = Some(i); 
+                        window_connection = Some(connection); 
+                        break;
+                    }
+                }
             }
 
             println!("graph {:?}, present {:?}", graphics_queue, presentation_queue);
 
-            return (device, graphics_queue, presentation_queue)
+            return (device, graphics_queue, presentation_queue, window_connection)
         })
-        .filter(|(_, graphics_queue, presentation_queue)| return graphics_queue.is_some() && presentation_queue.is_some())
-        .map(|(device, graphics_queue, presentation_queue)| return (device, graphics_queue.unwrap() as u32, presentation_queue.unwrap() as u32))
-        .max_by_key(|(&device, _, _)| {
+        .filter(|(_, graphics_queue, presentation_queue, window_connection)| 
+            return graphics_queue.is_some() && presentation_queue.is_some() && window_connection.is_some()
+        )
+        .map(|(device, graphics_queue, presentation_queue, connection)| 
+            return (device, graphics_queue.unwrap() as u32, presentation_queue.unwrap() as u32, connection.unwrap())
+        )
+        .max_by_key(|(&device, _, _, _)| {
             let mut properties = std::mem::zeroed();
             let mut score: u16 = 0;
             
@@ -117,6 +116,17 @@ impl super::super::Engine { pub fn create_device(&mut self) { unsafe {
     };
 
     let device_queue_create_infos = [graphics_device_queue_create_info, presentation_device_queue_create_info];
+    
+    let supported_extensions = vk_enumerate_to_vec!(
+        vkEnumerateDeviceExtensionProperties, 
+        VkExtensionProperties,
+        best_physical_device, 
+        std::ptr::null(),
+    );
+
+    let (extensions, extensions_len) = prepare_extensions!(supported_extensions,
+        "VK_KHR_swapchain",
+    );
 
     let device_create_info = VkDeviceCreateInfo {
         s_type: 3,
@@ -126,8 +136,8 @@ impl super::super::Engine { pub fn create_device(&mut self) { unsafe {
         queue_create_infos: device_queue_create_infos.as_ptr(),
         enabled_layer_count: 0,
         enabled_layer_names: std::ptr::null(),
-        enabled_extension_count: 0,
-        enabled_extension_names: std::ptr::null(),
+        enabled_extension_count: extensions_len,
+        enabled_extension_names: extensions,
         enabled_features: std::ptr::null()
     };
     
@@ -137,7 +147,7 @@ impl super::super::Engine { pub fn create_device(&mut self) { unsafe {
         best_physical_device, &device_create_info, std::ptr::null(), &mut device
     );
 
-    if result == 0 {self.device = device; return;}
+    if result == 0 {self.device = device; return test_window_connections.remove(chosen_window_connection);}
     
     panic!("vkCreateDevice failed!");
 }}}

@@ -1,5 +1,6 @@
 use crate::vulkan::{
     window::{
+        x11,
         x11::{
             XOpenDisplay,
             XDefaultScreen,
@@ -11,11 +12,16 @@ use crate::vulkan::{
             XDestroyWindow,
             XCloseDisplay,
             XNextEvent,
+            XPending,
             XWindowCreateAttributes,
+            XGetWindowAttributes,
             XEvent,
             XWindow,
             VkXlibSurfaceCreateInfoKHR,
-            vkCreateXlibSurfaceKHR
+            XVisual,
+            XWindowAttributes,
+            vkCreateXlibSurfaceKHR,
+            vkGetPhysicalDeviceXlibPresentationSupportKHR,
         },
         Window,
         VkSurfaceKHR,
@@ -23,7 +29,13 @@ use crate::vulkan::{
     },
     instance::{
         VkInstance
-    }
+    },
+    devices::{
+        physical_device::{
+            VkPhysicalDevice
+        }
+    },
+    VkBool32
 };
 
 use std::ffi::{
@@ -32,17 +44,21 @@ use std::ffi::{
 };
 
 
-const EXPOSURE_MASK: i32 = 0;
-const CW_EVENT_MASK: u64 = 0;
+const EXPOSURE_MASK: i64 = 0xFFFFFF | 0x0002_0000;
+const CW_EVENT_MASK: u64 = 0xFFFFFFFF | 0x0800;
 
 
 impl Window for XWindow {
-    fn start_loop(&self, function: fn(event: WindowEvent)) {
+    fn start_loop(&self, function: fn()) {
         while true {
             let mut event: XEvent = unsafe {std::mem::zeroed()};
-            unsafe {XNextEvent(self.display, &mut event)};
+            if unsafe {XPending(self.display)} > 0 {unsafe {XNextEvent(self.display, &mut event)};}
 
-            function(WindowEvent::test);
+            function();
+
+            unsafe { if event.type_  != 0 {println!("{}", event)}};
+
+            if unsafe{event.type_} == x11::KeyRelease {panic!()}
         }
     }
 
@@ -68,7 +84,7 @@ impl Window for XWindow {
         return surface_KHR
     }
 
-    fn init(name: String) -> XWindow { unsafe {
+    fn init_connection() -> XWindow { unsafe {
         let display = XOpenDisplay(std::ptr::null()) as *mut c_void;  
         if display.is_null() {panic!("XOpenDisplay failed! :'(");}
 
@@ -77,7 +93,9 @@ impl Window for XWindow {
     
         let mut window_attributes: XWindowCreateAttributes = std::mem::zeroed();
         window_attributes.background_pixel = 0;
-        window_attributes.event_mask = EXPOSURE_MASK as i64;
+        window_attributes.event_mask = EXPOSURE_MASK;
+
+        let mut visual: XVisual = std::mem::zeroed();
 
         let window = XCreateWindow(
             display,
@@ -94,47 +112,33 @@ impl Window for XWindow {
             &window_attributes as *const XWindowCreateAttributes,
         );      
 
-        let window_title = CString::new(name).expect("CString::new failed");
-        XStoreName(display, window, window_title.as_ptr());
-    
-        // Map (show) the window
-        XMapWindow(display, window);
-    
-        // Select input events to listen for
-        XSelectInput(display, window, EXPOSURE_MASK as i64);
-    
-        // Event loop
-        let mut event: XEvent = std::mem::zeroed();
-        while false {
-            panic!();
-            XNextEvent(display, &mut event);
-            match event.r#type {
-                0 => {
-                    XDestroyWindow(display, window);
-                    XCloseDisplay(display);
-                },
-            
-                2 => {break;}, // key down
-                3 => {}, // key up
-    
-                4 => {}, // mouse down
-                5 => {}, // mouse up
-            
-                6 => {} // mouse movement? not working.
-
-                7 => {}, // startup / meta data change
-
-                _ => {panic!("{:?}", event.r#type);}
-            }
-       
-            println!("{:?}", event.r#type);
-        }
-    
         return XWindow {
             display: display,
             handle: window,
             root_handle: root_window,
-            attributes: window_attributes
         };
     }}
+
+    fn init_window(&self, name: String) { unsafe {
+        let window_title = CString::new(name).expect("CString::new failed");
+        XStoreName(self.display, self.handle, window_title.as_ptr());
+    
+        // Map (show) the window
+        XMapWindow(self.display, self.handle);
+    
+        // Select input events to listen for
+        XSelectInput(self.display, self.handle, EXPOSURE_MASK as i64);
+    }}
+    
+    fn supports_physical_device_queue(&self, physical_device: VkPhysicalDevice, queue: u32) -> bool {
+        let mut attributes: XWindowAttributes = unsafe {std::mem::zeroed()};
+
+        unsafe {XGetWindowAttributes(self.display, self.handle, &mut attributes as *mut XWindowAttributes)};
+
+        let support: VkBool32 = unsafe { vkGetPhysicalDeviceXlibPresentationSupportKHR(
+            physical_device, queue, self.display, (*attributes.visual).visualid
+        )};
+
+        return support == 1;
+    }
 }

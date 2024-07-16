@@ -7,7 +7,7 @@ pub mod drawables;
 
 pub mod engine;
 
-pub fn initialize(name: String, version: [u8;3], event_loop: fn(vulkan::window::WindowEvent)) {} 
+pub fn initialize(name: String, version: [u8;3], event_loop: fn()) {} 
 
 #[cfg(test)]
 mod tests {
@@ -15,6 +15,6 @@ mod tests {
 
     #[test]
     fn template() {
-        engine::initialize_engine("test".to_string(), [0, 0, 0], |_| return ())
+        engine::initialize_engine("test".to_string(), [0, 0, 0], || return ())
     }
 }

@@ -24,6 +24,7 @@ extern "C" {
 }
 
 
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(C)]
 pub struct VkExtensionProperties {
     pub extension_name: [c_char; 256],
