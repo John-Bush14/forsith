@@ -141,4 +141,10 @@ impl Window for XWindow {
 
         return support == 1;
     }
+
+    fn commit_suicide(&self) {
+        unsafe { XDestroyWindow(self.display, self.handle)};
+
+        unsafe { XCloseDisplay(self.display)};
+    }
 }

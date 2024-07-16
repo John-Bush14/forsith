@@ -21,6 +21,8 @@ extern "C" {
         _: *const c_void,
         device: *mut VkDevice
     ) -> VkResult;
+    
+    pub fn vkDestroyDevice(device: VkDevice, _: *const c_void);
 }
 
 

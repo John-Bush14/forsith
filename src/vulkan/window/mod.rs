@@ -37,6 +37,8 @@ pub trait Window {
     fn start_loop(&self, function: fn());
     
     fn supports_physical_device_queue(&self, physical_device: VkPhysicalDevice, queue: u32) -> bool;
+
+    fn commit_suicide(&self);
 }
 
 pub struct dummy {}
@@ -57,6 +59,8 @@ impl Window for dummy {
     fn start_loop(&self, function: fn()) {todo!();}
     
     fn supports_physical_device_queue(&self, physical_device: VkPhysicalDevice, queue: u32) -> bool {todo!();}
+
+    fn commit_suicide(&self) {todo!();}
 }
 
 pub mod x11;
