@@ -36,7 +36,8 @@ impl super::Engine {
             swapchain: std::mem::zeroed(),
             swapchain_image_format: 0,
             swapchain_images: vec!(),
-            swapchain_extent: std::mem::zeroed()
+            swapchain_extent: std::mem::zeroed(),
+            swapchain_image_views: vec!()
         };
 
 
@@ -55,10 +56,13 @@ impl super::Engine {
 
         engine.finalize_connection(chosen_window_connection, engine.app_name.clone());
         
-
         engine.create_surface_KHR(engine.instance);
 
+
         engine.create_swapchain(presentation_queue, graphics_queue);
+
+        engine.create_image_views();
+
 
         engine.window.start_loop(event_loop);
 

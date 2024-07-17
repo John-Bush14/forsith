@@ -21,6 +21,9 @@ use crate::vulkan::{
         WindowEvent
     },
     swapchain::{
+        image_view::{
+            VkImageView
+        },
         VkSwapchainKHR,
         VkImage,
         VkExtent2D
@@ -43,7 +46,8 @@ pub struct Engine {
     swapchain: VkSwapchainKHR,
     swapchain_image_format: u32,
     swapchain_images: Vec<VkImage>,
-    swapchain_extent: VkExtent2D
+    swapchain_extent: VkExtent2D,
+    swapchain_image_views: Vec<VkImageView>
 }
 
 static mut ENGINE: Option<Engine> = None;

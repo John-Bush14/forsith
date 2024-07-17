@@ -20,6 +20,9 @@ use std::ffi::{
 };
 
 
+pub mod image_view;
+
+
 #[derive(Debug, Clone, PartialEq)]
 #[repr(C)]
 pub struct VkExtent2D {
