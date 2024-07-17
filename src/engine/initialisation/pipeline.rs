@@ -5,9 +5,10 @@ use crate::vulkan::{
         VkViewport,
         VkShaderModule,
         VkShaderModuleCreateInfo,
+        VkPipelineViewportStateCreateInfo,
         VkPipelineVertexInputStateCreateInfo,
         VkPipelineInputAssemblyStateCreateInfo,
-        VkPipelineViewportStateCreateInfo,
+        VkPipelineRasterizationStateCreateInfo,
         vkCreateShaderModule
     },
     devices::{
@@ -69,6 +70,22 @@ impl crate::engine::Engine { pub fn create_pipeline(&self) { unsafe {
         viewports: viewports.as_ptr(),
         scissor_count: scissors.len() as u32,
         scissors: scissors.as_ptr()
+    };
+
+    let rasterization_state_create_info = VkPipelineRasterizationStateCreateInfo {
+        s_type: 23,
+        p_next: std::ptr::null(),
+        flags: 0,
+        depth_clamp_enable: 0,
+        rasterizer_discard_enable: 0,
+        polygon_mode: 0,
+        cull_mode: 0x00000002,
+        front_face: 1,
+        depth_bias_enable: 0,
+        depth_bias_constant_factor: 0.0,
+        depth_bias_clamp: 0.0,
+        depth_bias_slope_factor: 0.0,
+        line_width: 1.0
     };
 }}}
 

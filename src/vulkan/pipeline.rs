@@ -21,6 +21,23 @@ pub type VkShaderModule = u64;
 
 
 #[repr(C)]
+pub struct VkPipelineRasterizationStateCreateInfo {
+    pub s_type: VkStructureType,
+    pub p_next: *const c_void,
+    pub flags: u32,
+    pub depth_clamp_enable: VkBool32,
+    pub rasterizer_discard_enable: VkBool32,
+    pub polygon_mode: u32,
+    pub cull_mode: u32,
+    pub front_face: u32,
+    pub depth_bias_enable: VkBool32,
+    pub depth_bias_constant_factor: f32,
+    pub depth_bias_clamp: f32,
+    pub depth_bias_slope_factor: f32,
+    pub line_width: f32
+}
+
+#[repr(C)]
 pub struct VkPipelineVertexInputStateCreateInfo {
     pub s_type: VkStructureType,
     pub p_next: *const c_void,
