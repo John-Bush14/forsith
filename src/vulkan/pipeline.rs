@@ -4,6 +4,9 @@ use crate::vulkan::{
             VkDevice
         }
     },
+    swapchain::{
+        VkExtent2D
+    },
     VkBool32,
     VkResult,
     VkStructureType
@@ -26,6 +29,39 @@ pub struct VkPipelineVertexInputStateCreateInfo {
     pub vertex_binding_descriptions: *const c_void,
     pub vertex_attribute_description_count: u32,
     pub vertex_attribute_descriptions: *const c_void,
+}
+
+#[repr(C)]
+pub struct VkViewport {
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+    pub min_depth: f32,
+    pub max_depth: f32
+}
+
+#[repr(C)]
+pub struct VkOffset2D {
+    pub x: i32,
+    pub y: i32
+}
+
+#[repr(C)]
+pub struct VkRect2D {
+    pub offset: VkOffset2D,
+    pub extent: VkExtent2D
+}
+
+#[repr(C)]
+pub struct VkPipelineViewportStateCreateInfo {
+    pub s_type: VkStructureType,
+    pub p_next: *const c_void,
+    pub flags: u32,
+    pub viewport_count: u32,
+    pub viewports: *const VkViewport,
+    pub scissor_count: u32,
+    pub scissors: *const VkRect2D
 }
 
 #[repr(C)]

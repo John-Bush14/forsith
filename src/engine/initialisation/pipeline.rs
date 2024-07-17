@@ -1,9 +1,13 @@
 use crate::vulkan::{
     pipeline::{
+        VkRect2D,
+        VkOffset2D,
+        VkViewport,
         VkShaderModule,
         VkShaderModuleCreateInfo,
         VkPipelineVertexInputStateCreateInfo,
         VkPipelineInputAssemblyStateCreateInfo,
+        VkPipelineViewportStateCreateInfo,
         vkCreateShaderModule
     },
     devices::{
@@ -37,6 +41,34 @@ impl crate::engine::Engine { pub fn create_pipeline(&self) { unsafe {
         flags: 0,
         topology: 3,
         primitive_restart_enable: 1
+    };
+
+    let viewport = VkViewport {
+        x: 0.0,
+        y: 0.0,
+        width: self.swapchain_extent.width as f32,
+        height: self.swapchain_extent.height as f32,
+        min_depth: 0.0,
+        max_depth: 1.0
+    };
+
+    let viewports = [viewport];
+
+    let scissor = VkRect2D {
+        offset: VkOffset2D {x:0, y:0},
+        extent: self.swapchain_extent.clone()
+    };
+
+    let scissors = [scissor];
+
+    let viewport_state_create_info = VkPipelineViewportStateCreateInfo {
+        s_type: 22,
+        p_next: std::ptr::null(),
+        flags: 0,
+        viewport_count: viewports.len() as u32,
+        viewports: viewports.as_ptr(),
+        scissor_count: scissors.len() as u32,
+        scissors: scissors.as_ptr()
     };
 }}}
 
