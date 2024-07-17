@@ -38,6 +38,19 @@ pub struct VkPipelineRasterizationStateCreateInfo {
 }
 
 #[repr(C)]
+pub struct VkPipelineMultisampleStateCreateInfo {
+    pub s_type: VkStructureType,
+    pub p_next: *const c_void,
+    pub flags: u32,
+    pub rasterization_samples: u32,
+    pub sample_shading_enable: VkBool32,
+    pub min_sample_shading: f32,
+    pub sample_mask: *const c_void, // temp
+    pub alpha_to_coverage_enable: VkBool32,
+    pub alpha_to_one_enable: VkBool32
+}
+
+#[repr(C)]
 pub struct VkPipelineVertexInputStateCreateInfo {
     pub s_type: VkStructureType,
     pub p_next: *const c_void,

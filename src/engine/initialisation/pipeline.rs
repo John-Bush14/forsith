@@ -6,6 +6,7 @@ use crate::vulkan::{
         VkShaderModule,
         VkShaderModuleCreateInfo,
         VkPipelineViewportStateCreateInfo,
+        VkPipelineMultisampleStateCreateInfo,
         VkPipelineVertexInputStateCreateInfo,
         VkPipelineInputAssemblyStateCreateInfo,
         VkPipelineRasterizationStateCreateInfo,
@@ -86,6 +87,18 @@ impl crate::engine::Engine { pub fn create_pipeline(&self) { unsafe {
         depth_bias_clamp: 0.0,
         depth_bias_slope_factor: 0.0,
         line_width: 1.0
+    };
+
+    let multisample_state_create_info = VkPipelineMultisampleStateCreateInfo {
+        s_type: 24,
+        p_next: std::ptr::null(),
+        flags: 0,
+        rasterization_samples: 0x00000001,
+        sample_shading_enable: 0,
+        min_sample_shading: 1.0,
+        sample_mask: std::ptr::null(),
+        alpha_to_coverage_enable: 0,
+        alpha_to_one_enable: 0
     };
 }}}
 
