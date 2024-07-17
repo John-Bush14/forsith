@@ -2,6 +2,7 @@ mod instance;
 mod device;
 mod window;
 mod swapchain;
+mod pipeline;
 
 use crate::vulkan::{
     instance::{
@@ -62,6 +63,8 @@ impl super::Engine {
         engine.create_swapchain(presentation_queue, graphics_queue);
 
         engine.create_image_views();
+
+        let pipeline = engine.create_pipeline();
 
 
         engine.window.start_loop(event_loop);

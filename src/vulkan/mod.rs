@@ -25,6 +25,8 @@ pub fn vk_make_version(major: u32, minor: u32, patch: u32) -> u32 {
 
 pub mod macros;
 
+pub mod pipeline;
+
 pub mod devices;
 
 pub mod window;
