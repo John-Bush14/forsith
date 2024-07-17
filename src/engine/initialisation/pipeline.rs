@@ -2,6 +2,8 @@ use crate::vulkan::{
     pipeline::{
         VkShaderModule,
         VkShaderModuleCreateInfo,
+        VkPipelineVertexInputStateCreateInfo,
+        VkPipelineInputAssemblyStateCreateInfo,
         vkCreateShaderModule
     },
     devices::{
@@ -18,6 +20,24 @@ impl crate::engine::Engine { pub fn create_pipeline(&self) { unsafe {
     let vertex_shader = create_shader_module_from_file(&self.device, "src/engine/shaders/shader.vert.spv");
     
     let fragment_shader = create_shader_module_from_file(&self.device, "src/engine/shaders/shader.frag.spv");
+
+    let vertex_input_state_create_info = VkPipelineVertexInputStateCreateInfo {
+        s_type: 19,
+        p_next: std::ptr::null(),
+        flags: 0,
+        vertex_binding_description_count: 0,
+        vertex_binding_descriptions: std::ptr::null(),
+        vertex_attribute_description_count: 0,
+        vertex_attribute_descriptions: std::ptr::null()
+    };
+
+    let input_assembly_state_create_info = VkPipelineInputAssemblyStateCreateInfo {
+        s_type: 20,
+        p_next: std::ptr::null(),
+        flags: 0,
+        topology: 3,
+        primitive_restart_enable: 1
+    };
 }}}
 
 fn create_shader_module_from_file(device: &VkDevice, file: &str) -> VkShaderModule {
