@@ -24,6 +24,10 @@ pub type VkPipelineLayout = u64;
 
 pub type VkRenderPass = u64;
 
+pub type VkPipeline = u64;
+
+pub type VkPipelineCache = u64;
+
 
 #[repr(C)]
 pub struct VkPipelineShaderStageCreateInfo {
@@ -209,6 +213,53 @@ pub struct VkRenderPassCreateInfo {
     pub dependencies: *const c_void
 }
 
+#[repr(C)]
+pub struct VkPipelineTessellationStateCreateInfo {
+    pub s_type: VkStructureType,
+    pub p_next: *const c_void,
+    pub flags: u32,
+    pub patch_control_points: u32
+}
+
+#[repr(C)]
+pub struct VkPipelineDepthStencilStateCreateInfo {
+    pub s_type: VkStructureType,
+    pub p_next: *const c_void,
+    pub flags: u32,
+    pub depth_test_enable: VkBool32,
+    pub depth_write_enable: VkBool32,
+    pub depth_compare_op: u32,
+    pub depth_bounds_test_enable: VkBool32,
+    pub stencil_test_enable: VkBool32,
+    pub front: u32,
+    pub back: u32,
+    pub min_depth_bounds: f32,
+    pub max_depth_bounds: f32
+}
+
+#[repr(C)]
+pub struct VkGraphicsPipelineCreateInfo {
+    pub s_type: VkStructureType,
+    pub p_next: *const c_void,
+    pub flags: u32,
+    pub stage_count: u32,
+    pub stages: *const VkPipelineShaderStageCreateInfo,
+    pub vertex_input_state: *const VkPipelineVertexInputStateCreateInfo,
+    pub input_assembly_state: *const VkPipelineInputAssemblyStateCreateInfo,
+    pub tesselation_state: *const VkPipelineTessellationStateCreateInfo,
+    pub viewport_state: *const VkPipelineViewportStateCreateInfo,
+    pub rasterization_state: *const VkPipelineRasterizationStateCreateInfo,
+    pub multisample_state: *const VkPipelineMultisampleStateCreateInfo,
+    pub depth_stencil_state: *const VkPipelineDepthStencilStateCreateInfo,
+    pub color_blend_state: *const VkPipelineColorBlendStateCreateInfo,
+    pub dynamic_state: *const c_void,
+    pub layout: VkPipelineLayout,
+    pub render_pass: VkRenderPass,
+    pub subpass: u32,
+    pub base_pipeline_handle: VkPipeline,
+    pub base_pipeline_handle_index: i32
+}
+
 
 #[link(name = "vulkan")]
 extern "C" {
@@ -231,5 +282,14 @@ extern "C" {
         create_info: *const VkRenderPassCreateInfo,
         _: *const c_void,
         render_pass: *mut VkRenderPass
+    ) -> VkResult;
+
+    pub fn vkCreateGraphicsPipelines(
+        device: VkDevice,
+        pipeline_cache: VkPipelineCache,
+        create_info_count: u32,
+        create_infos: *const VkGraphicsPipelineCreateInfo,
+        _: *const c_void,
+        pipelines: *mut VkPipeline
     ) -> VkResult;
 }

@@ -11,17 +11,21 @@ use crate::vulkan::{
         VkAttachmentDescription,
         VkShaderModuleCreateInfo,
         VkPipelineLayoutCreateInfo,
+        VkGraphicsPipelineCreateInfo,
         VkPipelineShaderStageCreateInfo,
         VkPipelineViewportStateCreateInfo,
         VkPipelineColorBlendAttachmentState,
         VkPipelineColorBlendStateCreateInfo,
         VkPipelineMultisampleStateCreateInfo,
         VkPipelineVertexInputStateCreateInfo,
+        VkPipelineDepthStencilStateCreateInfo,
+        VkPipelineTessellationStateCreateInfo,
         VkPipelineInputAssemblyStateCreateInfo,
         VkPipelineRasterizationStateCreateInfo,
         vkCreateRenderPass,
         vkCreateShaderModule,
-        vkCreatePipelineLayout
+        vkCreatePipelineLayout,
+        vkCreateGraphicsPipelines
     },
     devices::{
         device::{
@@ -182,6 +186,47 @@ impl crate::engine::Engine { pub fn create_pipeline(&mut self) { unsafe {
     );
 
     self.render_pass = create_render_pass(self.device.clone(), self.swapchain_image_format);
+
+    let mut tessellation_state_create_info: VkPipelineTessellationStateCreateInfo = unsafe {std::mem::zeroed()};
+    tessellation_state_create_info.s_type = 21;
+    tessellation_state_create_info.p_next = std::ptr::null();
+    
+    let mut depth_stencil_create_info: VkPipelineDepthStencilStateCreateInfo = unsafe {std::mem::zeroed()};
+    depth_stencil_create_info.s_type = 25;
+    depth_stencil_create_info.p_next = std::ptr::null();
+
+    let pipeline_create_info = VkGraphicsPipelineCreateInfo {
+        s_type: 28,
+        p_next: std::ptr::null(),
+        flags: 0,
+        stage_count: shader_stage_create_infos.len() as u32,
+        stages: shader_stage_create_infos.as_ptr(),
+        vertex_input_state: &vertex_input_state_create_info as *const VkPipelineVertexInputStateCreateInfo,
+        input_assembly_state: &input_assembly_state_create_info as *const VkPipelineInputAssemblyStateCreateInfo,
+        tesselation_state: &tessellation_state_create_info as *const VkPipelineTessellationStateCreateInfo,
+        viewport_state: &viewport_state_create_info as *const VkPipelineViewportStateCreateInfo,
+        rasterization_state: &rasterization_state_create_info as *const VkPipelineRasterizationStateCreateInfo,
+        multisample_state: &multisample_state_create_info as *const VkPipelineMultisampleStateCreateInfo,
+        depth_stencil_state: &depth_stencil_create_info as *const VkPipelineDepthStencilStateCreateInfo,
+        color_blend_state: &color_blend_state_create_info as *const VkPipelineColorBlendStateCreateInfo,
+        dynamic_state: std::ptr::null(),
+        layout: self.pipeline_layout,
+        render_pass: self.render_pass,
+        subpass: 0,
+        base_pipeline_handle: 0,
+        base_pipeline_handle_index: -1
+    };
+
+    let pipeline_create_infos = [pipeline_create_info];
+
+    vkCreateGraphicsPipelines(
+        self.device.clone(),
+        0,
+        pipeline_create_infos.len() as u32,
+        pipeline_create_infos.as_ptr(),
+        std::ptr::null(),
+        &mut self.pipeline
+    );
 }}}
 
 fn create_render_pass(device: VkDevice, swapchain_image_format: u32) -> VkRenderPass {

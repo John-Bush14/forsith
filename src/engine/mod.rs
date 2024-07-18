@@ -30,7 +30,8 @@ use crate::vulkan::{
     },
     pipeline::{
         VkPipelineLayout,
-        VkRenderPass
+        VkRenderPass,
+        VkPipeline
     }
 };
 
@@ -53,7 +54,8 @@ pub struct Engine {
     swapchain_extent: VkExtent2D,
     swapchain_image_views: Vec<VkImageView>,
     pipeline_layout: VkPipelineLayout,
-    render_pass: VkRenderPass
+    render_pass: VkRenderPass,
+    pipeline: VkPipeline
 }
 
 static mut ENGINE: Option<Engine> = None;
