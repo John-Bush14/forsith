@@ -13,12 +13,24 @@ use crate::vulkan::{
 };
 
 use std::ffi::{
-    c_void
+    c_void,
+    c_char
 };
 
 
 pub type VkShaderModule = u64;
 
+
+#[repr(C)]
+pub struct VkPipelineShaderStageCreateInfo {
+    pub s_type: VkStructureType,
+    pub p_next: *const c_void,
+    pub flags: u32,
+    pub stage: u32,
+    pub module: VkShaderModule,
+    pub name: *const c_char,
+    pub specialization_info: *const c_void
+}
 
 #[repr(C)]
 pub struct VkPipelineRasterizationStateCreateInfo {

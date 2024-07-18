@@ -5,6 +5,7 @@ use crate::vulkan::{
         VkViewport,
         VkShaderModule,
         VkShaderModuleCreateInfo,
+        VkPipelineShaderStageCreateInfo,
         VkPipelineViewportStateCreateInfo,
         VkPipelineColorBlendAttachmentState,
         VkPipelineColorBlendStateCreateInfo,
@@ -23,11 +24,39 @@ use crate::vulkan::{
 
 use std::io::{self, Read};
 
+use std::ffi::{
+    CString
+};
+
 
 impl crate::engine::Engine { pub fn create_pipeline(&self) { unsafe {
+    let entry_point_name = CString::new("main").unwrap();
+
     let vertex_shader = create_shader_module_from_file(&self.device, "src/engine/shaders/shader.vert.spv");
     
+    let vertex_shader_stage_create_info = VkPipelineShaderStageCreateInfo {
+        s_type: 18,
+        p_next: std::ptr::null(),
+        flags: 0,
+        stage: 0x00000001,
+        module: vertex_shader,
+        name: entry_point_name.as_ptr(),
+        specialization_info: std::ptr::null()
+    };
+
     let fragment_shader = create_shader_module_from_file(&self.device, "src/engine/shaders/shader.frag.spv");
+
+    let fragment_shader_stage_create_info = VkPipelineShaderStageCreateInfo {
+        s_type: 18,
+        p_next: std::ptr::null(),
+        flags: 0,
+        stage: 0x00000008,
+        module: fragment_shader,
+        name: entry_point_name.as_ptr(),
+        specialization_info: std::ptr::null()
+    };
+
+    let shader_stage_create_infos = [vertex_shader_stage_create_info, fragment_shader_stage_create_info];
 
     let vertex_input_state_create_info = VkPipelineVertexInputStateCreateInfo {
         s_type: 19,
