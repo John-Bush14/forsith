@@ -38,7 +38,8 @@ impl super::Engine {
             swapchain_image_format: 0,
             swapchain_images: vec!(),
             swapchain_extent: std::mem::zeroed(),
-            swapchain_image_views: vec!()
+            swapchain_image_views: vec!(),
+            pipeline_layout: 0
         };
 
 
@@ -64,7 +65,7 @@ impl super::Engine {
 
         engine.create_image_views();
 
-        let pipeline = engine.create_pipeline();
+        engine.create_pipeline();
 
 
         engine.window.start_loop(event_loop);

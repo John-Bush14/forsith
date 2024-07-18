@@ -27,6 +27,9 @@ use crate::vulkan::{
         VkSwapchainKHR,
         VkImage,
         VkExtent2D
+    },
+    pipeline::{
+        VkPipelineLayout
     }
 };
 
@@ -47,7 +50,8 @@ pub struct Engine {
     swapchain_image_format: u32,
     swapchain_images: Vec<VkImage>,
     swapchain_extent: VkExtent2D,
-    swapchain_image_views: Vec<VkImageView>
+    swapchain_image_views: Vec<VkImageView>,
+    pipeline_layout: VkPipelineLayout
 }
 
 static mut ENGINE: Option<Engine> = None;

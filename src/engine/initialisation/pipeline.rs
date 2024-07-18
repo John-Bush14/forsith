@@ -5,6 +5,7 @@ use crate::vulkan::{
         VkViewport,
         VkShaderModule,
         VkShaderModuleCreateInfo,
+        VkPipelineLayoutCreateInfo,
         VkPipelineShaderStageCreateInfo,
         VkPipelineViewportStateCreateInfo,
         VkPipelineColorBlendAttachmentState,
@@ -13,7 +14,8 @@ use crate::vulkan::{
         VkPipelineVertexInputStateCreateInfo,
         VkPipelineInputAssemblyStateCreateInfo,
         VkPipelineRasterizationStateCreateInfo,
-        vkCreateShaderModule
+        vkCreateShaderModule,
+        vkCreatePipelineLayout
     },
     devices::{
         device::{
@@ -29,7 +31,7 @@ use std::ffi::{
 };
 
 
-impl crate::engine::Engine { pub fn create_pipeline(&self) { unsafe {
+impl crate::engine::Engine { pub fn create_pipeline(&mut self) { unsafe {
     let entry_point_name = CString::new("main").unwrap();
 
     let vertex_shader = create_shader_module_from_file(&self.device, "src/engine/shaders/shader.vert.spv");
@@ -155,6 +157,23 @@ impl crate::engine::Engine { pub fn create_pipeline(&self) { unsafe {
         attachments: color_blend_attachments.as_ptr(),
         blend_constants: [0.0, 0.0, 0.0, 0.0]
     };
+
+    let pipeline_layout_create_info = VkPipelineLayoutCreateInfo {
+        s_type: 30,
+        p_next: std::ptr::null(),
+        flags: 0,
+        set_layout_count: 0,
+        set_layouts: std::ptr::null(),
+        push_constant_range_count: 0,
+        push_constant_ranges: std::ptr::null()
+    };
+
+    vkCreatePipelineLayout(
+        self.device.clone(),
+        &pipeline_layout_create_info as *const VkPipelineLayoutCreateInfo,
+        std::ptr::null(),
+        &mut self.pipeline_layout
+    );
 }}}
 
 fn create_shader_module_from_file(device: &VkDevice, file: &str) -> VkShaderModule {

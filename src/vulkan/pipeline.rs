@@ -20,6 +20,8 @@ use std::ffi::{
 
 pub type VkShaderModule = u64;
 
+pub type VkPipelineLayout = u64;
+
 
 #[repr(C)]
 pub struct VkPipelineShaderStageCreateInfo {
@@ -148,6 +150,17 @@ pub struct VkShaderModuleCreateInfo {
     pub code: *const u32
 }
 
+#[repr(C)]
+pub struct VkPipelineLayoutCreateInfo {
+    pub s_type: VkStructureType,
+    pub p_next: *const c_void,
+    pub flags: u32,
+    pub set_layout_count: u32,
+    pub set_layouts: *const c_void,
+    pub push_constant_range_count: u32,
+    pub push_constant_ranges: *const c_void
+}
+
 
 #[link(name = "vulkan")]
 extern "C" {
@@ -156,5 +169,12 @@ extern "C" {
         create_info: *const VkShaderModuleCreateInfo,
         _: *const c_void,
         shader_module: *mut VkShaderModule
+    ) -> VkResult;
+
+    pub fn vkCreatePipelineLayout(
+        device: VkDevice,
+        create_info: *const VkPipelineLayoutCreateInfo,
+        _: *const c_void,
+        pipeline_layout: *mut VkPipelineLayout
     ) -> VkResult;
 }
