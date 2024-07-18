@@ -95,6 +95,30 @@ pub struct VkPipelineViewportStateCreateInfo {
 }
 
 #[repr(C)]
+pub struct VkPipelineColorBlendAttachmentState {
+    pub blend_enable: VkBool32,
+    pub src_color_blend_factor: u32,
+    pub dst_color_blend_factor: u32,
+    pub color_blend_op: u32,
+    pub src_alpha_blend_factor: u32,
+    pub dst_alpha_blend_factor: u32,
+    pub alpha_blend_op: u32,
+    pub color_write_mask: u32
+}
+
+#[repr(C)]
+pub struct VkPipelineColorBlendStateCreateInfo {
+    pub s_type: VkStructureType,
+    pub p_next: *const c_void,
+    pub flags: u32,
+    pub logic_op_enable: VkBool32,
+    pub logic_op: u32,
+    pub attachment_count: u32,
+    pub attachments: *const VkPipelineColorBlendAttachmentState,
+    pub blend_constants: [f32;4]
+}
+
+#[repr(C)]
 pub struct VkPipelineInputAssemblyStateCreateInfo {
     pub s_type: VkStructureType,
     pub p_next: *const c_void,

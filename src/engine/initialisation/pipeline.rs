@@ -6,6 +6,8 @@ use crate::vulkan::{
         VkShaderModule,
         VkShaderModuleCreateInfo,
         VkPipelineViewportStateCreateInfo,
+        VkPipelineColorBlendAttachmentState,
+        VkPipelineColorBlendStateCreateInfo,
         VkPipelineMultisampleStateCreateInfo,
         VkPipelineVertexInputStateCreateInfo,
         VkPipelineInputAssemblyStateCreateInfo,
@@ -99,6 +101,30 @@ impl crate::engine::Engine { pub fn create_pipeline(&self) { unsafe {
         sample_mask: std::ptr::null(),
         alpha_to_coverage_enable: 0,
         alpha_to_one_enable: 0
+    };
+
+    let color_blend_attachment = VkPipelineColorBlendAttachmentState {
+        blend_enable: 0,
+        src_color_blend_factor: 1,
+        dst_color_blend_factor: 0,
+        color_blend_op: 0,
+        src_alpha_blend_factor: 1,
+        dst_alpha_blend_factor: 0,
+        alpha_blend_op: 0,
+        color_write_mask: 0x00000001 | 0x00000002 | 0x00000004 | 0x00000008
+    };
+
+    let color_blend_attachments = [color_blend_attachment];
+
+    let color_blend_state_create_info = VkPipelineColorBlendStateCreateInfo {
+        s_type: 26,
+        p_next: std::ptr::null(),
+        flags: 0,
+        logic_op_enable: 0,
+        logic_op: 3,
+        attachment_count: color_blend_attachments.len() as u32,
+        attachments: color_blend_attachments.as_ptr(),
+        blend_constants: [0.0, 0.0, 0.0, 0.0]
     };
 }}}
 
