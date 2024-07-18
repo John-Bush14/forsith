@@ -22,6 +22,8 @@ pub type VkShaderModule = u64;
 
 pub type VkPipelineLayout = u64;
 
+pub type VkRenderPass = u64;
+
 
 #[repr(C)]
 pub struct VkPipelineShaderStageCreateInfo {
@@ -161,6 +163,52 @@ pub struct VkPipelineLayoutCreateInfo {
     pub push_constant_ranges: *const c_void
 }
 
+#[repr(C)]
+pub struct VkAttachmentReference {
+    pub attachment: u32,
+    pub layout: u32
+}
+
+#[repr(C)]
+pub struct VkSubpassDescription {
+    pub flags: u32,
+    pub pipeline_bind_point: u32,
+    pub input_attachment_count: u32,
+    pub input_attachments: *const VkAttachmentReference,
+    pub color_attachment_count: u32,
+    pub color_attachments: *const VkAttachmentReference,
+    pub resolve_attachments: *const VkAttachmentReference,
+    pub depth_stencil_attachment: *const VkAttachmentReference,
+    pub preserve_attachment_count: u32,
+    pub preserve_attachments: *const u32
+}
+
+#[repr(C)]
+pub struct VkAttachmentDescription {
+    pub flags: u32,
+    pub format: u32,
+    pub samples: u32,
+    pub load_op: u32,
+    pub store_op: u32,
+    pub stencil_load_op: u32,
+    pub stencil_store_op: u32,
+    pub initial_layout: u32,
+    pub final_layout: u32
+}
+
+#[repr(C)]
+pub struct VkRenderPassCreateInfo {
+    pub s_type: VkStructureType,
+    pub p_next: *const c_void,
+    pub flags: u32,
+    pub attachment_count: u32,
+    pub attachments: *const VkAttachmentDescription,
+    pub subpass_count: u32,
+    pub subpasses: *const VkSubpassDescription,
+    pub dependency_count: u32,
+    pub dependencies: *const c_void
+}
+
 
 #[link(name = "vulkan")]
 extern "C" {
@@ -176,5 +224,12 @@ extern "C" {
         create_info: *const VkPipelineLayoutCreateInfo,
         _: *const c_void,
         pipeline_layout: *mut VkPipelineLayout
+    ) -> VkResult;
+
+    pub fn vkCreateRenderPass(
+        device: VkDevice,
+        create_info: *const VkRenderPassCreateInfo,
+        _: *const c_void,
+        render_pass: *mut VkRenderPass
     ) -> VkResult;
 }

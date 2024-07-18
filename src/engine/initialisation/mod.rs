@@ -39,7 +39,8 @@ impl super::Engine {
             swapchain_images: vec!(),
             swapchain_extent: std::mem::zeroed(),
             swapchain_image_views: vec!(),
-            pipeline_layout: 0
+            pipeline_layout: 0,
+            render_pass: 0
         };
 
 

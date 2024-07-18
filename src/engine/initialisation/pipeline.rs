@@ -3,7 +3,12 @@ use crate::vulkan::{
         VkRect2D,
         VkOffset2D,
         VkViewport,
+        VkRenderPass,
         VkShaderModule,
+        VkSubpassDescription,
+        VkAttachmentReference,
+        VkRenderPassCreateInfo,
+        VkAttachmentDescription,
         VkShaderModuleCreateInfo,
         VkPipelineLayoutCreateInfo,
         VkPipelineShaderStageCreateInfo,
@@ -14,6 +19,7 @@ use crate::vulkan::{
         VkPipelineVertexInputStateCreateInfo,
         VkPipelineInputAssemblyStateCreateInfo,
         VkPipelineRasterizationStateCreateInfo,
+        vkCreateRenderPass,
         vkCreateShaderModule,
         vkCreatePipelineLayout
     },
@@ -174,7 +180,74 @@ impl crate::engine::Engine { pub fn create_pipeline(&mut self) { unsafe {
         std::ptr::null(),
         &mut self.pipeline_layout
     );
+
+    self.render_pass = create_render_pass(self.device.clone(), self.swapchain_image_format);
 }}}
+
+fn create_render_pass(device: VkDevice, swapchain_image_format: u32) -> VkRenderPass {
+    let attachment_description = VkAttachmentDescription {
+        flags: 0,
+        format: swapchain_image_format,
+        samples: 0x00000001,
+        load_op: 1,
+        store_op: 0,
+        stencil_load_op: 0,
+        stencil_store_op: 0,
+        initial_layout: 0,
+        final_layout: 1000001002
+    };
+    
+    let attachment_descriptions = [attachment_description];
+
+
+    let color_attachment = VkAttachmentReference {
+        attachment: 0,
+        layout: 2
+    };
+
+    let color_attachments = [color_attachment];
+
+
+    let subpass_description = VkSubpassDescription {
+        flags: 0,
+        pipeline_bind_point: 0,
+        input_attachment_count: 0,
+        input_attachments: std::ptr::null(),
+        color_attachment_count: color_attachments.len() as u32,
+        color_attachments: color_attachments.as_ptr(),
+        resolve_attachments: std::ptr::null(),
+        depth_stencil_attachment: std::ptr::null(),
+        preserve_attachment_count: 0,
+        preserve_attachments: std::ptr::null()
+    };
+    
+    let subpass_descriptions = [subpass_description];
+
+
+    let render_pass_create_info = VkRenderPassCreateInfo {
+        s_type: 38,
+        p_next: std::ptr::null(),
+        flags: 0,
+        attachment_count: attachment_descriptions.len() as u32,
+        attachments: attachment_descriptions.as_ptr(),
+        subpass_count: subpass_descriptions.len() as u32,
+        subpasses: subpass_descriptions.as_ptr(),
+        dependency_count: 0,
+        dependencies: std::ptr::null()
+    };
+    
+
+    let mut render_pass: VkRenderPass = 0;
+
+    unsafe {vkCreateRenderPass(
+        device,
+        &render_pass_create_info as *const VkRenderPassCreateInfo,
+        std::ptr::null(),
+        &mut render_pass
+    )};
+
+    return render_pass;
+}
 
 fn create_shader_module_from_file(device: &VkDevice, file: &str) -> VkShaderModule {
     let mut file = std::fs::File::open(file).expect("Nonexisting shader file");
