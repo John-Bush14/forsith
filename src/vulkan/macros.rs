@@ -33,7 +33,7 @@ macro_rules! prepare_extensions {
 
         $(
             let extension = CString::new($extension).expect("Invalid user extension name!");
-            
+
             if supported_extensions.iter().position(|x| CString::new(x.as_str()).unwrap() == extension).is_some() {
                 let ptr = extension.as_ptr();
 

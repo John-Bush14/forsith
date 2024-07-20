@@ -5,7 +5,8 @@ mod drop;
 
 use crate::vulkan::{
     instance::{
-        VkInstance
+        VkInstance, 
+        VkDebugUtilsMessengerEXT
     },
     devices::{
         device::{
@@ -55,7 +56,8 @@ pub struct Engine {
     swapchain_image_views: Vec<VkImageView>,
     pipeline_layout: VkPipelineLayout,
     render_pass: VkRenderPass,
-    pipeline: VkPipeline
+    pipeline: VkPipeline,
+    debug_report_callback: VkDebugUtilsMessengerEXT
 }
 
 static mut ENGINE: Option<Engine> = None;
