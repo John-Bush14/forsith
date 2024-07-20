@@ -36,6 +36,14 @@ use crate::vulkan::{
         VkPipeline,
         VkShaderModule,
         VkFramebuffer
+    },
+    commands::{
+        command_buffer::{
+            VkCommandBuffer
+        },
+        command_pool::{
+            VkCommandPool
+        }
     }
 };
 
@@ -62,7 +70,9 @@ pub struct Engine {
     pipeline: VkPipeline,
     shader_modules: Vec<VkShaderModule>,
     framebuffers: Vec<VkFramebuffer>,
-    debug_report_callback: VkDebugUtilsMessengerEXT
+    debug_report_callback: VkDebugUtilsMessengerEXT,
+    command_pool: VkCommandPool,
+    command_buffers: Vec<VkCommandBuffer>
 }
 
 static mut ENGINE: Option<Engine> = None;

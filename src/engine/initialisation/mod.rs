@@ -3,6 +3,7 @@ mod device;
 mod window;
 mod swapchain;
 mod pipeline;
+mod command_buffers;
 
 use crate::vulkan::{
     instance::{
@@ -44,7 +45,9 @@ impl super::Engine {
             shader_modules: vec!(),
             pipeline: 0,
             debug_report_callback: 0,
-            framebuffers: vec!()
+            framebuffers: vec!(),
+            command_pool: 0,
+            command_buffers: vec!()
         };
 
 
@@ -71,6 +74,11 @@ impl super::Engine {
         engine.create_image_views();
 
         engine.create_pipeline();
+
+
+        engine.create_command_pool(graphics_queue);
+        
+        engine.create_command_buffers();
 
 
         engine.window.start_loop(event_loop);

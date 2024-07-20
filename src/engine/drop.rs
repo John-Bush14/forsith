@@ -22,12 +22,19 @@ use crate::vulkan::{
         vkDestroyRenderPass,
         vkDestroyPipeline,
         vkDestroyFramebuffer
+    },
+    commands::{
+        command_pool::{
+            vkDestroyCommandPool
+        },
     }
 };
 
 impl Drop for super::Engine {
     fn drop(&mut self) {
         unsafe {
+            vkDestroyCommandPool(self.device, self.command_pool, std::ptr::null());
+
             self.framebuffers.iter().for_each(|&framebuffer| vkDestroyFramebuffer(self.device, framebuffer, std::ptr::null()));
 
             self.shader_modules.iter().for_each(|&shader_module| vkDestroyShaderModule(self.device, shader_module, std::ptr::null()));
