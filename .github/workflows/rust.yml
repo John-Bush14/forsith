@@ -10,10 +10,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      - name: Install Vulkan SDK dependencies
+        run: sudo apt-get install -y libvulkan1 mesa-vulkan-drivers vulkan-utils
+
+      - name: Download Vulkan SDK setup script
+        run: wget -qO vulkan_sdk.sh https://sdk.lunarg.com/sdk/download/latest/linux/vulkan-sdk.run
+
+      - name: Make Vulkan SDK setup script executable
+        run: chmod +x vulkan_sdk.sh
+
       - name: Install Vulkan SDK
         run: |
-          wget -qO- https://sdk.lunarg.com/sdk/download/latest/linux/get_latest | tar -xz
-          export VULKAN_SDK=$PWD/$(find . -maxdepth 1 -type d -name '1.*')
+          ./vulkan_sdk.sh -- --quiet
+          export VULKAN_SDK=$HOME/VulkanSDK/$(ls $HOME/VulkanSDK | sort -V | tail -n 1)/x86_64
           echo "VULKAN_SDK=$VULKAN_SDK" >> $GITHUB_ENV
           echo "PATH=$VULKAN_SDK/bin:$PATH" >> $GITHUB_ENV
           echo "LD_LIBRARY_PATH=$VULKAN_SDK/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
@@ -24,9 +33,6 @@ jobs:
           toolchain: stable
           override: true
           components: clippy, rustfmt
-
-      - name: Install Vulkan SDK dependencies
-        run: sudo apt-get install -y libvulkan1 mesa-vulkan-drivers vulkan-utils
 
       - name: Build project
         run: cargo build --release
