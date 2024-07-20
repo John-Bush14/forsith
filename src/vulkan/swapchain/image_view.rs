@@ -57,4 +57,10 @@ extern "C" {
         _: *const c_void,
         image_view: *mut VkImageView
     ) -> VkResult;
+
+    pub fn vkDestroyImageView(
+        device: VkDevice,
+        image_view: VkImageView,
+        _: *const c_void
+    );
 }

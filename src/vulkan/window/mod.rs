@@ -3,7 +3,14 @@ use crate::vulkan::{
         physical_device::{
             VkPhysicalDevice
         }
+    },
+    instance::{
+        VkInstance
     }
+};
+
+use std::ffi::{
+    c_void
 };
 
 
@@ -64,3 +71,12 @@ impl Window for dummy {
 }
 
 pub mod x11;
+
+#[link(name = "vulkan")]
+extern "C" {
+    pub fn vkDestroySurfaceKHR(
+        instance: VkInstance,
+        surface: VkSurfaceKHR,
+        _: *const c_void
+    );
+}

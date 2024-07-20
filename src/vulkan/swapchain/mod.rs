@@ -113,4 +113,10 @@ extern "C" {
         surface_format_count: *mut u32,
         surface_format: *mut VkSurfaceFormatKHR
     ) -> VkResult;
+
+    pub fn vkDestroySwapchainKHR(
+        device: VkDevice,
+        swapchain: VkSwapchainKHR,
+        _: *const c_void
+    );
 }

@@ -292,4 +292,28 @@ extern "C" {
         _: *const c_void,
         pipelines: *mut VkPipeline
     ) -> VkResult;
+
+    pub fn vkDestroyShaderModule(
+        device: VkDevice,
+        shader_module: VkShaderModule,
+        _: *const c_void
+    );
+
+    pub fn vkDestroyPipelineLayout(
+        device: VkDevice,
+        pipeline_layout: VkPipelineLayout,
+        _: *const c_void
+    );
+
+    pub fn vkDestroyRenderPass(
+        device: VkDevice,
+        render_pass: VkRenderPass,
+        _: *const c_void
+    );
+
+    pub fn vkDestroyPipeline(
+        device: VkDevice,
+        pipeline: VkPipeline,
+        _: *const c_void
+    );
 }
