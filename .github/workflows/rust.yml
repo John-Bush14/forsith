@@ -1,11 +1,3 @@
-The exit code 8 from tar usually indicates an error in reading the tarball. It might be due to a corrupted download or an incorrect URL.
-
-Let's ensure we get the correct URL and handle any potential issues during the download process. We will also add error handling for each step to get more informative error messages.
-
-Here's the updated workflow:
-
-yaml
-
 name: Rust Vulkan Test
 
 on: [push, pull_request]
