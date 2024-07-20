@@ -1,3 +1,11 @@
+The exit code 8 from tar usually indicates an error in reading the tarball. It might be due to a corrupted download or an incorrect URL.
+
+Let's ensure we get the correct URL and handle any potential issues during the download process. We will also add error handling for each step to get more informative error messages.
+
+Here's the updated workflow:
+
+yaml
+
 name: Rust Vulkan Test
 
 on: [push, pull_request]
@@ -13,11 +21,22 @@ jobs:
       - name: Install Vulkan SDK dependencies
         run: sudo apt-get install -y libvulkan1 mesa-vulkan-drivers
 
-      - name: Download and extract Vulkan SDK
+      - name: Download Vulkan SDK
         run: |
-          wget -qO vulkan_sdk.tar.gz https://sdk.lunarg.com/sdk/download/latest/linux/vulkansdk-linux-x86_64.tar.gz
+          wget -O vulkan_sdk.tar.gz https://sdk.lunarg.com/sdk/download/latest/linux/vulkansdk-linux-x86_64.tar.gz
+          if [ $? -ne 0 ]; then
+            echo "Failed to download Vulkan SDK"
+            exit 1
+          fi
+
+      - name: Extract Vulkan SDK
+        run: |
           mkdir vulkan_sdk
           tar -xzf vulkan_sdk.tar.gz -C vulkan_sdk --strip-components=1
+          if [ $? -ne 0 ]; then
+            echo "Failed to extract Vulkan SDK"
+            exit 1
+          fi
           export VULKAN_SDK=$PWD/vulkan_sdk/x86_64
           echo "VULKAN_SDK=$VULKAN_SDK" >> $GITHUB_ENV
           echo "PATH=$VULKAN_SDK/bin:$PATH" >> $GITHUB_ENV
