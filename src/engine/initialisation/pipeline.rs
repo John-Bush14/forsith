@@ -62,7 +62,7 @@ impl crate::engine::Engine { pub fn create_pipeline(&mut self) { unsafe {
         s_type: 18,
         p_next: std::ptr::null(),
         flags: 0,
-        stage: 0x00000008,
+        stage: 0x00000010,
         module: fragment_shader,
         name: entry_point_name.as_ptr(),
         specialization_info: std::ptr::null()
@@ -85,7 +85,7 @@ impl crate::engine::Engine { pub fn create_pipeline(&mut self) { unsafe {
         p_next: std::ptr::null(),
         flags: 0,
         topology: 3,
-        primitive_restart_enable: 1
+        primitive_restart_enable: 0
     };
 
     let viewport = VkViewport {
@@ -185,7 +185,7 @@ impl crate::engine::Engine { pub fn create_pipeline(&mut self) { unsafe {
         &mut self.pipeline_layout
     );
 
-    self.render_pass = create_render_pass(self.device.clone(), self.swapchain_image_format);
+    self.render_pass = create_render_pass(self.device.clone(), self.swapchain_image_format.format);
 
     let mut tessellation_state_create_info: VkPipelineTessellationStateCreateInfo = unsafe {std::mem::zeroed()};
     tessellation_state_create_info.s_type = 21;
@@ -306,7 +306,7 @@ fn create_shader_module_from_file(device: &VkDevice, file: &str) -> VkShaderModu
         s_type: 16,
         p_next: std::ptr::null(),
         flags: 0,
-        code_size: code.len(),
+        code_size: code.len()*4,
         code: code.as_ptr()
     };
     

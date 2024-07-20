@@ -116,7 +116,10 @@ impl super::super::Engine { pub fn create_device(&mut self, mut test_window_conn
         queue_priorities: queue_priorities.as_ptr()
     };
 
-    let device_queue_create_infos = [graphics_device_queue_create_info, presentation_device_queue_create_info];
+    let device_queue_create_infos = {
+        if graphics_queue != presentation_queue {vec![graphics_device_queue_create_info, presentation_device_queue_create_info]}
+        else {vec![graphics_device_queue_create_info]}
+    };
     
     let supported_extensions = vk_enumerate_to_vec!(
         vkEnumerateDeviceExtensionProperties, 

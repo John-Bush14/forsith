@@ -30,6 +30,13 @@ pub struct VkExtent2D {
     pub height: u32
 }
 
+#[derive(Debug, Clone, PartialEq)]
+#[repr(C)]
+pub struct VkSurfaceFormatKHR {
+    pub format: u32,
+    pub color_space: u32
+}
+
 #[repr(C)]
 pub struct VkSurfaceCapabilitiesKHR {
     pub min_image_count: u32,
@@ -98,5 +105,12 @@ extern "C" {
         swapchain: VkSwapchainKHR,
         image_count: *mut u32,
         images: *mut VkImage
+    ) -> VkResult;
+
+    pub fn vkGetPhysicalDeviceSurfaceFormatsKHR(
+        physical_device: VkPhysicalDevice,
+        surface: VkSurfaceKHR,
+        surface_format_count: *mut u32,
+        surface_format: *mut VkSurfaceFormatKHR
     ) -> VkResult;
 }

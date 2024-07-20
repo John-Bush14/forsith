@@ -26,6 +26,7 @@ use crate::vulkan::{
             VkImageView
         },
         VkSwapchainKHR,
+        VkSurfaceFormatKHR,
         VkImage,
         VkExtent2D
     },
@@ -50,7 +51,7 @@ pub struct Engine {
     surface_khr: VkSurfaceKHR,
     window: Box<dyn Window>,
     swapchain: VkSwapchainKHR,
-    swapchain_image_format: u32,
+    swapchain_image_format: VkSurfaceFormatKHR,
     swapchain_images: Vec<VkImage>,
     swapchain_extent: VkExtent2D,
     swapchain_image_views: Vec<VkImageView>,

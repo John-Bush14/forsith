@@ -35,7 +35,7 @@ impl super::Engine {
             surface_khr: 0,
             window: Box::new(dummy {}),
             swapchain: std::mem::zeroed(),
-            swapchain_image_format: 0,
+            swapchain_image_format: std::mem::zeroed(),
             swapchain_images: vec!(),
             swapchain_extent: std::mem::zeroed(),
             swapchain_image_views: vec!(),

@@ -3,10 +3,12 @@ use crate::vulkan::{
         VkImage,
         VkExtent2D,
         VkSwapchainKHR,
+        VkSurfaceFormatKHR,
         VkSwapchainCreateInfo,
         VkSurfaceCapabilitiesKHR,
         vkCreateSwapchainKHR,
         vkGetSwapchainImagesKHR,
+        vkGetPhysicalDeviceSurfaceFormatsKHR,
         vkGetPhysicalDeviceSurfacePresentModesKHR,
         vkGetPhysicalDeviceSurfaceCapabilitiesKHR
     }
@@ -50,8 +52,22 @@ impl crate::engine::Engine { pub fn create_swapchain(&mut self, presentation_que
 
     let transform = capabilities.current_transform;
 
-    let format = 37;
+    let surface_format = {
+        let supported_formats = vk_enumerate_to_vec!(
+            vkGetPhysicalDeviceSurfaceFormatsKHR, 
+            VkSurfaceFormatKHR, 
+            self.physical_device,
+            self.surface_khr,
+        );
 
+        if !(supported_formats.len() <= 1 && supported_formats[0].format == 0) {
+            supported_formats.iter().find(|format| format.format == 37 && format.color_space == 0).unwrap_or(&supported_formats[0]).clone()
+        } else {
+            VkSurfaceFormatKHR {format: 37, color_space: 0}
+        }
+    };
+
+    println!("{:?}", surface_format);
 
     let queue_family_indices = {
         if presentation_queue == graphics_queue {vec![graphics_queue]} 
@@ -64,8 +80,8 @@ impl crate::engine::Engine { pub fn create_swapchain(&mut self, presentation_que
         flags: 0,
         surface: self.surface_khr,
         min_image_count: image_count,
-        image_format: format,
-        image_color_space: 0,
+        image_format: surface_format.format,
+        image_color_space: surface_format.color_space,
         image_extent: extent.clone(),
         image_array_layers: 1,
         image_usage: 0x00000010,
@@ -94,7 +110,7 @@ impl crate::engine::Engine { pub fn create_swapchain(&mut self, presentation_que
 
 
     self.swapchain = swapchain;
-    self.swapchain_image_format = format;
+    self.swapchain_image_format = surface_format;
     self.swapchain_images = images;
     self.swapchain_extent = extent;
 }}}
