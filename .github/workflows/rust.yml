@@ -12,7 +12,7 @@ jobs:
 
       - name: Install Vulkan SDK
         run: |
-          wget -qO- https://sdk.lunarg.com/sdk/download/latest/linux/vulkan_sdk.tar.gz | tar -xz
+          wget -qO- https://sdk.lunarg.com/sdk/download/latest/linux/get_latest | tar -xz
           export VULKAN_SDK=$PWD/$(find . -maxdepth 1 -type d -name '1.*')
           echo "VULKAN_SDK=$VULKAN_SDK" >> $GITHUB_ENV
           echo "PATH=$VULKAN_SDK/bin:$PATH" >> $GITHUB_ENV
