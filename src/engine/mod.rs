@@ -34,7 +34,8 @@ use crate::vulkan::{
         VkPipelineLayout,
         VkRenderPass,
         VkPipeline,
-        VkShaderModule
+        VkShaderModule,
+        VkFramebuffer
     }
 };
 
@@ -60,6 +61,7 @@ pub struct Engine {
     render_pass: VkRenderPass,
     pipeline: VkPipeline,
     shader_modules: Vec<VkShaderModule>,
+    framebuffers: Vec<VkFramebuffer>,
     debug_report_callback: VkDebugUtilsMessengerEXT
 }
 

@@ -4,10 +4,12 @@ use crate::vulkan::{
         VkOffset2D,
         VkViewport,
         VkRenderPass,
+        VkFramebuffer,
         VkShaderModule,
         VkSubpassDescription,
         VkAttachmentReference,
         VkRenderPassCreateInfo,
+        VkFramebufferCreateInfo,
         VkAttachmentDescription,
         VkShaderModuleCreateInfo,
         VkPipelineLayoutCreateInfo,
@@ -23,6 +25,7 @@ use crate::vulkan::{
         VkPipelineInputAssemblyStateCreateInfo,
         VkPipelineRasterizationStateCreateInfo,
         vkCreateRenderPass,
+        vkCreateFramebuffer,
         vkCreateShaderModule,
         vkCreatePipelineLayout,
         vkCreateGraphicsPipelines
@@ -229,6 +232,31 @@ impl crate::engine::Engine { pub fn create_pipeline(&mut self) { unsafe {
         std::ptr::null(),
         &mut self.pipeline
     );
+
+    self.framebuffers = self.swapchain_image_views.iter().map(|view| [*view]).map(|attachments| {
+        let framebuffer_create_info = VkFramebufferCreateInfo {
+            s_type: 37,
+            p_next: std::ptr::null(),
+            flags: 0,
+            render_pass: self.render_pass,
+            attachment_count: attachments.len() as u32,
+            attachments: attachments.as_ptr(),
+            width: self.swapchain_extent.width,
+            height: self.swapchain_extent.height,
+            layers: 1
+        };
+
+        let mut framebuffer: VkFramebuffer = 0;
+
+        vkCreateFramebuffer(
+            self.device,
+            &framebuffer_create_info as *const VkFramebufferCreateInfo,
+            std::ptr::null(),
+            &mut framebuffer
+        );
+
+        return framebuffer;
+    }).collect();
 }}}
 
 fn create_render_pass(device: VkDevice, swapchain_image_format: u32) -> VkRenderPass {

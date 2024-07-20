@@ -5,7 +5,10 @@ use crate::vulkan::{
         }
     },
     swapchain::{
-        VkExtent2D
+        VkExtent2D,
+        image_view::{
+            VkImageView
+        }
     },
     VkBool32,
     VkResult,
@@ -27,6 +30,8 @@ pub type VkRenderPass = u64;
 pub type VkPipeline = u64;
 
 pub type VkPipelineCache = u64;
+
+pub type VkFramebuffer = u64;
 
 
 #[repr(C)]
@@ -260,6 +265,19 @@ pub struct VkGraphicsPipelineCreateInfo {
     pub base_pipeline_handle_index: i32
 }
 
+#[repr(C)]
+pub struct VkFramebufferCreateInfo {
+    pub s_type: VkStructureType,
+    pub p_next: *const c_void,
+    pub flags: u32,
+    pub render_pass: VkRenderPass,
+    pub attachment_count: u32,
+    pub attachments: *const VkImageView,
+    pub width: u32,
+    pub height: u32,
+    pub layers: u32
+}
+
 
 #[link(name = "vulkan")]
 extern "C" {
@@ -314,6 +332,19 @@ extern "C" {
     pub fn vkDestroyPipeline(
         device: VkDevice,
         pipeline: VkPipeline,
+        _: *const c_void
+    );
+
+    pub fn vkCreateFramebuffer(
+        device: VkDevice,
+        create_info: *const VkFramebufferCreateInfo,
+        _: *const c_void,
+        framebuffer: *mut VkFramebuffer
+    ) -> VkResult;
+
+    pub fn vkDestroyFramebuffer(
+        device: VkDevice,
+        framebuffer: VkFramebuffer,
         _: *const c_void
     );
 }

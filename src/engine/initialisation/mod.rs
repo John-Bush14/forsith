@@ -43,7 +43,8 @@ impl super::Engine {
             render_pass: 0,
             shader_modules: vec!(),
             pipeline: 0,
-            debug_report_callback: 0
+            debug_report_callback: 0,
+            framebuffers: vec!()
         };
 
 
