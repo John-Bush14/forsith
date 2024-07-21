@@ -32,6 +32,8 @@ extern "C" {
         queue_index: u32,
         queue: *mut VkQueue
     );
+
+    pub fn vkDeviceWaitIdle(device: VkDevice) -> VkResult;
 }
 
 
