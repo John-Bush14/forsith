@@ -53,25 +53,30 @@ const CW_EVENT_MASK: u64 = 0xFFFFFFFF | 0x0800;
 
 
 impl Window for XWindow {
-    fn start_loop(&self, function: fn()) {
-        while true {
+    fn get_events(&self) -> Vec<WindowEvent> {
+        let mut events: Vec<WindowEvent> = vec!();
+
+        while unsafe{XPending(self.display)} > 0 {
             let mut event: XEvent = unsafe {std::mem::zeroed()};
-            if unsafe {XPending(self.display)} > 0 {unsafe {XNextEvent(self.display, &mut event)};}
 
-            function();
+            unsafe {XNextEvent(self.display, &mut event)};
 
-            if unsafe{event.type_} == x11::ClientMessage {
-                let protocol = unsafe {event.client_message.data.longs[0] as XAtom};
-
-                if protocol == self.delete_window_protocol {
-                    break;
+            unsafe {events.push(match event.type_ {
+                x11::CreateNotify => WindowEvent::Birth,
+                x11::KeyRelease => WindowEvent::KeyUp(event.key.keycode),
+                x11::KeyPress => WindowEvent::KeyDown(event.key.keycode),
+                x11::ButtonRelease => WindowEvent::MouseUp(event.button.button),
+                x11::ButtonPress => WindowEvent::MouseDown(event.button.button),
+                _ => {
+                    if unsafe{event.type_} == x11::ClientMessage 
+                    && unsafe {event.client_message.data.longs[0] as XAtom} == self.delete_window_protocol {
+                        WindowEvent::Death
+                    } else {WindowEvent::Undefined}
                 }
-            }
-
-            unsafe { if event.type_  != 0 {println!("{}", event)}};
-
-            if unsafe{event.type_} == x11::KeyRelease {panic!()}
+            })};
         }
+
+        return events
     }
 
     fn get_width(&self) -> u32 {todo!();}

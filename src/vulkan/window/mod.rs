@@ -16,16 +16,18 @@ use std::ffi::{
 
 pub type VkSurfaceKHR = u64;
 
+#[derive(PartialEq)]
 pub enum WindowEvent {
     Birth,
     Death,
     MetaChange,
-    MouseDown,
-    MouseUp,
-    KeyUp,
-    KeyDown,
-    MouseMove,
-    FocusChange,
+    MouseDown(u32),
+    MouseUp(u32),
+    KeyUp(u32),
+    KeyDown(u32),
+    MouseMove(u32, u32),
+    FocusChange(bool),
+    Undefined
 }
 
 pub trait Window {
@@ -41,7 +43,7 @@ pub trait Window {
 
     fn create_surfaceKHR(&self, instance: crate::vulkan::instance::VkInstance) -> VkSurfaceKHR;
 
-    fn start_loop(&self, function: fn());
+    fn get_events(&self) -> Vec<WindowEvent>;
     
     fn supports_physical_device_queue(&self, physical_device: VkPhysicalDevice, queue: u32) -> bool;
 
@@ -63,7 +65,7 @@ impl Window for dummy {
 
     fn create_surfaceKHR(&self, instance: crate::vulkan::instance::VkInstance) -> VkSurfaceKHR {todo!();}
 
-    fn start_loop(&self, function: fn()) {todo!();}
+    fn get_events(&self) -> Vec<WindowEvent> {todo!();}
     
     fn supports_physical_device_queue(&self, physical_device: VkPhysicalDevice, queue: u32) -> bool {todo!();}
 

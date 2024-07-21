@@ -80,8 +80,15 @@ impl super::Engine {
         
         engine.create_command_buffers();
 
+        while true {
+            let events = engine.window.get_events();
 
-        engine.window.start_loop(event_loop);
+            for event in events {match event {
+                WindowEvent::Death => break,
+                WindowEvent::KeyDown(keycode) => panic!(),
+                _ => {}
+            }}
+        }
 
 
         return Ok(engine);
