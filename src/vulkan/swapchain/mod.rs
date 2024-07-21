@@ -10,6 +10,10 @@ use crate::vulkan::{
     window::{
         VkSurfaceKHR
     },
+    rendering::{
+        VkFence,
+        VkSemaphore
+    },
     VkResult,
     VkBool32,
     VkStructureType
@@ -119,4 +123,13 @@ extern "C" {
         swapchain: VkSwapchainKHR,
         _: *const c_void
     );
+
+    pub fn vkAcquireNextImageKHR(
+        device: VkDevice,
+        swapchain: VkSwapchainKHR,
+        timeout: u64,
+        semaphore: VkSemaphore,
+        fence: VkFence, 
+        image_index: *mut u32
+    ) -> VkResult;
 }

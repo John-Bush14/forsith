@@ -4,6 +4,12 @@ use crate::vulkan::{
             VkDevice
         }
     },
+    commands::{
+        command_buffer::{
+            VkCommandBuffer
+        }
+    },
+    VkBool32,
     VkResult,
     VkStructureType
 };
@@ -20,6 +26,19 @@ pub type VkFence = u64;
 
 pub const MAX_FRAMES_IN_FLIGHT: u32 = 2;
 
+
+#[repr(C)]
+pub struct VkSubmitInfo {
+    pub s_type: VkStructureType,
+    pub p_next: *const c_void,
+    pub wait_sephamore_count: u32,
+    pub wait_sephamores: *const VkSemaphore,
+    pub wait_dst_stage_mask: *const u32,
+    pub command_buffer_count: u32,
+    pub command_buffers: *const VkCommandBuffer,
+    pub signal_sephamore_count: u32,
+    pub signal_sephamores: *const VkSemaphore
+}
 
 #[repr(C)]
 pub struct VkSemaphoreCreateInfo {
@@ -63,4 +82,25 @@ extern "C" {
         semaphore: VkSemaphore,
         _: *const c_void
     );
+
+    pub fn vkWaitForFences(
+        device: VkDevice,
+        fence_count: u32,
+        fences: *const VkFence,
+        wait_all: VkBool32,
+        timeout: u64
+    ) -> VkResult;
+
+    pub fn vkResetFences(
+        device: VkDevice,
+        fence_count: u32,
+        fences: *const VkFence
+    ) -> VkResult; 
+
+    pub fn vkQueueSubmit(
+        queue: u32,
+        submit_count: u32,
+        submits: *const VkSubmitInfo,
+        fence: VkFence
+    ) -> VkResult;
 }

@@ -52,7 +52,10 @@ impl super::Engine {
             command_buffers: vec!(),
             image_available_semaphores: vec!(),
             render_finished_semaphores: vec!(),
-            in_flight_fences: vec!()
+            in_flight_fences: vec!(),
+            current_frame: 0,
+            graphics_queue: 0,
+            presentation_queue: 0
         };
 
 
@@ -68,6 +71,10 @@ impl super::Engine {
         let mut test_window_connections = super::Engine::create_test_connections(supported_instance_extensions);
 
         let (chosen_window_connection, presentation_queue, graphics_queue) = engine.create_device(test_window_connections);
+
+        engine.presentation_queue = presentation_queue;
+
+        engine.graphics_queue = graphics_queue;
 
         engine.finalize_connection(chosen_window_connection, engine.app_name.clone());
         

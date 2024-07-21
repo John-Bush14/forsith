@@ -82,7 +82,10 @@ pub struct Engine {
     command_buffers: Vec<VkCommandBuffer>,
     image_available_semaphores: Vec<VkSemaphore>,
     render_finished_semaphores: Vec<VkSemaphore>,
-    in_flight_fences: Vec<VkFence>
+    in_flight_fences: Vec<VkFence>,
+    current_frame: usize,
+    graphics_queue: u32,
+    presentation_queue: u32
 }
 
 static mut ENGINE: Option<Engine> = None;
