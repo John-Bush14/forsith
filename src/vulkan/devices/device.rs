@@ -12,6 +12,8 @@ use crate::vulkan::{
 
 pub type VkDevice = u64;
 
+pub type VkQueue = u64;
+
 
 #[link(name = "vulkan")]
 extern "C" {
@@ -23,6 +25,13 @@ extern "C" {
     ) -> VkResult;
     
     pub fn vkDestroyDevice(device: VkDevice, _: *const c_void);
+
+    pub fn vkGetDeviceQueue(
+        device: VkDevice,
+        queue_family_index: u32,
+        queue_index: u32,
+        queue: *mut VkQueue
+    );
 }
 
 

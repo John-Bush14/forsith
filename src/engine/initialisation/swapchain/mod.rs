@@ -22,7 +22,7 @@ use crate::{
 pub mod image_view;
 
 
-impl crate::engine::Engine { pub fn create_swapchain(&mut self, presentation_queue: u32, graphics_queue: u32) { unsafe {
+impl crate::engine::Engine { pub fn create_swapchain(&mut self) { unsafe {
     let present_modes = vk_enumerate_to_vec!(vkGetPhysicalDeviceSurfacePresentModesKHR, u32, self.physical_device, self.surface_khr,);
 
     let present_mode = {if present_modes.contains(&1) {1} else {2}};
@@ -70,8 +70,8 @@ impl crate::engine::Engine { pub fn create_swapchain(&mut self, presentation_que
     println!("{:?}", surface_format);
 
     let queue_family_indices = {
-        if presentation_queue == graphics_queue {vec![graphics_queue]} 
-        else {vec![presentation_queue, graphics_queue]}
+        if self.presentation_family == self.graphics_family {vec![self.graphics_family]} 
+        else {vec![self.presentation_family, self.graphics_family]}
     };
 
     let swapchain_create_info: VkSwapchainCreateInfo = VkSwapchainCreateInfo {

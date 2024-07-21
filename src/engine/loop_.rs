@@ -70,7 +70,9 @@ impl super::Engine { pub fn start_loop(&mut self) {
             signal_sephamores: signal_semaphores.as_ptr()
         };
 
+
         let submit_infos = [submit_info];
+
 
         unsafe {vkQueueSubmit(self.graphics_queue, submit_infos.len() as u32, submit_infos.as_ptr(), in_flight_fence)};
 

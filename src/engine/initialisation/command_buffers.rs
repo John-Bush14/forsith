@@ -29,12 +29,12 @@ use crate::vulkan::{
 };
 
 
-impl super::super::Engine { pub fn create_command_pool(&mut self, graphics_queue: u32) { unsafe {
+impl super::super::Engine { pub fn create_command_pool(&mut self) { unsafe {
     let command_pool_create_info = VkCommandPoolCreateInfo {
         s_type: 39,
         p_next: std::ptr::null(),
         flags: 0,
-        queue_family_index: graphics_queue
+        queue_family_index: self.graphics_family
     };
 
     vkCreateCommandPool(

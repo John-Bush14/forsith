@@ -31,7 +31,6 @@ impl super::Engine {
         let mut engine: super::Engine = super::Engine {
             app_name: name.clone(),
             app_version: vk_make_version(version[0] as u32, version[1] as u32, version[2] as u32),
-            event_func: event_loop,
             instance: 0,
             device: 0,
             physical_device: 0,
@@ -55,7 +54,9 @@ impl super::Engine {
             in_flight_fences: vec!(),
             current_frame: 0,
             graphics_queue: 0,
-            presentation_queue: 0
+            presentation_queue: 0,
+            graphics_family: 0,
+            presentation_family: 0
         };
 
 
@@ -65,30 +66,28 @@ impl super::Engine {
             std::ptr::null(),
         );
 
+
         engine.create_instance(supported_instance_extensions.clone());
 
 
         let mut test_window_connections = super::Engine::create_test_connections(supported_instance_extensions);
 
-        let (chosen_window_connection, presentation_queue, graphics_queue) = engine.create_device(test_window_connections);
+        let chosen_window_connection = engine.create_device(test_window_connections);
 
-        engine.presentation_queue = presentation_queue;
-
-        engine.graphics_queue = graphics_queue;
 
         engine.finalize_connection(chosen_window_connection, engine.app_name.clone());
         
         engine.create_surface_KHR(engine.instance);
 
 
-        engine.create_swapchain(presentation_queue, graphics_queue);
+        engine.create_swapchain();
 
         engine.create_image_views();
 
         engine.create_pipeline();
 
 
-        engine.create_command_pool(graphics_queue);
+        engine.create_command_pool();
         
         engine.create_command_buffers();
 

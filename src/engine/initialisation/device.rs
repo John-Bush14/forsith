@@ -14,7 +14,8 @@ use crate::vulkan::{
             VkDevice,
             VkDeviceCreateInfo,
             VkDeviceQueueCreateInfo,
-            vkCreateDevice
+            vkCreateDevice,
+            vkGetDeviceQueue
         }
     },
     window::{
@@ -35,7 +36,7 @@ use std::ffi::{
 };
 
 
-impl super::super::Engine { pub fn create_device(&mut self, mut test_window_connections: Vec<Box<dyn Window>>) -> (Box<dyn Window>, u32, u32) { unsafe {
+impl super::super::Engine { pub fn create_device(&mut self, mut test_window_connections: Vec<Box<dyn Window>>) -> Box<dyn Window> { unsafe {
     let instance = self.instance;
 
     let mut physical_device_count: u32 = 0;
@@ -45,9 +46,10 @@ impl super::super::Engine { pub fn create_device(&mut self, mut test_window_conn
         instance,
     );
 
+    
     let mut best_score = 0;
     
-    let (&best_physical_device, graphics_queue, presentation_queue, chosen_window_connection) = physical_devices
+    let (&best_physical_device, graphics_family, presentation_family, chosen_window_connection) = physical_devices
         .iter() 
         .map(|device| {
             let family_queue_properties = vk_enumerate_to_vec!(vkGetPhysicalDeviceQueueFamilyProperties, VkQueueFamilyProperties, device.clone(),);
@@ -94,6 +96,11 @@ impl super::super::Engine { pub fn create_device(&mut self, mut test_window_conn
             return score;
         }).expect("No supported physical devices!");
 
+    self.graphics_family = graphics_family;
+
+    self.presentation_family = presentation_family;
+
+
     self.physical_device = best_physical_device;    
 
     let queue_priorities = [1.0f32];
@@ -102,7 +109,7 @@ impl super::super::Engine { pub fn create_device(&mut self, mut test_window_conn
         s_type: 2,
         p_next: std::ptr::null(),
         flags: 0,
-        queue_family_index: graphics_queue,
+        queue_family_index: self.graphics_family,
         queue_count: 1,
         queue_priorities: queue_priorities.as_ptr()
     };
@@ -111,13 +118,13 @@ impl super::super::Engine { pub fn create_device(&mut self, mut test_window_conn
         s_type: 2,
         p_next: std::ptr::null(),
         flags: 0,
-        queue_family_index: presentation_queue,
+        queue_family_index: self.presentation_family,
         queue_count: 1,
         queue_priorities: queue_priorities.as_ptr()
     };
 
     let device_queue_create_infos = {
-        if graphics_queue != presentation_queue {vec![graphics_device_queue_create_info, presentation_device_queue_create_info]}
+        if self.graphics_family != self.presentation_family {vec![graphics_device_queue_create_info, presentation_device_queue_create_info]}
         else {vec![graphics_device_queue_create_info]}
     };
     
@@ -147,11 +154,18 @@ impl super::super::Engine { pub fn create_device(&mut self, mut test_window_conn
     
     let mut device: VkDevice = 0;
 
+
     let result = vkCreateDevice(
         best_physical_device, &device_create_info, std::ptr::null(), &mut device
     );
+    
+    
+    vkGetDeviceQueue(device, self.graphics_family, 0, &mut self.graphics_queue);
+    
+    vkGetDeviceQueue(device, self.presentation_family, 0, &mut self.presentation_queue);
 
-    if result == 0 {self.device = device; return (test_window_connections.remove(chosen_window_connection), presentation_queue, graphics_queue);}
+
+    if result == 0 {self.device = device; return test_window_connections.remove(chosen_window_connection);}
     
     panic!("vkCreateDevice failed!");
 }}}

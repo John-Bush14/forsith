@@ -13,7 +13,8 @@ use crate::vulkan::{
     },
     devices::{
         device::{
-            VkDevice
+            VkDevice,
+            VkQueue
         },
         physical_device::{
             VkPhysicalDevice
@@ -61,7 +62,6 @@ pub enum Event {}
 pub struct Engine {
     app_name: String,
     app_version: u32,
-    event_func: fn(),
     instance: VkInstance,
     device: VkDevice,
     physical_device: VkPhysicalDevice,
@@ -84,8 +84,10 @@ pub struct Engine {
     render_finished_semaphores: Vec<VkSemaphore>,
     in_flight_fences: Vec<VkFence>,
     current_frame: usize,
-    graphics_queue: u32,
-    presentation_queue: u32
+    graphics_queue: VkQueue,
+    presentation_queue: VkQueue,
+    graphics_family: u32,
+    presentation_family: u32
 }
 
 static mut ENGINE: Option<Engine> = None;

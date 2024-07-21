@@ -1,7 +1,8 @@
 use crate::vulkan::{
     devices::{
         device::{
-            VkDevice
+            VkDevice,
+            VkQueue
         }
     },
     commands::{
@@ -98,7 +99,7 @@ extern "C" {
     ) -> VkResult; 
 
     pub fn vkQueueSubmit(
-        queue: u32,
+        queue: VkQueue,
         submit_count: u32,
         submits: *const VkSubmitInfo,
         fence: VkFence

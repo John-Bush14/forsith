@@ -37,6 +37,9 @@ use crate::vulkan::{
 impl Drop for super::Engine {
     fn drop(&mut self) {
         unsafe {
+            if self.image_available_semaphores.len() == 0 {return}
+                
+
             self.image_available_semaphores.iter().chain(self.render_finished_semaphores.iter())
                 .for_each(|&semaphore| vkDestroySemaphore(self.device, semaphore, std::ptr::null()));
             
