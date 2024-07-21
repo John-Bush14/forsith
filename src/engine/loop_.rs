@@ -22,7 +22,7 @@ impl super::Engine { pub fn start_loop(&mut self) {
         let events = self.window.get_events();
 
         for event in events {match event {
-            WindowEvent::Death => break,
+            WindowEvent::Death => return,
             WindowEvent::KeyDown(keycode) => panic!(),
             _ => {}
         }}
