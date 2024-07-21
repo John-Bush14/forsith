@@ -5,6 +5,8 @@ mod loop_;
 
 mod drop;
 
+mod swapchain;
+
 
 use crate::vulkan::{
     instance::{
@@ -87,7 +89,9 @@ pub struct Engine {
     graphics_queue: VkQueue,
     presentation_queue: VkQueue,
     graphics_family: u32,
-    presentation_family: u32
+    presentation_family: u32,
+    dimensions: [i32; 2],
+    new_dimensions: Option<[i32; 2]>
 }
 
 static mut ENGINE: Option<Engine> = None;

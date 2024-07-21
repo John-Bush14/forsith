@@ -56,7 +56,9 @@ impl super::Engine {
             graphics_queue: 0,
             presentation_queue: 0,
             graphics_family: 0,
-            presentation_family: 0
+            presentation_family: 0,
+            dimensions: [800, 600],
+            new_dimensions: None
         };
 
 

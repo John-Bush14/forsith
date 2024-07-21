@@ -68,6 +68,7 @@ impl Window for XWindow {
                 x11::KeyPress => WindowEvent::KeyDown(event.key.keycode),
                 x11::ButtonRelease => WindowEvent::MouseUp(event.button.button),
                 x11::ButtonPress => WindowEvent::MouseDown(event.button.button),
+                x11::ResizeRequest => WindowEvent::WindowResize([event.resize_request.width, event.resize_request.height]),
                 _ => {
                     if unsafe{event.type_} == x11::ClientMessage 
                     && unsafe {event.client_message.data.longs[0] as XAtom} == self.delete_window_protocol {

@@ -89,8 +89,21 @@ pub union XEvent {
     pub key: XKeyEvent,
     pub error: XErrorEvent,
     pub destroy_window: XDestroyWindowEvent,
-    pub client_message: XClientMessageEvent
+    pub client_message: XClientMessageEvent,
+    pub resize_request: XResizeRequestEvent
     // other fields as needed
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[repr(C)]
+pub struct XResizeRequestEvent {
+    pub type_: i32,
+    pub serial: u64,
+    pub send_event: Bool,
+    pub display: *mut c_void,
+    pub window: Window,
+    pub width: i32,
+    pub height: i32
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
