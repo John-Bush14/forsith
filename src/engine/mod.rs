@@ -1,7 +1,10 @@
 mod initialisation;
 use initialisation::{};
 
+mod loop_;
+
 mod drop;
+
 
 use crate::vulkan::{
     instance::{
@@ -44,6 +47,10 @@ use crate::vulkan::{
         command_pool::{
             VkCommandPool
         }
+    },
+    rendering::{
+        VkSemaphore,
+        VkFence
     }
 };
 
@@ -72,11 +79,15 @@ pub struct Engine {
     framebuffers: Vec<VkFramebuffer>,
     debug_report_callback: VkDebugUtilsMessengerEXT,
     command_pool: VkCommandPool,
-    command_buffers: Vec<VkCommandBuffer>
+    command_buffers: Vec<VkCommandBuffer>,
+    image_available_semaphores: Vec<VkSemaphore>,
+    render_finished_semaphores: Vec<VkSemaphore>,
+    in_flight_fences: Vec<VkFence>
 }
 
 static mut ENGINE: Option<Engine> = None;
 
 pub fn initialize_engine(name: String, version: [u8;3], event_loop: fn()) {
-    unsafe { ENGINE = Some(Engine::init(name, version, event_loop).expect("Initialisation of engine failed")); }
+    let mut engine = unsafe {Engine::init(name, version, event_loop).expect("Initialisation of engine failed")};
+    unsafe {engine.start_loop()};
 }

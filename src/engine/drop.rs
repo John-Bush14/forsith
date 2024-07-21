@@ -27,12 +27,21 @@ use crate::vulkan::{
         command_pool::{
             vkDestroyCommandPool
         },
+    },
+    rendering::{
+        vkDestroyFence,
+        vkDestroySemaphore
     }
 };
 
 impl Drop for super::Engine {
     fn drop(&mut self) {
         unsafe {
+            self.image_available_semaphores.iter().chain(self.render_finished_semaphores.iter())
+                .for_each(|&semaphore| vkDestroySemaphore(self.device, semaphore, std::ptr::null()));
+            
+            self.in_flight_fences.iter().for_each(|&fence| vkDestroyFence(self.device, fence, std::ptr::null()));
+
             vkDestroyCommandPool(self.device, self.command_pool, std::ptr::null());
 
             self.framebuffers.iter().for_each(|&framebuffer| vkDestroyFramebuffer(self.device, framebuffer, std::ptr::null()));

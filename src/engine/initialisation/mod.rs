@@ -4,6 +4,8 @@ mod window;
 mod swapchain;
 mod pipeline;
 mod command_buffers;
+mod sync_objects;
+
 
 use crate::vulkan::{
     instance::{
@@ -47,7 +49,10 @@ impl super::Engine {
             debug_report_callback: 0,
             framebuffers: vec!(),
             command_pool: 0,
-            command_buffers: vec!()
+            command_buffers: vec!(),
+            image_available_semaphores: vec!(),
+            render_finished_semaphores: vec!(),
+            in_flight_fences: vec!()
         };
 
 
@@ -80,15 +85,8 @@ impl super::Engine {
         
         engine.create_command_buffers();
 
-        while true {
-            let events = engine.window.get_events();
 
-            for event in events {match event {
-                WindowEvent::Death => break,
-                WindowEvent::KeyDown(keycode) => panic!(),
-                _ => {}
-            }}
-        }
+        engine.create_sync_objects();
 
 
         return Ok(engine);
