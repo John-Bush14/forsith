@@ -206,6 +206,17 @@ pub struct VkAttachmentDescription {
 }
 
 #[repr(C)]
+pub struct VkSubpassDependency {
+    pub src_subpass: u32,
+    pub dst_subpass: u32,
+    pub src_stage_mask: u32,
+    pub dst_stage_mask: u32,
+    pub src_acces_mask: u32,
+    pub dst_acces_mask: u32,
+    pub dependency_flags: u32
+}
+
+#[repr(C)]
 pub struct VkRenderPassCreateInfo {
     pub s_type: VkStructureType,
     pub p_next: *const c_void,
@@ -215,7 +226,7 @@ pub struct VkRenderPassCreateInfo {
     pub subpass_count: u32,
     pub subpasses: *const VkSubpassDescription,
     pub dependency_count: u32,
-    pub dependencies: *const c_void
+    pub dependencies: *const VkSubpassDependency
 }
 
 #[repr(C)]

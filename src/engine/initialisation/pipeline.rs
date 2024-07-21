@@ -6,6 +6,7 @@ use crate::vulkan::{
         VkRenderPass,
         VkFramebuffer,
         VkShaderModule,
+        VkSubpassDependency,
         VkSubpassDescription,
         VkAttachmentReference,
         VkRenderPassCreateInfo,
@@ -297,6 +298,19 @@ fn create_render_pass(device: VkDevice, swapchain_image_format: u32) -> VkRender
     };
     
     let subpass_descriptions = [subpass_description];
+    
+
+    let dependency = VkSubpassDependency {
+        src_subpass: std::u32::MAX,
+        dst_subpass: 0,
+        src_stage_mask: 0x00000400,
+        dst_stage_mask: 0x00000400,
+        src_acces_mask: 0,
+        dst_acces_mask: 0x00000080 | 0x00000100,
+        dependency_flags: 0
+    };
+
+    let dependencies = [dependency];
 
 
     let render_pass_create_info = VkRenderPassCreateInfo {
@@ -307,8 +321,8 @@ fn create_render_pass(device: VkDevice, swapchain_image_format: u32) -> VkRender
         attachments: attachment_descriptions.as_ptr(),
         subpass_count: subpass_descriptions.len() as u32,
         subpasses: subpass_descriptions.as_ptr(),
-        dependency_count: 0,
-        dependencies: std::ptr::null()
+        dependency_count: dependencies.len() as u32,
+        dependencies: dependencies.as_ptr()
     };
     
 
