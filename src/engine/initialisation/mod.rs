@@ -72,7 +72,7 @@ impl super::Engine {
         engine.create_instance(supported_instance_extensions.clone());
 
 
-        let mut test_window_connections = super::Engine::create_test_connections(supported_instance_extensions);
+        let mut test_window_connections = engine.create_test_connections(supported_instance_extensions);
 
         let chosen_window_connection = engine.create_device(test_window_connections);
 

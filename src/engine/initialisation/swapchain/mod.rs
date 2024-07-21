@@ -37,8 +37,8 @@ impl crate::engine::Engine { pub fn create_swapchain(&mut self) { unsafe {
         else {
             let min = capabilities.min_image_extent;
             let max = capabilities.max_image_extent;
-            let width = 800.min(max.width).max(min.width);
-            let height = 600.min(max.height).max(min.height);
+            let width = (self.dimensions[0] as u32).min(max.width).max(min.width);
+            let height = (self.dimensions[1] as u32).min(max.height).max(min.height);
             VkExtent2D { width, height }
         }
     };

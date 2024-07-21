@@ -38,7 +38,7 @@ pub trait Window {
     fn set_width(&mut self, width: u32);
     fn set_height(&mut self, height: u32);
 
-    fn init_connection() -> Self where Self: Sized;
+    fn init_connection(dimensions: [i32; 2]) -> Self where Self: Sized;
     
     fn init_window(&mut self, name: String);
 
@@ -60,7 +60,7 @@ impl Window for dummy {
     fn set_width(&mut self, width: u32) {todo!();}
     fn set_height(&mut self, height: u32) {todo!();}
 
-    fn init_connection() -> Self where Self: Sized {todo!();}
+    fn init_connection(dimensions: [i32; 2]) -> Self where Self: Sized {todo!();}
     
     fn init_window(&mut self, name: String) {todo!();}
 

@@ -103,7 +103,7 @@ impl Window for XWindow {
         return surface_KHR
     }
 
-    fn init_connection() -> XWindow { unsafe {
+    fn init_connection(dimensions: [i32; 2]) -> XWindow { unsafe {
         XInitThreads();
 
         let display = XOpenDisplay(std::ptr::null()) as *mut c_void;  
@@ -121,8 +121,8 @@ impl Window for XWindow {
             root_window,
             100,
             100,
-            800,
-            600,
+            dimensions[0] as u32,
+            dimensions[1] as u32,
             1,
             0,
             1,

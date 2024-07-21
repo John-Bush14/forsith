@@ -14,9 +14,9 @@ use crate::vulkan::{
 mod x11;
 
 impl super::super::Engine { 
-    pub fn create_test_connections(supported_instance_extensions: Vec<VkExtensionProperties>) -> Vec<Box<dyn Window>> { unsafe {
+    pub fn create_test_connections(&self, supported_instance_extensions: Vec<VkExtensionProperties>) -> Vec<Box<dyn Window>> { unsafe {
         return vec![
-            Box::new(XWindow::init_connection())
+            Box::new(XWindow::init_connection(self.dimensions))
         ];
     }}
 }
