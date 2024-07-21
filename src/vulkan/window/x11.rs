@@ -243,6 +243,7 @@ extern "C" {
     pub fn XGetWindowAttributes(display: *mut c_void, window: u64, attributes: *mut XWindowAttributes) -> i32;
     pub fn XInternAtom(display: *mut c_void, atom_name: *const c_char, only_if_exists: Bool) -> XAtom;
     pub fn XSetWMProtocols(display: *mut c_void, window: Window, protocols: *const XAtom, count: i32);
+    pub fn XInitThreads();
 }
 
 pub const KeyPress: i32 = 2;

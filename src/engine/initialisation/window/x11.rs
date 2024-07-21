@@ -5,6 +5,7 @@ use crate::vulkan::{
             XOpenDisplay,
             XDefaultScreen,
             XRootWindow,
+            XInitThreads,
             XCreateWindow,
             XStoreName,
             XMapWindow,
@@ -102,6 +103,8 @@ impl Window for XWindow {
     }
 
     fn init_connection() -> XWindow { unsafe {
+        XInitThreads();
+
         let display = XOpenDisplay(std::ptr::null()) as *mut c_void;  
         if display.is_null() {panic!("XOpenDisplay failed! :'(");}
 
