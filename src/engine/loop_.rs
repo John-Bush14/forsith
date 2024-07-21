@@ -5,9 +5,11 @@ use crate::vulkan::{
     rendering::{
         MAX_FRAMES_IN_FLIGHT,
         VkSubmitInfo,
+        VkPresentInfoKHR,
         vkResetFences,
         vkQueueSubmit,
-        vkWaitForFences
+        vkWaitForFences,
+        vkQueuePresentKHR
     },
     swapchain::{
         vkAcquireNextImageKHR
@@ -70,11 +72,27 @@ impl super::Engine { pub fn start_loop(&mut self) {
             signal_sephamores: signal_semaphores.as_ptr()
         };
 
-
         let submit_infos = [submit_info];
 
-
         unsafe {vkQueueSubmit(self.graphics_queue, submit_infos.len() as u32, submit_infos.as_ptr(), in_flight_fence)};
+
+
+        let swapchains = [self.swapchain];
+        
+        let image_indices = [image_index];
+
+        let present_info = VkPresentInfoKHR {
+            s_type: 1000001001,
+            p_next: std::ptr::null(),
+            wait_semaphore_count: signal_semaphores.len() as u32,
+            wait_semaphores: signal_semaphores.as_ptr(),
+            swapchain_count: swapchains.len() as u32,
+            swapchains: swapchains.as_ptr(),
+            image_indices: image_indices.as_ptr(),
+            results: std::ptr::null_mut()
+        };
+
+        unsafe {vkQueuePresentKHR(self.presentation_queue, &present_info as *const VkPresentInfoKHR)};
 
 
         self.current_frame = (self.current_frame + 1) % MAX_FRAMES_IN_FLIGHT as usize;

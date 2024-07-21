@@ -10,6 +10,9 @@ use crate::vulkan::{
             VkCommandBuffer
         }
     },
+    swapchain::{
+        VkSwapchainKHR
+    },
     VkBool32,
     VkResult,
     VkStructureType
@@ -27,6 +30,18 @@ pub type VkFence = u64;
 
 pub const MAX_FRAMES_IN_FLIGHT: u32 = 2;
 
+
+#[repr(C)]
+pub struct VkPresentInfoKHR {
+    pub s_type: VkStructureType,
+    pub p_next: *const c_void,
+    pub wait_semaphore_count: u32,
+    pub wait_semaphores: *const VkSemaphore,
+    pub swapchain_count: u32,
+    pub swapchains: *const VkSwapchainKHR,
+    pub image_indices: *const u32,
+    pub results: *mut VkResult
+}
 
 #[repr(C)]
 pub struct VkSubmitInfo {
@@ -104,4 +119,6 @@ extern "C" {
         submits: *const VkSubmitInfo,
         fence: VkFence
     ) -> VkResult;
+
+    pub fn vkQueuePresentKHR(queue: VkQueue, present_info: *const VkPresentInfoKHR) -> VkResult;
 }
