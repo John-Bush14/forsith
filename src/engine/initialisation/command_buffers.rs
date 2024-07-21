@@ -47,6 +47,8 @@ impl super::super::Engine { pub fn create_command_pool(&mut self) { unsafe {
 
 
 impl super::super::Engine { pub fn create_command_buffers(&mut self) { unsafe {
+    self.command_buffers = vec!();
+
     let allocate_info = VkCommandBufferAllocateInfo {
         s_type: 40,
         p_next: std::ptr::null(),

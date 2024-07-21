@@ -44,7 +44,7 @@ pub trait Window {
 
     fn create_surfaceKHR(&self, instance: crate::vulkan::instance::VkInstance) -> VkSurfaceKHR;
 
-    fn get_events(&self) -> Vec<WindowEvent>;
+    fn get_events(&self, dimensions: [i32; 2]) -> Vec<WindowEvent>;
     
     fn supports_physical_device_queue(&self, physical_device: VkPhysicalDevice, queue: u32) -> bool;
 
@@ -66,7 +66,7 @@ impl Window for dummy {
 
     fn create_surfaceKHR(&self, instance: crate::vulkan::instance::VkInstance) -> VkSurfaceKHR {todo!();}
 
-    fn get_events(&self) -> Vec<WindowEvent> {todo!();}
+    fn get_events(&self, dimensions: [i32; 2]) -> Vec<WindowEvent> {todo!();}
     
     fn supports_physical_device_queue(&self, physical_device: VkPhysicalDevice, queue: u32) -> bool {todo!();}
 

@@ -55,4 +55,11 @@ extern "C" {
     pub fn vkEndCommandBuffer(
         command_buffer: VkCommandBuffer
     ) -> VkResult;
+
+    pub fn vkFreeCommandBuffers(
+        device: VkDevice,
+        command_pool: VkCommandPool,
+        command_buffer_count: u32,
+        command_buffers: *const VkCommandBuffer
+    );
 }

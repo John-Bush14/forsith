@@ -55,6 +55,7 @@ pub struct XWindowCreateAttributes {
     pub cursor: u64,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(C)]
 pub struct XWindowAttributes {
     pub x: i32,
@@ -82,6 +83,24 @@ pub struct XWindowAttributes {
     pub screen: *mut c_void,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[repr(C)]
+pub struct XConfigureEvent {
+    pub type_: i32,
+    pub serial: u64,
+    pub send_event: Bool,
+    pub display: *mut c_void,
+    pub event: Window,
+    pub window: Window,
+    pub x: i32,
+    pub y: i32,
+    pub width: i32,
+    pub height: i32,
+    pub border_width: i32,
+    pub above: Window,
+    pub override_redirect: Bool,
+}
+
 #[repr(C)]
 pub union XEvent {
     pub type_: i32,
@@ -90,7 +109,8 @@ pub union XEvent {
     pub error: XErrorEvent,
     pub destroy_window: XDestroyWindowEvent,
     pub client_message: XClientMessageEvent,
-    pub resize_request: XResizeRequestEvent
+    pub resize_request: XResizeRequestEvent,
+    pub configure: XConfigureEvent
     // other fields as needed
 }
 
@@ -124,6 +144,16 @@ pub struct XButtonEvent {
     pub state: u32,
     pub button: u32,
     pub same_screen: Bool,
+}
+
+#[repr(C)]
+pub struct XWindowChanges {
+    x: i32,
+    y: i32,
+    pub width: i32,
+    pub height: i32,
+    sibling: Window,
+    stack_mode: i32
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -257,6 +287,9 @@ extern "C" {
     pub fn XInternAtom(display: *mut c_void, atom_name: *const c_char, only_if_exists: Bool) -> XAtom;
     pub fn XSetWMProtocols(display: *mut c_void, window: Window, protocols: *const XAtom, count: i32);
     pub fn XInitThreads();
+    pub fn XResizeWindow(display: *mut c_void, window: Window, width: u32, height: u32);
+    pub fn XConfigureWindow(display: *mut c_void, window: Window, value_mask: u32, configuration: *const XWindowChanges);
+    pub fn XSendEvent(display: *mut c_void, window: Window, propagate: Bool, event_mask: i64, event: *const XEvent);
 }
 
 pub const KeyPress: i32 = 2;

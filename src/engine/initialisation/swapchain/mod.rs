@@ -31,9 +31,9 @@ impl crate::engine::Engine { pub fn create_swapchain(&mut self) { unsafe {
     let mut capabilities: VkSurfaceCapabilitiesKHR = std::mem::zeroed();
 
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(self.physical_device, self.surface_khr, &mut capabilities as *mut VkSurfaceCapabilitiesKHR);
-
+    
     let extent = {
-        if capabilities.current_extent.width != std::u32::MAX {capabilities.current_extent}
+        if capabilities.current_extent.width == std::u32::MAX {VkExtent2D { width: self.dimensions[0] as u32, height: self.dimensions[1] as u32}}
         else {
             let min = capabilities.min_image_extent;
             let max = capabilities.max_image_extent;

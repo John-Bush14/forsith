@@ -41,6 +41,7 @@ pub struct VkSurfaceFormatKHR {
     pub color_space: u32
 }
 
+#[derive(Debug, Clone, PartialEq)]
 #[repr(C)]
 pub struct VkSurfaceCapabilitiesKHR {
     pub min_image_count: u32,

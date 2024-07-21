@@ -6,9 +6,11 @@ use crate::vulkan::{
             XDefaultScreen,
             XRootWindow,
             XInitThreads,
+            XResizeWindow,
             XCreateWindow,
             XStoreName,
             XMapWindow,
+            XConfigureWindow,
             XSelectInput,
             XDestroyWindow,
             XCloseDisplay,
@@ -18,12 +20,15 @@ use crate::vulkan::{
             XGetWindowAttributes,
             XInternAtom,
             XSetWMProtocols,
+            XConfigureEvent,
             XEvent,
             XWindow,
             VkXlibSurfaceCreateInfoKHR,
             XVisual,
             XWindowAttributes,
             Bool,
+            XWindowChanges,
+            XSendEvent,
             XAtom,
             vkCreateXlibSurfaceKHR,
             vkGetPhysicalDeviceXlibPresentationSupportKHR,
@@ -49,12 +54,21 @@ use std::ffi::{
 };
 
 
-const EXPOSURE_MASK: i64 = 0xFFFFFF | 0x0002_0000;
+const EXPOSURE_MASK: i64 = 
+    0x0002_0000     // Stucture Notify
+    | 0x0020_0000   // property change mask   
+    | 0x0001_0000   // visibiliy change
+    | 0x0000_0001   // key down
+    | 0x0000_0002   // key up
+    | 0x0000_0004   // button down
+    | 0x0000_0008   // button up
+;
+
 const CW_EVENT_MASK: u64 = 0xFFFFFFFF | 0x0800;
 
 
 impl Window for XWindow {
-    fn get_events(&self) -> Vec<WindowEvent> {
+    fn get_events(&self, dimensions: [i32; 2]) -> Vec<WindowEvent> {
         let mut events: Vec<WindowEvent> = vec!();
 
         while unsafe{XPending(self.display)} > 0 {
@@ -62,13 +76,20 @@ impl Window for XWindow {
 
             unsafe {XNextEvent(self.display, &mut event)};
 
+            println!("{}, {}", event, unsafe{XPending(self.display)});
+
             unsafe {events.push(match event.type_ {
                 x11::CreateNotify => WindowEvent::Birth,
                 x11::KeyRelease => WindowEvent::KeyUp(event.key.keycode),
                 x11::KeyPress => WindowEvent::KeyDown(event.key.keycode),
                 x11::ButtonRelease => WindowEvent::MouseUp(event.button.button),
                 x11::ButtonPress => WindowEvent::MouseDown(event.button.button),
-                x11::ResizeRequest => WindowEvent::WindowResize([event.resize_request.width, event.resize_request.height]),
+                x11::ConfigureNotify => {
+                    if dimensions[0] != event.configure.width || dimensions[1] != event.configure.height {
+                        WindowEvent::WindowResize([event.configure.width, event.configure.height])
+                    }
+                    else {WindowEvent::Undefined}
+                },
                 _ => {
                     if unsafe{event.type_} == x11::ClientMessage 
                     && unsafe {event.client_message.data.longs[0] as XAtom} == self.delete_window_protocol {
@@ -130,6 +151,8 @@ impl Window for XWindow {
             CW_EVENT_MASK,
             &window_attributes as *const XWindowCreateAttributes,
         );      
+
+        println!("{}", window);
 
         return XWindow {
             display: display,

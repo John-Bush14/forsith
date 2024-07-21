@@ -17,16 +17,20 @@ use crate::vulkan::{
 };
 
 
+impl super::Engine { pub fn process_events(&mut self) -> bool {
+    let events = self.window.get_events(self.dimensions);
+
+    for event in events {match event {
+        WindowEvent::Death => return true,
+        WindowEvent::KeyDown(keycode) => panic!(),
+        WindowEvent::WindowResize(dimensions) => {self.new_dimensions = Some(dimensions)},
+        _ => {}
+    }} return false;
+}}
+
 impl super::Engine { pub fn start_loop(&mut self) {
     while true {
-        let events = self.window.get_events();
-
-        for event in events {match event {
-            WindowEvent::Death => return,
-            WindowEvent::KeyDown(keycode) => panic!(),
-            _ => {}
-        }}
-
+        if self.process_events() {return}
 
         let image_available_semaphore = self.image_available_semaphores[self.current_frame];
         let render_finished_semaphore = self.render_finished_semaphores[self.current_frame];
@@ -91,9 +95,14 @@ impl super::Engine { pub fn start_loop(&mut self) {
             image_indices: image_indices.as_ptr(),
             results: std::ptr::null_mut()
         };
-
-        unsafe {vkQueuePresentKHR(self.presentation_queue, &present_info as *const VkPresentInfoKHR)};
-
+            
+        let result = unsafe {vkQueuePresentKHR(self.presentation_queue, &present_info as *const VkPresentInfoKHR)};
+        
+        if (
+            result == 1000001003 
+            || result == 1000001004 
+            || self.new_dimensions.is_some()
+        ) {self.recreate_swapchain()}
 
         self.current_frame = (self.current_frame + 1) % MAX_FRAMES_IN_FLIGHT as usize;
     }
