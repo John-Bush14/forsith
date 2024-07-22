@@ -10,6 +10,10 @@ use crate::vulkan::{
             VkImageView
         }
     },
+    vertex::{
+        VkVertexInputBindingDescription,
+        VkVertexInputAttributeDescription
+    },
     VkBool32,
     VkResult,
     VkStructureType
@@ -81,9 +85,9 @@ pub struct VkPipelineVertexInputStateCreateInfo {
     pub p_next: *const c_void,
     pub flags: u32,
     pub vertex_binding_description_count: u32,
-    pub vertex_binding_descriptions: *const c_void,
+    pub vertex_binding_descriptions: *const VkVertexInputBindingDescription,
     pub vertex_attribute_description_count: u32,
-    pub vertex_attribute_descriptions: *const c_void,
+    pub vertex_attribute_descriptions: *const VkVertexInputAttributeDescription,
 }
 
 #[repr(C)]

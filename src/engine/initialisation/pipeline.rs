@@ -31,6 +31,10 @@ use crate::vulkan::{
         vkCreatePipelineLayout,
         vkCreateGraphicsPipelines
     },
+    vertex::{
+        VkVertexInputBindingDescription,
+        VkVertexInputAttributeDescription
+    },
     devices::{
         device::{
             VkDevice
@@ -76,14 +80,38 @@ impl crate::engine::Engine { pub fn create_pipeline(&mut self) { unsafe {
 
     self.shader_modules = vec!(vertex_shader, fragment_shader);
 
+    let vertex_input_binding_description = VkVertexInputBindingDescription {
+        binding: 0,
+        stride: 20,
+        input_rate: 0,
+    };
+
+    let position_vertex_input_attribute_description = VkVertexInputAttributeDescription {
+        location: 0,
+        binding: 0,
+        format: 103,
+        offset: 0
+    };
+
+    let color_vertex_input_attribute_description = VkVertexInputAttributeDescription {
+        location: 1,
+        binding: 0,
+        format: 103,
+        offset: 8
+    };
+
+    let vertex_binding_descriptions = [vertex_input_binding_description];
+
+    let vertex_attribute_descriptions = [position_vertex_input_attribute_description, color_vertex_input_attribute_description];
+
     let vertex_input_state_create_info = VkPipelineVertexInputStateCreateInfo {
         s_type: 19,
         p_next: std::ptr::null(),
         flags: 0,
-        vertex_binding_description_count: 0,
-        vertex_binding_descriptions: std::ptr::null(),
-        vertex_attribute_description_count: 0,
-        vertex_attribute_descriptions: std::ptr::null()
+        vertex_binding_description_count: vertex_binding_descriptions.len() as u32,
+        vertex_binding_descriptions: vertex_binding_descriptions.as_ptr(),
+        vertex_attribute_description_count: vertex_attribute_descriptions.len() as u32,
+        vertex_attribute_descriptions: vertex_attribute_descriptions.as_ptr()
     };
 
     let input_assembly_state_create_info = VkPipelineInputAssemblyStateCreateInfo {
