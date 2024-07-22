@@ -16,17 +16,20 @@ use crate::vulkan::{
         VkClearValue,
         VkClearColorValue,
         VkRenderPassBeginInfo,
-        vkCmdDraw,
+        vkCmdDrawIndexed,
         vkCmdBindPipeline,
         vkCmdEndRenderPass,
         vkCmdBeginRenderPass,
+        vkCmdBindIndexBuffer,
         vkCmdBindVertexBuffers
     },
     pipeline::{
         VkRect2D,
         VkOffset2D
+    },
+    vertex::{
+        INDICES
     }
-    
 };
 
 
@@ -109,8 +112,15 @@ impl super::super::Engine { pub fn create_command_buffers(&mut self) { unsafe {
                 offsets.as_ptr()
             );
 
+            vkCmdBindIndexBuffer(
+                command_buffer,
+                self.index_buffer,
+                0,
+                0
+            );
 
-            vkCmdDraw(command_buffer, 3, 1, 0, 0);
+
+            vkCmdDrawIndexed(command_buffer, INDICES.len() as u32, 1, 0, 0, 0);
 
             
             vkCmdEndRenderPass(command_buffer);

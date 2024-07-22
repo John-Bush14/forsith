@@ -1,17 +1,25 @@
-pub const VERTICES: [Vertex; 3] = [
+pub const VERTICES: [Vertex; 4] = [
     Vertex {
-        pos: [0.0, -0.5],
+        pos: [-0.5, -0.5],
         color: [1.0, 0.0, 0.0],
     },
     Vertex {
-        pos: [0.5, 0.5],
+        pos: [0.5, -0.5],
         color: [0.0, 1.0, 0.0],
+    },
+    Vertex {
+        pos: [0.5, 0.5],
+        color: [0.0, 0.0, 1.0],
     },
     Vertex {
         pos: [-0.5, 0.5],
         color: [0.0, 0.0, 1.0],
     },
 ];
+
+pub const INDICES: [u16; 6] = [0, 1, 2, 2, 3, 0];
+
+pub const VERTEX_SIZE: usize = 20;
 
 
 use crate::vulkan::{
@@ -30,9 +38,6 @@ use crate::vulkan::{
 use std::ffi::{
     c_void
 };
-
-
-pub const VERTEX_SIZE: usize = 20;
 
 
 pub type VkBuffer = u64;
@@ -144,6 +149,7 @@ pub struct VkMemoryRequirements {
     pub memory_type_bits: u32
 }
 
+#[derive(Copy, Clone)]
 #[repr(C)]
 pub struct Vertex {
     pub pos: [f32; 2],

@@ -53,8 +53,10 @@ impl Drop for super::Engine {
             
             self.in_flight_fences.iter().for_each(|&fence| vkDestroyFence(self.device, fence, std::ptr::null()));
 
-            vkDestroyBuffer(self.device, self.vertex_buffer, std::ptr::null());
+            vkDestroyBuffer(self.device, self.index_buffer, std::ptr::null());
+            vkFreeMemory(self.device, self.index_buffer_memory, std::ptr::null());
 
+            vkDestroyBuffer(self.device, self.vertex_buffer, std::ptr::null());
             vkFreeMemory(self.device, self.vertex_buffer_memory, std::ptr::null());
 
             vkDestroyCommandPool(self.device, self.command_pool, std::ptr::null());

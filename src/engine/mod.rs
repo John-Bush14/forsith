@@ -98,7 +98,9 @@ pub struct Engine {
     dimensions: [i32; 2],
     new_dimensions: Option<[i32; 2]>,
     vertex_buffer: VkBuffer,
-    vertex_buffer_memory: VkDeviceMemory
+    vertex_buffer_memory: VkDeviceMemory,
+    index_buffer: VkBuffer,
+    index_buffer_memory: VkDeviceMemory
 }
 
 static mut ENGINE: Option<Engine> = None;

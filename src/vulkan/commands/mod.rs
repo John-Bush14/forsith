@@ -94,6 +94,22 @@ extern "C" {
         region_count: u32,
         regions: *const VkBufferCopy
     );
+
+    pub fn vkCmdBindIndexBuffer(
+        command_buffer: VkCommandBuffer,
+        buffer: VkBuffer,
+        offset: u64,
+        index_type: u32
+    );
+
+    pub fn vkCmdDrawIndexed(
+        command_buffer: VkCommandBuffer,
+        index_count: u32,
+        instance_count: u32,
+        first_index: u32,
+        vertex_offset: i32,
+        first_instance: u32
+    );
 }
 
 

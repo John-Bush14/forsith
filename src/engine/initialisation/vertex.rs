@@ -1,5 +1,6 @@
 use crate::vulkan::{
     vertex::{
+        INDICES,
         VERTICES,
         VERTEX_SIZE,
         Vertex,
@@ -44,7 +45,15 @@ use std::ffi::{
 
 
 impl crate::engine::Engine { pub fn create_vertex_buffer(&mut self) {
-    let mut buffer_size = (VERTICES.len() * VERTEX_SIZE) as u64;
+    (self.vertex_buffer, self.vertex_buffer_memory) = self.create_device_local_buffer_with_data::<u32, _>(0x00000080, &VERTICES);
+}}
+
+impl crate::engine::Engine { pub fn create_index_buffer(&mut self) {
+    (self.index_buffer, self.index_buffer_memory) = self.create_device_local_buffer_with_data::<u16, _>(0x00000040, &INDICES);
+}}
+
+impl crate::engine::Engine { pub fn create_device_local_buffer_with_data<A, T: Copy>(&self, usage: u32, data: &[T]) -> (u64, u64) {
+    let mut buffer_size = (data.len() * std::mem::size_of::<T>()) as u64;
 
     let (staging_buffer, staging_memory, staging_size) = self.create_buffer(buffer_size, 0x00000001, 0x00000002 | 0x00000004);
 
@@ -59,20 +68,18 @@ impl crate::engine::Engine { pub fn create_vertex_buffer(&mut self) {
         &mut data_ptr as *mut *mut Vertex
     )};
 
-    let vertex_align = std::mem::align_of::<u32>();
+    let vertex_align = std::mem::align_of::<A>();
 
     let layout = std::alloc::Layout::from_size_align(staging_size as usize, vertex_align).unwrap();
 
-    unsafe {std::ptr::copy_nonoverlapping(VERTICES.as_ptr(), data_ptr, VERTICES.len())};
+    unsafe {std::ptr::copy_nonoverlapping(data.as_ptr(), data_ptr as _, data.len())};
 
     unsafe {vkUnmapMemory(self.device, staging_memory)};
 
 
-    let mut _XD = 0;
+    let (buffer, memory, _) = self.create_buffer(buffer_size, 0x00000002 | usage, 0x00000001);
 
-    (self.vertex_buffer, self.vertex_buffer_memory, _XD) = self.create_buffer(buffer_size, 0x00000002 | 0x00000080, 0x00000001);
-
-    self.copy_buffer(staging_buffer, self.vertex_buffer, buffer_size);
+    self.copy_buffer(staging_buffer, buffer, buffer_size);
 
 
     unsafe {
@@ -80,6 +87,8 @@ impl crate::engine::Engine { pub fn create_vertex_buffer(&mut self) {
 
         vkFreeMemory(self.device, staging_memory, std::ptr::null());
     };
+
+    return (buffer, memory)
 }}
 
 impl crate::engine::Engine { pub fn create_buffer(

@@ -62,7 +62,9 @@ impl super::Engine {
             dimensions: [800, 600],
             new_dimensions: None,
             vertex_buffer: 0,
-            vertex_buffer_memory: 0
+            vertex_buffer_memory: 0,
+            index_buffer: 0,
+            index_buffer_memory: 0
         };
 
 
@@ -99,6 +101,8 @@ impl super::Engine {
 
 
         engine.create_vertex_buffer();
+        
+        engine.create_index_buffer();
 
         
         engine.create_command_buffers();
