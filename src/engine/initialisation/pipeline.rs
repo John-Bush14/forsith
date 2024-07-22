@@ -97,7 +97,7 @@ impl crate::engine::Engine { pub fn create_pipeline(&mut self) { unsafe {
     let color_vertex_input_attribute_description = VkVertexInputAttributeDescription {
         location: 1,
         binding: 0,
-        format: 103,
+        format: 106,
         offset: 8
     };
 
