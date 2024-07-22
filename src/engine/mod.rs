@@ -58,6 +58,9 @@ use crate::vulkan::{
     vertex::{
         VkBuffer,
         VkDeviceMemory
+    },
+    uniform::{
+        VkDescriptorSetLayout
     }
 };
 
@@ -100,7 +103,10 @@ pub struct Engine {
     vertex_buffer: VkBuffer,
     vertex_buffer_memory: VkDeviceMemory,
     index_buffer: VkBuffer,
-    index_buffer_memory: VkDeviceMemory
+    index_buffer_memory: VkDeviceMemory,
+    uniform_buffers: Vec<VkBuffer>,
+    uniform_buffer_memories: Vec<VkDeviceMemory>,
+    descriptor_set_layout: VkDescriptorSetLayout
 }
 
 static mut ENGINE: Option<Engine> = None;

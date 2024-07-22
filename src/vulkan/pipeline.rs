@@ -171,7 +171,7 @@ pub struct VkPipelineLayoutCreateInfo {
     pub p_next: *const c_void,
     pub flags: u32,
     pub set_layout_count: u32,
-    pub set_layouts: *const c_void,
+    pub set_layouts: *const u64,
     pub push_constant_range_count: u32,
     pub push_constant_ranges: *const c_void
 }

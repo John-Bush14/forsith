@@ -6,6 +6,7 @@ mod pipeline;
 mod command_buffers;
 mod sync_objects;
 mod vertex;
+mod uniform;
 
 
 use crate::vulkan::{
@@ -64,7 +65,10 @@ impl super::Engine {
             vertex_buffer: 0,
             vertex_buffer_memory: 0,
             index_buffer: 0,
-            index_buffer_memory: 0
+            index_buffer_memory: 0,
+            uniform_buffers: vec!(),
+            uniform_buffer_memories: vec!(),
+            descriptor_set_layout: 0
         };
 
 
@@ -92,6 +96,8 @@ impl super::Engine {
 
         engine.create_image_views();
 
+        engine.create_descriptor_set_layout();
+
         engine.create_pipeline();
 
 
@@ -101,8 +107,10 @@ impl super::Engine {
 
 
         engine.create_vertex_buffer();
-        
+    
         engine.create_index_buffer();
+        
+        engine.create_uniform_buffers();
 
         
         engine.create_command_buffers();

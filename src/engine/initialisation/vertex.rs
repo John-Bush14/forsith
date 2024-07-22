@@ -44,6 +44,7 @@ use std::ffi::{
 };
 
 
+
 impl crate::engine::Engine { pub fn create_vertex_buffer(&mut self) {
     (self.vertex_buffer, self.vertex_buffer_memory) = self.create_device_local_buffer_with_data::<u32, _>(0x00000080, &VERTICES);
 }}
@@ -57,7 +58,7 @@ impl crate::engine::Engine { pub fn create_device_local_buffer_with_data<A, T: C
 
     let (staging_buffer, staging_memory, staging_size) = self.create_buffer(buffer_size, 0x00000001, 0x00000002 | 0x00000004);
 
-    let mut data_ptr: *mut Vertex = std::ptr::null_mut();
+    let mut data_ptr: *mut std::ffi::c_void = std::ptr::null_mut();
 
     unsafe {vkMapMemory(
         self.device,
@@ -65,7 +66,7 @@ impl crate::engine::Engine { pub fn create_device_local_buffer_with_data<A, T: C
         0,
         buffer_size,
         0,
-        &mut data_ptr as *mut *mut Vertex
+        &mut data_ptr as _
     )};
 
     let vertex_align = std::mem::align_of::<A>();

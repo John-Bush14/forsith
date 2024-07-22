@@ -1,19 +1,19 @@
 pub const VERTICES: [Vertex; 4] = [
     Vertex {
         pos: [-0.5, -0.5],
-        color: [1.0, 0.0, 0.0],
+        color: [0.0, 0.0, 0.0],
     },
     Vertex {
         pos: [0.5, -0.5],
-        color: [0.0, 1.0, 0.0],
+        color: [1.0, 1.0, 1.0],
     },
     Vertex {
         pos: [0.5, 0.5],
-        color: [0.0, 0.0, 1.0],
+        color: [0.0, 0.0, 0.0],
     },
     Vertex {
         pos: [-0.5, 0.5],
-        color: [0.0, 0.0, 1.0],
+        color: [1.0, 1.0, 1.0],
     },
 ];
 
@@ -85,7 +85,7 @@ extern "C" {
         offset: u64,
         size: u64,
         flags: u32,
-        data: *mut *mut Vertex
+        data: *mut *mut c_void
     ) -> VkResult;
 
     pub fn vkUnmapMemory(

@@ -36,6 +36,9 @@ use crate::vulkan::{
     vertex::{
         vkFreeMemory,
         vkDestroyBuffer
+    },
+    uniform::{
+        vkDestroyDescriptorSetLayout
     }
 };
 
@@ -52,6 +55,11 @@ impl Drop for super::Engine {
             self.cleanup_swapchain();
             
             self.in_flight_fences.iter().for_each(|&fence| vkDestroyFence(self.device, fence, std::ptr::null()));
+
+            vkDestroyDescriptorSetLayout(self.device, self.descriptor_set_layout, std::ptr::null());
+
+            self.uniform_buffers.iter().for_each(|&buffer| vkDestroyBuffer(self.device, buffer, std::ptr::null()));
+            self.uniform_buffer_memories.iter().for_each(|&memory| vkFreeMemory(self.device, memory, std::ptr::null()));
 
             vkDestroyBuffer(self.device, self.index_buffer, std::ptr::null());
             vkFreeMemory(self.device, self.index_buffer_memory, std::ptr::null());

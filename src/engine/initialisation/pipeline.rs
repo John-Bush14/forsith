@@ -207,8 +207,8 @@ impl crate::engine::Engine { pub fn create_pipeline(&mut self) { unsafe {
         s_type: 30,
         p_next: std::ptr::null(),
         flags: 0,
-        set_layout_count: 0,
-        set_layouts: std::ptr::null(),
+        set_layout_count: 1,
+        set_layouts: &self.descriptor_set_layout as *const u64,
         push_constant_range_count: 0,
         push_constant_ranges: std::ptr::null()
     };
