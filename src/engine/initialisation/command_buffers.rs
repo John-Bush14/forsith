@@ -19,7 +19,8 @@ use crate::vulkan::{
         vkCmdDraw,
         vkCmdBindPipeline,
         vkCmdEndRenderPass,
-        vkCmdBeginRenderPass
+        vkCmdBeginRenderPass,
+        vkCmdBindVertexBuffers
     },
     pipeline::{
         VkRect2D,
@@ -94,6 +95,19 @@ impl super::super::Engine { pub fn create_command_buffers(&mut self) { unsafe {
 
 
             vkCmdBindPipeline(command_buffer, 0, self.pipeline);
+
+            
+            let vertex_buffers = [self.vertex_buffer];
+
+            let offsets = [0];
+
+            vkCmdBindVertexBuffers(
+                command_buffer, 
+                0,
+                vertex_buffers.len() as u32,
+                vertex_buffers.as_ptr(),
+                offsets.as_ptr()
+            );
 
 
             vkCmdDraw(command_buffer, 3, 1, 0, 0);

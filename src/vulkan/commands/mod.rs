@@ -10,6 +10,9 @@ use crate::vulkan::{
         VkRenderPass,
         VkFramebuffer
     },
+    vertex::{
+        VkBuffer
+    },
     VkStructureType,
 };
 
@@ -74,6 +77,14 @@ extern "C" {
     );
 
     pub fn vkCmdEndRenderPass(command_buffer: VkCommandBuffer);
+
+    pub fn vkCmdBindVertexBuffers(
+        command_buffer: VkCommandBuffer,
+        first_binding: u32,
+        binding_count: u32,
+        vertex_buffers: *const VkBuffer,
+        offsets: *const u64
+    );
 }
 
 

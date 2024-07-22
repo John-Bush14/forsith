@@ -5,6 +5,7 @@ mod swapchain;
 mod pipeline;
 mod command_buffers;
 mod sync_objects;
+mod vertex;
 
 
 use crate::vulkan::{
@@ -58,7 +59,9 @@ impl super::Engine {
             graphics_family: 0,
             presentation_family: 0,
             dimensions: [800, 600],
-            new_dimensions: None
+            new_dimensions: None,
+            vertex_buffer: 0,
+            vertex_buffer_memory: 0
         };
 
 
@@ -90,6 +93,10 @@ impl super::Engine {
 
 
         engine.create_command_pool();
+
+
+        engine.create_vertex_buffer();
+
         
         engine.create_command_buffers();
 

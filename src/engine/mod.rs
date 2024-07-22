@@ -54,6 +54,10 @@ use crate::vulkan::{
     rendering::{
         VkSemaphore,
         VkFence
+    },
+    vertex::{
+        VkBuffer,
+        VkDeviceMemory
     }
 };
 
@@ -91,7 +95,9 @@ pub struct Engine {
     graphics_family: u32,
     presentation_family: u32,
     dimensions: [i32; 2],
-    new_dimensions: Option<[i32; 2]>
+    new_dimensions: Option<[i32; 2]>,
+    vertex_buffer: VkBuffer,
+    vertex_buffer_memory: VkDeviceMemory
 }
 
 static mut ENGINE: Option<Engine> = None;

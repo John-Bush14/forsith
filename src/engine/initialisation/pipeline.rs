@@ -32,6 +32,7 @@ use crate::vulkan::{
         vkCreateGraphicsPipelines
     },
     vertex::{
+        VERTEX_SIZE,
         VkVertexInputBindingDescription,
         VkVertexInputAttributeDescription
     },
@@ -82,7 +83,7 @@ impl crate::engine::Engine { pub fn create_pipeline(&mut self) { unsafe {
 
     let vertex_input_binding_description = VkVertexInputBindingDescription {
         binding: 0,
-        stride: 20,
+        stride: VERTEX_SIZE as u32,
         input_rate: 0,
     };
 
