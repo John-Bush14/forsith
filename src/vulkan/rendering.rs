@@ -121,4 +121,6 @@ extern "C" {
     ) -> VkResult;
 
     pub fn vkQueuePresentKHR(queue: VkQueue, present_info: *const VkPresentInfoKHR) -> VkResult;
+
+    pub fn vkQueueWaitIdle(queue: VkQueue) -> VkResult;
 }

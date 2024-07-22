@@ -58,6 +58,7 @@ impl Drop for super::Engine {
             vkFreeMemory(self.device, self.vertex_buffer_memory, std::ptr::null());
 
             vkDestroyCommandPool(self.device, self.command_pool, std::ptr::null());
+            vkDestroyCommandPool(self.device, self.transient_command_pool, std::ptr::null());
 
             vkDestroySurfaceKHR(self.instance, self.surface_khr, std::ptr::null());
 

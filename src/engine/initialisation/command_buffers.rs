@@ -30,11 +30,11 @@ use crate::vulkan::{
 };
 
 
-impl super::super::Engine { pub fn create_command_pool(&mut self) { unsafe {
+impl super::super::Engine { pub fn create_command_pool(&mut self, transient: bool) { unsafe {
     let command_pool_create_info = VkCommandPoolCreateInfo {
         s_type: 39,
         p_next: std::ptr::null(),
-        flags: 0,
+        flags: {if transient {0x00000001} else {0}},
         queue_family_index: self.graphics_family
     };
 
@@ -42,7 +42,7 @@ impl super::super::Engine { pub fn create_command_pool(&mut self) { unsafe {
         self.device,
         &command_pool_create_info as *const VkCommandPoolCreateInfo,
         std::ptr::null(),
-        &mut self.command_pool
+        {if transient {&mut self.transient_command_pool} else {&mut self.command_pool}}
     );
 }}}
 

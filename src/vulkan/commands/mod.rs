@@ -11,7 +11,8 @@ use crate::vulkan::{
         VkFramebuffer
     },
     vertex::{
-        VkBuffer
+        VkBuffer,
+        VkBufferCopy
     },
     VkStructureType,
 };
@@ -84,6 +85,14 @@ extern "C" {
         binding_count: u32,
         vertex_buffers: *const VkBuffer,
         offsets: *const u64
+    );
+    
+    pub fn vkCmdCopyBuffer(
+        command_buffer: VkCommandBuffer,
+        src: VkBuffer,
+        dst: VkBuffer,
+        region_count: u32,
+        regions: *const VkBufferCopy
     );
 }
 

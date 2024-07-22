@@ -49,6 +49,7 @@ impl super::Engine {
             debug_report_callback: 0,
             framebuffers: vec!(),
             command_pool: 0,
+            transient_command_pool: 0,
             command_buffers: vec!(),
             image_available_semaphores: vec!(),
             render_finished_semaphores: vec!(),
@@ -92,7 +93,9 @@ impl super::Engine {
         engine.create_pipeline();
 
 
-        engine.create_command_pool();
+        engine.create_command_pool(false);
+        
+        engine.create_command_pool(true);
 
 
         engine.create_vertex_buffer();

@@ -103,6 +103,13 @@ extern "C" {
 
 
 #[repr(C)]
+pub struct VkBufferCopy {
+    pub src_offset: u64,
+    pub dst_offset: u64,
+    pub size: u64
+}
+
+#[repr(C)]
 pub struct VkMemoryAllocateInfo {
     pub s_type: VkStructureType,
     pub p_next: *const c_void,
