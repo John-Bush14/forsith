@@ -68,7 +68,9 @@ impl super::Engine {
             index_buffer_memory: 0,
             uniform_buffers: vec!(),
             uniform_buffer_memories: vec!(),
-            descriptor_set_layout: 0
+            descriptor_set_layout: 0,
+            descriptor_pool: 0,
+            descriptor_sets: vec!()
         };
 
 
@@ -109,8 +111,13 @@ impl super::Engine {
         engine.create_vertex_buffer();
     
         engine.create_index_buffer();
+
         
         engine.create_uniform_buffers();
+
+        engine.create_descriptor_pool();
+        
+        engine.create_descriptor_sets();
 
         
         engine.create_command_buffers();

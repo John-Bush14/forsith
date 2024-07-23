@@ -8,11 +8,15 @@ use crate::vulkan::{
         VkRect2D,
         VkPipeline,
         VkRenderPass,
-        VkFramebuffer
+        VkFramebuffer,
+        VkPipelineLayout
     },
     vertex::{
         VkBuffer,
         VkBufferCopy
+    },
+    uniform::{
+        VkDescriptorSet
     },
     VkStructureType,
 };
@@ -109,6 +113,17 @@ extern "C" {
         first_index: u32,
         vertex_offset: i32,
         first_instance: u32
+    );
+
+    pub fn vkCmdBindDescriptorSets(
+        command_buffer: VkCommandBuffer,
+        pipeline_bind_point: u32,
+        layout: VkPipelineLayout,
+        first_set: u32,
+        descriptor_set_count: u32,
+        descriptor_set: *const VkDescriptorSet,
+        dynamic_offset_count: u32,
+        dynamic_offsets: *const u32
     );
 }
 

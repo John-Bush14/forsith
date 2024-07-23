@@ -159,7 +159,7 @@ impl crate::engine::Engine { pub fn create_pipeline(&mut self) { unsafe {
         rasterizer_discard_enable: 0,
         polygon_mode: 0,
         cull_mode: 0x00000002,
-        front_face: 1,
+        front_face: 0,
         depth_bias_enable: 0,
         depth_bias_constant_factor: 0.0,
         depth_bias_clamp: 0.0,

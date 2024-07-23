@@ -58,9 +58,7 @@ impl super::Engine { pub fn start_loop(&mut self) {
             &mut image_index
         )};
 
-
-        self.update_uniform_buffers();
-        
+        self.update_uniform_buffers(image_index as usize);
     
         let wait_semaphores = [image_available_semaphore];
         let signal_semaphores = [render_finished_semaphore];

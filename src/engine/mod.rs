@@ -60,6 +60,8 @@ use crate::vulkan::{
         VkDeviceMemory
     },
     uniform::{
+        VkDescriptorPool,
+        VkDescriptorSet,
         VkDescriptorSetLayout
     }
 };
@@ -106,7 +108,9 @@ pub struct Engine {
     index_buffer_memory: VkDeviceMemory,
     uniform_buffers: Vec<VkBuffer>,
     uniform_buffer_memories: Vec<VkDeviceMemory>,
-    descriptor_set_layout: VkDescriptorSetLayout
+    descriptor_set_layout: VkDescriptorSetLayout,
+    descriptor_pool: VkDescriptorPool,
+    descriptor_sets: Vec<VkDescriptorSet>
 }
 
 static mut ENGINE: Option<Engine> = None;

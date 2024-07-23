@@ -21,14 +21,19 @@ use crate::vulkan::{
         vkCmdEndRenderPass,
         vkCmdBeginRenderPass,
         vkCmdBindIndexBuffer,
-        vkCmdBindVertexBuffers
+        vkCmdBindVertexBuffers,
+        vkCmdBindDescriptorSets
     },
     pipeline::{
         VkRect2D,
-        VkOffset2D
+        VkOffset2D,
+        VkPipelineLayout
     },
     vertex::{
         INDICES
+    },
+    uniform::{
+        VkDescriptorSet
     }
 };
 
@@ -70,8 +75,10 @@ impl super::super::Engine { pub fn create_command_buffers(&mut self) { unsafe {
         command_buffers.as_mut_ptr()
     );
 
-    command_buffers.iter().zip(self.framebuffers.iter())
-        .for_each(|(&command_buffer, &framebuffer)| {
+    command_buffers.iter().enumerate()
+        .for_each(|(i, &command_buffer)| {
+            let framebuffer = self.framebuffers[i];
+
             let command_buffer_begin_info = VkCommandBufferBeginInfo {
                 s_type: 42,
                 p_next: std::ptr::null(),
@@ -117,6 +124,17 @@ impl super::super::Engine { pub fn create_command_buffers(&mut self) { unsafe {
                 self.index_buffer,
                 0,
                 0
+            );
+
+            vkCmdBindDescriptorSets(
+                command_buffer,
+                0,
+                self.pipeline_layout,
+                0,
+                1,
+                &self.descriptor_sets[i],
+                0,
+                std::ptr::null()
             );
 
 
