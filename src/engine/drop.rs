@@ -38,6 +38,7 @@ use crate::vulkan::{
         vkDestroyBuffer
     },
     uniform::{
+        vkDestroyDescriptorPool,
         vkDestroyDescriptorSetLayout
     }
 };
@@ -55,6 +56,8 @@ impl Drop for super::Engine {
             self.cleanup_swapchain();
             
             self.in_flight_fences.iter().for_each(|&fence| vkDestroyFence(self.device, fence, std::ptr::null()));
+            
+            vkDestroyDescriptorPool(self.device, self.descriptor_pool, std::ptr::null());
 
             vkDestroyDescriptorSetLayout(self.device, self.descriptor_set_layout, std::ptr::null());
 

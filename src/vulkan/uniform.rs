@@ -58,6 +58,12 @@ extern "C" {
         allocate_info: *const VkDescriptorSetAllocateInfo,
         descriptor_sets: *mut VkDescriptorSet
     ) -> VkResult;
+
+    pub fn vkDestroyDescriptorPool(
+        device: VkDevice,
+        descriptor_pool: VkDescriptorPool,
+        _: *const c_void
+    );
 }
 
 
