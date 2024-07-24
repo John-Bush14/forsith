@@ -97,7 +97,7 @@ impl crate::engine::Engine { pub fn create_pipeline(&mut self) { unsafe {
     let color_vertex_input_attribute_description = VkVertexInputAttributeDescription {
         location: 1,
         binding: 0,
-        format: 106,
+        format: 109,
         offset: 8
     };
 
@@ -175,7 +175,7 @@ impl crate::engine::Engine { pub fn create_pipeline(&mut self) { unsafe {
         sample_shading_enable: 0,
         min_sample_shading: 1.0,
         sample_mask: std::ptr::null(),
-        alpha_to_coverage_enable: 0,
+        alpha_to_coverage_enable: 1,
         alpha_to_one_enable: 0
     };
 
