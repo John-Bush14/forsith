@@ -7,6 +7,8 @@ mod drop;
 
 mod swapchain;
 
+mod image;
+
 
 use crate::vulkan::{
     instance::{
