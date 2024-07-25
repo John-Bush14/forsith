@@ -29,10 +29,12 @@ use crate::{
 
 
 impl super::Engine {
-    pub fn init(name: String, version: [u8;3], event_loop: fn()) -> Result<Self, Box<dyn std::error::Error>> { unsafe {
+    pub fn init(name: String, version: [u8;3]) -> Result<Self, Box<dyn std::error::Error>> { unsafe {
         let mut engine: super::Engine = super::Engine {
             app_name: name.clone(),
             app_version: vk_make_version(version[0] as u32, version[1] as u32, version[2] as u32),
+            vertices: vec!(),
+            indices: vec!(),
             instance: 0,
             device: 0,
             physical_device: 0,
@@ -70,7 +72,10 @@ impl super::Engine {
             uniform_buffer_memories: vec!(),
             descriptor_set_layout: 0,
             descriptor_pool: 0,
-            descriptor_sets: vec!()
+            descriptor_sets: vec!(),
+            vertex_usage_counts: std::collections::HashMap::new(),
+            vertex_indices: std::collections::HashMap::new(),
+            drawables: vec!()
         };
 
 
@@ -108,9 +113,9 @@ impl super::Engine {
         engine.create_command_pool(true);
 
 
-        engine.create_vertex_buffer();
+        if engine.vertices.len() > 0 {engine.create_vertex_buffer()}
     
-        engine.create_index_buffer();
+        if engine.indices.len() > 0 {engine.create_index_buffer()}
 
         
         engine.create_uniform_buffers();

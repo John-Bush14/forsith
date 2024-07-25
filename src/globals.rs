@@ -1,4 +1,4 @@
-use super::drawables::Drawable;
+use crate::engine::interface::drawables::drawable;
 
 pub struct Settings {
     pub target_fps: u16,
@@ -8,7 +8,7 @@ pub struct Settings {
 pub struct State {
     pub fps: u16,
     pub delta: f32,
-    pub drawables: Vec<Box<dyn Drawable>>
+    pub drawables: Vec<drawable>
 }
 
 pub struct Flags {

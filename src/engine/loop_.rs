@@ -28,9 +28,11 @@ impl super::Engine { pub fn process_events(&mut self) -> bool {
     }} return false;
 }}
 
-impl super::Engine { pub fn start_loop(&mut self) {
+impl super::Engine { pub fn start_loop(mut self, event_loop: fn(&mut super::Engine)) {
     while true {
         if self.process_events() {return}
+
+        event_loop(&mut self);
 
         let image_available_semaphore = self.image_available_semaphores[self.current_frame];
         let render_finished_semaphore = self.render_finished_semaphores[self.current_frame];

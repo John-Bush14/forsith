@@ -149,11 +149,24 @@ pub struct VkMemoryRequirements {
     pub memory_type_bits: u32
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 #[repr(C)]
 pub struct Vertex {
     pub pos: [f32; 2],
     pub color: [f32; 4]
+}
+
+impl Eq for Vertex {}
+
+impl std::hash::Hash for Vertex {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        for &pos_val in &self.pos {
+            state.write_u32(pos_val.to_bits());
+        }
+        for &color_val in &self.color {
+            state.write_u32(color_val.to_bits());
+        }
+    }
 }
 
 #[repr(C)]

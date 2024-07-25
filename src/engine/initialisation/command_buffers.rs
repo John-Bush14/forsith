@@ -111,20 +111,20 @@ impl super::super::Engine { pub fn create_command_buffers(&mut self) { unsafe {
 
             let offsets = [0];
 
-            vkCmdBindVertexBuffers(
+            if vertex_buffers[0] != 0 {vkCmdBindVertexBuffers(
                 command_buffer, 
                 0,
                 vertex_buffers.len() as u32,
                 vertex_buffers.as_ptr(),
                 offsets.as_ptr()
-            );
+            )};
 
-            vkCmdBindIndexBuffer(
+            if self.index_buffer != 0 {vkCmdBindIndexBuffer(
                 command_buffer,
                 self.index_buffer,
                 0,
                 0
-            );
+            );}
 
             vkCmdBindDescriptorSets(
                 command_buffer,
@@ -137,8 +137,7 @@ impl super::super::Engine { pub fn create_command_buffers(&mut self) { unsafe {
                 std::ptr::null()
             );
 
-
-            vkCmdDrawIndexed(command_buffer, INDICES.len() as u32, 1, 0, 0, 0);
+            if self.index_buffer != 0 {vkCmdDrawIndexed(command_buffer, self.indices.len() as u32, 1, 0, 0, 0)}
 
             
             vkCmdEndRenderPass(command_buffer);

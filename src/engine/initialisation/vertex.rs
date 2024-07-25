@@ -46,11 +46,11 @@ use std::ffi::{
 
 
 impl crate::engine::Engine { pub fn create_vertex_buffer(&mut self) {
-    (self.vertex_buffer, self.vertex_buffer_memory) = self.create_device_local_buffer_with_data::<u32, _>(0x00000080, &VERTICES);
+    (self.vertex_buffer, self.vertex_buffer_memory) = self.create_device_local_buffer_with_data::<u32, _>(0x00000080, &self.vertices);
 }}
 
 impl crate::engine::Engine { pub fn create_index_buffer(&mut self) {
-    (self.index_buffer, self.index_buffer_memory) = self.create_device_local_buffer_with_data::<u16, _>(0x00000040, &INDICES);
+    (self.index_buffer, self.index_buffer_memory) = self.create_device_local_buffer_with_data::<u16, _>(0x00000040, &self.indices);
 }}
 
 impl crate::engine::Engine { pub fn create_device_local_buffer_with_data<A, T: Copy>(&self, usage: u32, data: &[T]) -> (u64, u64) {

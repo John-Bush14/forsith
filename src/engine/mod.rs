@@ -9,6 +9,13 @@ mod swapchain;
 
 mod image;
 
+pub mod interface;
+
+mod test;
+
+
+use crate::engine::interface::drawables::drawable;
+
 
 use crate::vulkan::{
     instance::{
@@ -58,6 +65,7 @@ use crate::vulkan::{
         VkFence
     },
     vertex::{
+        Vertex,
         VkBuffer,
         VkDeviceMemory
     },
@@ -112,12 +120,17 @@ pub struct Engine {
     uniform_buffer_memories: Vec<VkDeviceMemory>,
     descriptor_set_layout: VkDescriptorSetLayout,
     descriptor_pool: VkDescriptorPool,
-    descriptor_sets: Vec<VkDescriptorSet>
+    descriptor_sets: Vec<VkDescriptorSet>,
+    vertices: Vec<Vertex>,
+    indices: Vec<u16>,
+    vertex_usage_counts: std::collections::HashMap<Vertex, usize>, // <Vertex, usage count>
+    vertex_indices: std::collections::HashMap<Vertex, u16>, // <Vertex, Indice>
+    drawables: Vec<drawable>
 }
 
 static mut ENGINE: Option<Engine> = None;
 
-pub fn initialize_engine(name: String, version: [u8;3], event_loop: fn()) {
-    let mut engine = unsafe {Engine::init(name, version, event_loop).expect("Initialisation of engine failed")};
-    unsafe {engine.start_loop()};
+pub fn initialize_engine(name: String, version: [u8;3], event_loop: fn(&mut Engine)) {
+    let mut engine = unsafe {Engine::init(name, version).expect("Initialisation of engine failed")};
+    unsafe {engine.start_loop(event_loop)};
 }

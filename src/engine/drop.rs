@@ -63,12 +63,16 @@ impl Drop for super::Engine {
 
             self.uniform_buffers.iter().for_each(|&buffer| vkDestroyBuffer(self.device, buffer, std::ptr::null()));
             self.uniform_buffer_memories.iter().for_each(|&memory| vkFreeMemory(self.device, memory, std::ptr::null()));
-
-            vkDestroyBuffer(self.device, self.index_buffer, std::ptr::null());
-            vkFreeMemory(self.device, self.index_buffer_memory, std::ptr::null());
-
-            vkDestroyBuffer(self.device, self.vertex_buffer, std::ptr::null());
-            vkFreeMemory(self.device, self.vertex_buffer_memory, std::ptr::null());
+            
+            if self.index_buffer != 0 {
+                vkDestroyBuffer(self.device, self.index_buffer, std::ptr::null());
+                vkFreeMemory(self.device, self.index_buffer_memory, std::ptr::null());
+            }
+            
+            if self.vertex_buffer != 0 {
+                vkDestroyBuffer(self.device, self.vertex_buffer, std::ptr::null());
+                vkFreeMemory(self.device, self.vertex_buffer_memory, std::ptr::null());
+            }
 
             vkDestroyCommandPool(self.device, self.command_pool, std::ptr::null());
             vkDestroyCommandPool(self.device, self.transient_command_pool, std::ptr::null());
