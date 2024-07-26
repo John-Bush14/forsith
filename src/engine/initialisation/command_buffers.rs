@@ -56,7 +56,7 @@ impl super::super::Engine { pub fn create_command_pool(&mut self, transient: boo
 
 
 impl super::super::Engine { pub fn create_command_buffers(&mut self) { unsafe {
-    self.command_buffers = vec!();
+    self.command_buffers = self.framebuffers.iter().map(|_| 0).collect();
 
     let allocate_info = VkCommandBufferAllocateInfo {
         s_type: 40,
@@ -66,14 +66,17 @@ impl super::super::Engine { pub fn create_command_buffers(&mut self) { unsafe {
         command_buffer_count: self.framebuffers.len() as u32
     };
 
-    let mut command_buffers: Vec<VkCommandBuffer> = self.framebuffers.iter().map(|_| 0).collect();
-
 
     vkAllocateCommandBuffers(
         self.device, 
         &allocate_info as *const VkCommandBufferAllocateInfo,
-        command_buffers.as_mut_ptr()
+        self.command_buffers.as_mut_ptr()
     );
+}}}
+
+
+impl super::super::Engine { pub fn record_and_enter_command_buffers(&mut self) { unsafe {
+    let command_buffers = &self.command_buffers;
 
     command_buffers.iter().enumerate()
         .for_each(|(i, &command_buffer)| {
@@ -144,6 +147,4 @@ impl super::super::Engine { pub fn create_command_buffers(&mut self) { unsafe {
 
             vkEndCommandBuffer(command_buffer);
         });
-    
-    self.command_buffers = command_buffers;
 }}}

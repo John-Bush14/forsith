@@ -126,6 +126,8 @@ impl super::Engine {
 
         
         engine.create_command_buffers();
+        
+        engine.record_and_enter_command_buffers();
 
 
         engine.create_sync_objects();
