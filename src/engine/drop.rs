@@ -50,6 +50,10 @@ impl Drop for super::Engine {
 
             vkDeviceWaitIdle(self.device);
 
+            while let Some(drawable) = self.drawables.pop() {
+                std::mem::drop(drawable);
+            }
+
             self.image_available_semaphores.iter().chain(self.render_finished_semaphores.iter())
                 .for_each(|&semaphore| vkDestroySemaphore(self.device, semaphore, std::ptr::null()));
             

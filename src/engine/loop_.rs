@@ -59,8 +59,11 @@ impl super::Engine { pub fn start_loop(mut self, event_loop: fn(&mut super::Engi
             0,
             &mut image_index
         )};
-
-        self.update_uniform_buffers(image_index as usize);
+        
+        for drawable in &mut self.drawables {
+            let aspect = self.swapchain_extent.width as f32 / self.swapchain_extent.height as f32;
+            drawable.update(image_index as usize, aspect, self.device);
+        }
     
         let wait_semaphores = [image_available_semaphore];
         let signal_semaphores = [render_finished_semaphore];

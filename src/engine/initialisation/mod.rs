@@ -111,18 +111,17 @@ impl super::Engine {
         engine.create_command_pool(false);
         
         engine.create_command_pool(true);
+        
+        engine.create_descriptor_pool();
+        
+        let drawable = crate::engine::interface::drawables::drawable::new();
+
+        engine.add_drawable(drawable);
 
 
         if engine.vertices.len() > 0 {engine.create_vertex_buffer()}
     
         if engine.indices.len() > 0 {engine.create_index_buffer()}
-
-        
-        engine.create_uniform_buffers();
-
-        engine.create_descriptor_pool();
-        
-        engine.create_descriptor_sets();
 
         
         engine.create_command_buffers();

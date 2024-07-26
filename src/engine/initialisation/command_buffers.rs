@@ -121,26 +121,28 @@ impl super::super::Engine { pub fn record_and_enter_command_buffers(&mut self) {
                 vertex_buffers.as_ptr(),
                 offsets.as_ptr()
             )};
+            
+            for drawable in &self.drawables {
+                if drawable.indices.len() != 0 {vkCmdBindIndexBuffer(
+                    command_buffer,
+                    drawable.indice_buffer,
+                    0,
+                    0
+                );}
 
-            if self.index_buffer != 0 {vkCmdBindIndexBuffer(
-                command_buffer,
-                self.index_buffer,
-                0,
-                0
-            );}
+                vkCmdBindDescriptorSets(
+                    command_buffer,
+                    0,
+                    self.pipeline_layout,
+                    0,
+                    1,
+                    &drawable.descriptor_sets[i],
+                    0,
+                    std::ptr::null()
+                );
 
-            vkCmdBindDescriptorSets(
-                command_buffer,
-                0,
-                self.pipeline_layout,
-                0,
-                1,
-                &self.descriptor_sets[i],
-                0,
-                std::ptr::null()
-            );
-
-            if self.index_buffer != 0 {vkCmdDrawIndexed(command_buffer, self.indices.len() as u32, 1, 0, 0, 0)}
+                if drawable.indices.len() != 0 {vkCmdDrawIndexed(command_buffer, drawable.indices.len() as u32, 1, 0, 0, 0)}
+            }
 
             
             vkCmdEndRenderPass(command_buffer);
