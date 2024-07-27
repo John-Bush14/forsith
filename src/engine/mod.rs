@@ -13,6 +13,8 @@ pub mod interface;
 
 mod test;
 
+pub mod world_view;
+
 
 use crate::engine::interface::drawables::drawable;
 
@@ -125,7 +127,8 @@ pub struct Engine {
     indices: Vec<u16>,
     vertex_usage_counts: std::collections::HashMap<Vertex, usize>, // <Vertex, usage count>
     vertex_indices: std::collections::HashMap<Vertex, u16>, // <Vertex, Indice>
-    drawables: Vec<drawable>
+    drawables: Vec<drawable>,
+    world_view: world_view::worldView
 }
 
 static mut ENGINE: Option<Engine> = None;

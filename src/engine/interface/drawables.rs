@@ -14,6 +14,10 @@ use crate::vulkan::{
     }
 };
 
+use crate::engine::{
+    world_view::worldView
+};
+
 use cgmath::{Deg, Matrix4, Point3, Vector3};
 
 
@@ -35,7 +39,7 @@ pub struct drawable {
     pub descriptor_sets: Vec<VkDescriptorSet>,
     pub indices: Vec<u16>,
     pub id: usize,
-    matrix_changed: bool,
+    matrix_changed: u8,
     pub vertices_changed: (bool, bool),
     indices_changed: (bool, bool),
     pub device: u64
@@ -62,13 +66,12 @@ impl drawable {
         return &self.vertices
     }
 
-    pub fn update(&mut self, image_index: usize, aspect: f32, device: u64) -> (bool, (bool, bool), (bool, bool)) { 
-        let result = (self.matrix_changed, self.vertices_changed, self.indices_changed);
-        
+    pub fn update(&mut self, image_index: usize, aspect: f32, device: u64, world_view: &mut worldView) -> (bool, (bool, bool), (bool, bool)) { 
+        let result = (self.matrix_changed != 0, self.vertices_changed, self.indices_changed);
 
-        if true {
-            self.tex[3] += 0.0001;
+        if world_view.changed.0 || world_view.changed.1 || world_view.aspect != aspect {self.matrix_change()}
 
+        if self.matrix_changed > 0 {
             let rot_radians = self.rot.to_radians();
             let cos = rot_radians.cos(); let sin = rot_radians.sin();
             
@@ -79,9 +82,10 @@ impl drawable {
                 [0.0, 0.0, 0.0, 1.0]
             ];
 
-            update_uniform_buffer(self.uniform_memories[image_index], self.translation, aspect, device, self.tex[3]);
 
-            self.matrix_changed = false;
+            self.matrix_changed -= 1;
+            
+            update_uniform_buffer(self.uniform_memories[image_index], self.translation, aspect, device, world_view);
         }
 
         return result;
@@ -95,14 +99,16 @@ impl drawable {
 }
 
 impl drawable {
+    pub fn matrix_change(&mut self) {self.matrix_changed = self.uniform_buffers.len() as u8}
+
     pub fn pos(&self) -> &[f32;2] {return &self.pos}
-    pub fn set_pos(&mut self, pos: [f32;2]) {self.pos = pos; self.matrix_changed = true;}
+    pub fn set_pos(&mut self, pos: [f32;2]) {self.pos = pos; self.matrix_change();}
 
     pub fn scale(&self) -> &[f32; 2] {return &self.scale}
-    pub fn set_scale(&mut self, scale: [f32; 2]) {self.scale = scale; self.matrix_changed = true;}
+    pub fn set_scale(&mut self, scale: [f32; 2]) {self.scale = scale; self.matrix_change();}
     
     pub fn rot(&self) -> &f32 {return &self.rot}
-    pub fn set_rot(&mut self, rot: f32) {self.rot = rot; self.matrix_changed = true;}
+    pub fn set_rot(&mut self, rot: f32) {self.rot = rot; self.matrix_change();}
 
     pub fn set_texture(&mut self, texture: Texture) {self.tex = texture;}
 
@@ -126,7 +132,7 @@ impl Default for drawable {
             vertices: points_to_vertices(vec!([-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [0.5, 0.5], [-0.5, 0.5], [-0.5, -0.5]), [0.5, 1.0, 0.4, 1.0]),
             indices: vec!(),
             id: 0usize,
-            matrix_changed: true,
+            matrix_changed: 0,
             vertices_changed: (false, false),
             indices_changed: (true, true),
             device: 0
@@ -160,31 +166,11 @@ impl drawable {
     }
 }
 
-pub fn update_uniform_buffer(buffer_memory: VkDeviceMemory, model: [[f32;4];4], aspect: f32, device: u64, x: f32) {
+pub fn update_uniform_buffer(buffer_memory: VkDeviceMemory, model: [[f32;4];4], aspect: f32, device: u64, world_view: &mut worldView) {
     let ubo = UniformBufferObject {
         model: model,
-        view: {
-            let eye = [0.0, 0.0, 1.0];
-            let target = [0.0, 0.0, 0.0];
-            let up = [0.0, 1.0, 0.0];
-
-            Matrix4::look_at_rh(
-                Point3::from(eye),
-                Point3::from(target),
-                Vector3::from(up),
-            ).into()
-        },
-        proj: {
-            let f = 1.0/(45f32.to_radians()/2.0).tan();
-            
-            let near = 0.1;
-            let far = 10.0;
-
-            [[f/aspect, 0.0, 0.0, 0.0],
-             [0.0, -f, 0.0, 0.0],
-             [0.0, 0.0, -far/(far-near), -1.0],
-             [0.0, 0.0, -(far * near) / (far - near), 0.0]]
-        } 
+        view: world_view.get_view_matrix(),
+        proj: world_view.get_projection_matrix(aspect)
     };
 
     let size = std::mem::size_of::<UniformBufferObject>() as u64;

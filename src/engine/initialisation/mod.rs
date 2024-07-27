@@ -75,9 +75,19 @@ impl super::Engine {
             descriptor_sets: vec!(),
             vertex_usage_counts: std::collections::HashMap::new(),
             vertex_indices: std::collections::HashMap::new(),
-            drawables: vec!()
+            drawables: vec!(),
+            world_view: {std::mem::zeroed()}
         };
 
+        
+        engine.world_view = super::world_view::worldView::new(
+            [0.0, 0.0, 1.0],
+            [0.0, 0.0, 0.0],
+            60.0,
+            0.1,
+            10.0
+        );
+        
 
         let supported_instance_extensions = vk_enumerate_to_vec!(
             vkEnumerateInstanceExtensionProperties, 
