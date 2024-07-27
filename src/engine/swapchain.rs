@@ -62,4 +62,5 @@ impl super::Engine { pub fn recreate_swapchain(&mut self) {
 
     self.create_command_buffers();
 
+    self.record_and_enter_command_buffers();
 }}

@@ -101,22 +101,6 @@ impl crate::engine::Engine { pub fn create_descriptor_set_layout(&mut self) {
     )};
 }}
 
-impl crate::engine::Engine { pub fn create_uniform_buffers(&mut self) {
-    let size = std::mem::size_of::<UniformBufferObject>() as u64;
-
-    for _ in 0 .. self.swapchain_images.len() {
-        let (uniform_buffer, uniform_buffer_memory, _) = 
-            self.create_buffer(
-                size,
-                0x00000010,
-                0x00000002 | 0x00000004
-        );
-
-        self.uniform_buffers.push(uniform_buffer);
-        self.uniform_buffer_memories.push(uniform_buffer_memory);
-    }
-}}
-
 impl crate::engine::Engine { pub fn create_descriptor_pool(&mut self) {
     let pool_size = VkDescriptorPoolSize {
         type_: 6,

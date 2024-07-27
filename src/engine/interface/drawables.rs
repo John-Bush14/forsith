@@ -57,11 +57,6 @@ fn points_to_vertices(points: Vec<[f32;2]>, color: Texture) -> Vec<Vertex> {
 }
 
 
-pub enum DrawableCreation {
-    Line2DFromPoints([f32;2], [f32;2], Texture),
-    Rect2DFromTransform([f32;2], [f32; 2], f32, Texture)
-}   
-
 impl drawable {
     pub fn get_vertices(&self) -> &Vec<Vertex> {
         return &self.vertices
@@ -72,9 +67,11 @@ impl drawable {
         
 
         if true {
+            self.tex[3] += 0.0001;
+
             let rot_radians = self.rot.to_radians();
             let cos = rot_radians.cos(); let sin = rot_radians.sin();
-
+            
             self.translation = [
                 [cos*self.scale[0], sin, 0.0, self.pos[0]],
                [-sin, cos*self.scale[1], 0.0, self.pos[1]],
@@ -82,10 +79,7 @@ impl drawable {
                 [0.0, 0.0, 0.0, 1.0]
             ];
 
-
-            println!("{:?}", self.translation);
-
-            update_uniform_buffer(self.uniform_memories[image_index], self.translation, aspect, device);
+            update_uniform_buffer(self.uniform_memories[image_index], self.translation, aspect, device, self.tex[3]);
 
             self.matrix_changed = false;
         }
@@ -115,11 +109,11 @@ impl drawable {
     pub fn set_drawing(&mut self, drawing: bool) {self.drawing = drawing;}
 }
 
-impl drawable {
-    pub fn new() -> drawable {
+impl Default for drawable {
+    fn default() -> drawable {
         return drawable {
             drawing: true,
-            pos: [0f32;2],
+            pos: [0f32, 0f32],
             scale: [1f32; 2],
             rot: 0f32,
             tex: [0f32;4],
@@ -129,7 +123,7 @@ impl drawable {
             descriptor_sets: vec!(),
             indice_buffer: 0,
             indice_memory: 0,
-            vertices: points_to_vertices(vec!([-0.5, -0.5], [0.5, -0.5], [0.5, 0.5]), [0.5, 1.0, 0.4, 1.0]),
+            vertices: points_to_vertices(vec!([-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [0.5, 0.5], [-0.5, 0.5], [-0.5, -0.5]), [0.5, 1.0, 0.4, 1.0]),
             indices: vec!(),
             id: 0usize,
             matrix_changed: true,
@@ -138,82 +132,46 @@ impl drawable {
             device: 0
         };
     }
+}
 
-    pub fn special(parameters: DrawableCreation) -> drawable {
-        let mut drawable = drawable::new();
+impl drawable {
+    pub fn line2d_from_points(p1: [f32; 2], p2: [f32; 2], col: Texture) -> drawable {
+        let mut drawable: drawable = Default::default();
 
-        match parameters {
-            DrawableCreation::Line2DFromPoints(p1, p2, col) => {
-                drawable.tex = col;
-                drawable.pos = [(p1[0] + p2[0]) / 2.0, (p1[1] + p2[1]) /2.0];
-                drawable.scale = [((p2[0] - p1[0]).powi(2) + (p2[1] - p1[1]).powi(2)).sqrt(), 0.0];
-                drawable.rot = p1[1].atan2(p1[0]).to_degrees();
-                drawable.vertices = points_to_vertices(RECT2D_POINTS.to_vec(), col);
-            },
-            
-            DrawableCreation::Rect2DFromTransform(pos, scale, rot, col) => {
-                drawable.tex = col;
-                drawable.pos = pos;
-                drawable.scale = scale;
-                drawable.rot = rot;
-                drawable.vertices = points_to_vertices(RECT2D_POINTS.to_vec(), col);
-            },
-        };
+        drawable.tex = col;
+        drawable.pos = [(p1[0] + p2[0]) / 2.0, (p1[1] + p2[1]) /2.0];
+        drawable.scale = [((p2[0] - p1[0]).powi(2) + (p2[1] - p1[1]).powi(2)).sqrt(), 0.0];
+        drawable.rot = p1[1].atan2(p1[0]).to_degrees();
+        drawable.vertices = points_to_vertices(RECT2D_POINTS.to_vec(), col);
+
+        return drawable;
+    }
+    
+    pub fn rect2D_from_transform(pos: [f32;2], width: f32, height: f32, rot: f32, col: Texture) -> drawable {
+        let mut drawable: drawable = Default::default();
+
+        drawable.tex = col;
+        drawable.pos = pos;
+        drawable.scale = [width, height];
+        drawable.rot = rot;
+        drawable.vertices = points_to_vertices(RECT2D_POINTS.to_vec(), col);
 
         return drawable;
     }
 }
 
-pub fn update_uniform_buffer(buffer_memory: VkDeviceMemory, model: [[f32;4];4], aspect: f32, device: u64) {
+pub fn update_uniform_buffer(buffer_memory: VkDeviceMemory, model: [[f32;4];4], aspect: f32, device: u64, x: f32) {
     let ubo = UniformBufferObject {
         model: model,
         view: {
-            let eye = [2.0, 2.0, 2.0];
+            let eye = [0.0, 0.0, 1.0];
             let target = [0.0, 0.0, 0.0];
-            let up = [0.0, 0.0, 1.0];
+            let up = [0.0, 1.0, 0.0];
 
-            let zaxis = {
-                let x = [eye[0] - target[0], eye[1], target[1], eye[2], target[2]];
-
-                let l = x.len() as f32;
-
-                [x[0]/l, x[1]/l, x[2]/l]
-            };
-
-            let xaxis = {
-                let x = [
-                    up[1] * zaxis[2] - up[2] * zaxis[1],
-                    up[2] * zaxis[0] - up[0] * zaxis[2],
-                    up[0] * zaxis[1] - up[1] * zaxis[0]
-                ];
-
-                let l = x.len() as f32;
-
-                [x[0]/l, x[1]/l, x[2]/l]
-            };
-
-            let yaxis = {
-                [
-                    zaxis[1] * xaxis[2] - xaxis[2] * zaxis[1],
-                    zaxis[2] * xaxis[0] - zaxis[0] * xaxis[2],
-                    zaxis[0] * xaxis[1] - zaxis[1] * xaxis[0]
-                 ]
-            };
-
-            [[xaxis[0], yaxis[0], zaxis[0], 0f32],
-             [xaxis[1], yaxis[1], zaxis[1], 0f32],
-             [xaxis[2], yaxis[2], zaxis[2], 0f32],
-             [-dot(xaxis, eye), -dot(yaxis, eye), -dot(zaxis, eye), 1.0]];
-             
-                 [[1.0, 0.0, 0.0, 0.0], 
-              [0.0, 1.0, 0.0, 0.0], 
-              [0.0, 0.0, 1.0, 0.0], 
-              [0.0, 0.0, 0.0, 1.0]];
-
-            Matrix4::look_at(
-                Point3::new(2.0, 2.0, 2.0),
-                Point3::new(0.0, 0.0, 0.0),
-                Vector3::new(0.0, 0.0, 1.0),
+            Matrix4::look_at_rh(
+                Point3::from(eye),
+                Point3::from(target),
+                Vector3::from(up),
             ).into()
         },
         proj: {
@@ -251,10 +209,6 @@ pub fn update_uniform_buffer(buffer_memory: VkDeviceMemory, model: [[f32;4];4], 
     unsafe {std::ptr::copy_nonoverlapping(ubos.as_ptr(), data_ptr as _, ubos.len())};
 
     unsafe {vkUnmapMemory(device, buffer_memory)};
-}
-
-fn dot(x: [f32;3], y: [f32;3]) -> f32 {
-    return (x[0] * y[0]) + (x[1] * y[1]) + (x[2] * y[2]);
 }
 
 impl Drop for drawable {

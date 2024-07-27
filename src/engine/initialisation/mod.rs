@@ -114,7 +114,7 @@ impl super::Engine {
         
         engine.create_descriptor_pool();
         
-        let drawable = crate::engine::interface::drawables::drawable::new();
+        let drawable: crate::engine::interface::drawables::drawable = Default::default();
 
         engine.add_drawable(drawable);
 

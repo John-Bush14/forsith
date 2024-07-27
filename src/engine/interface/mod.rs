@@ -19,7 +19,7 @@ use drawables::{
 
 
 impl crate::engine::Engine { pub fn add_drawable<'a>(&'a mut self, mut drawable: drawable) -> &'a mut drawable {
-    (drawable.uniform_buffers, drawable.uniform_memories) = self.create_uniform_buffersn();
+    (drawable.uniform_buffers, drawable.uniform_memories) = self.create_uniform_buffers();
     drawable.descriptor_sets = self.create_descriptor_sets(drawable.uniform_buffers.clone());
 
     drawable.device = self.device;
@@ -85,7 +85,7 @@ impl crate::engine::Engine { pub fn remove_drawable(&mut self, drawable_index: u
     }
 }}
 
-impl crate::engine::Engine { pub fn create_uniform_buffersn(&self) -> (Vec<VkBuffer>, Vec<VkDeviceMemory>) {
+impl crate::engine::Engine { pub fn create_uniform_buffers(&self) -> (Vec<VkBuffer>, Vec<VkDeviceMemory>) {
     let size = std::mem::size_of::<UniformBufferObject>() as u64;
 
     let mut uniform_buffers = vec!();
