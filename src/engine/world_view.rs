@@ -55,14 +55,15 @@ impl worldView {
 
     pub fn get_projection_matrix(&mut self, aspect: f32) -> [[f32;4];4] {
         if self.changed.1 || self.aspect != aspect {
-            let fo = 1.0/(self.fov.to_radians()/2.0).tan() / aspect;
+            let fo = 1.0/(self.fov.to_radians()/2.0).tan();
+            let fas = fo/aspect;
             let ne = self.near;
             let fa = self.far;
 
             self.aspect = aspect;
 
             self.projection_matrix = [
-                [fo , 0.0, 0.0             , 0.0 ],
+                [fas, 0.0, 0.0             , 0.0 ],
                 [0.0, -fo, 0.0             , 0.0 ],
                 [0.0, 0.0, -fa/(fa-ne)     , -1.0],
                 [0.0, 0.0, -(fa*ne)/(fa-ne), 0.0 ]
