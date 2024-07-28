@@ -197,14 +197,3 @@ pub fn update_uniform_buffer(buffer_memory: VkDeviceMemory, model: [[f32;4];4], 
     unsafe {vkUnmapMemory(device, buffer_memory)};
 }
 
-impl Drop for drawable {
-    fn drop(&mut self) { unsafe {
-        self.uniform_buffers.iter().zip(self.uniform_memories.iter()).for_each(|(&buffer, &memory)| {
-            vkDestroyBuffer(self.device, buffer, std::ptr::null());
-            vkFreeMemory(self.device, memory, std::ptr::null());
-        });
-        
-        vkDestroyBuffer(self.device, self.indice_buffer, std::ptr::null());
-        vkFreeMemory(self.device, self.indice_memory, std::ptr::null());
-    }}
-}

@@ -23,6 +23,27 @@ use crate::vulkan::{
 };
 
 
+impl crate::engine::Engine { pub fn create_uniform_buffers(&self) -> (Vec<VkBuffer>, Vec<VkDeviceMemory>) {
+    let size = std::mem::size_of::<UniformBufferObject>() as u64;
+
+    let mut uniform_buffers = vec!();
+    let mut uniform_memories = vec!();
+
+    for _ in 0 .. self.swapchain_images.len() {
+        let (uniform_buffer, uniform_buffer_memory, _) = 
+            self.create_buffer(
+                size,
+                0x00000010,
+                0x00000002 | 0x00000004
+        );
+
+        uniform_buffers.push(uniform_buffer);
+        uniform_memories.push(uniform_buffer_memory);
+    }
+
+    return (uniform_buffers, uniform_memories);
+}}
+
 impl crate::engine::Engine { pub fn create_descriptor_sets(&mut self, uniform_buffers: Vec<VkBuffer>) -> Vec<VkDescriptorSet> {
     let layouts: Vec<_> = (uniform_buffers).iter().map(|_| self.descriptor_set_layout).collect();
 

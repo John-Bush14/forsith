@@ -1,6 +1,8 @@
 pub mod globals;
 pub use globals::*;
 
+pub use engine::interface::drawables::drawable;
+
 pub mod vulkan;
 
 pub mod engine;
