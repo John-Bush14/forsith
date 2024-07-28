@@ -5,8 +5,8 @@ mod swapchain;
 mod pipeline;
 mod command_buffers;
 mod sync_objects;
-mod vertex;
 mod uniform;
+pub mod buffer;
 
 
 use crate::vulkan::{

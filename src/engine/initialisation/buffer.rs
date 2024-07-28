@@ -37,6 +37,13 @@ use crate::vulkan::{
         vkQueueSubmit,
         vkQueueWaitIdle
     },
+    uniform::{
+        UniformBufferObject
+    }
+};
+
+use crate::engine::{
+    world_view::worldView
 };
 
 use std::ffi::{
@@ -208,3 +215,35 @@ impl crate::engine::Engine { pub fn copy_buffer(&self, src: VkBuffer, dst: VkBuf
 
     unsafe {vkFreeCommandBuffers(self.device, self.transient_command_pool, command_buffers.len() as u32, command_buffers.as_ptr())};
 }}
+
+pub fn update_uniform_buffer(buffer_memory: VkDeviceMemory, model: [[f32;4];4], aspect: f32, device: u64, world_view: &mut worldView) {
+    let ubo = UniformBufferObject {
+        model: model,
+        view: world_view.get_view_matrix(),
+        proj: world_view.get_projection_matrix(aspect)
+    };
+
+    let size = std::mem::size_of::<UniformBufferObject>() as u64;
+
+    let mut data_ptr: *mut std::ffi::c_void = std::ptr::null_mut();
+
+    unsafe {vkMapMemory(
+        device,
+        buffer_memory,
+        0,
+        size,
+        0,
+        &mut data_ptr as _
+    )};
+
+    let align = std::mem::align_of::<f32>();
+
+    let layout = std::alloc::Layout::from_size_align(size as usize, align).unwrap();
+    
+    let ubos = [ubo];
+
+    unsafe {std::ptr::copy_nonoverlapping(ubos.as_ptr(), data_ptr as _, ubos.len())};
+
+    unsafe {vkUnmapMemory(device, buffer_memory)};
+}
+
