@@ -89,7 +89,7 @@ pub struct Engine {
     device: VkDevice,
     physical_device: VkPhysicalDevice,
     surface_khr: VkSurfaceKHR,
-    window: Box<dyn Window>,
+    pub window: Box<dyn Window>,
     swapchain: VkSwapchainKHR,
     swapchain_image_format: VkSurfaceFormatKHR,
     swapchain_images: Vec<VkImage>,
@@ -112,7 +112,7 @@ pub struct Engine {
     presentation_queue: VkQueue,
     graphics_family: u32,
     presentation_family: u32,
-    dimensions: [i32; 2],
+    pub dimensions: [i32; 2],
     new_dimensions: Option<[i32; 2]>,
     vertex_buffer: VkBuffer,
     vertex_buffer_memory: VkDeviceMemory,
@@ -128,7 +128,8 @@ pub struct Engine {
     vertex_usage_counts: std::collections::HashMap<Vertex, usize>, // <Vertex, usage count>
     vertex_indices: std::collections::HashMap<Vertex, u16>, // <Vertex, Indice>
     drawables: Vec<drawable>,
-    world_view: world_view::worldView
+    world_view: world_view::worldView,
+    pub events: Vec<WindowEvent>
 }
 
 static mut ENGINE: Option<Engine> = None;

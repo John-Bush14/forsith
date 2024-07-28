@@ -76,7 +76,8 @@ impl super::Engine {
             vertex_usage_counts: std::collections::HashMap::new(),
             vertex_indices: std::collections::HashMap::new(),
             drawables: vec!(),
-            world_view: {std::mem::zeroed()}
+            world_view: unsafe {std::mem::zeroed()},
+            events: vec!()
         };
 
         

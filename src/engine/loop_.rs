@@ -20,9 +20,10 @@ use crate::vulkan::{
 impl super::Engine { pub fn process_events(&mut self) -> bool {
     let events = self.window.get_events(self.dimensions);
 
+    self.events = events.clone();
+
     for event in events {match event {
         WindowEvent::Death => return true,
-        WindowEvent::KeyDown(keycode) => panic!(),
         WindowEvent::WindowResize(dimensions) => {self.new_dimensions = Some(dimensions)},
         _ => {}
     }} return false;

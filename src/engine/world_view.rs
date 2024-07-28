@@ -10,7 +10,9 @@ pub struct worldView {
     pub aspect: f32,
     pub changed: (bool, bool),
     view_matrix: [[f32;4];4],
-    projection_matrix: [[f32;4];4]
+    projection_matrix: [[f32;4];4],
+    pub pitch_degrees: f32,
+    pub yaw_degrees: f32
 }
 
 
@@ -22,28 +24,58 @@ impl worldView {
     pub fn set_far(&mut self, far: f32) {self.far = far; self.changed.1 = true}
 
     pub fn set_eye(&mut self, eye: [f32;3]) {self.eye = eye; self.changed.0 = true}
+
+    pub fn move_eye(&mut self, movement: [f32;3]) {
+        self.set_eye(self.eye.iter().zip(movement.iter())
+            .map(|(a, b)| a + b).collect::<Vec<f32>>()
+            .try_into().unwrap())
+    }
+
+    pub fn move_eye_local(&mut self, movement: [f32;3]) {
+        let direction: [f32;3] = self.target.iter().zip(self.eye.iter()).map(|(target, eye)| target - eye).collect::<Vec<f32>>().try_into().unwrap();
+
+        let length = (direction[0] * direction[0] +  direction[2] * direction[2]).sqrt();
+
+        let direction_normalized: [f32;3] = direction.iter().map(|x| x/length).collect::<Vec<f32>>().try_into().unwrap();
+
+        let side_direction = [-direction_normalized[2], direction_normalized[0]];
+
+        self.move_eye([
+            movement[0] * side_direction[0] + movement[2] * direction_normalized[0], 
+            movement[1],
+            movement[0] * side_direction[1] + movement[2] * direction_normalized[2], 
+        ]);
+    }
     
     pub fn set_target(&mut self, target: [f32;3]) {self.target = target; self.changed.0 = true}
 
-    pub fn look_at(&mut self, rotation: [f32;3]) {
-        let (xc, yc, zc) = (rotation[0].cos(), rotation[1].cos(), rotation[2].cos());
+    pub fn move_target(&mut self, movement: [f32;3]) {
+        self.set_target(self.target.iter().zip(movement.iter())
+            .map(|(a, b)| a + b).collect::<Vec<f32>>()
+            .try_into().unwrap())
+    }
 
-        let (xs, ys, zs) = (rotation[0].sin(), rotation[1].sin(), rotation[2].sin());
+    pub fn set_target_yaw_pitch(&mut self) {
+        let yaw = self.yaw_degrees.to_radians(); let pitch = self.pitch_degrees.to_radians();
 
-        let yszc = ys * zc;
+        let (cp, sp) = (pitch.cos(), pitch.sin());
 
-        // Compute direction vector
-        let target_x = yc * zc;
-        let target_y = xs * yszc - xc * zs;
-        let target_z = xc * yszc + xs * zs;
-        self.set_target([target_x, target_y, target_z]);
+        let (cy, sy) = (yaw.cos(), yaw.sin());
+
+        self.set_target([
+            cp * cy,
+            sp,
+            cp * sy
+        ])
     }
 
     pub fn get_view_matrix(&mut self) -> [[f32;4];4] {
         if self.changed.0 {
+            let target: [f32;3] = self.target.iter().zip(self.eye.iter()).map(|(x, y)| x + y).collect::<Vec<f32>>().try_into().unwrap();
+
             self.view_matrix = Matrix4::look_at_rh(
                 Point3::from(self.eye),
-                Point3::from(self.target),
+                Point3::from(target),
                 Vector3::new(0.0, 1.0, 0.0),
             ).into();
 
@@ -85,7 +117,9 @@ impl worldView {
             aspect: 0.0,
             changed: (true, true),
             view_matrix: [[0f32;4];4],
-            projection_matrix: [[0f32;4];4]
+            projection_matrix: [[0f32;4];4],
+            pitch_degrees: 0.0,
+            yaw_degrees: -90.0
         }
     }
 }

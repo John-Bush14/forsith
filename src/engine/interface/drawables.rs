@@ -130,7 +130,21 @@ impl Default for drawable {
             descriptor_sets: vec!(),
             indice_buffer: 0,
             indice_memory: 0,
-            vertices: points_to_vertices(vec!([-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [0.5, 0.5], [-0.5, 0.5], [-0.5, -0.5]), [0.5, 1.0, 0.4, 1.0]),
+            vertices: points_to_vertices(vec!(
+                    [-0.5, -0.5],
+                    [0.5, -0.5],
+                    [0.5, 0.5],
+                    [0.5, 0.5],
+                    [-0.5, 0.5],
+                    [-0.5, -0.5],
+
+                    [-0.5, -0.5],
+                    [-0.5, 0.5],
+                    [0.5, 0.5],
+                    [0.5, 0.5],
+                    [0.5, -0.5],
+                    [-0.5, -0.5]
+                ), [0.5, 1.0, 0.4, 1.0]),
             indices: vec!(),
             id: 0usize,
             matrix_changed: 0,

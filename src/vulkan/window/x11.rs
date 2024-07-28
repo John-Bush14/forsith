@@ -32,7 +32,8 @@ pub struct XWindow {
     pub handle: u64,
     pub root_handle: u64,
     pub display: *mut c_void,
-    pub delete_window_protocol: XAtom
+    pub delete_window_protocol: XAtom,
+    pub mouse_position: [f32;2]
 }
 
 
@@ -110,8 +111,29 @@ pub union XEvent {
     pub destroy_window: XDestroyWindowEvent,
     pub client_message: XClientMessageEvent,
     pub resize_request: XResizeRequestEvent,
-    pub configure: XConfigureEvent
+    pub configure: XConfigureEvent,
+    pub mouse_motion: XMotionEvent
     // other fields as needed
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[repr(C)]
+pub struct XMotionEvent {
+    pub type_: i32,
+    pub serial: u64,
+    pub send_event: Bool,
+    pub display: *mut c_void,
+    pub window: Window,
+    pub root: Window,
+    pub subwindow: Window,
+    pub time: Time,
+    pub x: i32,
+    pub y: i32,
+    pub x_root: i32,
+    pub y_root: i32,
+    pub state: u32,
+    pub is_hint: c_char,
+    pub same_screen: Bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -276,7 +298,7 @@ extern "C" {
         attributes: *const XWindowCreateAttributes,
     ) -> Window;
     pub fn XStoreName(display: *mut c_void, window: u64, window_name: *const c_char);
-    pub fn XMapWindow(display: *mut c_void, window: u64);
+    pub fn XMapWindow(display: *mut c_void, window: u64) -> i32;
     pub fn XDestroyWindow(display: *mut c_void, window: u64);
     pub fn XNextEvent(display: *mut c_void, event: *mut XEvent) -> i32;
     pub fn XSelectInput(display: *mut c_void, window: u64, event_mask: i64);
@@ -290,6 +312,11 @@ extern "C" {
     pub fn XResizeWindow(display: *mut c_void, window: Window, width: u32, height: u32);
     pub fn XConfigureWindow(display: *mut c_void, window: Window, value_mask: u32, configuration: *const XWindowChanges);
     pub fn XSendEvent(display: *mut c_void, window: Window, propagate: Bool, event_mask: i64, event: *const XEvent);
+    pub fn XWarpPointer(display: *mut c_void, src_w: Window, dst_w: Window, src_x: i32, src_y: i32, src_width: u32, src_height: u32, dst_x: i32, dst_y: i32) -> i32;
+    pub fn XFlush(display: *mut c_void) -> i32;
+    pub fn XSync(display: *mut c_void, _: Bool) -> i32;
+    pub fn XGrabPointer (_9: *mut c_void, _8: u64, _7: i32, _6: u32, _5: i32, _4: i32, _3: u64, _2: u64, _1: u64) -> i32;
+    pub fn XUngrabPointer(display: *mut c_void, time: u64);
 }
 
 pub const KeyPress: i32 = 2;

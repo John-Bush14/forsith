@@ -16,7 +16,7 @@ use std::ffi::{
 
 pub type VkSurfaceKHR = u64;
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone)]
 pub enum WindowEvent {
     Birth,
     Death,
@@ -25,7 +25,7 @@ pub enum WindowEvent {
     MouseUp(u32),
     KeyUp(u32),
     KeyDown(u32),
-    MouseMove(u32, u32),
+    MouseMove(f32, f32),
     FocusChange(bool),
     WindowResize([i32; 2]),
     Undefined
@@ -44,11 +44,13 @@ pub trait Window {
 
     fn create_surfaceKHR(&self, instance: crate::vulkan::instance::VkInstance) -> VkSurfaceKHR;
 
-    fn get_events(&self, dimensions: [i32; 2]) -> Vec<WindowEvent>;
+    fn get_events(&mut self, dimensions: [i32; 2]) -> Vec<WindowEvent>;
     
     fn supports_physical_device_queue(&self, physical_device: VkPhysicalDevice, queue: u32) -> bool;
 
     fn commit_suicide(&self);
+
+    fn set_mouse(&mut self, x: f32, y: f32);
 }
 
 pub struct dummy {}
@@ -66,11 +68,13 @@ impl Window for dummy {
 
     fn create_surfaceKHR(&self, instance: crate::vulkan::instance::VkInstance) -> VkSurfaceKHR {todo!();}
 
-    fn get_events(&self, dimensions: [i32; 2]) -> Vec<WindowEvent> {todo!();}
+    fn get_events(&mut self, dimensions: [i32; 2]) -> Vec<WindowEvent> {todo!();}
     
     fn supports_physical_device_queue(&self, physical_device: VkPhysicalDevice, queue: u32) -> bool {todo!();}
 
     fn commit_suicide(&self) {todo!();}
+
+    fn set_mouse(&mut self, x: f32, y: f32) {todo!();}
 }
 
 pub mod x11;
