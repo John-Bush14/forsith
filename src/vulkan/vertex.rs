@@ -1,25 +1,8 @@
-pub const VERTICES: [Vertex; 4] = [
-    Vertex {
-        pos: [-0.5, -0.5],
-        color: [1.0, 0.0, 0.0, 1.0],
-    },
-    Vertex {
-        pos: [0.5, -0.5],
-        color: [0.0, 1.0, 0.0, 1.0],
-    },
-    Vertex {
-        pos: [0.5, 0.5],
-        color: [1.0, 0.0, 0.0, 1.0],
-    },
-    Vertex {
-        pos: [-0.5, 0.5],
-        color: [0.0, 1.0, 0.0, 1.0],
-    },
-];
+pub const VERTICES: [Vertex; 0] = [];
 
-pub const INDICES: [u16; 6] = [0, 1, 2, 2, 3, 0];
+pub const INDICES: [u16; 0] = [];
 
-pub const VERTEX_SIZE: usize = 24;
+pub const VERTEX_SIZE: usize = 28;
 
 
 use crate::vulkan::{
@@ -152,7 +135,7 @@ pub struct VkMemoryRequirements {
 #[derive(Copy, Clone, PartialEq)]
 #[repr(C)]
 pub struct Vertex {
-    pub pos: [f32; 2],
+    pub pos: [f32; 3],
     pub color: [f32; 4]
 }
 

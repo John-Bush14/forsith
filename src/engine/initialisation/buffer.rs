@@ -223,8 +223,6 @@ pub fn update_uniform_buffer(buffer_memory: VkDeviceMemory, model: [[f32;4];4], 
         proj: {if !two_d {world_view.get_projection_matrix(aspect)} else {world_view.get_2d_camera_matrix()}}
     };
 
-    println!("{:?}", ubo);
-
     let size = std::mem::size_of::<UniformBufferObject>() as u64;
 
     let mut data_ptr: *mut std::ffi::c_void = std::ptr::null_mut();

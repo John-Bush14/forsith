@@ -1,6 +1,12 @@
+
 #[cfg(test)]
 mod tests {
     use crate::{engine, vulkan::window::WindowEvent};
+
+    struct State {
+        yaw: f32,
+        pitch: f32
+    }
 
 
     #[test]
@@ -8,15 +14,15 @@ mod tests {
         engine::initialize_engine(
             "test fps demo".to_string(),
             [0, 1, 0],
-            (-90.0f32, 0.0f32),
+            State {yaw: -90.0, pitch: 0.0},
 
-            |engine, data| {
-                let drawable: crate::engine::interface::drawables::drawable = Default::default();
+            |engine, state| {
+                let drawable = crate::drawable::rect_from_transform([0.0, 0.0], 1.0, 1.0, 0.0, [0.0, 1.0, 0.0, 1.0]);
     
                 engine.add_drawable(drawable);
             },
 
-            |engine: &mut crate::engine::Engine, (yaw, pitch)| {
+            |engine: &mut crate::engine::Engine, state| {
             for event in &engine.events {
                 match event {
                     WindowEvent::KeyDown(keycode) => {
@@ -41,10 +47,10 @@ mod tests {
                         if (*dx, *dy) != (0.0, 0.0) {
                             let sensitivity = 0.1;
 
-                            *yaw += -dx * sensitivity;
-                            *pitch += (dy * sensitivity).min(89.0).max(-89.0);;
+                            state.yaw += -dx * sensitivity;
+                            state.pitch += (dy * sensitivity).min(89.0).max(-89.0);;
 
-                            engine.world_view.set_target_yaw_pitch(*yaw, *pitch);
+                            engine.world_view.set_target_yaw_pitch(state.yaw, state.pitch);
                         
                             engine.window.set_mouse((engine.dimensions[0]/2) as f32, (engine.dimensions[1]/2) as f32);
                        }

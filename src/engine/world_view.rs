@@ -101,8 +101,6 @@ impl worldView {
                 [0.0, 0.0, -(fa*ne)/(fa-ne), 0.0 ]
             ];
 
-
-        self.get_2d_camera_matrix();
             self.changed.1 = false;
         }
 

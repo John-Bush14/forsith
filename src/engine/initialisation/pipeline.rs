@@ -98,7 +98,7 @@ impl crate::engine::Engine { pub fn create_pipeline(&mut self) { unsafe {
         location: 1,
         binding: 0,
         format: 109,
-        offset: 8
+        offset: 12
     };
 
     let vertex_binding_descriptions = [vertex_input_binding_description];

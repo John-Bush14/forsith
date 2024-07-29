@@ -27,8 +27,8 @@ pub type Texture = [f32; 4];
 
 pub struct drawable {
     drawing: bool,
-    pos: [f32;2],
-    scale: [f32; 2],
+    pos: [f32;3],
+    scale: [f32;3],
     rot: f32,
     tex: Texture,
     translation: [[f32;4];4],
@@ -48,17 +48,17 @@ pub struct drawable {
 }
 
 
-const RECT2D_POINTS: [[f32; 2]; 6] = [
-    [-0.5, -0.5],
-    [0.5, -0.5],
-    [0.5, 0.5],
-    [0.5, 0.5],
-    [-0.5, 0.5],
-    [-0.5, -0.5]
+const RECT: [[f32; 3]; 6] = [
+    [-0.5, -0.5, 0.0],
+    [-0.5, 0.5, 0.0],
+    [0.5, 0.5, 0.0],
+    [0.5, 0.5, 0.0],
+    [0.5, -0.5, 0.0],
+    [-0.5, -0.5, 0.0],
 ];
 
 
-fn points_to_vertices(points: Vec<[f32;2]>, color: Texture) -> Vec<Vertex> {
+fn points_to_vertices(points: Vec<[f32;3]>, color: Texture) -> Vec<Vertex> {
     points.iter().map(|&point| return Vertex {pos: point, color: color}).collect()
 }
 
@@ -80,7 +80,7 @@ impl drawable {
             self.translation = [
                 [cos*self.scale[0], sin, 0.0, self.pos[0]],
                [-sin, cos*self.scale[1], 0.0, self.pos[1]],
-                [0.0, 0.0, 1.0, 0.0],
+               [0.0, 0.0, self.scale[2], self.pos[2]],
                 [0.0, 0.0, 0.0, 1.0]
             ];
 
@@ -103,11 +103,11 @@ impl drawable {
 impl drawable {
     pub fn matrix_change(&mut self) {self.matrix_changed = self.uniform_buffers.len() as u8}
 
-    pub fn pos(&self) -> &[f32;2] {return &self.pos}
-    pub fn set_pos(&mut self, pos: [f32;2]) {self.pos = pos; self.matrix_change();}
+    pub fn pos(&self) -> &[f32;3] {return &self.pos}
+    pub fn set_pos(&mut self, pos: [f32;3]) {self.pos = pos; self.matrix_change();}
 
-    pub fn scale(&self) -> &[f32; 2] {return &self.scale}
-    pub fn set_scale(&mut self, scale: [f32; 2]) {self.scale = scale; self.matrix_change();}
+    pub fn scale(&self) -> &[f32; 3] {return &self.scale}
+    pub fn set_scale(&mut self, scale: [f32; 3]) {self.scale = scale; self.matrix_change();}
     
     pub fn set_two_d(&mut self, two_d: bool) {self.two_d = two_d; self.matrix_change()}
     
@@ -123,8 +123,8 @@ impl Default for drawable {
     fn default() -> drawable {
         return drawable {
             drawing: true,
-            pos: [0f32, 0f32],
-            scale: [1f32; 2],
+            pos: [0f32, 0f32, 0f32],
+            scale: [1f32; 3],
             rot: 0f32,
             tex: [0f32;4],
             translation: [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]],
@@ -133,21 +133,7 @@ impl Default for drawable {
             descriptor_sets: vec!(),
             indice_buffer: 0,
             indice_memory: 0,
-            vertices: points_to_vertices(vec!(
-                    [-0.5, -0.5],
-                    [0.5, -0.5],
-                    [0.5, 0.5],
-                    [0.5, 0.5],
-                    [-0.5, 0.5],
-                    [-0.5, -0.5],
-
-                    [-0.5, -0.5],
-                    [-0.5, 0.5],
-                    [0.5, 0.5],
-                    [0.5, 0.5],
-                    [0.5, -0.5],
-                    [-0.5, -0.5]
-                ), [0.5, 1.0, 0.4, 1.0]),
+            vertices: vec!(),
             indices: vec!(),
             id: 0usize,
             matrix_changed: 0,
@@ -164,22 +150,22 @@ impl drawable {
         let mut drawable: drawable = Default::default();
 
         drawable.tex = col;
-        drawable.pos = [(p1[0] + p2[0]) / 2.0, (p1[1] + p2[1]) /2.0];
-        drawable.scale = [((p2[0] - p1[0]).powi(2) + (p2[1] - p1[1]).powi(2)).sqrt(), 0.0];
+        drawable.pos = [(p1[0] + p2[0]) / 2.0, (p1[1] + p2[1]) /2.0, 0.0];
+        drawable.scale = [((p2[0] - p1[0]).powi(2) + (p2[1] - p1[1]).powi(2)).sqrt(), 1.0, 1.0];
         drawable.rot = p1[1].atan2(p1[0]).to_degrees();
-        drawable.vertices = points_to_vertices(RECT2D_POINTS.to_vec(), col);
+        drawable.vertices = points_to_vertices(RECT.to_vec(), col);
 
         return drawable;
     }
     
-    pub fn rect2D_from_transform(pos: [f32;2], width: f32, height: f32, rot: f32, col: Texture) -> drawable {
+    pub fn rect_from_transform(pos: [f32;2], width: f32, height: f32, rot: f32, col: Texture) -> drawable {
         let mut drawable: drawable = Default::default();
 
         drawable.tex = col;
-        drawable.pos = pos;
-        drawable.scale = [width, height];
+        drawable.pos = [pos[0], pos[1], 0.0];
+        drawable.scale = [width, height, 1.0];
         drawable.rot = rot;
-        drawable.vertices = points_to_vertices(RECT2D_POINTS.to_vec(), col);
+        drawable.vertices = points_to_vertices(RECT.to_vec(), col);
 
         return drawable;
     }
