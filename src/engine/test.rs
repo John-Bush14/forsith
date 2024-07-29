@@ -10,7 +10,11 @@ mod tests {
             [0, 1, 0],
             (-90.0f32, 0.0f32),
 
-            |engine, data| {},
+            |engine, data| {
+                let drawable: crate::engine::interface::drawables::drawable = Default::default();
+    
+                engine.add_drawable(drawable);
+            },
 
             |engine: &mut crate::engine::Engine, (yaw, pitch)| {
             for event in &engine.events {

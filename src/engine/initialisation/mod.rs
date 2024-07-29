@@ -124,25 +124,8 @@ impl super::Engine {
         engine.create_command_pool(true);
         
         engine.create_descriptor_pool();
-        
-        let drawable: crate::engine::interface::drawables::drawable = Default::default();
-
-        engine.add_drawable(drawable);
-
-
-        if engine.vertices.len() > 0 {engine.create_vertex_buffer()}
-    
-        if engine.indices.len() > 0 {engine.create_index_buffer()}
 
         
-        engine.create_command_buffers();
-        
-        engine.record_and_enter_command_buffers();
-
-
-        engine.create_sync_objects();
-
-
         return Ok(engine);
     };}
 }
