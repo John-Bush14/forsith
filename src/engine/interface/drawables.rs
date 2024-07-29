@@ -40,7 +40,7 @@ pub struct drawable {
     pub descriptor_sets: Vec<VkDescriptorSet>,
     pub indices: Vec<u16>,
     pub id: usize,
-    matrix_changed: u8,
+    matrix_changed: bool,
     pub vertices_changed: (bool, bool),
     indices_changed: (bool, bool),
     pub device: u64,
@@ -57,6 +57,55 @@ const RECT: [[f32; 3]; 6] = [
     [-0.5, -0.5, 0.0],
 ];
 
+const CUBE: [[f32; 3]; 36] = [
+    // Front face
+    [ -0.5, -0.5,  0.5 ], // Bottom-left
+    [  0.5, -0.5,  0.5 ], // Bottom-right
+    [  0.5,  0.5,  0.5 ], // Top-right
+    [ -0.5, -0.5,  0.5 ], // Bottom-left
+    [  0.5,  0.5,  0.5 ], // Top-right
+    [ -0.5,  0.5,  0.5 ], // Top-left
+
+    // Back face
+    [ -0.5,  0.5, -0.5 ], // Bottom-left
+    [  0.5,  0.5, -0.5 ], // Bottom-right
+    [ -0.5, -0.5, -0.5 ], // Top-right
+    [  0.5,  0.5, -0.5 ], // Bottom-left
+    [  0.5, -0.5, -0.5 ], // Top-right
+    [ -0.5, -0.5, -0.5 ], // Top-left
+
+    // Left face
+    [ -0.5, -0.5, -0.5 ], // Bottom-left
+    [ -0.5, -0.5,  0.5 ], // Bottom-right
+    [ -0.5,  0.5,  0.5 ], // Top-right
+    [ -0.5, -0.5, -0.5 ], // Bottom-left
+    [ -0.5,  0.5,  0.5 ], // Top-right
+    [ -0.5,  0.5, -0.5 ], // Top-left
+
+    // Right face
+    [  0.5,  0.5, -0.5 ], // Bottom-left
+    [  0.5,  0.5,  0.5 ], // Bottom-right
+    [  0.5, -0.5, -0.5 ], // Top-right
+    [  0.5,  0.5,  0.5 ], // Bottom-left
+    [  0.5, -0.5,  0.5 ], // Top-right
+    [  0.5, -0.5, -0.5 ], // Top-left
+
+    // Top face
+    [ -0.5,  0.5, -0.5 ], // Bottom-left
+    [  0.5,  0.5, -0.5 ], // Bottom-right
+    [  0.5,  0.5,  0.5 ], // Top-right
+    [ -0.5,  0.5, -0.5 ], // Bottom-left
+    [  0.5,  0.5,  0.5 ], // Top-right
+    [ -0.5,  0.5,  0.5 ], // Top-left
+
+    // Bottom face
+    [ -0.5, -0.5, -0.5 ], // Bottom-left
+    [  0.5, -0.5, -0.5 ], // Bottom-right
+    [  0.5, -0.5,  0.5 ], // Top-right
+    [ -0.5, -0.5, -0.5 ], // Bottom-left
+    [  0.5, -0.5,  0.5 ], // Top-right
+    [ -0.5, -0.5,  0.5 ], // Top-left
+];
 
 fn points_to_vertices(points: Vec<[f32;3]>, color: Texture) -> Vec<Vertex> {
     points.iter().map(|&point| return Vertex {pos: point, color: color}).collect()
@@ -69,11 +118,11 @@ impl drawable {
     }
 
     pub fn update(&mut self, image_index: usize, aspect: f32, device: u64, world_view: &mut worldView) -> (bool, (bool, bool), (bool, bool)) { 
-        let result = (self.matrix_changed != 0, self.vertices_changed, self.indices_changed);
+        let result = (self.matrix_changed, self.vertices_changed, self.indices_changed);
 
-        if world_view.changed.0 || world_view.changed.1 || world_view.aspect != aspect {self.matrix_change()}
+        if world_view.changed.0 || world_view.changed.1 || world_view.aspect != aspect {self.matrix_changed = true;}
 
-        if self.matrix_changed > 0 {
+        if self.matrix_changed {
             let rot_radians = self.rot.to_radians();
             let cos = rot_radians.cos(); let sin = rot_radians.sin();
             
@@ -84,10 +133,10 @@ impl drawable {
                 [0.0, 0.0, 0.0, 1.0]
             ];
 
-
-            self.matrix_changed -= 1;
-            
-            update_uniform_buffer(self.uniform_memories[image_index], self.translation, aspect, device, world_view, self.two_d);
+            for image_index in 0..self.uniform_memories.len() {
+                update_uniform_buffer(self.uniform_memories[image_index], self.translation, aspect, device, world_view, self.two_d);
+            }
+            self.matrix_changed = false;
         }
 
         return result;
@@ -101,7 +150,7 @@ impl drawable {
 }
 
 impl drawable {
-    pub fn matrix_change(&mut self) {self.matrix_changed = self.uniform_buffers.len() as u8}
+    pub fn matrix_change(&mut self) {self.matrix_changed = true}
 
     pub fn pos(&self) -> &[f32;3] {return &self.pos}
     pub fn set_pos(&mut self, pos: [f32;3]) {self.pos = pos; self.matrix_change();}
@@ -136,24 +185,23 @@ impl Default for drawable {
             vertices: vec!(),
             indices: vec!(),
             id: 0usize,
-            matrix_changed: 0,
+            matrix_changed: true,
             vertices_changed: (false, false),
             indices_changed: (true, true),
             device: 0,
-            two_d: true
+            two_d: false
         };
     }
 }
 
 impl drawable {
-    pub fn line2d_from_points(p1: [f32; 2], p2: [f32; 2], col: Texture) -> drawable {
+    pub fn cube_from_transform(pos: [f32;3], width: f32, height: f32, depth: f32, col: Texture) -> drawable {
         let mut drawable: drawable = Default::default();
 
         drawable.tex = col;
-        drawable.pos = [(p1[0] + p2[0]) / 2.0, (p1[1] + p2[1]) /2.0, 0.0];
-        drawable.scale = [((p2[0] - p1[0]).powi(2) + (p2[1] - p1[1]).powi(2)).sqrt(), 1.0, 1.0];
-        drawable.rot = p1[1].atan2(p1[0]).to_degrees();
-        drawable.vertices = points_to_vertices(RECT.to_vec(), col);
+        drawable.pos = pos;
+        drawable.scale = [width, height, depth];
+        drawable.vertices = points_to_vertices(CUBE.to_vec(), col);
 
         return drawable;
     }
@@ -166,6 +214,7 @@ impl drawable {
         drawable.scale = [width, height, 1.0];
         drawable.rot = rot;
         drawable.vertices = points_to_vertices(RECT.to_vec(), col);
+        drawable.two_d = true;
 
         return drawable;
     }

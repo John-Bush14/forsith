@@ -44,7 +44,7 @@ use crate::vulkan::{
 };
 
 impl Drop for crate::drawable {
-    fn drop(&mut self) { unsafe {
+    fn drop(&mut self) { unsafe { if self.uniform_buffers.len() > 0 {
         self.uniform_buffers.iter().zip(self.uniform_memories.iter()).for_each(|(&buffer, &memory)| {
             vkDestroyBuffer(self.device, buffer, std::ptr::null());
             vkFreeMemory(self.device, memory, std::ptr::null());
@@ -52,7 +52,7 @@ impl Drop for crate::drawable {
         
         vkDestroyBuffer(self.device, self.indice_buffer, std::ptr::null());
         vkFreeMemory(self.device, self.indice_memory, std::ptr::null());
-    }}
+    }}}
 }
 
 impl Drop for super::Engine {

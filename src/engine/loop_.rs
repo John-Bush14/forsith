@@ -31,7 +31,6 @@ impl super::Engine { pub fn process_events(&mut self) -> bool {
 
 impl super::Engine { pub fn start_loop<T>(mut self, event_loop: fn(&mut super::Engine, &mut T), mut user_data: T) {
     if self.vertices.len() > 0 {self.create_vertex_buffer()}
-    
         
     self.create_command_buffers();
         

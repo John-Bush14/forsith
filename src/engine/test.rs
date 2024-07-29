@@ -17,9 +17,12 @@ mod tests {
             State {yaw: -90.0, pitch: 0.0},
 
             |engine, state| {
-                let drawable = crate::drawable::rect_from_transform([0.0, 0.0], 1.0, 1.0, 0.0, [0.0, 1.0, 0.0, 1.0]);
+                let rect = crate::drawable::rect_from_transform([-0.5, -0.5], 0.25, 0.25, 0.0, [1.0;4]);
+
+                let cube = crate::drawable::cube_from_transform([0.0, 0.0, 10.0], 1.0, 1.0, 1.0, [1.0;4]);
     
-                engine.add_drawable(drawable);
+                engine.add_drawable(rect);
+                engine.add_drawable(cube);
             },
 
             |engine: &mut crate::engine::Engine, state| {

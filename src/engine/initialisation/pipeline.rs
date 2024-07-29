@@ -90,7 +90,7 @@ impl crate::engine::Engine { pub fn create_pipeline(&mut self) { unsafe {
     let position_vertex_input_attribute_description = VkVertexInputAttributeDescription {
         location: 0,
         binding: 0,
-        format: 103,
+        format: 106,
         offset: 0
     };
 
