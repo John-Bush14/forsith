@@ -134,7 +134,16 @@ pub struct Engine {
 
 static mut ENGINE: Option<Engine> = None;
 
-pub fn initialize_engine(name: String, version: [u8;3], event_loop: fn(&mut Engine)) {
+pub fn initialize_engine<T>(
+    name: String,
+    version: [u8;3], 
+    mut user_data: T,
+    ready_func: fn(&mut Engine, &mut T), 
+    event_loop: fn(&mut Engine, &mut T)
+) {
     let mut engine = unsafe {Engine::init(name, version).expect("Initialisation of engine failed")};
-    unsafe {engine.start_loop(event_loop)};
+    
+    ready_func(&mut engine, &mut user_data);
+
+    unsafe {engine.start_loop(event_loop, user_data)};
 }

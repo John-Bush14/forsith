@@ -11,8 +11,6 @@ pub struct worldView {
     pub changed: (bool, bool),
     view_matrix: [[f32;4];4],
     projection_matrix: [[f32;4];4],
-    pub pitch_degrees: f32,
-    pub yaw_degrees: f32
 }
 
 
@@ -55,8 +53,8 @@ impl worldView {
             .try_into().unwrap())
     }
 
-    pub fn set_target_yaw_pitch(&mut self) {
-        let yaw = self.yaw_degrees.to_radians(); let pitch = self.pitch_degrees.to_radians();
+    pub fn set_target_yaw_pitch(&mut self, yaw_degrees: f32, pitch_degrees: f32) {
+        let yaw = yaw_degrees.to_radians(); let pitch = pitch_degrees.to_radians();
 
         let (cp, sp) = (pitch.cos(), pitch.sin());
 
@@ -118,8 +116,6 @@ impl worldView {
             changed: (true, true),
             view_matrix: [[0f32;4];4],
             projection_matrix: [[0f32;4];4],
-            pitch_degrees: 0.0,
-            yaw_degrees: -90.0
         }
     }
 }
