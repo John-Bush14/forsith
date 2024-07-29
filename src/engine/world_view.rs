@@ -11,6 +11,8 @@ pub struct worldView {
     pub changed: (bool, bool),
     view_matrix: [[f32;4];4],
     projection_matrix: [[f32;4];4],
+    up_vector: [f32;3],
+    matrix_2d: [[f32;4];4]
 }
 
 
@@ -99,10 +101,36 @@ impl worldView {
                 [0.0, 0.0, -(fa*ne)/(fa-ne), 0.0 ]
             ];
 
+
+        self.get_2d_camera_matrix();
             self.changed.1 = false;
         }
 
+
         return self.projection_matrix;
+    }
+
+    pub fn get_2d_camera_matrix(&mut self) -> [[f32;4];4] {
+        if self.changed.1 {
+            let norm = (self.up_vector[0] * self.up_vector[0] + self.up_vector[1] * self.up_vector[1]).sqrt();
+
+            let angle = (self.up_vector[0]/norm).atan2(self.up_vector[1]/norm);
+
+            let (s, c) = (angle.sin(), angle.cos());
+
+            self.matrix_2d = [
+                [ c ,  s , 0.0, self.eye[0]],
+                [-s ,  c , 0.0, self.eye[1]],
+                [0.0, 0.0, 1.0, 0.0        ],
+                [0.0, 0.0, 0.0, 1.0        ]
+            ];
+
+            println!("{:?}", self.matrix_2d);
+
+            self.changed.1 = false;
+        }
+
+        return self.matrix_2d;
     }
 
     pub fn new(eye: [f32;3], target: [f32;3], fov: f32, far: f32, near: f32) -> worldView {
@@ -116,6 +144,8 @@ impl worldView {
             changed: (true, true),
             view_matrix: [[0f32;4];4],
             projection_matrix: [[0f32;4];4],
+            up_vector: [0.0, 1.0, 0.0],
+            matrix_2d: [[0f32;4];4]
         }
     }
 }

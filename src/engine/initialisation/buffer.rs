@@ -216,12 +216,14 @@ impl crate::engine::Engine { pub fn copy_buffer(&self, src: VkBuffer, dst: VkBuf
     unsafe {vkFreeCommandBuffers(self.device, self.transient_command_pool, command_buffers.len() as u32, command_buffers.as_ptr())};
 }}
 
-pub fn update_uniform_buffer(buffer_memory: VkDeviceMemory, model: [[f32;4];4], aspect: f32, device: u64, world_view: &mut worldView) {
+pub fn update_uniform_buffer(buffer_memory: VkDeviceMemory, model: [[f32;4];4], aspect: f32, device: u64, world_view: &mut worldView, two_d: bool) {
     let ubo = UniformBufferObject {
         model: model,
-        view: world_view.get_view_matrix(),
-        proj: world_view.get_projection_matrix(aspect)
+        view: {if !two_d {world_view.get_view_matrix()} else {[[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]]}},
+        proj: {if !two_d {world_view.get_projection_matrix(aspect)} else {world_view.get_2d_camera_matrix()}}
     };
+
+    println!("{:?}", ubo);
 
     let size = std::mem::size_of::<UniformBufferObject>() as u64;
 

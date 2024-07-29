@@ -43,7 +43,8 @@ pub struct drawable {
     matrix_changed: u8,
     pub vertices_changed: (bool, bool),
     indices_changed: (bool, bool),
-    pub device: u64
+    pub device: u64,
+    pub two_d: bool
 }
 
 
@@ -86,7 +87,7 @@ impl drawable {
 
             self.matrix_changed -= 1;
             
-            update_uniform_buffer(self.uniform_memories[image_index], self.translation, aspect, device, world_view);
+            update_uniform_buffer(self.uniform_memories[image_index], self.translation, aspect, device, world_view, self.two_d);
         }
 
         return result;
@@ -107,6 +108,8 @@ impl drawable {
 
     pub fn scale(&self) -> &[f32; 2] {return &self.scale}
     pub fn set_scale(&mut self, scale: [f32; 2]) {self.scale = scale; self.matrix_change();}
+    
+    pub fn set_two_d(&mut self, two_d: bool) {self.two_d = two_d; self.matrix_change()}
     
     pub fn rot(&self) -> &f32 {return &self.rot}
     pub fn set_rot(&mut self, rot: f32) {self.rot = rot; self.matrix_change();}
@@ -150,7 +153,8 @@ impl Default for drawable {
             matrix_changed: 0,
             vertices_changed: (false, false),
             indices_changed: (true, true),
-            device: 0
+            device: 0,
+            two_d: true
         };
     }
 }
