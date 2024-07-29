@@ -65,6 +65,9 @@ impl crate::engine::Engine { pub fn create_instance(&mut self, supported_extensi
         "VK_KHR_surface",
         "VK_KHR_xlib_surface",
         "VK_EXT_debug_utils",
+        "VK_KHR_wayland_surface",
+        "VK_KHR_win32_surface",
+        "VK_EXT_metal_surface",
     );
     
     let mut supported_layers = vk_enumerate_to_vec!(vkEnumerateInstanceLayerProperties, VkLayerProperties,);
