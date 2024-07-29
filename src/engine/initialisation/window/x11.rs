@@ -77,6 +77,8 @@ impl Window for XWindow {
     fn get_events(&mut self, dimensions: [i32; 2]) -> Vec<WindowEvent> {
         let mut events: Vec<WindowEvent> = vec!();
 
+        let mut keys_released_recent = vec!();
+
         while unsafe{XPending(self.display)} > 0 {
             let mut event: XEvent = unsafe {std::mem::zeroed()};
 
@@ -86,10 +88,22 @@ impl Window for XWindow {
 
             unsafe {events.push(match event.type_ {
                 x11::CreateNotify => WindowEvent::Birth,
-                x11::KeyRelease => WindowEvent::KeyUp(event.key.keycode),
-                x11::KeyPress => WindowEvent::KeyDown(event.key.keycode),
+                x11::KeyRelease => {
+                    keys_released_recent.push(event.key.keycode);
+
+                    WindowEvent::Undefined
+                },
+                x11::KeyPress => {
+                    let key_release_position = keys_released_recent.iter().position(|&x| x == event.key.keycode);
+
+                    if let Some(key) = key_release_position {keys_released_recent.remove(key);}
+
+                    WindowEvent::KeyDown(event.key.keycode, key_release_position.is_some())
+                },
                 x11::ButtonRelease => WindowEvent::MouseUp(event.button.button),
-                x11::ButtonPress => WindowEvent::MouseDown(event.button.button),
+                x11::ButtonPress => {
+                    WindowEvent::MouseDown(event.button.button)
+                },
                 x11::ConfigureNotify => {
                     if dimensions[0] != event.configure.width || dimensions[1] != event.configure.height {
                         WindowEvent::WindowResize([event.configure.width, event.configure.height])
@@ -112,8 +126,10 @@ impl Window for XWindow {
                     } else {WindowEvent::Undefined}
                 }
             })};
+
         }
 
+            keys_released_recent.iter().for_each(|&key| events.push(WindowEvent::KeyUp(key)));
         return events
     }
 
@@ -179,7 +195,7 @@ impl Window for XWindow {
             handle: window,
             root_handle: root_window,
             delete_window_protocol: 0,
-            mouse_position: [0.0, 0.0]
+            mouse_position: [0.0, 0.0],
         };
     }}
 

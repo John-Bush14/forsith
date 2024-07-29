@@ -33,7 +33,7 @@ pub struct XWindow {
     pub root_handle: u64,
     pub display: *mut c_void,
     pub delete_window_protocol: XAtom,
-    pub mouse_position: [f32;2]
+    pub mouse_position: [f32;2],
 }
 
 

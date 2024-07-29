@@ -24,7 +24,7 @@ pub enum WindowEvent {
     MouseDown(u32),
     MouseUp(u32),
     KeyUp(u32),
-    KeyDown(u32),
+    KeyDown(u32, bool),
     MouseMove(f32, f32),
     FocusChange(bool),
     WindowResize([i32; 2]),

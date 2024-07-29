@@ -32,6 +32,8 @@ impl worldView {
     }
 
     pub fn move_eye_local(&mut self, movement: [f32;3]) {
+        if movement == [0.0, 0.0, 0.0] {return;}
+
         let target: [f32;3] = self.target.iter().zip(self.eye.iter()).map(|(x, y)| x + y).collect::<Vec<f32>>().try_into().unwrap();
 
         let direction: [f32;3] = target.iter().zip(self.eye.iter()).map(|(target, eye)| target - eye).collect::<Vec<f32>>().try_into().unwrap();

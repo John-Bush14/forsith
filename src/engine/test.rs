@@ -5,7 +5,8 @@ mod tests {
 
     struct State {
         yaw: f32,
-        pitch: f32
+        pitch: f32,
+        momentum: [f32;3]
     }
 
 
@@ -14,7 +15,7 @@ mod tests {
         engine::initialize_engine(
             "test fps demo".to_string(),
             [0, 1, 0],
-            State {yaw: -90.0, pitch: 0.0},
+            State {yaw: -90.0, pitch: 0.0, momentum: [0f32;3]},
 
             |engine, state| {
                 engine.target_fps = 60.0; 
@@ -28,27 +29,24 @@ mod tests {
             },
 
             |engine: &mut crate::engine::Engine, state, delta| {
-            println!("{}", delta);
+            let speed = 5.0;
 
             for event in &engine.events {
                 match event {
-                    WindowEvent::KeyDown(keycode) => {
-                       let mut movement = [0.0, 0.0, 0.0];
-
-                        let speed = 0.5;
-
+                    WindowEvent::KeyUp(keycode) => {
+                        state.momentum[0] -= match *keycode {38 => -speed, 40 => speed, _ => 0.0};
+                        state.momentum[2] -= match *keycode {25 => speed, 39 => -speed, _ => 0.0};
+                    }
+                    WindowEvent::KeyDown(keycode, holding) => {
                         match *keycode {
                             65 => {panic!()},
-
-                            25 => {movement[2] += speed}, // z
-                            38 => {movement[0] -= speed}, // q
-                            39 => {movement[2] -= speed}, // s
-                            40 => {movement[0] += speed}  // d
-
-                           _ => {println!("key!: {}", keycode)}
+                           _ => {}
                         };
 
-                        engine.world_view.move_eye_local(movement);
+                        if !(*holding) {
+                            state.momentum[0] += match *keycode {38 => -speed, 40 => speed, _ => 0.0};
+                            state.momentum[2] += match *keycode {25 => speed, 39 => -speed, _ => 0.0};
+                        };
                     },
                     WindowEvent::MouseMove(dx, dy) => {
                         if (*dx, *dy) != (0.0, 0.0) {
@@ -64,7 +62,14 @@ mod tests {
                     },
                     _ => {}
                 }
+                
            }
+            
+            let momentum = state.momentum.iter().map(|&x| x * delta).collect::<Vec<f32>>().try_into().unwrap();
+
+            println!("{:?}", momentum);
+
+            engine.world_view.move_eye_local(momentum);
         })
     }
 }
