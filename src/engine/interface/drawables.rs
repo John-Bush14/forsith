@@ -91,12 +91,12 @@ const CUBE: [[f32; 3]; 36] = [
     [  0.5, -0.5, -0.5 ], // Top-left
 
     // Top face
-    [ -0.5,  0.5, -0.5 ], // Bottom-left
-    [  0.5,  0.5, -0.5 ], // Bottom-right
-    [  0.5,  0.5,  0.5 ], // Top-right
-    [ -0.5,  0.5, -0.5 ], // Bottom-left
-    [  0.5,  0.5,  0.5 ], // Top-right
-    [ -0.5,  0.5,  0.5 ], // Top-left
+    [ -0.5,  0.5,  0.5 ], // Bottom-left
+    [  0.5,  0.5,  0.5 ], // Bottom-right
+    [ -0.5,  0.5, -0.5 ], // Top-right
+    [  0.5,  0.5,  0.5 ], // Bottom-left
+    [  0.5,  0.5, -0.5 ], // Top-right
+    [ -0.5,  0.5, -0.5 ], // Top-left
 
     // Bottom face
     [ -0.5, -0.5, -0.5 ], // Bottom-left
