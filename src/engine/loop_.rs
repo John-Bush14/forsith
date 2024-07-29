@@ -29,7 +29,7 @@ impl super::Engine { pub fn process_events(&mut self) -> bool {
     }} return false;
 }}
 
-impl super::Engine { pub fn start_loop<T>(mut self, event_loop: fn(&mut super::Engine, &mut T), mut user_data: T) {
+impl super::Engine { pub fn start_loop<T>(mut self, event_loop: fn(&mut super::Engine, &mut T, f32), mut user_data: T) {
     if self.vertices.len() > 0 {self.create_vertex_buffer()}
         
     self.create_command_buffers();
@@ -39,11 +39,23 @@ impl super::Engine { pub fn start_loop<T>(mut self, event_loop: fn(&mut super::E
 
     self.create_sync_objects();
 
+    
+    let mut deltadur = std::time::Instant::now();
+
 
     while true {
+        let start = std::time::Instant::now();
+
         if self.process_events() {return}
 
-        event_loop(&mut self, &mut user_data);
+        let deltatime = deltadur.elapsed();
+        let seconds = deltatime.as_secs() as f32;
+        let nanoseconds = deltatime.subsec_nanos() as f32;
+        let delta = seconds + nanoseconds / 1_000_000_000.0;
+        
+        deltadur = std::time::Instant::now();
+
+        event_loop(&mut self, &mut user_data, delta);
 
         let image_available_semaphore = self.image_available_semaphores[self.current_frame];
         let render_finished_semaphore = self.render_finished_semaphores[self.current_frame];
@@ -123,5 +135,16 @@ impl super::Engine { pub fn start_loop<T>(mut self, event_loop: fn(&mut super::E
         ) {self.recreate_swapchain()}
 
         self.current_frame = (self.current_frame + 1) % MAX_FRAMES_IN_FLIGHT as usize;
+        
+        
+        if self.target_fps > 0.0 {
+            let elapsed_time = start.elapsed();
+            let target_spf = 1.0/self.target_fps;
+            let nanos = (target_spf * 1_000_000_000.0) as u64;
+            let target_fps_duration = std::time::Duration::new(nanos / 1_000_000_000, (nanos % 1_000_000_000) as u32);
+            let extra_wait_time = target_fps_duration - elapsed_time;
+            
+            std::thread::sleep(extra_wait_time);
+        }
     }
 }}

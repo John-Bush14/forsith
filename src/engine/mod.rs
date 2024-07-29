@@ -129,7 +129,8 @@ pub struct Engine {
     vertex_indices: std::collections::HashMap<Vertex, u16>, // <Vertex, Indice>
     drawables: Vec<drawable>,
     world_view: world_view::worldView,
-    pub events: Vec<WindowEvent>
+    pub events: Vec<WindowEvent>,
+    pub target_fps: f32
 }
 
 static mut ENGINE: Option<Engine> = None;
@@ -139,7 +140,7 @@ pub fn initialize_engine<T>(
     version: [u8;3], 
     mut user_data: T,
     ready_func: fn(&mut Engine, &mut T), 
-    event_loop: fn(&mut Engine, &mut T)
+    event_loop: fn(&mut Engine, &mut T, f32)
 ) {
     let mut engine = unsafe {Engine::init(name, version).expect("Initialisation of engine failed")};
     

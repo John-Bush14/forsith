@@ -77,7 +77,8 @@ impl super::Engine {
             vertex_indices: std::collections::HashMap::new(),
             drawables: vec!(),
             world_view: unsafe {std::mem::zeroed()},
-            events: vec!()
+            events: vec!(),
+            target_fps: 0.0
         };
 
         
