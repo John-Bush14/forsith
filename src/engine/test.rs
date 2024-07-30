@@ -36,16 +36,18 @@ mod tests {
                     WindowEvent::KeyUp(keycode) => {
                         state.momentum[0] -= match *keycode {38 => -speed, 40 => speed, _ => 0.0};
                         state.momentum[2] -= match *keycode {25 => speed, 39 => -speed, _ => 0.0};
+                        state.momentum[1] -= match *keycode {65 => speed, 37 => -speed, _ => 0.0};
                     }
                     WindowEvent::KeyDown(keycode, holding) => {
                         match *keycode {
-                            65 => {panic!()},
-                           _ => {}
+                            36 => {panic!()},
+                           _ => {println!("{}", *keycode)}
                         };
 
                         if !(*holding) {
                             state.momentum[0] += match *keycode {38 => -speed, 40 => speed, _ => 0.0};
                             state.momentum[2] += match *keycode {25 => speed, 39 => -speed, _ => 0.0};
+                            state.momentum[1] += match *keycode {65 => speed, 37 => -speed, _ => 0.0};
                         };
                     },
                     WindowEvent::MouseMove(dx, dy) => {
