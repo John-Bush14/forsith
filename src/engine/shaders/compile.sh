@@ -1,22 +1,31 @@
 #!/bin/bash
 
-# Remove existing SPIR-V files
-rm -f src/engine/shaders/shader.vert.spv
-rm -f src/engine/shaders/shader.frag.spv
+# Directory to search for shader files
+SCRIPT_DIR="${1:-.}"
 
-# Compile vertex shader
-glslangValidator -V src/engine/shaders/shader.vert -o src/engine/shaders/shader.vert.spv
-if [ $? -ne 0 ]; then
-    echo "Failed to compile vertex shader."
-    exit 1
-fi
+# Find and delete all .spv files
+find "$SCRIPT_DIR" -type f -name "*.spv" -exec rm -v {} +
 
-# Compile fragment shader
-glslangValidator -V src/engine/shaders/shader.frag -o src/engine/shaders/shader.frag.spv
-if [ $? -ne 0 ]; then
-    echo "Failed to compile fragment shader."
-    exit 1
-fi
+# Function to compile shaders
+compile_shader() {
+    local shader_file="$1"
 
-echo "Shaders compiled and renamed successfully."
+    local spv_file="${shader_file}.spv"
+    
+    # Compile shader using glslangValidator
+    glslangValidator -V "$shader_file" -o "$spv_file"
+    
+    if [ $? -eq 0 ]; then
+        echo "Compiled: $shader_file -> $spv_file"
+    else
+        echo "Failed to compile: $shader_file"
+    fi
+}
 
+# Export the function so it can be used by find's -exec option
+export -f compile_shader
+
+# Find and compile shader files (excluding .spv files)
+find "$SCRIPT_DIR" -type f ! -name "*.spv" ! -name "*.sh" -exec bash -c 'compile_shader "$0"' {} \;
+
+echo "Shader compilation complete."

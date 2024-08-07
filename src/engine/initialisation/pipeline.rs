@@ -79,7 +79,7 @@ impl crate::engine::Engine { pub fn create_pipeline(&mut self) { unsafe {
 
     let shader_stage_create_infos = [vertex_shader_stage_create_info, fragment_shader_stage_create_info];
 
-    self.shader_modules = vec!(vertex_shader, fragment_shader);
+    self.shader_modules = vec![vertex_shader, fragment_shader];
 
     let vertex_input_binding_description = VkVertexInputBindingDescription {
         binding: 0,
