@@ -27,7 +27,7 @@ impl worldView {
 
     pub fn move_eye(&mut self, movement: [f32;3]) {
         self.set_eye(self.eye.iter().zip(movement.iter())
-            .map(|(a, b)| a + b).collect::<Vec<f32>>()
+            .map(|(&a, &b)| if !b.is_nan() {a + b} else {a}).collect::<Vec<f32>>()
             .try_into().unwrap())
     }
 
@@ -113,23 +113,20 @@ impl worldView {
     }
 
     pub fn get_2d_camera_matrix(&mut self) -> [[f32;4];4] {
-        if self.changed.1 {
-            let norm = (self.up_vector[0] * self.up_vector[0] + self.up_vector[1] * self.up_vector[1]).sqrt();
+        if self.changed.0 {
+            let eye: [f32;3] = [self.eye[0], self.eye[1], 0.0];
+            
+            let target = [self.eye[0], self.eye[1], -1.0];
 
-            let angle = (self.up_vector[0]/norm).atan2(self.up_vector[1]/norm);
+            self.matrix_2d = Matrix4::look_at_rh(
+                Point3::from(eye),
+                Point3::from(target),
+                Vector3::new(0.0, 1.0, 0.0),
+            ).into();
 
-            let (s, c) = (angle.sin(), angle.cos());
+            println!("{:?}, {:?}", eye, self.eye);
 
-            self.matrix_2d = [
-                [ c ,  s , 0.0, self.eye[0]],
-                [-s ,  c , 0.0, self.eye[1]],
-                [0.0, 0.0, 1.0, 0.0        ],
-                [0.0, 0.0, 0.0, 1.0        ]
-            ];
-
-            println!("{:?}", self.matrix_2d);
-
-            self.changed.1 = false;
+            self.changed.0 = false;
         }
 
         return self.matrix_2d;

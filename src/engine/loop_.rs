@@ -83,9 +83,11 @@ impl super::Engine { pub fn start_loop<T>(mut self, event_loop: fn(&mut super::E
             &mut image_index
         )};
         
+        let world_view_changed = self.world_view.changed.0 || self.world_view.changed.1;
+
         for drawable in &mut self.drawables {
             let aspect = self.swapchain_extent.width as f32 / self.swapchain_extent.height as f32;
-            drawable.update(image_index as usize, aspect, self.device, &mut self.world_view);
+            drawable.update(image_index as usize, aspect, self.device, &mut self.world_view, world_view_changed);
         }
     
         let wait_semaphores = [image_available_semaphore];

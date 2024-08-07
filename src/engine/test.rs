@@ -20,7 +20,8 @@ mod tests {
             |engine, state| {
                 engine.target_fps = 60.0; 
 
-                let rect = crate::drawable::rect_from_transform([-0.5, -0.5], 0.25, 0.25, 0.0, [1.0;4]);
+                let mut rect = crate::drawable::rect_from_transform([-0.5, -0.5], 0.25, 0.25, 0.0, [1.0;4]);
+                rect.ui = true;
 
                 let cube = crate::drawable::cube_from_transform([0.0, 0.0, 10.0], 1.0, 1.0, 1.0, [1.0;4]);
     

@@ -44,7 +44,8 @@ pub struct drawable {
     pub vertices_changed: (bool, bool),
     indices_changed: (bool, bool),
     pub device: u64,
-    pub two_d: bool
+    pub two_d: bool,
+    pub ui: bool
 }
 
 
@@ -117,10 +118,10 @@ impl drawable {
         return &self.vertices
     }
 
-    pub fn update(&mut self, image_index: usize, aspect: f32, device: u64, world_view: &mut worldView) -> (bool, (bool, bool), (bool, bool)) { 
+    pub fn update(&mut self, image_index: usize, aspect: f32, device: u64, world_view: &mut worldView, world_view_changed: bool) -> (bool, (bool, bool), (bool, bool)) { 
         let result = (self.matrix_changed, self.vertices_changed, self.indices_changed);
 
-        if world_view.changed.0 || world_view.changed.1 || world_view.aspect != aspect {self.matrix_changed = true;}
+        if world_view_changed || world_view.aspect != aspect {self.matrix_changed = true;}
 
         if self.matrix_changed {
             let rot_radians = self.rot.to_radians();
@@ -134,7 +135,7 @@ impl drawable {
             ];
 
             for image_index in 0..self.uniform_memories.len() {
-                update_uniform_buffer(self.uniform_memories[image_index], self.translation, aspect, device, world_view, self.two_d);
+                update_uniform_buffer(self.uniform_memories[image_index], self.translation, aspect, device, world_view, self.two_d, self.ui);
             }
             self.matrix_changed = false;
         }
@@ -189,7 +190,8 @@ impl Default for drawable {
             vertices_changed: (false, false),
             indices_changed: (true, true),
             device: 0,
-            two_d: false
+            two_d: false,
+            ui: false
         };
     }
 }
