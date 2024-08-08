@@ -14,7 +14,7 @@ mod tests {
     fn template() {
         engine::initialize_engine(
             "test fps demo".to_string(),
-            [0, 1, 0],
+            [0, 1, 0], // version
             State {yaw: -90.0, pitch: 0.0, momentum: [0f32;3]},
 
             |engine, state| {
@@ -69,8 +69,6 @@ mod tests {
            }
             
             let momentum = state.momentum.iter().map(|&x| x * delta).collect::<Vec<f32>>().try_into().unwrap();
-
-            println!("{:?}", momentum);
 
             engine.world_view.move_eye_local(momentum);
         })

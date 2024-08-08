@@ -124,8 +124,6 @@ impl worldView {
                 Vector3::new(0.0, 1.0, 0.0),
             ).into();
 
-            println!("{:?}, {:?}", eye, self.eye);
-
             self.changed.0 = false;
         }
 
