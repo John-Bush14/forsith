@@ -1,14 +1,8 @@
 use crate::vulkan::{
-    devices::{
-        device::{
-            VkDevice
-        }
-    },
+    devices::device::VkDevice,
     swapchain::{
         VkExtent2D,
-        image_view::{
-            VkImageView
-        }
+        image_view::VkImageView
     },
     vertex::{
         VkVertexInputBindingDescription,

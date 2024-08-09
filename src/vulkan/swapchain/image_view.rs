@@ -1,19 +1,11 @@
 use crate::vulkan::{
-    devices::{
-        device::{
-            VkDevice
-        }
-    },
-    swapchain::{
-        VkImage
-    },
+    devices::device::VkDevice,
+    swapchain::VkImage,
     VkResult,
     VkStructureType
 };
 
-use std::ffi::{
-    c_void
-};
+use std::ffi::c_void;
 
 
 pub type VkImageView = u64;

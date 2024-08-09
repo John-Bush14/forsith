@@ -38,7 +38,7 @@ macro_rules! prepare_extensions {
                 let ptr = extension.as_ptr();
 
                 std::mem::forget(extension);
-                std::mem::forget(ptr);
+                let _ = ptr;
 
                 extension_ptrs.push(ptr);
             } else {dbg!("ignoring: {:?}", extension);}

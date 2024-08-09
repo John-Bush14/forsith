@@ -14,22 +14,16 @@ use crate::vulkan::{
         VkExtensionProperties,
         vkEnumerateInstanceExtensionProperties
     },
-    window::{
-        VkSurfaceKHR,
-        Window,
-        dummy,
-        WindowEvent
-    },
+    window::Dummy
+    ,
     vk_make_version,
 };
 
-use crate::{
-    vk_enumerate_to_vec
-};
+use crate::vk_enumerate_to_vec;
 
 
 impl super::Engine {
-    pub fn init(name: String, version: [u8;3]) -> Result<Self, Box<dyn std::error::Error>> { unsafe {
+    pub fn init(name: String, version: [u8;3]) -> Result<Self, Box<dyn std::error::Error>> { 
         let mut engine: super::Engine = super::Engine {
             app_name: name.clone(),
             app_version: vk_make_version(version[0] as u32, version[1] as u32, version[2] as u32),
@@ -39,17 +33,17 @@ impl super::Engine {
             device: 0,
             physical_device: 0,
             surface_khr: 0,
-            window: Box::new(dummy {}),
-            swapchain: std::mem::zeroed(),
-            swapchain_image_format: std::mem::zeroed(),
+            window: Box::new(Dummy {}),
+            swapchain: unsafe {std::mem::zeroed()},
+            swapchain_image_format: unsafe {std::mem::zeroed()},
             swapchain_images: vec!(),
-            swapchain_extent: std::mem::zeroed(),
+            swapchain_extent: unsafe {std::mem::zeroed()},
             swapchain_image_views: vec!(),
             pipeline_layout: 0,
             render_pass: 0,
             shader_modules: vec!(),
             pipeline: 0,
-            debug_report_callback: 0,
+            _debug_report_callback: 0,
             framebuffers: vec!(),
             command_pool: 0,
             transient_command_pool: 0,
@@ -72,7 +66,7 @@ impl super::Engine {
             uniform_buffer_memories: vec!(),
             descriptor_set_layout: 0,
             descriptor_pool: 0,
-            descriptor_sets: vec!(),
+            _descriptor_sets: vec!(),
             vertex_usage_counts: std::collections::HashMap::new(),
             vertex_indices: std::collections::HashMap::new(),
             drawables: vec!(),
@@ -82,7 +76,7 @@ impl super::Engine {
         };
 
         
-        engine.world_view = super::world_view::worldView::new(
+        engine.world_view = super::world_view::WorldView::new(
             [0.0, 0.0, 1.0],
             [0.0, 0.0, 0.0],
             60.0,
@@ -91,24 +85,24 @@ impl super::Engine {
         );
         
 
-        let supported_instance_extensions = vk_enumerate_to_vec!(
+        let supported_instance_extensions = unsafe { vk_enumerate_to_vec!(
             vkEnumerateInstanceExtensionProperties, 
             VkExtensionProperties,
             std::ptr::null(),
-        );
+        )};
 
 
         engine.create_instance(supported_instance_extensions.clone());
 
 
-        let mut test_window_connections = engine.create_test_connections(supported_instance_extensions);
+        let test_window_connections = engine.create_test_connections(supported_instance_extensions);
 
         let chosen_window_connection = engine.create_device(test_window_connections);
 
 
         engine.finalize_connection(chosen_window_connection, engine.app_name.clone());
         
-        engine.create_surface_KHR(engine.instance);
+        engine.create_surface_khr(engine.instance);
 
 
         engine.create_swapchain();
@@ -128,5 +122,5 @@ impl super::Engine {
 
         
         return Ok(engine);
-    };}
+    }
 }

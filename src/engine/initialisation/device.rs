@@ -7,7 +7,6 @@ use crate::vulkan::{
             vkEnumeratePhysicalDevices,
             vkGetPhysicalDeviceProperties,
             vkGetPhysicalDeviceQueueFamilyProperties,
-            vkGetPhysicalDeviceSurfaceSupportKHR,
             vkEnumerateDeviceExtensionProperties
         },
         device::{
@@ -18,11 +17,9 @@ use crate::vulkan::{
             vkGetDeviceQueue
         }
     },
-    window::{
-        VkSurfaceKHR,
+    window::
         Window
-    },
-    VkBool32
+    
 };
 
 use crate::{
@@ -39,15 +36,12 @@ use std::ffi::{
 impl super::super::Engine { pub fn create_device(&mut self, mut test_window_connections: Vec<Box<dyn Window>>) -> Box<dyn Window> { unsafe {
     let instance = self.instance;
 
-    let mut physical_device_count: u32 = 0;
-    let mut physical_devices: Vec<VkPhysicalDevice> = vk_enumerate_to_vec!(
+    let physical_devices: Vec<VkPhysicalDevice> = vk_enumerate_to_vec!(
         vkEnumeratePhysicalDevices,
         VkPhysicalDevice,
         instance,
     );
 
-    
-    let mut best_score = 0;
     
     let (&best_physical_device, graphics_family, presentation_family, chosen_window_connection) = physical_devices
         .iter() 

@@ -1,5 +1,4 @@
 mod initialisation;
-use initialisation::{};
 
 mod loop_;
 
@@ -16,7 +15,7 @@ mod test;
 pub mod world_view;
 
 
-use crate::engine::interface::drawables::drawable;
+use crate::engine::interface::drawables::Drawable;
 
 
 use crate::vulkan::{
@@ -29,9 +28,7 @@ use crate::vulkan::{
             VkDevice,
             VkQueue
         },
-        physical_device::{
-            VkPhysicalDevice
-        }
+        physical_device::VkPhysicalDevice
     },
     window::{
         VkSurfaceKHR,
@@ -39,9 +36,7 @@ use crate::vulkan::{
         WindowEvent
     },
     swapchain::{
-        image_view::{
-            VkImageView
-        },
+        image_view::VkImageView,
         VkSwapchainKHR,
         VkSurfaceFormatKHR,
         VkImage,
@@ -55,12 +50,8 @@ use crate::vulkan::{
         VkFramebuffer
     },
     commands::{
-        command_buffer::{
-            VkCommandBuffer
-        },
-        command_pool::{
-            VkCommandPool
-        }
+        command_buffer::VkCommandBuffer,
+        command_pool::VkCommandPool
     },
     rendering::{
         VkSemaphore,
@@ -78,7 +69,6 @@ use crate::vulkan::{
     }
 };
 
-use core::ffi::c_void;
 
 pub enum Event {}
 
@@ -100,7 +90,7 @@ pub struct Engine {
     pipeline: VkPipeline,
     shader_modules: Vec<VkShaderModule>,
     framebuffers: Vec<VkFramebuffer>,
-    debug_report_callback: VkDebugUtilsMessengerEXT,
+    _debug_report_callback: VkDebugUtilsMessengerEXT,
     command_pool: VkCommandPool,
     transient_command_pool: VkCommandPool,
     command_buffers: Vec<VkCommandBuffer>,
@@ -122,18 +112,16 @@ pub struct Engine {
     uniform_buffer_memories: Vec<VkDeviceMemory>,
     descriptor_set_layout: VkDescriptorSetLayout,
     descriptor_pool: VkDescriptorPool,
-    descriptor_sets: Vec<VkDescriptorSet>,
+    _descriptor_sets: Vec<VkDescriptorSet>,
     vertices: Vec<Vertex>,
     indices: Vec<u16>,
     vertex_usage_counts: std::collections::HashMap<Vertex, usize>, // <Vertex, usage count>
     vertex_indices: std::collections::HashMap<Vertex, u16>, // <Vertex, Indice>
-    drawables: Vec<drawable>,
-    world_view: world_view::worldView,
+    drawables: Vec<Drawable>,
+    world_view: world_view::WorldView,
     pub events: Vec<WindowEvent>,
     pub target_fps: f32
 }
-
-static mut ENGINE: Option<Engine> = None;
 
 pub fn initialize_engine<T>(
     name: String,
@@ -142,9 +130,9 @@ pub fn initialize_engine<T>(
     ready_func: fn(&mut Engine, &mut T), 
     event_loop: fn(&mut Engine, &mut T, f32)
 ) {
-    let mut engine = unsafe {Engine::init(name, version).expect("Initialisation of engine failed")};
+    let mut engine = Engine::init(name, version).expect("Initialisation of engine failed");
     
     ready_func(&mut engine, &mut user_data);
 
-    unsafe {engine.start_loop(event_loop, user_data)};
+    engine.start_loop(event_loop, user_data);
 }

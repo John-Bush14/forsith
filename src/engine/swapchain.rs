@@ -1,9 +1,7 @@
 use crate::vulkan::{
     swapchain::{
         vkDestroySwapchainKHR,
-        image_view::{
-            vkDestroyImageView
-        }
+        image_view::vkDestroyImageView
     },
     pipeline::{
         vkDestroyShaderModule,
@@ -12,16 +10,8 @@ use crate::vulkan::{
         vkDestroyPipeline,
         vkDestroyFramebuffer
     },
-    commands::{
-        command_buffer::{
-            vkFreeCommandBuffers
-        }
-    },
-    devices::{
-        device::{
-            vkDeviceWaitIdle
-        }
-    }
+    commands::command_buffer::vkFreeCommandBuffers,
+    devices::device::vkDeviceWaitIdle
 };
 
 

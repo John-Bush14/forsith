@@ -1,26 +1,16 @@
 use crate::vulkan::{
-    devices::{
-        device::{
-            VkDevice,
-            VkQueue
-        }
+    devices::device::{
+        VkDevice,
+        VkQueue
     },
-    commands::{
-        command_buffer::{
-            VkCommandBuffer
-        }
-    },
-    swapchain::{
-        VkSwapchainKHR
-    },
+    commands::command_buffer::VkCommandBuffer,
+    swapchain::VkSwapchainKHR,
     VkBool32,
     VkResult,
     VkStructureType
 };
 
-use std::ffi::{
-    c_void
-};
+use std::ffi::c_void;
 
 
 pub type VkSemaphore = u64;

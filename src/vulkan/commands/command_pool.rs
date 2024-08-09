@@ -1,16 +1,10 @@
 use crate::vulkan::{
-    devices::{
-        device::{
-            VkDevice
-        }
-    },
+    devices::device::VkDevice,
     VkResult,
     VkStructureType
 };
 
-use std::ffi::{
-    c_void
-};
+use std::ffi::c_void;
 
 
 pub type VkCommandPool = u64;

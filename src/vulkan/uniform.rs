@@ -1,19 +1,11 @@
 use crate::vulkan::{
-    devices::{
-        device::{
-            VkDevice
-        }
-    },
-    vertex::{
-        VkBuffer
-    },
+    devices::device::VkDevice,
+    vertex::VkBuffer,
     VkResult,
     VkStructureType
 };
 
-use std::ffi::{
-    c_void
-};
+use std::ffi::c_void;
 
 
 pub type VkDescriptorSetLayout = u64;

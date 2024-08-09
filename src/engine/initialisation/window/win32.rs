@@ -3,15 +3,9 @@ use crate::vulkan::{
         Window,
         WindowEvent,
         VkSurfaceKHR,
-        win32::{
-            WinWindow
-        }
+        win32::WinWindow
     },
-    devices::{
-        physical_device::{
-            VkPhysicalDevice
-        }
-    }
+    devices::physical_device::VkPhysicalDevice
 };
 
 

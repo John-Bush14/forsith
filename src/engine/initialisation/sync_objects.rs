@@ -1,5 +1,4 @@
-use crate::vulkan::{
-    rendering::{
+use crate::vulkan::rendering::{
         MAX_FRAMES_IN_FLIGHT,
         VkFence,
         VkSemaphore,
@@ -7,7 +6,6 @@ use crate::vulkan::{
         VkSemaphoreCreateInfo,
         vkCreateFence,
         vkCreateSemaphore
-    }
 };
 
 

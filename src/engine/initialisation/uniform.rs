@@ -16,9 +16,7 @@ use crate::vulkan::{
     },
     vertex::{
         VkBuffer,
-        VkDeviceMemory,
-        vkMapMemory,
-        vkUnmapMemory
+        VkDeviceMemory
     }
 };
 
@@ -63,7 +61,7 @@ impl crate::engine::Engine { pub fn create_descriptor_sets(&mut self, uniform_bu
     
     descriptor_sets.iter().zip(uniform_buffers.iter()).for_each(|(&set, &buffer)| {
         let buffer_info = VkDescriptorBufferInfo {
-            buffer: buffer,
+            buffer,
             offset: 0,
             range: std::mem::size_of::<UniformBufferObject>() as u64
         }; let buffer_infos = [buffer_info];

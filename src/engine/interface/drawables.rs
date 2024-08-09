@@ -2,30 +2,21 @@ use crate::vulkan::{
     vertex::{
         Vertex,
         VkBuffer,
-        VkDeviceMemory,
-        vkMapMemory,
-        vkFreeMemory,
-        vkUnmapMemory,
-        vkDestroyBuffer
+        VkDeviceMemory
     },
-    uniform::{
-        VkDescriptorSet,
-        UniformBufferObject
-    }
+    uniform::VkDescriptorSet
 };
 
 use crate::engine::{
-    world_view::worldView,
+    world_view::WorldView,
     initialisation::buffer::update_uniform_buffer
 };
-
-use cgmath::{Deg, Matrix4, Point3, Vector3};
 
 
 pub type Texture = [f32; 4];
 
 
-pub struct drawable {
+pub struct Drawable {
     drawing: bool,
     pos: [f32;3],
     scale: [f32;3],
@@ -109,16 +100,16 @@ const CUBE: [[f32; 3]; 36] = [
 ];
 
 fn points_to_vertices(points: Vec<[f32;3]>, color: Texture) -> Vec<Vertex> {
-    points.iter().map(|&point| return Vertex {pos: point, color: color}).collect()
+    points.iter().map(|&point| return Vertex {pos: point, color}).collect()
 }
 
 
-impl drawable {
+impl Drawable {
     pub fn get_vertices(&self) -> &Vec<Vertex> {
         return &self.vertices
     }
 
-    pub fn update(&mut self, image_index: usize, aspect: f32, device: u64, world_view: &mut worldView, world_view_changed: bool) -> (bool, (bool, bool), (bool, bool)) { 
+    pub fn update(&mut self, _image_index: usize, aspect: f32, device: u64, world_view: &mut WorldView, world_view_changed: bool) -> (bool, (bool, bool), (bool, bool)) { 
         let result = (self.matrix_changed, self.vertices_changed, self.indices_changed);
 
         if world_view_changed || world_view.aspect != aspect {self.matrix_changed = true;}
@@ -150,7 +141,7 @@ impl drawable {
     pub fn get_id(&self) -> usize {return self.id}
 }
 
-impl drawable {
+impl Drawable {
     pub fn matrix_change(&mut self) {self.matrix_changed = true}
 
     pub fn pos(&self) -> &[f32;3] {return &self.pos}
@@ -169,9 +160,9 @@ impl drawable {
     pub fn set_drawing(&mut self, drawing: bool) {self.drawing = drawing;}
 }
 
-impl Default for drawable {
-    fn default() -> drawable {
-        return drawable {
+impl Default for Drawable {
+    fn default() -> Drawable {
+        return Drawable {
             drawing: true,
             pos: [0f32, 0f32, 0f32],
             scale: [1f32; 3],
@@ -196,9 +187,9 @@ impl Default for drawable {
     }
 }
 
-impl drawable {
-    pub fn cube_from_transform(pos: [f32;3], width: f32, height: f32, depth: f32, col: Texture) -> drawable {
-        let mut drawable: drawable = Default::default();
+impl Drawable {
+    pub fn cube_from_transform(pos: [f32;3], width: f32, height: f32, depth: f32, col: Texture) -> Drawable {
+        let mut drawable: Drawable = Default::default();
 
         drawable.tex = col;
         drawable.pos = pos;
@@ -208,8 +199,8 @@ impl drawable {
         return drawable;
     }
     
-    pub fn rect_from_transform(pos: [f32;2], width: f32, height: f32, rot: f32, col: Texture) -> drawable {
-        let mut drawable: drawable = Default::default();
+    pub fn rect_from_transform(pos: [f32;2], width: f32, height: f32, rot: f32, col: Texture) -> Drawable {
+        let mut drawable: Drawable = Default::default();
 
         drawable.tex = col;
         drawable.pos = [pos[0], pos[1], 0.0];

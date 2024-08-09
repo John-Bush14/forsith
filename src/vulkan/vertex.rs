@@ -7,20 +7,14 @@ pub const VERTEX_SIZE: usize = 28;
 
 use crate::vulkan::{
     devices::{
-        device::{
-            VkDevice
-        },
-        physical_device::{
-            VkPhysicalDevice
-        }
+        device::VkDevice,
+        physical_device::VkPhysicalDevice
     },
     VkResult, 
     VkStructureType
 };
 
-use std::ffi::{
-    c_void
-};
+use std::ffi::c_void;
 
 
 pub type VkBuffer = u64;

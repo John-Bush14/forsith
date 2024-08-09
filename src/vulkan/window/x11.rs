@@ -1,20 +1,12 @@
 use crate::vulkan::{
-    instance::{
-        VkInstance
-    },
-    window::{
-        VkSurfaceKHR
-    },
-    devices::{
-        physical_device::{
-            VkPhysicalDevice
-        }
-    },
+    instance::VkInstance,
+    window::VkSurfaceKHR,
+    devices::physical_device::VkPhysicalDevice,
     VkResult,
     VkBool32
 };
 
-use std::ffi::{CString, c_void, c_char};
+use std::ffi::{c_void, c_char};
 use std::fmt;
 
 pub const CW_EVENT_MASK: u64 = 1 << 11;
@@ -319,85 +311,85 @@ extern "C" {
     pub fn XUngrabPointer(display: *mut c_void, time: u64);
 }
 
-pub const KeyPress: i32 = 2;
-pub const KeyRelease: i32 = 3;
-pub const ButtonPress: i32 = 4;
-pub const ButtonRelease: i32 = 5;
-pub const MotionNotify: i32 = 6;
-pub const EnterNotify: i32 = 7;
-pub const LeaveNotify: i32 = 8;
-pub const FocusIn: i32 = 9;
-pub const FocusOut: i32 = 10;
-pub const KeymapNotify: i32 = 11;
-pub const Expose: i32 = 12;
-pub const GraphicsExpose: i32 = 13;
-pub const NoExpose: i32 = 14;
-pub const VisibilityNotify: i32 = 15;
-pub const CreateNotify: i32 = 16;
-pub const DestroyNotify: i32 = 17;
-pub const UnmapNotify: i32 = 18;
-pub const MapNotify: i32 = 19;
-pub const MapRequest: i32 = 20;
-pub const ReparentNotify: i32 = 21;
-pub const ConfigureNotify: i32 = 22;
-pub const ConfigureRequest: i32 = 23;
-pub const GravityNotify: i32 = 24;
-pub const ResizeRequest: i32 = 25;
-pub const CirculateNotify: i32 = 26;
-pub const CirculateRequest: i32 = 27;
-pub const PropertyNotify: i32 = 28;
-pub const SelectionClear: i32 = 29;
-pub const SelectionRequest: i32 = 30;
-pub const SelectionNotify: i32 = 31;
-pub const ColormapNotify: i32 = 32;
-pub const ClientMessage: i32 = 33;
-pub const MappingNotify: i32 = 34;
-pub const GenericEvent: i32 = 35;
-pub const LASTEvent: i32 = 36;
+pub const KEY_PRESS: i32 = 2;
+pub const KEY_RELEASE: i32 = 3;
+pub const BUTTON_PRESS: i32 = 4;
+pub const BUTTON_RELEASE: i32 = 5;
+pub const MOTION_NOTIFY: i32 = 6;
+pub const ENTER_NOTIFY: i32 = 7;
+pub const LEAVE_NOTIFY: i32 = 8;
+pub const FOCUS_IN: i32 = 9;
+pub const FOCUS_OUT: i32 = 10;
+pub const KEYMAP_NOTIFY: i32 = 11;
+pub const EXPOSE: i32 = 12;
+pub const GRAPHICS_EXPOSE: i32 = 13;
+pub const NO_EXPOSE: i32 = 14;
+pub const VISIBILITY_NOTIFY: i32 = 15;
+pub const CREATE_NOTIFY: i32 = 16;
+pub const DESTROY_NOTIFY: i32 = 17;
+pub const UNMAP_NOTIFY: i32 = 18;
+pub const MAP_NOTIFY: i32 = 19;
+pub const MAP_REQUEST: i32 = 20;
+pub const REPARENT_NOTIFY: i32 = 21;
+pub const CONFIGURE_NOTIFY: i32 = 22;
+pub const CONFIGURE_REQUEST: i32 = 23;
+pub const GRAVITY_NOTIFY: i32 = 24;
+pub const RESIZE_REQUEST: i32 = 25;
+pub const CIRCULATE_NOTIFY: i32 = 26;
+pub const CIRCULATE_REQUEST: i32 = 27;
+pub const PROPERTY_NOTIFY: i32 = 28;
+pub const SELECTION_CLEAR: i32 = 29;
+pub const SELECTION_REQUEST: i32 = 30;
+pub const SELECTION_NOTIFY: i32 = 31;
+pub const COLORMAP_NOTIFY: i32 = 32;
+pub const CLIENT_MESSAGE: i32 = 33;
+pub const MAPPING_NOTIFY: i32 = 34;
+pub const GENERIC_EVENT: i32 = 35;
+pub const LASTEVENT: i32 = 36;
 
 
 impl fmt::Display for XEvent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let string = unsafe {
             match self.type_ {
-                KeyPress => "key",
-                KeyRelease => "key",
-                ButtonPress => "button",
-                ButtonRelease => "button",
-                MotionNotify => "motion", 
-                EnterNotify => "crossing", 
-                LeaveNotify => "crossing", 
-                FocusIn => "focus_change", 
-                FocusOut => "focus_change",
-                KeymapNotify => "keymap", 
-                Expose => "expose", 
-                GraphicsExpose => "graphics_expose",
-                NoExpose => "no_expose",
-                VisibilityNotify => "visibility",
-                CreateNotify => "create_window",
-                DestroyNotify => "destroy_window",
-                UnmapNotify => "unmap",
-                MapNotify => "map",
-                MapRequest => "map_request",
-                ReparentNotify => "reparent",
-                ConfigureNotify => "configure",
-                ConfigureRequest => "configure_request",
-                GravityNotify => "gravity",
-                ResizeRequest => "resize_request",
-                CirculateNotify => "circulate",
-                CirculateRequest => "circulate_request",
-                PropertyNotify => "property",
-                SelectionClear => "selection_clear",
-                SelectionRequest => "selection_request",
-                SelectionNotify => "selection",
-                ColormapNotify => "colormap",
-                ClientMessage => "client_message",
-                MappingNotify => "mapping",
-                GenericEvent => "generic_event_cookie",
+                KEY_PRESS => "key",
+                KEY_RELEASE => "key",
+                BUTTON_PRESS => "button",
+                BUTTON_RELEASE => "button",
+                MOTION_NOTIFY => "motion", 
+                ENTER_NOTIFY => "crossing", 
+                LEAVE_NOTIFY => "crossing", 
+                FOCUS_IN => "focus_change", 
+                FOCUS_OUT => "focus_change",
+                KEYMAP_NOTIFY => "keymap", 
+                EXPOSE => "expose", 
+                GRAPHICS_EXPOSE => "graphics_expose",
+                NO_EXPOSE => "no_expose",
+                VISIBILITY_NOTIFY => "visibility",
+                CREATE_NOTIFY => "create_window",
+                DESTROY_NOTIFY => "destroy_window",
+                UNMAP_NOTIFY => "unmap",
+                MAP_NOTIFY => "map",
+                MAP_REQUEST => "map_request",
+                REPARENT_NOTIFY => "reparent",
+                CONFIGURE_NOTIFY => "configure",
+                CONFIGURE_REQUEST => "configure_request",
+                GRAVITY_NOTIFY => "gravity",
+                RESIZE_REQUEST => "resize_request",
+                CIRCULATE_NOTIFY => "circulate",
+                CIRCULATE_REQUEST => "circulate_request",
+                PROPERTY_NOTIFY => "property",
+                SELECTION_CLEAR => "selection_clear",
+                SELECTION_REQUEST => "selection_request",
+                SELECTION_NOTIFY => "selection",
+                COLORMAP_NOTIFY => "colormap",
+                CLIENT_MESSAGE => "client_message",
+                MAPPING_NOTIFY => "mapping",
+                GENERIC_EVENT => "generic_event_cookie",
                 _ => "any"
             }
         };
 
-        write!(f, "event: {}", string); return Ok(());
+        let _ = write!(f, "event: {}", string); return Ok(());
     }
 }

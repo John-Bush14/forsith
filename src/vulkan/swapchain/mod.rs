@@ -1,15 +1,9 @@
 use crate::vulkan::{
     devices::{
-        physical_device::{
-            VkPhysicalDevice
-        },
-        device::{
-            VkDevice
-        }
+        physical_device::VkPhysicalDevice,
+        device::VkDevice
     },
-    window::{
-        VkSurfaceKHR
-    },
+    window::VkSurfaceKHR,
     rendering::{
         VkFence,
         VkSemaphore
@@ -19,9 +13,7 @@ use crate::vulkan::{
     VkStructureType
 };
 
-use std::ffi::{
-    c_void
-};
+use std::ffi::c_void;
 
 
 pub mod image_view;

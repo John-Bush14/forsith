@@ -1,4 +1,4 @@
-pub use engine::interface::drawables::drawable;
+pub use engine::interface::drawables::Drawable;
 
 pub mod vulkan;
 

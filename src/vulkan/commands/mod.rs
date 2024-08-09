@@ -1,9 +1,5 @@
 use crate::vulkan::{
-    commands::{
-        command_buffer::{
-            VkCommandBuffer,
-        },
-    },
+    commands::command_buffer::VkCommandBuffer,
     pipeline::{
         VkRect2D,
         VkPipeline,
@@ -15,15 +11,11 @@ use crate::vulkan::{
         VkBuffer,
         VkBufferCopy
     },
-    uniform::{
-        VkDescriptorSet
-    },
+    uniform::VkDescriptorSet,
     VkStructureType,
 };
 
-use std::ffi::{
-    c_void
-};
+use std::ffi::c_void;
 
 
 #[derive(Debug, Clone, Copy, PartialEq)]

@@ -6,34 +6,24 @@ use crate::vulkan::{
             XDefaultScreen,
             XRootWindow,
             XInitThreads,
-            XResizeWindow,
             XCreateWindow,
             XStoreName,
             XFlush,
-            XSync,
             XMapWindow,
             XWarpPointer,
-            XConfigureWindow,
             XSelectInput,
             XDestroyWindow,
             XCloseDisplay,
             XNextEvent,
             XPending,
-            XGrabPointer,
-            XUngrabPointer,
             XWindowCreateAttributes,
             XGetWindowAttributes,
             XInternAtom,
             XSetWMProtocols,
-            XConfigureEvent,
             XEvent,
             XWindow,
             VkXlibSurfaceCreateInfoKHR,
-            XVisual,
             XWindowAttributes,
-            Bool,
-            XWindowChanges,
-            XSendEvent,
             XAtom,
             vkCreateXlibSurfaceKHR,
             vkGetPhysicalDeviceXlibPresentationSupportKHR,
@@ -42,14 +32,8 @@ use crate::vulkan::{
         VkSurfaceKHR,
         WindowEvent
     },
-    instance::{
-        VkInstance
-    },
-    devices::{
-        physical_device::{
-            VkPhysicalDevice
-        }
-    },
+    instance::VkInstance,
+    devices::physical_device::VkPhysicalDevice,
     VkBool32
 };
 
@@ -87,30 +71,30 @@ impl Window for XWindow {
             //println!("{}, {}", event, unsafe{XPending(self.display)});
 
             unsafe {events.push(match event.type_ {
-                x11::CreateNotify => WindowEvent::Birth,
-                x11::KeyRelease => {
+                x11::CREATE_NOTIFY => WindowEvent::Birth,
+                x11::KEY_RELEASE => {
                     keys_released_recent.push(event.key.keycode);
 
                     WindowEvent::Undefined
                 },
-                x11::KeyPress => {
+                x11::KEY_PRESS => {
                     let key_release_position = keys_released_recent.iter().position(|&x| x == event.key.keycode);
 
                     if let Some(key) = key_release_position {keys_released_recent.remove(key);}
 
                     WindowEvent::KeyDown(event.key.keycode, key_release_position.is_some())
                 },
-                x11::ButtonRelease => WindowEvent::MouseUp(event.button.button),
-                x11::ButtonPress => {
+                x11::BUTTON_RELEASE => WindowEvent::MouseUp(event.button.button),
+                x11::BUTTON_PRESS => {
                     WindowEvent::MouseDown(event.button.button)
                 },
-                x11::ConfigureNotify => {
+                x11::CONFIGURE_NOTIFY => {
                     if dimensions[0] != event.configure.width || dimensions[1] != event.configure.height {
                         WindowEvent::WindowResize([event.configure.width, event.configure.height])
                     }
                     else {WindowEvent::Undefined}
                 },
-                x11::MotionNotify => {
+                x11::MOTION_NOTIFY => {
                     let x = self.mouse_position[0] - event.mouse_motion.x as f32;
 
                     let y = self.mouse_position[1] - event.mouse_motion.y as f32;
@@ -120,8 +104,8 @@ impl Window for XWindow {
                     WindowEvent::MouseMove(x, y)
                 }
                 _ => {
-                    if unsafe{event.type_} == x11::ClientMessage 
-                    && unsafe {event.client_message.data.longs[0] as XAtom} == self.delete_window_protocol {
+                    if event.type_ == x11::CLIENT_MESSAGE 
+                    && event.client_message.data.longs[0] as XAtom == self.delete_window_protocol {
                         WindowEvent::Death
                     } else {WindowEvent::Undefined}
                 }
@@ -136,10 +120,10 @@ impl Window for XWindow {
     fn get_width(&self) -> u32 {todo!();}
     fn get_height(&self) -> u32 {todo!();}
 
-    fn set_width(&mut self, w: u32) {todo!();}
-    fn set_height(&mut self, h: u32) {todo!();}
+    fn set_width(&mut self, _w: u32) {todo!();}
+    fn set_height(&mut self, _h: u32) {todo!();}
 
-    fn create_surfaceKHR(&self, instance: VkInstance) -> VkSurfaceKHR {
+    fn create_surface_khr(&self, instance: VkInstance) -> VkSurfaceKHR {
         let create_info = VkXlibSurfaceCreateInfoKHR {
             s_type: 1000004000,
             p_next: std::ptr::null(),
@@ -148,32 +132,32 @@ impl Window for XWindow {
             window: self.handle,
         };
         
-        let mut surface_KHR: VkSurfaceKHR = 0;
+        let mut surface_khr: VkSurfaceKHR = 0;
 
-        unsafe { vkCreateXlibSurfaceKHR(instance, &create_info, std::ptr::null(), &mut surface_KHR); };
+        unsafe { vkCreateXlibSurfaceKHR(instance, &create_info, std::ptr::null(), &mut surface_khr); };
 
-        return surface_KHR
+        return surface_khr
     }
 
-    fn init_connection(dimensions: [i32; 2]) -> XWindow { unsafe {
-        XInitThreads();
+    fn init_connection(dimensions: [i32; 2]) -> XWindow {
+        unsafe {XInitThreads()};
 
-        let display = XOpenDisplay(std::ptr::null()) as *mut c_void;  
+        let display = unsafe {XOpenDisplay(std::ptr::null())} as *mut c_void;  
         if display.is_null() {panic!("XOpenDisplay failed! :'(");}
 
-        let screen_number = XDefaultScreen(display);
-        let root_window = XRootWindow(display, screen_number);
+        let screen_number = unsafe {XDefaultScreen(display)};
+        let root_window = unsafe {XRootWindow(display, screen_number)};
 
-         XSelectInput(display, root_window, EXPOSURE_MASK);
+         unsafe {XSelectInput(display, root_window, EXPOSURE_MASK)};
         
         unsafe {XWarpPointer(display, 0, root_window, 0, 0, 0, 0, 100, 100)};    
         unsafe {XFlush(display)};
     
-        let mut window_attributes: XWindowCreateAttributes = std::mem::zeroed();
+        let mut window_attributes: XWindowCreateAttributes = unsafe{std::mem::zeroed()};
         window_attributes.background_pixel = 0;
         window_attributes.event_mask = EXPOSURE_MASK;
 
-        let window = XCreateWindow(
+        let window = unsafe { XCreateWindow(
             display,
             root_window,
             100,
@@ -186,18 +170,18 @@ impl Window for XWindow {
             std::ptr::null_mut(),
             CW_EVENT_MASK,
             &window_attributes as *const XWindowCreateAttributes,
-        );      
+        )};      
 
         println!("{}", window);
 
         return XWindow {
-            display: display,
+            display,
             handle: window,
             root_handle: root_window,
             delete_window_protocol: 0,
             mouse_position: [0.0, 0.0],
         };
-    }}
+    }
 
     fn init_window(&mut self, name: String) { unsafe {
         let window_title = CString::new(name).expect("CString::new failed");
@@ -206,7 +190,7 @@ impl Window for XWindow {
         let wm_protocols_str = CString::new("WM_PROTOCOLS").unwrap();
         let wm_delete_window_str = CString::new("WM_DELETE_WINDOW").unwrap();
 
-        let wm_protocols = XInternAtom(self.display, wm_protocols_str.as_ptr(), 0);
+        let _wm_protocols = XInternAtom(self.display, wm_protocols_str.as_ptr(), 0);
         let wm_delete_window = XInternAtom(self.display, wm_delete_window_str.as_ptr(), 0);
 
         self.delete_window_protocol = wm_delete_window;

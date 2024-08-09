@@ -1,6 +1,5 @@
 use crate::vulkan::{
     instance::{
-        VkInstance,
         VkApplicationInfo,
         VkLayerProperties,
         VkExtensionProperties,
@@ -8,11 +7,8 @@ use crate::vulkan::{
         VkDebugUtilsMessengerCreateInfoEXT,
         VkDebugUtilsMessengerCallbackDataEXT,
         vkCreateInstance,
-        vkCreateDebugUtilsMessengerEXT,
-        vkEnumerateInstanceLayerProperties,
-        vkEnumerateInstanceExtensionProperties
+        vkEnumerateInstanceLayerProperties
     },
-    VkResult,
     vk_make_version,
 };
 
@@ -24,8 +20,7 @@ use crate::{
 use std::ffi::{
     c_void,
     CString,
-    c_char,
-    CStr
+    c_char
 };
 
 unsafe extern "system" fn vulkan_debug_callback(
@@ -38,7 +33,6 @@ unsafe extern "system" fn vulkan_debug_callback(
         0x00000001 => {println!("\x1b[34m [DEBUG] {} - {:?}", type_, data)}, // debug
         0x00000010 => {println!("\x1b[32m [INFO] {} - {:?}", type_, data)}, // information
         0x00000100 => {println!("\x1b[33m [WARN] {} - {:?}", type_, data)}, // warning
-        0x00000100 => {println!("\x1b[33m [PERFORMANCE] {} - {:?}", type_, data)}, // performance warning
         _ => {println!("\x1b[31m [ERROR] {} - {:?}", type_, data)} // error
     };
 
@@ -70,7 +64,7 @@ impl crate::engine::Engine { pub fn create_instance(&mut self, supported_extensi
         "VK_EXT_metal_surface",
     );
     
-    let mut supported_layers = vk_enumerate_to_vec!(vkEnumerateInstanceLayerProperties, VkLayerProperties,);
+    let supported_layers = vk_enumerate_to_vec!(vkEnumerateInstanceLayerProperties, VkLayerProperties,);
 
     let (layers, layer_len) = prepare_extensions![supported_layers,
         "VK_LAYER_KHRONOS_validation",
@@ -91,7 +85,7 @@ impl crate::engine::Engine { pub fn create_instance(&mut self, supported_extensi
 
     let result = vkCreateInstance(&instance_create_info, std::ptr::null(), &mut instance);
 
-    let debug_report_callback_create_info = VkDebugUtilsMessengerCreateInfoEXT {
+    let _debug_report_callback_create_info = VkDebugUtilsMessengerCreateInfoEXT {
         s_type: 1000128004,
         p_next: std::ptr::null(),
         flags: 0,

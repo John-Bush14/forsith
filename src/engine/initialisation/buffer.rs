@@ -1,9 +1,5 @@
 use crate::vulkan::{
     vertex::{
-        INDICES,
-        VERTICES,
-        VERTEX_SIZE,
-        Vertex,
         VkBuffer,
         VkBufferCopy,
         VkDeviceMemory,
@@ -37,19 +33,10 @@ use crate::vulkan::{
         vkQueueSubmit,
         vkQueueWaitIdle
     },
-    uniform::{
-        UniformBufferObject
-    }
+    uniform::UniformBufferObject
 };
 
-use crate::engine::{
-    world_view::worldView
-};
-
-use std::ffi::{
-    c_void
-};
-
+use crate::engine::world_view::WorldView;
 
 
 impl crate::engine::Engine { pub fn create_vertex_buffer(&mut self) {
@@ -61,7 +48,7 @@ impl crate::engine::Engine { pub fn create_index_buffer(&mut self) {
 }}
 
 impl crate::engine::Engine { pub fn create_device_local_buffer_with_data<A, T: Copy>(&self, usage: u32, data: &[T]) -> (u64, u64) {
-    let mut buffer_size = (data.len() * std::mem::size_of::<T>()) as u64;
+    let buffer_size = (data.len() * std::mem::size_of::<T>()) as u64;
 
     let (staging_buffer, staging_memory, staging_size) = self.create_buffer(buffer_size, 0x00000001, 0x00000002 | 0x00000004);
 
@@ -78,7 +65,7 @@ impl crate::engine::Engine { pub fn create_device_local_buffer_with_data<A, T: C
 
     let vertex_align = std::mem::align_of::<A>();
 
-    let layout = std::alloc::Layout::from_size_align(staging_size as usize, vertex_align).unwrap();
+    let _layout = std::alloc::Layout::from_size_align(staging_size as usize, vertex_align).unwrap();
 
     unsafe {std::ptr::copy_nonoverlapping(data.as_ptr(), data_ptr as _, data.len())};
 
@@ -139,7 +126,7 @@ impl crate::engine::Engine { pub fn create_buffer(
                 return i;
             }
         }
-        panic!("no memory_type found!"); return 0;
+        panic!("no memory_type found!");
     }(memory_properties, &memory_requirements, property_flags);
 
     
@@ -187,7 +174,7 @@ impl crate::engine::Engine { pub fn copy_buffer(&self, src: VkBuffer, dst: VkBuf
     let region = VkBufferCopy {
         src_offset: 0,
         dst_offset: 0,
-        size: size
+        size
     };
 
     let regions = [region];
@@ -216,9 +203,9 @@ impl crate::engine::Engine { pub fn copy_buffer(&self, src: VkBuffer, dst: VkBuf
     unsafe {vkFreeCommandBuffers(self.device, self.transient_command_pool, command_buffers.len() as u32, command_buffers.as_ptr())};
 }}
 
-pub fn update_uniform_buffer(buffer_memory: VkDeviceMemory, model: [[f32;4];4], aspect: f32, device: u64, world_view: &mut worldView, two_d: bool, ui: bool) {
+pub fn update_uniform_buffer(buffer_memory: VkDeviceMemory, model: [[f32;4];4], aspect: f32, device: u64, world_view: &mut WorldView, two_d: bool, ui: bool) {
     let ubo = UniformBufferObject {
-        model: model,
+        model,
         view: {
             if !two_d {
                 world_view.get_view_matrix()
@@ -252,7 +239,7 @@ pub fn update_uniform_buffer(buffer_memory: VkDeviceMemory, model: [[f32;4];4], 
 
     let align = std::mem::align_of::<f32>();
 
-    let layout = std::alloc::Layout::from_size_align(size as usize, align).unwrap();
+    let _layout = std::alloc::Layout::from_size_align(size as usize, align).unwrap();
     
     let ubos = [ubo];
 

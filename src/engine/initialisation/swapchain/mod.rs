@@ -1,5 +1,4 @@
-use crate::vulkan::{
-    swapchain::{
+use crate::vulkan::swapchain::{
         VkImage,
         VkExtent2D,
         VkSwapchainKHR,
@@ -11,12 +10,9 @@ use crate::vulkan::{
         vkGetPhysicalDeviceSurfaceFormatsKHR,
         vkGetPhysicalDeviceSurfacePresentModesKHR,
         vkGetPhysicalDeviceSurfaceCapabilitiesKHR
-    }
 };
 
-use crate::{
-    vk_enumerate_to_vec
-};
+use crate::vk_enumerate_to_vec;
 
 
 pub mod image_view;
@@ -90,7 +86,7 @@ impl crate::engine::Engine { pub fn create_swapchain(&mut self) { unsafe {
         queue_family_indices: queue_family_indices.as_ptr(),
         pre_transform: transform,
         composite_alpha: 0x00000001,
-        present_mode: present_mode,
+        present_mode,
         clipped: 1,
         old_swapchain: 0
     };

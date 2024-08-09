@@ -3,15 +3,9 @@ use crate::vulkan::{
         Window,
         WindowEvent,
         VkSurfaceKHR,
-        wayland::{
-            WayWindow
-        }
+        wayland::WayWindow
     },
-    devices::{
-        physical_device::{
-            VkPhysicalDevice
-        }
-    }
+    devices::physical_device::VkPhysicalDevice
 };
 
 
@@ -19,20 +13,20 @@ impl Window for WayWindow {
     fn get_width(&self) -> u32 {todo!();}
     fn get_height(&self) -> u32 {todo!();}
 
-    fn set_width(&mut self, width: u32) {todo!();}
-    fn set_height(&mut self, height: u32) {todo!();}
+    fn set_width(&mut self, _width: u32) {todo!();}
+    fn set_height(&mut self, _height: u32) {todo!();}
 
-    fn init_connection(dimensions: [i32; 2]) -> Self where Self: Sized {return WayWindow {}}
+    fn init_connection(_dimensions: [i32; 2]) -> Self where Self: Sized {return WayWindow {}}
     
-    fn init_window(&mut self, name: String) {panic!("wayland not yet implemented!!!");}
+    fn init_window(&mut self, _name: String) {panic!("wayland not yet implemented!!!");}
 
-    fn create_surfaceKHR(&self, instance: crate::vulkan::instance::VkInstance) -> VkSurfaceKHR {todo!();}
+    fn create_surface_khr(&self, _instance: crate::vulkan::instance::VkInstance) -> VkSurfaceKHR {todo!();}
 
-    fn get_events(&mut self, dimensions: [i32; 2]) -> Vec<WindowEvent> {todo!();}
+    fn get_events(&mut self, _dimensions: [i32; 2]) -> Vec<WindowEvent> {todo!();}
     
-    fn supports_physical_device_queue(&self, physical_device: VkPhysicalDevice, queue: u32) -> bool {todo!();}
+    fn supports_physical_device_queue(&self, _physical_device: VkPhysicalDevice, _queue: u32) -> bool {todo!();}
 
     fn commit_suicide(&self) {todo!();}
 
-    fn set_mouse(&mut self, x: f32, y: f32) {todo!();}
+    fn set_mouse(&mut self, _x: f32, _y: f32) {todo!();}
 }

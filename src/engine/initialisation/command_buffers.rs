@@ -1,12 +1,10 @@
 use crate::vulkan::{
     commands::{
         command_pool::{
-            VkCommandPool,
             VkCommandPoolCreateInfo,
             vkCreateCommandPool
         },
         command_buffer::{
-            VkCommandBuffer,
             VkCommandBufferBeginInfo,
             VkCommandBufferAllocateInfo,
             vkEndCommandBuffer,
@@ -26,14 +24,7 @@ use crate::vulkan::{
     },
     pipeline::{
         VkRect2D,
-        VkOffset2D,
-        VkPipelineLayout
-    },
-    vertex::{
-        INDICES
-    },
-    uniform::{
-        VkDescriptorSet
+        VkOffset2D
     }
 };
 
@@ -50,7 +41,7 @@ impl super::super::Engine { pub fn create_command_pool(&mut self, transient: boo
         self.device,
         &command_pool_create_info as *const VkCommandPoolCreateInfo,
         std::ptr::null(),
-        {if transient {&mut self.transient_command_pool} else {&mut self.command_pool}}
+        if transient {&mut self.transient_command_pool} else {&mut self.command_pool}
     );
 }}}
 

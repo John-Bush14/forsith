@@ -1,13 +1,9 @@
-use crate::vulkan::{
-    swapchain::{
-        image_view::{
+use crate::vulkan::swapchain::image_view::{
             VkImageView,
             VkComponentMapping,
             VkImageViewCreateInfo,
             VkImageSubresourceRange,
             vkCreateImageView
-        },
-    }
 };
 
 
@@ -30,8 +26,8 @@ impl crate::engine::Engine { pub fn create_image_views(&mut self) { unsafe {
             image: *image,
             view_type: 1, // dimensions -1 (1 = 2D)
             format: self.swapchain_image_format.format,
-            components: components,
-            subresource_range: subresource_range
+            components,
+            subresource_range
         };
 
 

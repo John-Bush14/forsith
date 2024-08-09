@@ -1,7 +1,5 @@
 use crate::vulkan::{
-    window::{
-        WindowEvent
-    },
+    window::WindowEvent,
     rendering::{
         MAX_FRAMES_IN_FLIGHT,
         VkSubmitInfo,
@@ -11,9 +9,7 @@ use crate::vulkan::{
         vkWaitForFences,
         vkQueuePresentKHR
     },
-    swapchain::{
-        vkAcquireNextImageKHR
-    }
+    swapchain::vkAcquireNextImageKHR
 };
 
 
@@ -43,7 +39,7 @@ impl super::Engine { pub fn start_loop<T>(mut self, event_loop: fn(&mut super::E
     let mut deltadur = std::time::Instant::now();
 
 
-    while true {
+    loop {
         let start = std::time::Instant::now();
 
         if self.process_events() {return}
@@ -130,11 +126,11 @@ impl super::Engine { pub fn start_loop<T>(mut self, event_loop: fn(&mut super::E
             
         let result = unsafe {vkQueuePresentKHR(self.presentation_queue, &present_info as *const VkPresentInfoKHR)};
         
-        if (
-            result == 1000001003 
+        if  result == 1000001003 
             || result == 1000001004 
-            || self.new_dimensions.is_some()
-        ) {self.recreate_swapchain()}
+            || self.new_dimensions.is_some() 
+            
+            {self.recreate_swapchain()}
 
         self.current_frame = (self.current_frame + 1) % MAX_FRAMES_IN_FLIGHT as usize;
         

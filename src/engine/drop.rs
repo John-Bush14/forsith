@@ -1,34 +1,11 @@
 use crate::vulkan::{
-    instance::{
-        vkDestroyInstance
-    },
-    devices::{
-        device::{
+    instance::vkDestroyInstance,
+    devices::device::{
             vkDestroyDevice,
             vkDeviceWaitIdle
-        }
-    },
-    window::{
-        vkDestroySurfaceKHR
-    },
-    swapchain::{
-        vkDestroySwapchainKHR,
-        image_view::{
-            vkDestroyImageView
-        }
-    },
-    pipeline::{
-        vkDestroyShaderModule,
-        vkDestroyPipelineLayout,
-        vkDestroyRenderPass,
-        vkDestroyPipeline,
-        vkDestroyFramebuffer
-    },
-    commands::{
-        command_pool::{
-            vkDestroyCommandPool
         },
-    },
+    window::vkDestroySurfaceKHR,
+    commands::command_pool::vkDestroyCommandPool,
     rendering::{
         vkDestroyFence,
         vkDestroySemaphore
@@ -43,7 +20,7 @@ use crate::vulkan::{
     }
 };
 
-impl Drop for crate::drawable {
+impl Drop for crate::Drawable {
     fn drop(&mut self) { unsafe { if self.uniform_buffers.len() > 0 {
         self.uniform_buffers.iter().zip(self.uniform_memories.iter()).for_each(|(&buffer, &memory)| {
             vkDestroyBuffer(self.device, buffer, std::ptr::null());

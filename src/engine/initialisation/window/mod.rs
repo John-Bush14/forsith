@@ -1,10 +1,6 @@
 use crate::vulkan::{
-    window::{
-        Window,
-    },
-    instance::{
-        VkExtensionProperties
-    }
+    window::Window,
+    instance::VkExtensionProperties
 };
 
 #[cfg(target_os = "linux")]
@@ -28,7 +24,7 @@ mod metal;
 use crate::vulkan::window::metal::MWindow;
 
 impl super::super::Engine { 
-    pub fn create_test_connections(&self, supported_instance_extensions: Vec<VkExtensionProperties>) -> Vec<Box<dyn Window>> { unsafe {
+    pub fn create_test_connections(&self, _supported_instance_extensions: Vec<VkExtensionProperties>) -> Vec<Box<dyn Window>> {
         let mut test_connections: Vec<Box<dyn Window>> = vec![];
 
         if cfg!(target_os = "linux") {
@@ -48,14 +44,14 @@ impl super::super::Engine {
         test_connections.push(Box::new(MWindow::init_connection(self.dimensions)));
 
         return test_connections;
-    }}
+    }
 }
 
-impl super::super::Engine { pub fn finalize_connection(&mut self, mut connection: Box<dyn Window>, name: String) { unsafe {
+impl super::super::Engine { pub fn finalize_connection(&mut self, mut connection: Box<dyn Window>, name: String) {
     connection.init_window(name);
     self.window = connection;
-}}}
+}}
 
-impl super::super::Engine { pub fn create_surface_KHR(&mut self, instance: crate::vulkan::instance::VkInstance) { unsafe {
-    self.surface_khr = self.window.create_surfaceKHR(instance);
-}}}
+impl super::super::Engine { pub fn create_surface_khr(&mut self, instance: crate::vulkan::instance::VkInstance) {
+    self.surface_khr = self.window.create_surface_khr(instance);
+}}

@@ -1,11 +1,7 @@
-use super::{CString, c_void, c_char};
+use super::{c_void, c_char};
 
 use crate::vulkan::{
-    devices::{
-        physical_device::{
-            VkPhysicalDevice
-        }
-    },
+    devices::physical_device::VkPhysicalDevice,
     VkResult
 };
 

@@ -1,7 +1,7 @@
-use cgmath::{Deg, Matrix4, Point3, Vector3};
+use cgmath::{Matrix4, Point3, Vector3};
 
 
-pub struct worldView {
+pub struct WorldView {
     fov: f32,
     near: f32,
     far: f32,
@@ -11,12 +11,12 @@ pub struct worldView {
     pub changed: (bool, bool),
     view_matrix: [[f32;4];4],
     projection_matrix: [[f32;4];4],
-    up_vector: [f32;3],
+    _up_vector: [f32;3],
     matrix_2d: [[f32;4];4]
 }
 
 
-impl worldView {
+impl WorldView {
     pub fn set_fov(&mut self, fov: f32) {self.fov = fov; self.changed.1 = true}
 
     pub fn set_near(&mut self, near: f32) {self.near = near; self.changed.1 = true}
@@ -130,18 +130,18 @@ impl worldView {
         return self.matrix_2d;
     }
 
-    pub fn new(eye: [f32;3], target: [f32;3], fov: f32, far: f32, near: f32) -> worldView {
-        return worldView {
-            eye: eye,
-            target: target,
-            fov: fov,
-            near: near,
-            far: far,
+    pub fn new(eye: [f32;3], target: [f32;3], fov: f32, far: f32, near: f32) -> WorldView {
+        return WorldView {
+            eye,
+            target,
+            fov,
+            near,
+            far,
             aspect: 0.0,
             changed: (true, true),
             view_matrix: [[0f32;4];4],
             projection_matrix: [[0f32;4];4],
-            up_vector: [0.0, 1.0, 0.0],
+            _up_vector: [0.0, 1.0, 0.0],
             matrix_2d: [[0f32;4];4]
         }
     }

@@ -36,21 +36,15 @@ use crate::vulkan::{
         VkVertexInputBindingDescription,
         VkVertexInputAttributeDescription
     },
-    devices::{
-        device::{
-            VkDevice
-        }
-    }
+    devices::device::VkDevice
 };
 
-use std::io::{self, Read};
+use std::io::Read;
 
-use std::ffi::{
-    CString
-};
+use std::ffi::CString;
 
 
-impl crate::engine::Engine { pub fn create_pipeline(&mut self) { unsafe {
+impl crate::engine::Engine { pub fn create_pipeline(&mut self) {
     let entry_point_name = CString::new("main").unwrap();
 
     let vertex_shader = create_shader_module_from_file(&self.device, "src/engine/shaders/shader.vert.spv");
@@ -213,12 +207,12 @@ impl crate::engine::Engine { pub fn create_pipeline(&mut self) { unsafe {
         push_constant_ranges: std::ptr::null()
     };
 
-    vkCreatePipelineLayout(
+    unsafe {vkCreatePipelineLayout(
         self.device.clone(),
         &pipeline_layout_create_info as *const VkPipelineLayoutCreateInfo,
         std::ptr::null(),
         &mut self.pipeline_layout
-    );
+    )};
 
     self.render_pass = create_render_pass(self.device.clone(), self.swapchain_image_format.format);
 
@@ -254,14 +248,14 @@ impl crate::engine::Engine { pub fn create_pipeline(&mut self) { unsafe {
 
     let pipeline_create_infos = [pipeline_create_info];
 
-    vkCreateGraphicsPipelines(
+    unsafe {vkCreateGraphicsPipelines(
         self.device.clone(),
         0,
         pipeline_create_infos.len() as u32,
         pipeline_create_infos.as_ptr(),
         std::ptr::null(),
         &mut self.pipeline
-    );
+    )};
 
     self.framebuffers = self.swapchain_image_views.iter().map(|view| [*view]).map(|attachments| {
         let framebuffer_create_info = VkFramebufferCreateInfo {
@@ -278,16 +272,16 @@ impl crate::engine::Engine { pub fn create_pipeline(&mut self) { unsafe {
 
         let mut framebuffer: VkFramebuffer = 0;
 
-        vkCreateFramebuffer(
+        unsafe {vkCreateFramebuffer(
             self.device,
             &framebuffer_create_info as *const VkFramebufferCreateInfo,
             std::ptr::null(),
             &mut framebuffer
-        );
+        )};
 
         return framebuffer;
     }).collect();
-}}}
+}}
 
 fn create_render_pass(device: VkDevice, swapchain_image_format: u32) -> VkRenderPass {
     let attachment_description = VkAttachmentDescription {
@@ -371,7 +365,7 @@ fn create_shader_module_from_file(device: &VkDevice, file: &str) -> VkShaderModu
     let mut file = std::fs::File::open(file).expect("Nonexisting shader file");
 
     let mut raw_code = vec!();
-    file.read_to_end(&mut raw_code);
+    let _ = file.read_to_end(&mut raw_code);
 
     let code: Vec<u32> = raw_code.chunks_exact(4).map(|chunk| u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]])).collect();
 

@@ -17,13 +17,13 @@ mod tests {
             [0, 1, 0], // version
             State {yaw: -90.0, pitch: 0.0, momentum: [0f32;3]},
 
-            |engine, state| {
+            |engine, _state| {
                 engine.target_fps = 60.0; 
 
-                let mut rect = crate::drawable::rect_from_transform([-0.5, -0.5], 0.25, 0.25, 0.0, [1.0;4]);
+                let mut rect = crate::Drawable::rect_from_transform([-0.5, -0.5], 0.25, 0.25, 0.0, [1.0;4]);
                 rect.ui = true;
 
-                let cube = crate::drawable::cube_from_transform([0.0, 0.0, 10.0], 1.0, 1.0, 1.0, [1.0;4]);
+                let cube = crate::Drawable::cube_from_transform([0.0, 0.0, 10.0], 1.0, 1.0, 1.0, [1.0;4]);
     
                 engine.add_drawable(rect);
                 engine.add_drawable(cube);
@@ -56,7 +56,7 @@ mod tests {
                             let sensitivity = 0.1;
 
                             state.yaw += -dx * sensitivity;
-                            state.pitch += (dy * sensitivity).min(89.0).max(-89.0);;
+                            state.pitch += (dy * sensitivity).min(89.0).max(-89.0);
 
                             engine.world_view.set_target_yaw_pitch(state.yaw, state.pitch);
                         

@@ -1,12 +1,8 @@
-use super::{CString, c_void, c_char};
+use super::{c_void, c_char};
 
 use crate::vulkan::{
-    instance::{
-        VkInstance
-    },
-    window::{
-        VkSurfaceKHR
-    },
+    instance::VkInstance,
+    window::VkSurfaceKHR,
     VkResult,
     VkBool32
 };

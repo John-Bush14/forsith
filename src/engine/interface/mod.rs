@@ -1,24 +1,10 @@
 pub mod drawables;
 
-use crate::vulkan::{
-    vertex::{
-        Vertex,
-        VkBuffer,
-        VkDeviceMemory,
-        vkMapMemory,
-        vkUnmapMemory
-    },
-    uniform::{
-        UniformBufferObject
-    }
-};
 
-use drawables::{
-    drawable
-};
+use drawables::Drawable;
 
 
-impl crate::engine::Engine { pub fn add_drawable<'a>(&'a mut self, mut drawable: drawable) -> &'a mut drawable {
+impl crate::engine::Engine { pub fn add_drawable<'a>(&'a mut self, mut drawable: Drawable) -> &'a mut Drawable {
     (drawable.uniform_buffers, drawable.uniform_memories) = self.create_uniform_buffers();
     drawable.descriptor_sets = self.create_descriptor_sets(drawable.uniform_buffers.clone());
 
