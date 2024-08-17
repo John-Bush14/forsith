@@ -116,13 +116,12 @@ pub struct Engine {
 pub fn initialize_engine<T>(
     name: String,
     version: [u8;3], 
-    mut user_data: T,
-    ready_func: fn(&mut Engine, &mut T), 
+    ready_func: fn(&mut Engine) -> T, 
     event_loop: fn(&mut Engine, &mut T, f32)
 ) {
     let mut engine = Engine::init(name, version).expect("Initialisation of engine failed");
     
-    ready_func(&mut engine, &mut user_data);
+    let user_data = ready_func(&mut engine);
 
     engine.start_loop(event_loop, user_data);
 }

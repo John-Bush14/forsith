@@ -15,9 +15,8 @@ mod tests {
         engine::initialize_engine(
             "test fps demo".to_string(),
             [0, 1, 0], // version
-            State {yaw: -270.0, pitch: 0.0, momentum: [0f32;3]},
-
-            |engine, state| {
+                       
+            |engine| {
                 engine.target_fps = 60.0; 
 
                 let rect = crate::Drawable::rect_from_transform([-0.5, -0.5], 0.25, 0.25, 0.0, [1.0;4], true);
@@ -26,8 +25,12 @@ mod tests {
     
                 engine.add_drawable(rect);
                 engine.add_drawable(cube);
+
+                let state = State {yaw: -270.0, pitch: 0.0, momentum: [0f32;3]};
                 
                 engine.world_view.set_target_yaw_pitch(state.yaw, state.pitch);
+
+                return state;
             },
 
             |engine: &mut crate::engine::Engine, state, delta| {
