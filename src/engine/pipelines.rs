@@ -1,4 +1,4 @@
-use crate::vulkan::pipeline::{vkCreateGraphicsPipelines, vkDestroyPipeline, GraphicsPipeline, VkGraphicsPipelineCreateInfo, VkPipeline};
+use crate::vulkan::pipeline::{vkDestroyPipeline, GraphicsPipeline, VkPipeline};
 
 use super::initialisation::pipelines::create_render_pass;
 
