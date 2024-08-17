@@ -1,7 +1,7 @@
 use crate::vulkan::{
     devices::device::VkDevice, 
     pipeline::{
-        vkCreateFramebuffer, vkCreateGraphicsPipelines, vkCreatePipelineLayout, vkCreateRenderPass, vkCreateShaderModule, GraphicsPipeline, Uniform, VkAttachmentDescription, VkAttachmentReference, VkFramebuffer, VkFramebufferCreateInfo, VkGraphicsPipelineCreateInfo, VkOffset2D, VkPipeline, VkPipelineColorBlendAttachmentState, VkPipelineColorBlendStateCreateInfo, VkPipelineDepthStencilStateCreateInfo, VkPipelineInputAssemblyStateCreateInfo, VkPipelineLayoutCreateInfo, VkPipelineMultisampleStateCreateInfo, VkPipelineRasterizationStateCreateInfo, VkPipelineShaderStageCreateInfo, VkPipelineTessellationStateCreateInfo, VkPipelineVertexInputStateCreateInfo, VkPipelineViewportStateCreateInfo, VkRect2D, VkRenderPass, VkRenderPassCreateInfo, VkShaderModule, VkShaderModuleCreateInfo, VkSubpassDependency, VkSubpassDescription, VkViewport
+        vkCreateFramebuffer, vkCreateGraphicsPipelines, vkCreatePipelineLayout, vkCreateRenderPass, vkCreateShaderModule, GraphicsPipeline, Uniform, VkAttachmentDescription, VkAttachmentReference, VkFramebuffer, VkFramebufferCreateInfo, VkGraphicsPipelineCreateInfo, VkOffset2D, VkPipeline, VkPipelineColorBlendAttachmentState, VkPipelineColorBlendStateCreateInfo, VkPipelineDepthStencilStateCreateInfo, VkPipelineInputAssemblyStateCreateInfo, VkPipelineLayoutCreateInfo, VkPipelineMultisampleStateCreateInfo, VkPipelineRasterizationStateCreateInfo, VkPipelineShaderStageCreateInfo, VkPipelineTessellationStateCreateInfo, VkPipelineVertexInputStateCreateInfo, VkPipelineViewportStateCreateInfo, VkRect2D, VkRenderPass, VkRenderPassCreateInfo, VkShaderModule, VkShaderModuleCreateInfo, VkStencilOpState, VkSubpassDependency, VkSubpassDescription, VkViewport
     }, 
     vertex::{
         VkVertexInputAttributeDescription,
@@ -304,10 +304,22 @@ impl crate::engine::Engine {pub fn create_pipeline(&self, pipeline: &GraphicsPip
 	 let mut tessellation_state_create_info: VkPipelineTessellationStateCreateInfo = unsafe {std::mem::zeroed()};
 	 tessellation_state_create_info.s_type = 21;
 	 tessellation_state_create_info.p_next = std::ptr::null();
+
+    let default_stencil_op_state: VkStencilOpState = unsafe {std::mem::zeroed()};
 	 	
-	 let mut depth_stencil_create_info: VkPipelineDepthStencilStateCreateInfo = unsafe {std::mem::zeroed()};
-	 depth_stencil_create_info.s_type = 25;
-	 depth_stencil_create_info.p_next = std::ptr::null();
+	 let depth_stencil_create_info = VkPipelineDepthStencilStateCreateInfo {
+        s_type: 25,
+        p_next: std::ptr::null(),
+        flags: 0,
+        depth_test_enable: 1, 
+        depth_write_enable: 1,
+        depth_compare_op: 1,
+        depth_bounds_test_enable: 0,
+        stencil_test_enable: 0,
+        front: default_stencil_op_state.clone(), back: default_stencil_op_state,
+        min_depth_bounds: 0.0,
+        max_depth_bounds: 1.0 
+    };
 
 	 let create_info = VkGraphicsPipelineCreateInfo {
 		  s_type: 28,

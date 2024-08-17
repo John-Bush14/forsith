@@ -21,10 +21,14 @@ mod tests {
 
                 let rect = crate::Drawable::rect_from_transform([-0.5, -0.5], 0.25, 0.25, 0.0, [1.0;4], true);
 
-                let cube = crate::Drawable::cube_from_transform([0.0, 0.0, 10.0], 1.0, 1.0, 1.0, [1.0;4]);
+                let cuber = crate::Drawable::cube_from_transform([4.0, 0.0, 0.0], 1.0, 1.0, 1.0, [1.0, 0.0, 0.0, 1.0]);
+                let cubeg = crate::Drawable::cube_from_transform([00.0, 4.0, 0.0], 1.0, 1.0, 1.0, [0.0, 1.0, 0.0, 1.0]);
+                let cubeb = crate::Drawable::cube_from_transform([00.0, 0.0, 4.0], 1.0, 1.0, 1.0, [0.0, 0.0, 1.0, 1.0]);
     
                 engine.add_drawable(rect);
-                engine.add_drawable(cube);
+                engine.add_drawable(cuber);
+                engine.add_drawable(cubeg);
+                engine.add_drawable(cubeb);
 
                 let state = State {yaw: -270.0, pitch: 0.0, momentum: [0f32;3]};
                 
