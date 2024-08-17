@@ -76,6 +76,7 @@ pub struct VkDescriptorSetAllocateInfo {
     pub set_layouts: *const VkDescriptorSetLayout
 }
 
+#[derive(Debug, Clone)]
 #[repr(C)]
 pub struct VkWriteDescriptorSet {
     pub s_type: VkStructureType,
@@ -90,6 +91,7 @@ pub struct VkWriteDescriptorSet {
     pub texel_buffer_view: *const c_void
 }
 
+#[derive(Debug, Clone)]
 #[repr(C)]
 pub struct VkDescriptorBufferInfo {
     pub buffer: VkBuffer,
@@ -126,6 +128,7 @@ pub struct VkDescriptorPoolSize {
     pub descriptor_count: u32
 }
 
+#[derive(Debug, Clone)]
 #[repr(C)]
 pub struct VkDescriptorSetLayoutBinding {
     pub binding: u32,

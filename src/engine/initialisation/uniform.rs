@@ -1,18 +1,18 @@
 use crate::vulkan::{
     uniform::{
-        VkDescriptorSet,
-        UniformBufferObject,
-        VkDescriptorPoolSize,
-        VkWriteDescriptorSet,
-        VkDescriptorBufferInfo,
-        VkDescriptorPoolCreateInfo,
-        VkDescriptorSetAllocateInfo,
-        VkDescriptorSetLayoutBinding,
-        VkDescriptorSetLayoutCreateInfo,
-        vkUpdateDescriptorSets,
+        vkAllocateDescriptorSets, 
         vkCreateDescriptorPool,
-        vkAllocateDescriptorSets,
-        vkCreateDescriptorSetLayout
+        vkCreateDescriptorSetLayout, 
+        vkUpdateDescriptorSets, 
+        VkDescriptorBufferInfo, 
+        VkDescriptorPoolCreateInfo, 
+        VkDescriptorPoolSize, 
+        VkDescriptorSet, 
+        VkDescriptorSetAllocateInfo, 
+        VkDescriptorSetLayout, 
+        VkDescriptorSetLayoutBinding, 
+        VkDescriptorSetLayoutCreateInfo, 
+        VkWriteDescriptorSet
     },
     vertex::{
         VkBuffer,
@@ -21,9 +21,7 @@ use crate::vulkan::{
 };
 
 
-impl crate::engine::Engine { pub fn create_uniform_buffers(&self) -> (Vec<VkBuffer>, Vec<VkDeviceMemory>) {
-    let size = std::mem::size_of::<UniformBufferObject>() as u64;
-
+impl crate::engine::Engine { pub fn create_uniform_buffers(&self, size: u64) -> (Vec<VkBuffer>, Vec<VkDeviceMemory>) {
     let mut uniform_buffers = vec!();
     let mut uniform_memories = vec!();
 
@@ -42,44 +40,62 @@ impl crate::engine::Engine { pub fn create_uniform_buffers(&self) -> (Vec<VkBuff
     return (uniform_buffers, uniform_memories);
 }}
 
-impl crate::engine::Engine { pub fn create_descriptor_sets(&mut self, uniform_buffers: Vec<VkBuffer>) -> Vec<VkDescriptorSet> {
-    let layouts: Vec<_> = (uniform_buffers).iter().map(|_| self.descriptor_set_layout).collect();
+impl crate::engine::Engine { pub fn create_descriptor_sets(
+    &mut self,
+    uniform_buffers_len: usize,
+    descriptor_set_layout: VkDescriptorSetLayout
+) -> Vec<VkDescriptorSet> {
+
+    let layouts: Vec<_> = (0 .. uniform_buffers_len).collect::<Vec<_>>().iter().map(|_| descriptor_set_layout).collect();
 
     let allocate_info = VkDescriptorSetAllocateInfo {
         s_type: 34,
         p_next: std::ptr::null(),
         descriptor_pool: self.descriptor_pool,
-        descriptor_set_count: uniform_buffers.len() as u32,
+        descriptor_set_count: uniform_buffers_len as u32,
         set_layouts: layouts.as_ptr()
     };
 
-    let mut descriptor_sets: Vec<_> = (uniform_buffers).iter().map(|_| 0).collect();
-
+    let mut descriptor_sets: Vec<_> = (0 .. uniform_buffers_len).collect::<Vec<_>>().iter().map(|_| 0).collect();
 
     unsafe {vkAllocateDescriptorSets(self.device, &allocate_info as *const VkDescriptorSetAllocateInfo, descriptor_sets.as_mut_ptr())};
 
     
-    descriptor_sets.iter().zip(uniform_buffers.iter()).for_each(|(&set, &buffer)| {
-        let buffer_info = VkDescriptorBufferInfo {
-            buffer,
-            offset: 0,
-            range: std::mem::size_of::<UniformBufferObject>() as u64
-        }; let buffer_infos = [buffer_info];
-        
-        
-        let descriptor_write = VkWriteDescriptorSet {
-            s_type: 35,
-            p_next: std::ptr::null(),
-            dst_set: set,
-            dst_binding: 0,
-            dst_array_element: 0,
-            descriptor_count: 1,
-            descriptor_type: 6,
-            image_info: std::ptr::null(),
-            buffer_info: buffer_infos.as_ptr(),
-            texel_buffer_view: std::ptr::null()
-        }; let descriptor_writes = [descriptor_write];
+    return descriptor_sets;
+}}
 
+
+impl crate::engine::Engine { pub fn update_descriptor_sets(
+    &mut self,
+    descriptor_sets: Vec<VkDescriptorSet>,                                          
+    bindings: Vec<(u32, Vec<VkBuffer>, u64)> // binding, buffer range (object size)
+) {
+    for i in 0 .. descriptor_sets.len() {
+        let mut descriptor_writes = vec!();
+        let mut buffer_infos = vec!();
+
+        bindings.iter().for_each(|(binding, buffers, buffer_range)| {
+            let buffer_info = VkDescriptorBufferInfo {
+                buffer: buffers[i],
+                offset: 0,
+                range: *buffer_range
+            }; buffer_infos.push(buffer_info);
+
+            let descriptor_write = VkWriteDescriptorSet {
+                s_type: 35,
+                p_next: std::ptr::null(),
+                dst_set: descriptor_sets[i],
+                dst_binding: *binding,
+                dst_array_element: 0,
+                descriptor_count: 1,
+                descriptor_type: 6,
+                image_info: std::ptr::null(),
+                buffer_info: &buffer_infos[buffer_infos.len()-1] as *const VkDescriptorBufferInfo,
+                texel_buffer_view: std::ptr::null()
+            };      
+
+            descriptor_writes.push(descriptor_write);
+        });
 
         unsafe {vkUpdateDescriptorSets(
             self.device,
@@ -88,12 +104,10 @@ impl crate::engine::Engine { pub fn create_descriptor_sets(&mut self, uniform_bu
             0,
             std::ptr::null()
         )};
-    }); 
-
-    return descriptor_sets;
+    }; 
 }}
 
-impl crate::engine::Engine { pub fn create_descriptor_set_layout(&mut self) {
+impl crate::engine::Engine { pub fn create_descriptor_set_layout(&self, descriptor_count: u32) -> VkDescriptorSetLayout {
     let binding = VkDescriptorSetLayoutBinding {
         binding: 0,
         descriptor_type: 6,
@@ -102,7 +116,9 @@ impl crate::engine::Engine { pub fn create_descriptor_set_layout(&mut self) {
         immutable_samplers: std::ptr::null()
     };
 
-    let bindings = [binding];
+    let mut bindings = vec!();
+
+    for i in 0 .. descriptor_count as usize {let mut binding = binding.clone(); binding.binding = i as u32; bindings.push(binding);}
 
     let create_info = VkDescriptorSetLayoutCreateInfo {
         s_type: 32,
@@ -112,12 +128,16 @@ impl crate::engine::Engine { pub fn create_descriptor_set_layout(&mut self) {
         bindings: bindings.as_ptr()
     };
 
+    let mut descriptor_set_layout = 0;
+
     unsafe {vkCreateDescriptorSetLayout(
         self.device, 
         &create_info as *const VkDescriptorSetLayoutCreateInfo, 
         std::ptr::null(), 
-        &mut self.descriptor_set_layout
+        &mut descriptor_set_layout
     )};
+
+    return descriptor_set_layout;
 }}
 
 impl crate::engine::Engine { pub fn create_descriptor_pool(&mut self) {

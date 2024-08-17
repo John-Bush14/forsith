@@ -11,15 +11,13 @@ pub mod buffer;
 
 use crate::vulkan::{
     instance::{
-        VkExtensionProperties,
-        vkEnumerateInstanceExtensionProperties
-    },
-    window::Dummy
-    ,
-    vk_make_version,
+        vkEnumerateInstanceExtensionProperties, VkExtensionProperties
+    }, pipeline::Uniform, vk_make_version, window::Dummy
 };
 
 use crate::vk_enumerate_to_vec;
+
+use super::world_view::WorldView;
 
 
 impl super::Engine {
@@ -28,7 +26,6 @@ impl super::Engine {
             app_name: name.clone(),
             app_version: vk_make_version(version[0] as u32, version[1] as u32, version[2] as u32),
             vertices: vec!(),
-            indices: vec!(),
             instance: 0,
             device: 0,
             physical_device: 0,
@@ -39,16 +36,15 @@ impl super::Engine {
             swapchain_images: vec!(),
             swapchain_extent: unsafe {std::mem::zeroed()},
             swapchain_image_views: vec!(),
-            pipeline_layout: 0,
+            pipeline_layouts: std::collections::HashMap::new(),
             render_pass: 0,
-            shader_modules: vec!(),
-            pipeline: 0,
+            pipelines: vec!(),
             _debug_report_callback: 0,
             framebuffers: vec!(),
             command_pool: 0,
             transient_command_pool: 0,
             command_buffers: vec!(),
-            image_available_semaphores: vec!(),
+            image_available_semaphores: vec!(), 
             render_finished_semaphores: vec!(),
             in_flight_fences: vec!(),
             current_frame: 0,
@@ -60,30 +56,14 @@ impl super::Engine {
             new_dimensions: None,
             vertex_buffer: 0,
             vertex_buffer_memory: 0,
-            index_buffer: 0,
-            index_buffer_memory: 0,
-            uniform_buffers: vec!(),
-            uniform_buffer_memories: vec!(),
-            descriptor_set_layout: 0,
             descriptor_pool: 0,
-            _descriptor_sets: vec!(),
             vertex_usage_counts: std::collections::HashMap::new(),
             vertex_indices: std::collections::HashMap::new(),
-            drawables: vec!(),
-            world_view: unsafe {std::mem::zeroed()},
+            drawables: vec!(),                  
+            world_view: WorldView::zero(),
             events: vec!(),
             target_fps: 0.0
         };
-
-        
-        engine.world_view = super::world_view::WorldView::new(
-            [0.0, 0.0, 1.0],
-            [0.0, 0.0, 0.0],
-            60.0,
-            0.1,
-            10.0
-        );
-        
 
         let supported_instance_extensions = unsafe { vk_enumerate_to_vec!(
             vkEnumerateInstanceExtensionProperties, 
@@ -98,7 +78,7 @@ impl super::Engine {
         let test_window_connections = engine.create_test_connections(supported_instance_extensions);
 
         let chosen_window_connection = engine.create_device(test_window_connections);
-
+    
 
         engine.finalize_connection(chosen_window_connection, engine.app_name.clone());
         
@@ -108,10 +88,35 @@ impl super::Engine {
         engine.create_swapchain();
 
         engine.create_image_views();
+        
+        
+        let (uniform_buffers, uniform_memories) = engine.create_uniform_buffers(Uniform::Camera2d.size_of());
+        let uniform_buffers_2d = uniform_buffers.iter()
+            .zip(uniform_memories.iter())
+            .map(|(x, y)| (*x, *y))
+            .collect::<Vec<(_, _)>>();
 
-        engine.create_descriptor_set_layout();
+        let (uniform_buffers, uniform_memories) = engine.create_uniform_buffers(Uniform::Camera3d.size_of());
+        let uniform_buffers_3d = uniform_buffers.iter()
+            .zip(uniform_memories.iter())
+            .map(|(x, y)| (*x, *y))
+            .collect::<Vec<(_, _)>>();
 
-        engine.create_pipeline();
+        let uniform_buffers = vec![uniform_buffers_3d, uniform_buffers_2d];
+
+        engine.world_view = super::world_view::WorldView::new(
+            [0.0, 0.0, 1.0],
+            [0.0, 0.0, 0.0],
+            60.0,
+            0.1,
+            10.0,
+            uniform_buffers
+        );
+
+
+        engine.add_pipelines(engine.default_pipelines());
+
+        engine.create_pipelines(false);
 
 
         engine.create_command_pool(false);

@@ -89,7 +89,7 @@ impl super::super::Engine { pub fn record_and_enter_command_buffers(&mut self) {
                 s_type: 43,
                 p_next: std::ptr::null(),
                 render_pass: self.render_pass,
-                framebuffer: framebuffer,
+                framebuffer,
                 render_area: VkRect2D {offset: VkOffset2D {x: 0, y: 0}, extent: self.swapchain_extent.clone()},
                 clear_value_count: clear_values.len() as u32,
                 clear_values: clear_values.as_ptr()
@@ -97,10 +97,6 @@ impl super::super::Engine { pub fn record_and_enter_command_buffers(&mut self) {
 
             vkCmdBeginRenderPass(command_buffer, &render_pass_begin_info as *const VkRenderPassBeginInfo, 0);
 
-
-            vkCmdBindPipeline(command_buffer, 0, self.pipeline);
-
-            
             let vertex_buffers = [self.vertex_buffer];
 
             let offsets = [0];
@@ -114,6 +110,10 @@ impl super::super::Engine { pub fn record_and_enter_command_buffers(&mut self) {
             )};
             
             for drawable in &self.drawables {
+                let pipeline = &self.pipelines[drawable.get_pipeline_id()];
+
+                vkCmdBindPipeline(command_buffer, 0, pipeline.pipeline);
+
                 if drawable.indices.len() != 0 {vkCmdBindIndexBuffer(
                     command_buffer,
                     drawable.indice_buffer,
@@ -124,7 +124,7 @@ impl super::super::Engine { pub fn record_and_enter_command_buffers(&mut self) {
                 vkCmdBindDescriptorSets(
                     command_buffer,
                     0,
-                    self.pipeline_layout,
+                    self.pipeline_layouts.get(&(pipeline.uniforms.len() as u32)).unwrap().0,
                     0,
                     1,
                     &drawable.descriptor_sets[i],

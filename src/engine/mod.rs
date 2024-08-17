@@ -43,10 +43,9 @@ use crate::vulkan::{
         VkExtent2D
     },
     pipeline::{
+        GraphicsPipeline,
         VkPipelineLayout,
         VkRenderPass,
-        VkPipeline,
-        VkShaderModule,
         VkFramebuffer
     },
     commands::{
@@ -64,7 +63,6 @@ use crate::vulkan::{
     },
     uniform::{
         VkDescriptorPool,
-        VkDescriptorSet,
         VkDescriptorSetLayout
     }
 };
@@ -85,10 +83,9 @@ pub struct Engine {
     swapchain_images: Vec<VkImage>,
     swapchain_extent: VkExtent2D,
     swapchain_image_views: Vec<VkImageView>,
-    pipeline_layout: VkPipelineLayout,
+    pipeline_layouts: std::collections::HashMap<u32, (VkPipelineLayout, VkDescriptorSetLayout)>,
     render_pass: VkRenderPass,
-    pipeline: VkPipeline,
-    shader_modules: Vec<VkShaderModule>,
+    pipelines: Vec<GraphicsPipeline>,
     framebuffers: Vec<VkFramebuffer>,
     _debug_report_callback: VkDebugUtilsMessengerEXT,
     command_pool: VkCommandPool,
@@ -106,21 +103,14 @@ pub struct Engine {
     new_dimensions: Option<[i32; 2]>,
     vertex_buffer: VkBuffer,
     vertex_buffer_memory: VkDeviceMemory,
-    index_buffer: VkBuffer,
-    index_buffer_memory: VkDeviceMemory,
-    uniform_buffers: Vec<VkBuffer>,
-    uniform_buffer_memories: Vec<VkDeviceMemory>,
-    descriptor_set_layout: VkDescriptorSetLayout,
     descriptor_pool: VkDescriptorPool,
-    _descriptor_sets: Vec<VkDescriptorSet>,
     vertices: Vec<Vertex>,
-    indices: Vec<u16>,
     vertex_usage_counts: std::collections::HashMap<Vertex, usize>, // <Vertex, usage count>
     vertex_indices: std::collections::HashMap<Vertex, u16>, // <Vertex, Indice>
     drawables: Vec<Drawable>,
     world_view: world_view::WorldView,
     pub events: Vec<WindowEvent>,
-    pub target_fps: f32
+    pub target_fps: f32,
 }
 
 pub fn initialize_engine<T>(

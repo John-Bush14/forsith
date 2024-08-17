@@ -32,25 +32,18 @@ use crate::vulkan::{
         VkSubmitInfo,
         vkQueueSubmit,
         vkQueueWaitIdle
-    },
-    uniform::UniformBufferObject
+    }
 };
-
-use crate::engine::world_view::WorldView;
 
 
 impl crate::engine::Engine { pub fn create_vertex_buffer(&mut self) {
     (self.vertex_buffer, self.vertex_buffer_memory) = self.create_device_local_buffer_with_data::<u32, _>(0x00000080, &self.vertices);
 }}
 
-impl crate::engine::Engine { pub fn create_index_buffer(&mut self) {
-    (self.index_buffer, self.index_buffer_memory) = self.create_device_local_buffer_with_data::<u16, _>(0x00000040, &self.indices);
-}}
-
 impl crate::engine::Engine { pub fn create_device_local_buffer_with_data<A, T: Copy>(&self, usage: u32, data: &[T]) -> (u64, u64) {
     let buffer_size = (data.len() * std::mem::size_of::<T>()) as u64;
 
-    let (staging_buffer, staging_memory, staging_size) = self.create_buffer(buffer_size, 0x00000001, 0x00000002 | 0x00000004);
+    let (staging_buffer, staging_memory, _staging_size) = self.create_buffer(buffer_size, 0x00000001, 0x00000002 | 0x00000004);
 
     let mut data_ptr: *mut std::ffi::c_void = std::ptr::null_mut();
 
@@ -62,10 +55,6 @@ impl crate::engine::Engine { pub fn create_device_local_buffer_with_data<A, T: C
         0,
         &mut data_ptr as _
     )};
-
-    let vertex_align = std::mem::align_of::<A>();
-
-    let _layout = std::alloc::Layout::from_size_align(staging_size as usize, vertex_align).unwrap();
 
     unsafe {std::ptr::copy_nonoverlapping(data.as_ptr(), data_ptr as _, data.len())};
 
@@ -144,6 +133,7 @@ impl crate::engine::Engine { pub fn create_buffer(
 
     unsafe {vkBindBufferMemory(self.device, buffer, memory, 0)};
 
+
     return (buffer, memory, memory_requirements.size)
 }}
 
@@ -203,28 +193,12 @@ impl crate::engine::Engine { pub fn copy_buffer(&self, src: VkBuffer, dst: VkBuf
     unsafe {vkFreeCommandBuffers(self.device, self.transient_command_pool, command_buffers.len() as u32, command_buffers.as_ptr())};
 }}
 
-pub fn update_uniform_buffer(buffer_memory: VkDeviceMemory, model: [[f32;4];4], aspect: f32, device: u64, world_view: &mut WorldView, two_d: bool, ui: bool) {
-    let ubo = UniformBufferObject {
-        model,
-        view: {
-            if !two_d {
-                world_view.get_view_matrix()
-            } else {
-                [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]]
-            }
-        },
-        proj: {
-            if ui {
-                [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]]
-            } else if !two_d {
-                world_view.get_projection_matrix(aspect)
-            } else {
-                world_view.get_2d_camera_matrix()
-            }
-        }
-    };
-
-    let size = std::mem::size_of::<UniformBufferObject>() as u64;
+pub fn update_uniform_buffer<T>(
+    buffer_memory: VkDeviceMemory,
+    device: u64,
+    data: T
+) {
+    let size = std::mem::size_of::<T>() as u64;
 
     let mut data_ptr: *mut std::ffi::c_void = std::ptr::null_mut();
 
@@ -237,13 +211,9 @@ pub fn update_uniform_buffer(buffer_memory: VkDeviceMemory, model: [[f32;4];4], 
         &mut data_ptr as _
     )};
 
-    let align = std::mem::align_of::<f32>();
+    let data_arr = [data];
 
-    let _layout = std::alloc::Layout::from_size_align(size as usize, align).unwrap();
-    
-    let ubos = [ubo];
-
-    unsafe {std::ptr::copy_nonoverlapping(ubos.as_ptr(), data_ptr as _, ubos.len())};
+    unsafe {std::ptr::copy_nonoverlapping(data_arr.as_ptr(), data_ptr as _, data_arr.len())};
 
     unsafe {vkUnmapMemory(device, buffer_memory)};
 }

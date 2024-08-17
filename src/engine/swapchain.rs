@@ -4,8 +4,6 @@ use crate::vulkan::{
         image_view::vkDestroyImageView
     },
     pipeline::{
-        vkDestroyShaderModule,
-        vkDestroyPipelineLayout,
         vkDestroyRenderPass,
         vkDestroyPipeline,
         vkDestroyFramebuffer
@@ -20,13 +18,13 @@ impl super::Engine { pub fn cleanup_swapchain(&mut self) { unsafe {
 
     vkFreeCommandBuffers(self.device, self.command_pool, self.command_buffers.len() as u32, self.command_buffers.as_ptr());
 
-    self.shader_modules.iter().for_each(|&shader_module| vkDestroyShaderModule(self.device, shader_module, std::ptr::null()));
-
     vkDestroyRenderPass(self.device, self.render_pass, std::ptr::null());
 
-    vkDestroyPipelineLayout(self.device, self.pipeline_layout, std::ptr::null());
+    //vkDestroyPipelineLayout(self.device, self.pipeline_layout, std::ptr::null());
         
-    vkDestroyPipeline(self.device, self.pipeline, std::ptr::null());
+    self.pipelines.iter().for_each(|pipeline| {
+        vkDestroyPipeline(self.device, pipeline.pipeline, std::ptr::null())
+    });
 
     self.swapchain_image_views.iter().for_each(|&image_view| vkDestroyImageView(self.device, image_view, std::ptr::null()));
 
@@ -48,7 +46,7 @@ impl super::Engine { pub fn recreate_swapchain(&mut self) {
 
     self.create_image_views();
 
-    self.create_pipeline();
+    self.create_pipelines(true);
 
     self.create_command_buffers();
 

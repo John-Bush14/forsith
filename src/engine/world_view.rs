@@ -1,5 +1,9 @@
 use cgmath::{Matrix4, Point3, Vector3};
 
+use crate::vulkan::{devices::device::VkDevice, vertex::{VkBuffer, VkDeviceMemory}};
+
+use super::initialisation::buffer::update_uniform_buffer;
+
 
 pub struct WorldView {
     fov: f32,
@@ -12,11 +16,18 @@ pub struct WorldView {
     view_matrix: [[f32;4];4],
     projection_matrix: [[f32;4];4],
     _up_vector: [f32;3],
-    matrix_2d: [[f32;4];4]
+    matrix_2d: [[f32;4];4],
+    uniform_buffers_2d: Vec<(VkBuffer, VkDeviceMemory)>,
+    uniform_buffers_3d: Vec<(VkBuffer, VkDeviceMemory)>
 }
 
+impl WorldView {pub fn zero() -> WorldView {WorldView { fov: 0.0, near: 0.0, far: 0.0, eye: [0.0;3], target: [0.0;3], aspect: 0.0, changed: (false, false), view_matrix: [[0.0;4];4], projection_matrix: [[0.0;4];4], _up_vector: [0.0;3], matrix_2d: [[0.0;4];4], uniform_buffers_2d: vec!(), uniform_buffers_3d: vec!() }}}
 
 impl WorldView {
+    pub fn get_2d_uniform_buffers(&self) -> &Vec<(u64, u64)> {&self.uniform_buffers_2d}
+
+    pub fn get_3d_uniform_buffers(&self) -> &Vec<(u64, u64)> {&self.uniform_buffers_3d}
+
     pub fn set_fov(&mut self, fov: f32) {self.fov = fov; self.changed.1 = true}
 
     pub fn set_near(&mut self, near: f32) {self.near = near; self.changed.1 = true}
@@ -71,6 +82,15 @@ impl WorldView {
             sp,
             cp * sy
         ])
+    }
+
+    pub fn update(&mut self, aspect: f32, device: VkDevice) {
+        if self.changed.0 || self.changed.1 || self.aspect != aspect {
+            for i in 0 .. self.uniform_buffers_2d.len() {
+                update_uniform_buffer(self.uniform_buffers_3d[i].1, device, (self.get_view_matrix(), self.get_projection_matrix(aspect)));
+                update_uniform_buffer(self.uniform_buffers_2d[i].1, device, (self.get_2d_camera_matrix(), aspect));
+            }
+        }
     }
 
     pub fn get_view_matrix(&mut self) -> [[f32;4];4] {
@@ -130,7 +150,14 @@ impl WorldView {
         return self.matrix_2d;
     }
 
-    pub fn new(eye: [f32;3], target: [f32;3], fov: f32, far: f32, near: f32) -> WorldView {
+    pub fn new(
+        eye: [f32;3], 
+        target: [f32;3],
+        fov: f32,
+        far: f32,
+        near: f32,
+        mut uniform_buffers: Vec<Vec<(VkBuffer, VkDeviceMemory)>>
+    ) -> WorldView {
         return WorldView {
             eye,
             target,
@@ -142,7 +169,9 @@ impl WorldView {
             view_matrix: [[0f32;4];4],
             projection_matrix: [[0f32;4];4],
             _up_vector: [0.0, 1.0, 0.0],
-            matrix_2d: [[0f32;4];4]
+            matrix_2d: [[0f32;4];4],
+            uniform_buffers_2d: uniform_buffers.pop().unwrap(),
+            uniform_buffers_3d: uniform_buffers.pop().unwrap()
         }
     }
 }

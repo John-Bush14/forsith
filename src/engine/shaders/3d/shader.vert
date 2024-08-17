@@ -5,7 +5,7 @@ layout(location = 0) in vec3 vPosition;
 layout(location = 1) in vec4 vColor;
 
 layout(binding = 0) uniform CameraBufferObject {mat4 view; mat4 proj;} cam;
-layout(binding = 0) uniform DrawableBufferObject {mat4 model;} draw;
+layout(binding = 1) uniform DrawableBufferObject {mat4 model;} draw;
 
 layout(location = 0) out vec4 fragColor;
 

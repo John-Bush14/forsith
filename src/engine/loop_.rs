@@ -50,6 +50,9 @@ impl super::Engine { pub fn start_loop<T>(mut self, event_loop: fn(&mut super::E
         let delta = seconds + nanoseconds / 1_000_000_000.0;
         
         deltadur = std::time::Instant::now();
+        
+        self.create_pipelines(false);
+        self.free_pipelines();
 
         event_loop(&mut self, &mut user_data, delta);
 
@@ -79,11 +82,12 @@ impl super::Engine { pub fn start_loop<T>(mut self, event_loop: fn(&mut super::E
             &mut image_index
         )};
         
-        let world_view_changed = self.world_view.changed.0 || self.world_view.changed.1;
+        let aspect = self.swapchain_extent.width as f32 / self.swapchain_extent.height as f32;
+        
+        self.world_view.update(aspect, self.device);
 
         for drawable in &mut self.drawables {
-            let aspect = self.swapchain_extent.width as f32 / self.swapchain_extent.height as f32;
-            drawable.update(image_index as usize, aspect, self.device, &mut self.world_view, world_view_changed);
+            drawable.update(image_index as usize, self.device, &self.pipelines[drawable.get_pipeline_id()]);
         }
     
         let wait_semaphores = [image_available_semaphore];
@@ -140,9 +144,12 @@ impl super::Engine { pub fn start_loop<T>(mut self, event_loop: fn(&mut super::E
             let target_spf = 1.0/self.target_fps;
             let nanos = (target_spf * 1_000_000_000.0) as u64;
             let target_fps_duration = std::time::Duration::new(nanos / 1_000_000_000, (nanos % 1_000_000_000) as u32);
-            let extra_wait_time = target_fps_duration - elapsed_time;
+
+            if target_fps_duration > elapsed_time {
+                let extra_wait_time = target_fps_duration - elapsed_time;
             
-            std::thread::sleep(extra_wait_time);
+                std::thread::sleep(extra_wait_time);
+            }
         }
     }
 }}

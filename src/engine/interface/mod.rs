@@ -3,10 +3,45 @@ pub mod drawables;
 
 use drawables::Drawable;
 
+use crate::vulkan::pipeline::Uniform;
+
 
 impl crate::engine::Engine { pub fn add_drawable<'a>(&'a mut self, mut drawable: Drawable) -> &'a mut Drawable {
-    (drawable.uniform_buffers, drawable.uniform_memories) = self.create_uniform_buffers();
-    drawable.descriptor_sets = self.create_descriptor_sets(drawable.uniform_buffers.clone());
+    let pipeline = self.pipelines[drawable.get_pipeline_id()].clone();
+    
+    let descriptor_count = pipeline.uniforms.len() as u32;
+    
+    let pipeline_key = self.pipelines.iter().position(|pipeline_| pipeline_.pipeline == pipeline.pipeline).unwrap();
+
+    self.pipelines[pipeline_key].uses += 1;
+
+    let descriptor_set_layout = self.pipeline_layouts.get(&descriptor_count).expect("drawable using non-initialized pipeline").1;
+
+    let mut bindings = vec!();
+        
+    drawable.descriptor_sets = self.create_descriptor_sets(self.swapchain_images.len(), descriptor_set_layout);
+
+    for uniform in &pipeline.uniforms {                           
+        let uniform_buffers = match uniform {
+            Uniform::Camera3d => self.world_view.get_3d_uniform_buffers().clone(),
+            Uniform::Camera2d => self.world_view.get_2d_uniform_buffers().clone(),
+            _ => {
+                let (uniform_buffers, uniform_memories) = self.create_uniform_buffers(uniform.size_of());
+    
+                let uniform_buffers = uniform_buffers.iter()
+                    .zip(uniform_memories.iter())
+                    .map(|(x, y)| (*x, *y))
+                    .collect::<Vec<(_, _)>>();
+
+                drawable.uniform_buffers.push(uniform_buffers.clone());
+                uniform_buffers
+            },
+        }.iter().map(|(buf, _mem)| return *buf).collect::<Vec<_>>();
+
+        bindings.push(((bindings.len()) as u32, uniform_buffers, uniform.size_of()));
+    }
+    
+    self.update_descriptor_sets(drawable.descriptor_sets.clone(), bindings);
 
     drawable.device = self.device;
 
@@ -44,6 +79,12 @@ impl crate::engine::Engine { pub fn add_drawable<'a>(&'a mut self, mut drawable:
 
 impl crate::engine::Engine { pub fn remove_drawable(&mut self, drawable_index: usize) {
     let drawable = self.drawables.remove(drawable_index);
+    
+    let pipeline = &self.pipelines[drawable.get_pipeline_id()];
+    
+    let pipeline_key = self.pipelines.iter().position(|pipeline_| pipeline_.pipeline == pipeline.pipeline).unwrap();
+
+    self.pipelines[pipeline_key].uses -= 1;
 
     for i in 0..drawable.get_vertices().len() {
         let vertex = drawable.get_vertices()[i];
