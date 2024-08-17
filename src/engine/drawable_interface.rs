@@ -1,7 +1,4 @@
-pub mod drawables;
-
-
-use drawables::Drawable;
+use crate::engine::drawables::Drawable;
 
 use crate::vulkan::pipeline::Uniform;
 

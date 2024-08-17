@@ -1,4 +1,4 @@
-mod initialisation;
+pub(crate) mod initialisation;
 
 mod loop_;
 
@@ -8,16 +8,21 @@ mod swapchain;
 
 mod image;
 
-pub mod interface;
+pub mod drawables;
+
+pub mod drawable_interface;
 
 mod test;
 
 pub mod world_view;
 
+mod pipelines;
 
-use crate::engine::interface::drawables::Drawable;
+
+use crate::engine::drawables::Drawable;
 
 
+use crate::vulkan::vertex::{vkMapMemory, vkUnmapMemory};
 use crate::vulkan::{
     instance::{
         VkInstance, 
@@ -125,3 +130,29 @@ pub fn initialize_engine<T>(
 
     engine.start_loop(event_loop, user_data);
 }
+
+pub fn update_memory<T>(
+    buffer_memory: VkDeviceMemory,
+    device: u64,
+    data: T
+) {
+    let size = std::mem::size_of::<T>() as u64;
+
+    let mut data_ptr: *mut std::ffi::c_void = std::ptr::null_mut();
+
+    unsafe {vkMapMemory(
+        device,
+        buffer_memory,
+        0,
+        size,
+        0,
+        &mut data_ptr as _
+    )};
+
+    let data_arr = [data];
+
+    unsafe {std::ptr::copy_nonoverlapping(data_arr.as_ptr(), data_ptr as _, data_arr.len())};
+
+    unsafe {vkUnmapMemory(device, buffer_memory)};
+}
+

@@ -291,6 +291,7 @@ pub struct VkPipelineDepthStencilStateCreateInfo {
     pub max_depth_bounds: f32
 }
 
+#[derive(Debug, Clone)]
 #[repr(C)]
 pub struct VkGraphicsPipelineCreateInfo {
     pub s_type: VkStructureType,

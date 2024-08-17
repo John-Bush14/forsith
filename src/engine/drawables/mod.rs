@@ -6,14 +6,18 @@ use crate::vulkan::{
     }
 };
 
+pub mod quads;
+
+
 #[allow(unused_imports)]
-use crate::engine::initialisation::{
+pub(self) use crate::{
     PIPELINE_3D,
     PIPELINE_2D,
     PIPELINE_UI_3D,
     PIPELINE_UI_2D,
-    buffer::update_uniform_buffer
 };
+
+pub(self) use crate::engine::update_memory;
 
 
 pub type Texture = [f32; 4];
@@ -41,66 +45,7 @@ pub struct Drawable {
 }
 
 
-const RECT: [[f32; 3]; 6] = [
-    [-0.5, -0.5, 0.0],
-    [-0.5, 0.5, 0.0],
-    [0.5, 0.5, 0.0],
-    [0.5, 0.5, 0.0],
-    [0.5, -0.5, 0.0],
-    [-0.5, -0.5, 0.0],
-];
-
-const CUBE: [[f32; 3]; 36] = [
-    // Front face
-    [ -0.5, -0.5,  0.5 ], // Bottom-left
-    [  0.5, -0.5,  0.5 ], // Bottom-right
-    [  0.5,  0.5,  0.5 ], // Top-right
-    [ -0.5, -0.5,  0.5 ], // Bottom-left
-    [  0.5,  0.5,  0.5 ], // Top-right
-    [ -0.5,  0.5,  0.5 ], // Top-left
-
-    // Back face
-    [ -0.5,  0.5, -0.5 ], // Bottom-left
-    [  0.5,  0.5, -0.5 ], // Bottom-right
-    [ -0.5, -0.5, -0.5 ], // Top-right
-    [  0.5,  0.5, -0.5 ], // Bottom-left
-    [  0.5, -0.5, -0.5 ], // Top-right
-    [ -0.5, -0.5, -0.5 ], // Top-left
-
-    // Left face
-    [ -0.5, -0.5, -0.5 ], // Bottom-left
-    [ -0.5, -0.5,  0.5 ], // Bottom-right
-    [ -0.5,  0.5,  0.5 ], // Top-right
-    [ -0.5, -0.5, -0.5 ], // Bottom-left
-    [ -0.5,  0.5,  0.5 ], // Top-right
-    [ -0.5,  0.5, -0.5 ], // Top-left
-
-    // Right face
-    [  0.5,  0.5, -0.5 ], // Bottom-left
-    [  0.5,  0.5,  0.5 ], // Bottom-right
-    [  0.5, -0.5, -0.5 ], // Top-right
-    [  0.5,  0.5,  0.5 ], // Bottom-left
-    [  0.5, -0.5,  0.5 ], // Top-right
-    [  0.5, -0.5, -0.5 ], // Top-left
-
-    // Top face
-    [ -0.5,  0.5,  0.5 ], // Bottom-left
-    [  0.5,  0.5,  0.5 ], // Bottom-right
-    [ -0.5,  0.5, -0.5 ], // Top-right
-    [  0.5,  0.5,  0.5 ], // Bottom-left
-    [  0.5,  0.5, -0.5 ], // Top-right
-    [ -0.5,  0.5, -0.5 ], // Top-left
-
-    // Bottom face
-    [ -0.5, -0.5, -0.5 ], // Bottom-left
-    [  0.5, -0.5, -0.5 ], // Bottom-right
-    [  0.5, -0.5,  0.5 ], // Top-right
-    [ -0.5, -0.5, -0.5 ], // Bottom-left
-    [  0.5, -0.5,  0.5 ], // Top-right
-    [ -0.5, -0.5,  0.5 ], // Top-left
-];
-
-fn points_to_vertices(points: Vec<[f32;3]>, color: Texture) -> Vec<Vertex> {
+pub(self) fn points_to_vertices(points: Vec<[f32;3]>, color: Texture) -> Vec<Vertex> {
     points.iter().map(|&point| return Vertex {pos: point, color}).collect()
 }
 
@@ -148,7 +93,7 @@ impl Drawable {
                 println!("{:?}", self.translation);
 
                 for image_index in 0 .. uniform_buffer.len() {
-                    update_uniform_buffer(uniform_buffer[image_index].1, device, self.translation);
+                    update_memory(uniform_buffer[image_index].1, device, self.translation);
                 }
                 
                 self.matrix_changed = false;
@@ -206,31 +151,5 @@ impl Default for Drawable {
             device: 0,
             pipeline_id: PIPELINE_3D,
         };
-    }
-}
-
-impl Drawable {
-    pub fn cube_from_transform(pos: [f32;3], width: f32, height: f32, depth: f32, col: Texture) -> Drawable {
-        let mut drawable: Drawable = Default::default();
-
-        drawable.tex = col;
-        drawable.pos = pos;
-        drawable.scale = [width, height, depth];
-        drawable.vertices = points_to_vertices(CUBE.to_vec(), col);
-
-        return drawable;
-    }
-    
-    pub fn rect_from_transform(pos: [f32;2], width: f32, height: f32, rot: f32, col: Texture, ui: bool) -> Drawable {
-        let mut drawable: Drawable = Default::default();
-
-        drawable.tex = col;
-        drawable.pos = [pos[0], pos[1], 0.0];
-        drawable.scale = [width, height, 1.0];
-        drawable.rot = rot;
-        drawable.vertices = points_to_vertices(RECT.to_vec(), col);
-        drawable.pipeline_id = if ui {PIPELINE_UI_2D} else {PIPELINE_2D};
-
-        return drawable;
     }
 }

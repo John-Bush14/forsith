@@ -2,13 +2,12 @@ mod instance;
 mod device;
 mod window;
 mod swapchain;
-mod pipeline;
+pub(crate) mod pipelines;
 mod command_buffers;
 mod sync_objects;
 mod uniform;
 pub mod buffer;
 
-pub use pipeline::{PIPELINE_2D, PIPELINE_3D, PIPELINE_UI_2D, PIPELINE_UI_3D};
 
 use crate::vulkan::{
     instance::{
@@ -117,7 +116,7 @@ impl super::Engine {
 
         engine.add_pipelines(engine.default_pipelines());
 
-        engine.create_pipelines(false);
+        engine.create_needed_pipelines(false);
 
 
         engine.create_command_pool(false);

@@ -46,7 +46,7 @@ impl super::Engine { pub fn recreate_swapchain(&mut self) {
 
     self.create_image_views();
 
-    self.create_pipelines(true);
+    self.create_needed_pipelines(true);
 
     self.create_command_buffers();
 

@@ -192,29 +192,3 @@ impl crate::engine::Engine { pub fn copy_buffer(&self, src: VkBuffer, dst: VkBuf
 
     unsafe {vkFreeCommandBuffers(self.device, self.transient_command_pool, command_buffers.len() as u32, command_buffers.as_ptr())};
 }}
-
-pub fn update_uniform_buffer<T>(
-    buffer_memory: VkDeviceMemory,
-    device: u64,
-    data: T
-) {
-    let size = std::mem::size_of::<T>() as u64;
-
-    let mut data_ptr: *mut std::ffi::c_void = std::ptr::null_mut();
-
-    unsafe {vkMapMemory(
-        device,
-        buffer_memory,
-        0,
-        size,
-        0,
-        &mut data_ptr as _
-    )};
-
-    let data_arr = [data];
-
-    unsafe {std::ptr::copy_nonoverlapping(data_arr.as_ptr(), data_ptr as _, data_arr.len())};
-
-    unsafe {vkUnmapMemory(device, buffer_memory)};
-}
-

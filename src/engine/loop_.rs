@@ -51,7 +51,7 @@ impl super::Engine { pub fn start_loop<T>(mut self, event_loop: fn(&mut super::E
         
         deltadur = std::time::Instant::now();
         
-        self.create_pipelines(false);
+        self.create_needed_pipelines(false);
         self.free_pipelines();
 
         event_loop(&mut self, &mut user_data, delta);

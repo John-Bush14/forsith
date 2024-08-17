@@ -2,7 +2,7 @@ use cgmath::{Matrix4, Point3, Vector3};
 
 use crate::vulkan::{devices::device::VkDevice, vertex::{VkBuffer, VkDeviceMemory}};
 
-use super::initialisation::buffer::update_uniform_buffer;
+pub(self) use crate::engine::update_memory;
 
 
 pub struct WorldView {
@@ -87,8 +87,8 @@ impl WorldView {
     pub fn update(&mut self, aspect: f32, device: VkDevice) {
         if self.changed.0 || self.changed.1 || self.aspect != aspect {
             for i in 0 .. self.uniform_buffers_2d.len() {
-                update_uniform_buffer(self.uniform_buffers_3d[i].1, device, (self.get_view_matrix(), self.get_projection_matrix(aspect)));
-                update_uniform_buffer(self.uniform_buffers_2d[i].1, device, (self.get_2d_camera_matrix(), aspect));
+                update_memory(self.uniform_buffers_3d[i].1, device, (self.get_view_matrix(), self.get_projection_matrix(aspect)));
+                update_memory(self.uniform_buffers_2d[i].1, device, (self.get_2d_camera_matrix(), aspect));
             }
         }
     }
