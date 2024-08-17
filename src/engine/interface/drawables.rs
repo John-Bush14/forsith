@@ -1,5 +1,5 @@
 use crate::vulkan::{
-    pipeline::{GraphicsPipeline, Uniform, VkPipeline}, uniform::{self, VkDescriptorSet}, vertex::{
+    pipeline::{GraphicsPipeline, Uniform}, uniform::VkDescriptorSet, vertex::{
         Vertex,
         VkBuffer,
         VkDeviceMemory
