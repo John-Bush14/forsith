@@ -6,7 +6,14 @@ use crate::vulkan::{
     }
 };
 
-use crate::engine::initialisation::buffer::update_uniform_buffer;
+#[allow(unused_imports)]
+use crate::engine::initialisation::{
+    PIPELINE_3D,
+    PIPELINE_2D,
+    PIPELINE_UI_3D,
+    PIPELINE_UI_2D,
+    buffer::update_uniform_buffer
+};
 
 
 pub type Texture = [f32; 4];
@@ -197,7 +204,7 @@ impl Default for Drawable {
             vertices_changed: (false, false),
             indices_changed: (true, true),
             device: 0,
-            pipeline_id: 0,
+            pipeline_id: PIPELINE_3D,
         };
     }
 }
@@ -222,7 +229,7 @@ impl Drawable {
         drawable.scale = [width, height, 1.0];
         drawable.rot = rot;
         drawable.vertices = points_to_vertices(RECT.to_vec(), col);
-        drawable.pipeline_id = if ui {3} else {1};
+        drawable.pipeline_id = if ui {PIPELINE_UI_2D} else {PIPELINE_2D};
 
         return drawable;
     }

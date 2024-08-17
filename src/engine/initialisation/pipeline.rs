@@ -14,6 +14,18 @@ use std::io::Read;
 
 use std::ffi::CString;
 
+#[allow(dead_code)]
+pub const PIPELINE_3D: usize = 0;
+
+#[allow(dead_code)]
+pub const PIPELINE_2D: usize = 1;
+
+#[allow(dead_code)]
+pub const PIPELINE_UI_3D: usize = 2;
+
+#[allow(dead_code)]
+pub const PIPELINE_UI_2D: usize = 3;
+
 
 impl Uniform {
     pub fn size_of(&self) -> u64 {

@@ -8,6 +8,7 @@ mod sync_objects;
 mod uniform;
 pub mod buffer;
 
+pub use pipeline::{PIPELINE_2D, PIPELINE_3D, PIPELINE_UI_2D, PIPELINE_UI_3D};
 
 use crate::vulkan::{
     instance::{
