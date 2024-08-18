@@ -18,7 +18,7 @@ impl crate::engine::Engine { pub fn free_pipelines(&mut self) {
 
 impl crate::engine::Engine { pub fn create_needed_pipelines(&mut self, recreate: bool) {
 	 if recreate || self.render_pass == 0 {
-        self.render_pass = create_render_pass(self.device.clone(), self.swapchain_image_format.format)
+        self.render_pass = create_render_pass(self.device.clone(), self.swapchain_image_format.format, self.physical_device);
     };
 
     self.create_pipeline_layouts();

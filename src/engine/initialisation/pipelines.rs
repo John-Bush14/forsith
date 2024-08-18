@@ -1,5 +1,5 @@
 use crate::vulkan::{
-    devices::device::VkDevice, 
+    devices::{device::VkDevice, physical_device::{vkGetPhysicalDeviceFormatProperties, VkFormatProperties, VkPhysicalDevice}}, 
     pipeline::{
         vkCreateFramebuffer, vkCreateGraphicsPipelines, vkCreatePipelineLayout, vkCreateRenderPass, vkCreateShaderModule, GraphicsPipeline, Uniform, VkAttachmentDescription, VkAttachmentReference, VkFramebuffer, VkFramebufferCreateInfo, VkGraphicsPipelineCreateInfo, VkOffset2D, VkPipeline, VkPipelineColorBlendAttachmentState, VkPipelineColorBlendStateCreateInfo, VkPipelineDepthStencilStateCreateInfo, VkPipelineInputAssemblyStateCreateInfo, VkPipelineLayoutCreateInfo, VkPipelineMultisampleStateCreateInfo, VkPipelineRasterizationStateCreateInfo, VkPipelineShaderStageCreateInfo, VkPipelineTessellationStateCreateInfo, VkPipelineVertexInputStateCreateInfo, VkPipelineViewportStateCreateInfo, VkRect2D, VkRenderPass, VkRenderPassCreateInfo, VkShaderModule, VkShaderModuleCreateInfo, VkStencilOpState, VkSubpassDependency, VkSubpassDescription, VkViewport
     }, 
@@ -359,8 +359,8 @@ impl crate::engine::Engine {pub fn create_pipeline(&self, pipeline: &GraphicsPip
     return pipeline;
 }}
 
-pub fn create_render_pass(device: VkDevice, swapchain_image_format: u32) -> VkRenderPass {
-    let attachment_description = VkAttachmentDescription {
+pub fn create_render_pass(device: VkDevice, swapchain_image_format: u32, physical_device: VkPhysicalDevice) -> VkRenderPass {
+    let color_attachment_description = VkAttachmentDescription {
         flags: 0,
         format: swapchain_image_format,
         samples: 0x00000001,
@@ -371,17 +371,50 @@ pub fn create_render_pass(device: VkDevice, swapchain_image_format: u32) -> VkRe
         initial_layout: 0,
         final_layout: 1000001002
     };
+
+    let tiling = 0;
+    let features = 0x00000200;
+
+    let candidates = [
+        126,
+        130,
+        129
+    ];
+
+    let depth_format = candidates.into_iter().find(|candidate| {
+        let mut properties: VkFormatProperties = unsafe {std::mem::zeroed()};
+                                
+        unsafe {vkGetPhysicalDeviceFormatProperties(physical_device, *candidate, &mut properties as *mut VkFormatProperties)};
+
+        return (tiling == 1 && (properties.linear_tiling_features & features != 0)) || (tiling == 0)
+    }).expect("no supported depth format found!");
     
-    let attachment_descriptions = [attachment_description];
+    let depth_attachment_description = VkAttachmentDescription {
+        flags: 0,
+        format: depth_format,
+        samples: 0x00000001,
+        load_op: 1,
+        store_op: 1,
+        stencil_load_op: 2,
+        stencil_store_op: 1,
+        initial_layout: 0,
+        final_layout: 3
+    };
+    
+    let attachment_descriptions = [color_attachment_description, depth_attachment_description];
 
 
     let color_attachment = VkAttachmentReference {
         attachment: 0,
         layout: 2
     };
+    
+    let depth_attachment = VkAttachmentReference {
+        attachment: 1,
+        layout: 3
+    };
 
     let color_attachments = [color_attachment];
-
 
     let subpass_description = VkSubpassDescription {
         flags: 0,
@@ -391,7 +424,7 @@ pub fn create_render_pass(device: VkDevice, swapchain_image_format: u32) -> VkRe
         color_attachment_count: color_attachments.len() as u32,
         color_attachments: color_attachments.as_ptr(),
         resolve_attachments: std::ptr::null(),
-        depth_stencil_attachment: std::ptr::null(),
+        depth_stencil_attachment: &depth_attachment as *const VkAttachmentReference,
         preserve_attachment_count: 0,
         preserve_attachments: std::ptr::null()
     };

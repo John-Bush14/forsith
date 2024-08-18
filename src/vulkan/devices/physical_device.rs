@@ -21,6 +21,12 @@ extern "C" {
         physical_devices: *mut VkPhysicalDevice
     ) -> VkResult;
 
+    pub fn vkGetPhysicalDeviceFormatProperties(
+        physical_device: VkPhysicalDevice,
+        format: u32,
+        format_properties: *mut VkFormatProperties
+    );
+
     pub fn vkGetPhysicalDeviceProperties(
         physical_device: VkPhysicalDevice, 
         properties: *mut VkPhysicalDeviceProperties
@@ -69,6 +75,13 @@ pub struct VkPhysicalDeviceSparseProperties {
     residency_standard3_d_block_shape: u32,
     residency_aligned_mip_size: u32,
     residency_non_resident_strict: u32,
+}
+
+#[repr(C)]
+pub struct VkFormatProperties {
+    pub linear_tiling_features: u32,
+    pub optimal_tiling_features: u32,
+    pub buffer_features: u32
 }
 
 #[repr(C)]
