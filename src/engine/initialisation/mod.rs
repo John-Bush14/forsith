@@ -87,7 +87,7 @@ impl super::Engine {
 
         engine.create_swapchain();
 
-        engine.create_image_views();
+        engine.create_swapchain_image_views();
         
         
         let (uniform_buffers, uniform_memories) = engine.create_uniform_buffers(Uniform::Camera2d.size_of());
