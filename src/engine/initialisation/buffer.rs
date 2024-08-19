@@ -75,6 +75,23 @@ impl crate::engine::Engine { pub fn create_device_local_buffer_with_data<A, T: C
     return (buffer, memory)
 }}
 
+impl crate::engine::Engine { pub fn find_memory_type(
+    &self,
+    memory_properties: VkPhysicalDeviceMemoryProperties,
+    memory_requirements: &VkMemoryRequirements,
+    property_flags: u32
+) -> u32 {
+    for i in 0 .. memory_properties.memory_type_count {
+        if 
+            memory_requirements.memory_type_bits & (1 << i) != 0
+            && memory_properties.memory_types[i as usize].flags & (property_flags) != 0 
+        {
+            return i;
+        }
+    }
+    panic!("no memory_type found!");
+}}
+
 impl crate::engine::Engine { pub fn create_buffer(
     &self, buffer_size: u64, usage_flags: u32, property_flags: u32
 ) -> (VkBuffer, VkDeviceMemory, u64) {
@@ -105,18 +122,7 @@ impl crate::engine::Engine { pub fn create_buffer(
     unsafe {vkGetPhysicalDeviceMemoryProperties(self.physical_device, &mut memory_properties as *mut VkPhysicalDeviceMemoryProperties)};
 
     
-    let memory_type = |memory_properties: VkPhysicalDeviceMemoryProperties, memory_requirements: &VkMemoryRequirements, property_flags: u32| -> u32 {
-        for i in 0 .. memory_properties.memory_type_count {
-            println!("{:?}, {:?}, {:?}", i, memory_requirements.memory_type_bits & (i << i), memory_properties.memory_types[i as usize].flags & (0x00000004 | 0x00000002));
-            if 
-                memory_requirements.memory_type_bits & (1 << i) != 0
-                && memory_properties.memory_types[i as usize].flags & (property_flags) != 0 
-            {
-                return i;
-            }
-        }
-        panic!("no memory_type found!");
-    }(memory_properties, &memory_requirements, property_flags);
+    let memory_type = self.find_memory_type(memory_properties, &memory_requirements, property_flags);
 
     
     let allocate_info = VkMemoryAllocateInfo {
