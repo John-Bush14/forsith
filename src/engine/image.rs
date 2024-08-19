@@ -1,5 +1,5 @@
 use crate::vulkan::{image::{
-        vkBindImageMemory, vkCreateImage, vkCreateImageView, vkGetImageMemoryRequirements, VkComponentMapping, VkExtent3D, VkImage, VkImageCreateInfo, VkImageSubresourceRange, VkImageView, VkImageViewCreateInfo
+        vkBindImageMemory, vkCmdPipelineBarrier, vkCreateImage, vkCreateImageView, vkGetImageMemoryRequirements, VkComponentMapping, VkExtent3D, VkImage, VkImageCreateInfo, VkImageMemoryBarrier, VkImageSubresourceRange, VkImageView, VkImageViewCreateInfo
     }, vertex::{vkAllocateMemory, VkDeviceMemory, VkMemoryAllocateInfo, VkMemoryRequirements, VkPhysicalDeviceMemoryProperties}};
 
 impl super::Engine {pub fn create_texture_image(&self, file: String) {
@@ -105,4 +105,64 @@ impl crate::engine::Engine { pub fn create_image_view(&mut self, image: VkImage,
 
 impl crate::engine::Engine {pub fn create_swapchain_image_views(&mut self) {
     self.swapchain_image_views = self.swapchain_images.clone().iter().map(|image| self.create_image_view(*image, 0x00000001)).collect();              
+}}
+
+impl crate::engine::Engine {pub fn transition_image_layout(&self, image: VkImage, format: u32, old_layout: u32, new_layout: u32) {
+    self.execute_one_time_command(self.command_pool, self.graphics_queue, |cmd_buffer| {
+        let (src_access_mask, dst_access_mask, src_stage, dst_stage) = match (old_layout, new_layout) {
+            (0, 3) => (
+                0,
+                0x00000200 | 0x00000400,
+                0x00000001,
+                0x00000100,
+            ),
+            _ => (0, 0, 0, 0)
+        };
+
+
+        let aspect_mask = if new_layout == 3 {
+            let mut mask = 0x00000002;
+
+            if format == 130 || format == 129 {
+                mask = mask | 0x00000004;
+            }
+
+            mask
+        } else {0x00000001};
+
+
+        let barrier = VkImageMemoryBarrier {
+            s_type: 45,
+            p_next: std::ptr::null(),
+            src_access_mask,
+            dst_access_mask,
+            old_layout,
+            new_layout,
+            src_queue_family_index: std::u32::MAX,
+            dst_queue_family_index: std::u32::MAX,
+            image,
+            subresource_range: VkImageSubresourceRange {
+                aspect_mask,
+                base_mip_level: 0,
+                level_count: 1,
+                base_array_layer: 0,
+                layer_count: 1,
+            },
+        };
+
+        let barriers = [barrier];
+
+        unsafe {vkCmdPipelineBarrier(
+            cmd_buffer,
+            src_stage,
+            dst_stage,
+            0,
+            0, 
+            std::ptr::null(),
+            0,
+            std::ptr::null(),
+            barriers.len() as u32,
+            barriers.as_ptr()
+        )};
+    });
 }}

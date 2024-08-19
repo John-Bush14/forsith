@@ -6,13 +6,27 @@ use crate::vulkan::{
 
 use std::ffi::c_void;
 
-use super::vertex::{VkDeviceMemory, VkMemoryRequirements};
+use super::{commands::command_buffer::VkCommandBuffer, vertex::{VkDeviceMemory, VkMemoryRequirements}};
 
 
 pub type VkImageView = u64;
 
 pub type VkImage = u64;
 
+
+#[repr(C)]
+pub struct VkImageMemoryBarrier {
+    pub s_type: VkStructureType,
+    pub p_next: *const c_void,
+    pub src_access_mask: u32,
+    pub dst_access_mask: u32,
+    pub old_layout: u32,
+    pub new_layout: u32,
+    pub src_queue_family_index: u32,
+    pub dst_queue_family_index: u32,
+    pub image: VkImage,
+    pub subresource_range: VkImageSubresourceRange
+}
 
 #[repr(C)]
 pub struct VkExtent3D {
@@ -104,4 +118,17 @@ extern "C" {
         memory: VkDeviceMemory,
         offset: u64
     ) -> VkResult;
+
+    pub fn vkCmdPipelineBarrier(
+        command_buffer: VkCommandBuffer,
+        src_stage_mask: u32,
+        dst_stage_mask: u32,
+        dependency_flags: u32,
+        memory_barrier_count: u32,
+        memory_barriers: *const c_void,
+        buffer_memory_barrier_count: u32,
+        buffer_memory_barriers: *const c_void,
+        image_memory_barrier_count: u32,
+        image_memory_barriers: *const VkImageMemoryBarrier
+    );
 }
