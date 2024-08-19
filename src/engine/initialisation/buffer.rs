@@ -79,12 +79,12 @@ impl crate::engine::Engine { pub fn find_memory_type(
     &self,
     memory_properties: VkPhysicalDeviceMemoryProperties,
     memory_requirements: &VkMemoryRequirements,
-    property_flags: u32
+    required_properties: u32
 ) -> u32 {
     for i in 0 .. memory_properties.memory_type_count {
         if 
             memory_requirements.memory_type_bits & (1 << i) != 0
-            && memory_properties.memory_types[i as usize].flags & (property_flags) != 0 
+            && memory_properties.memory_types[i as usize].flags & (required_properties) != 0 
         {
             return i;
         }
