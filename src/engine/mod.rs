@@ -6,6 +6,8 @@ mod drop;
 
 mod swapchain;
 
+mod commands;
+
 mod image;
 
 pub mod drawables;

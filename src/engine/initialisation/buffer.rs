@@ -17,22 +17,7 @@ use crate::vulkan::{
         vkGetBufferMemoryRequirements,
         vkGetPhysicalDeviceMemoryProperties
     },
-    commands::{
-        command_buffer::{
-            VkCommandBufferBeginInfo,
-            VkCommandBufferAllocateInfo,
-            vkEndCommandBuffer,
-            vkBeginCommandBuffer,
-            vkFreeCommandBuffers,
-            vkAllocateCommandBuffers,
-        },
-        vkCmdCopyBuffer
-    },
-    rendering::{
-        VkSubmitInfo,
-        vkQueueSubmit,
-        vkQueueWaitIdle
-    }
+    commands::vkCmdCopyBuffer
 };
 
 
@@ -144,57 +129,15 @@ impl crate::engine::Engine { pub fn create_buffer(
 }}
 
 impl crate::engine::Engine { pub fn copy_buffer(&self, src: VkBuffer, dst: VkBuffer, size: u64) {
-    let allocation_info = VkCommandBufferAllocateInfo {
-        s_type: 40,
-        p_next: std::ptr::null(),
-        command_pool: self.transient_command_pool,
-        level: 0,
-        command_buffer_count: 1
-    };
+    self.execute_one_time_command(self.transient_command_pool, self.graphics_queue, |command_buffer| {
+        let region = VkBufferCopy {
+            src_offset: 0,
+            dst_offset: 0,
+            size
+        };
 
-    let mut command_buffers = [0];
+        let regions = [region];
 
-    unsafe {vkAllocateCommandBuffers(self.device, &allocation_info as *const VkCommandBufferAllocateInfo, command_buffers.as_mut_ptr())};
-
-    
-    let begin_info = VkCommandBufferBeginInfo {
-        s_type: 42,
-        p_next: std::ptr::null(),
-        flags: 0x00000001,
-        inheritance_info: std::ptr::null()
-    };
-
-    unsafe {vkBeginCommandBuffer(command_buffers[0], &begin_info as *const VkCommandBufferBeginInfo)};
-
-    
-    let region = VkBufferCopy {
-        src_offset: 0,
-        dst_offset: 0,
-        size
-    };
-
-    let regions = [region];
-
-    unsafe {vkCmdCopyBuffer(command_buffers[0], src, dst, regions.len() as u32, regions.as_ptr())};
-
-
-    unsafe {vkEndCommandBuffer(command_buffers[0])};
-    
-    
-    let mut submit_info: VkSubmitInfo = unsafe {std::mem::zeroed()};
-
-    submit_info.s_type = 4;
-
-    submit_info.command_buffer_count = command_buffers.len() as u32;
-    submit_info.command_buffers = command_buffers.as_ptr();
-
-    let submit_infos = [submit_info];
-
-    unsafe {vkQueueSubmit(self.graphics_queue, submit_infos.len() as u32, submit_infos.as_ptr(), 0)};
-
-
-    unsafe {vkQueueWaitIdle(self.graphics_queue)};
-
-
-    unsafe {vkFreeCommandBuffers(self.device, self.transient_command_pool, command_buffers.len() as u32, command_buffers.as_ptr())};
+        unsafe {vkCmdCopyBuffer(command_buffer, src, dst, regions.len() as u32, regions.as_ptr())};
+    });
 }}
