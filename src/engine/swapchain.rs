@@ -1,8 +1,6 @@
 use crate::vulkan::{
-    swapchain::{
-        vkDestroySwapchainKHR,
-        image_view::vkDestroyImageView
-    },
+    swapchain::vkDestroySwapchainKHR,
+    image::vkDestroyImageView,
     pipeline::{
         vkDestroyRenderPass,
         vkDestroyPipeline,

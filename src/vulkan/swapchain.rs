@@ -8,15 +8,13 @@ use crate::vulkan::{
         VkFence,
         VkSemaphore
     },
+    image::VkImage,
     VkResult,
     VkBool32,
     VkStructureType
 };
 
 use std::ffi::c_void;
-
-
-pub mod image_view;
 
 
 #[derive(Debug, Clone, PartialEq)]
@@ -47,8 +45,6 @@ pub struct VkSurfaceCapabilitiesKHR {
     supported_composite_alpha: u32,
     supported_usage_flags: u32
 }
-
-pub type VkImage = u64;
 
 #[repr(C)]
 pub struct VkSwapchainCreateInfo {

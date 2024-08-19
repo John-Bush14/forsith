@@ -41,11 +41,13 @@ use crate::vulkan::{
         WindowEvent
     },
     swapchain::{
-        image_view::VkImageView,
         VkSwapchainKHR,
         VkSurfaceFormatKHR,
-        VkImage,
         VkExtent2D
+    },
+    image::{
+        VkImage,
+        VkImageView
     },
     pipeline::{
         GraphicsPipeline,

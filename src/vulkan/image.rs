@@ -1,6 +1,5 @@
 use crate::vulkan::{
     devices::device::VkDevice,
-    swapchain::VkImage,
     VkResult,
     VkStructureType
 };
@@ -9,6 +8,8 @@ use std::ffi::c_void;
 
 
 pub type VkImageView = u64;
+
+pub type VkImage = u64;
 
 
 #[repr(C)]
