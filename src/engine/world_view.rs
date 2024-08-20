@@ -125,6 +125,7 @@ impl WorldView {
                 [0.0, 0.0, -(fa*ne)/(fa-ne), 0.0 ]
             ];
 
+
             self.changed.1 = false;
         }
 

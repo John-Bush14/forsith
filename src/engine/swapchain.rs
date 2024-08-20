@@ -1,8 +1,6 @@
 use crate::vulkan::{
-    swapchain::{
-        vkDestroySwapchainKHR,
-        image_view::vkDestroyImageView
-    },
+    swapchain::vkDestroySwapchainKHR,
+    image::vkDestroyImageView,
     pipeline::{
         vkDestroyRenderPass,
         vkDestroyPipeline,
@@ -43,8 +41,8 @@ impl super::Engine { pub fn recreate_swapchain(&mut self) {
     self.cleanup_swapchain();
 
     self.create_swapchain();
-
-    self.create_image_views();
+                                                                                                                                                                                                    
+    self.create_swapchain_image_views();
 
     self.create_needed_pipelines(true);
 

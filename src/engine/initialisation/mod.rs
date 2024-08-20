@@ -62,7 +62,9 @@ impl super::Engine {
             drawables: vec!(),                  
             world_view: WorldView::zero(),
             events: vec!(),
-            target_fps: 0.0
+            target_fps: 0.0,
+            depth_resource: (0, 0, 0),
+            depth_format: 0
         };
 
         let supported_instance_extensions = unsafe { vk_enumerate_to_vec!(
@@ -83,11 +85,19 @@ impl super::Engine {
         engine.finalize_connection(chosen_window_connection, engine.app_name.clone());
         
         engine.create_surface_khr(engine.instance);
+        
+
+        engine.create_command_pool(false);
+        
+        engine.create_command_pool(true);
 
 
         engine.create_swapchain();
 
-        engine.create_image_views();
+        engine.create_swapchain_image_views();
+
+
+        engine.find_depth_format();
         
         
         let (uniform_buffers, uniform_memories) = engine.create_uniform_buffers(Uniform::Camera2d.size_of());
@@ -108,10 +118,13 @@ impl super::Engine {
             [0.0, 0.0, 1.0],
             [0.0, 0.0, 0.0],
             60.0,
+            100.0,
             0.1,
-            10.0,
             uniform_buffers
         );
+
+ 
+        engine.create_depth_resources();
 
 
         engine.add_pipelines(engine.default_pipelines());
@@ -119,10 +132,6 @@ impl super::Engine {
         engine.create_needed_pipelines(false);
 
 
-        engine.create_command_pool(false);
-        
-        engine.create_command_pool(true);
-        
         engine.create_descriptor_pool();
 
         

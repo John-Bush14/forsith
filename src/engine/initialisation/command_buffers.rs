@@ -1,30 +1,13 @@
 use crate::vulkan::{
     commands::{
-        command_pool::{
-            VkCommandPoolCreateInfo,
-            vkCreateCommandPool
-        },
         command_buffer::{
-            VkCommandBufferBeginInfo,
-            VkCommandBufferAllocateInfo,
-            vkEndCommandBuffer,
-            vkBeginCommandBuffer,
-            vkAllocateCommandBuffers
-        },
-        VkClearValue,
-        VkClearColorValue,
-        VkRenderPassBeginInfo,
-        vkCmdDrawIndexed,
-        vkCmdBindPipeline,
-        vkCmdEndRenderPass,
-        vkCmdBeginRenderPass,
-        vkCmdBindIndexBuffer,
-        vkCmdBindVertexBuffers,
-        vkCmdBindDescriptorSets
+            vkAllocateCommandBuffers, vkBeginCommandBuffer, vkEndCommandBuffer, VkCommandBufferAllocateInfo, VkCommandBufferBeginInfo
+        }, command_pool::{
+            vkCreateCommandPool, VkCommandPoolCreateInfo
+        }, vkCmdBeginRenderPass, vkCmdBindDescriptorSets, vkCmdBindIndexBuffer, vkCmdBindPipeline, vkCmdBindVertexBuffers, vkCmdDrawIndexed, vkCmdEndRenderPass, VkClearColorValue, VkClearDepthStencilValue, VkClearValue, VkRenderPassBeginInfo
     },
     pipeline::{
-        VkRect2D,
-        VkOffset2D
+        VkOffset2D, VkRect2D
     }
 };
 
@@ -83,7 +66,10 @@ impl super::super::Engine { pub fn record_and_enter_command_buffers(&mut self) {
             vkBeginCommandBuffer(command_buffer, &command_buffer_begin_info as *const VkCommandBufferBeginInfo);
 
 
-            let clear_values = [VkClearValue {color: VkClearColorValue {float32: [0.0, 0.0, 0.0, 1.0]}}];
+            let clear_values = [
+                VkClearValue {color: VkClearColorValue {float32: [0.0, 0.0, 0.0, 1.0]}},
+                VkClearValue {depth_stencil: VkClearDepthStencilValue {depth: 1.0, stencil: 0}}
+            ];
             
             let render_pass_begin_info = VkRenderPassBeginInfo {
                 s_type: 43,

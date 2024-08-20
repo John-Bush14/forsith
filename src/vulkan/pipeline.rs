@@ -1,9 +1,7 @@
 use crate::vulkan::{
     devices::device::VkDevice,
-    swapchain::{
-        VkExtent2D,
-        image_view::VkImageView
-    },
+    swapchain::VkExtent2D,
+    image::VkImageView,
     vertex::{
         VkVertexInputBindingDescription,
         VkVertexInputAttributeDescription
@@ -285,10 +283,22 @@ pub struct VkPipelineDepthStencilStateCreateInfo {
     pub depth_compare_op: u32,
     pub depth_bounds_test_enable: VkBool32,
     pub stencil_test_enable: VkBool32,
-    pub front: u32,
-    pub back: u32,
+    pub front: VkStencilOpState,
+    pub back: VkStencilOpState,
     pub min_depth_bounds: f32,
     pub max_depth_bounds: f32
+}
+
+#[derive(Debug, Clone)]
+#[repr(C)]
+pub struct VkStencilOpState {
+    fail_op: u32,
+    pass_op: u32,
+    depth_fail_op: u32,
+    compare_op: u32,
+    compare_mask: u32,
+    write_mask: u32,
+    reference: u32
 }
 
 #[derive(Debug, Clone)]

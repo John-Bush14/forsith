@@ -1,7 +1,7 @@
 use crate::vulkan::{
-    devices::device::VkDevice, 
+    devices::{device::VkDevice, physical_device::{vkGetPhysicalDeviceFormatProperties, VkFormatProperties, VkPhysicalDevice}},                                                                                                                                                                                                                                                                                                                                                                                          
     pipeline::{
-        vkCreateFramebuffer, vkCreateGraphicsPipelines, vkCreatePipelineLayout, vkCreateRenderPass, vkCreateShaderModule, GraphicsPipeline, Uniform, VkAttachmentDescription, VkAttachmentReference, VkFramebuffer, VkFramebufferCreateInfo, VkGraphicsPipelineCreateInfo, VkOffset2D, VkPipeline, VkPipelineColorBlendAttachmentState, VkPipelineColorBlendStateCreateInfo, VkPipelineDepthStencilStateCreateInfo, VkPipelineInputAssemblyStateCreateInfo, VkPipelineLayoutCreateInfo, VkPipelineMultisampleStateCreateInfo, VkPipelineRasterizationStateCreateInfo, VkPipelineShaderStageCreateInfo, VkPipelineTessellationStateCreateInfo, VkPipelineVertexInputStateCreateInfo, VkPipelineViewportStateCreateInfo, VkRect2D, VkRenderPass, VkRenderPassCreateInfo, VkShaderModule, VkShaderModuleCreateInfo, VkSubpassDependency, VkSubpassDescription, VkViewport
+        vkCreateFramebuffer, vkCreateGraphicsPipelines, vkCreatePipelineLayout, vkCreateRenderPass, vkCreateShaderModule, GraphicsPipeline, Uniform, VkAttachmentDescription, VkAttachmentReference, VkFramebuffer, VkFramebufferCreateInfo, VkGraphicsPipelineCreateInfo, VkOffset2D, VkPipeline, VkPipelineColorBlendAttachmentState, VkPipelineColorBlendStateCreateInfo, VkPipelineDepthStencilStateCreateInfo, VkPipelineInputAssemblyStateCreateInfo, VkPipelineLayoutCreateInfo, VkPipelineMultisampleStateCreateInfo, VkPipelineRasterizationStateCreateInfo, VkPipelineShaderStageCreateInfo, VkPipelineTessellationStateCreateInfo, VkPipelineVertexInputStateCreateInfo, VkPipelineViewportStateCreateInfo, VkRect2D, VkRenderPass, VkRenderPassCreateInfo, VkShaderModule, VkShaderModuleCreateInfo, VkStencilOpState, VkSubpassDependency, VkSubpassDescription, VkViewport
     }, 
     vertex::{
         VkVertexInputAttributeDescription,
@@ -125,7 +125,7 @@ impl crate::engine::Engine {pub fn create_pipeline_layouts(&mut self) {
 }}
 
 impl crate::engine::Engine {pub fn create_framebuffers(&mut self) {
-    self.framebuffers = self.swapchain_image_views.iter().map(|view| [*view]).map(|attachments| {
+    self.framebuffers = self.swapchain_image_views.iter().map(|view| [*view, self.depth_resource.2]).map(|attachments| {
         let framebuffer_create_info = VkFramebufferCreateInfo {
             s_type: 37,
             p_next: std::ptr::null(),
@@ -304,10 +304,22 @@ impl crate::engine::Engine {pub fn create_pipeline(&self, pipeline: &GraphicsPip
 	 let mut tessellation_state_create_info: VkPipelineTessellationStateCreateInfo = unsafe {std::mem::zeroed()};
 	 tessellation_state_create_info.s_type = 21;
 	 tessellation_state_create_info.p_next = std::ptr::null();
+
+    let default_stencil_op_state: VkStencilOpState = unsafe {std::mem::zeroed()};
 	 	
-	 let mut depth_stencil_create_info: VkPipelineDepthStencilStateCreateInfo = unsafe {std::mem::zeroed()};
-	 depth_stencil_create_info.s_type = 25;
-	 depth_stencil_create_info.p_next = std::ptr::null();
+	 let depth_stencil_create_info = VkPipelineDepthStencilStateCreateInfo {
+        s_type: 25,
+        p_next: std::ptr::null(),
+        flags: 0,
+        depth_test_enable: 1, 
+        depth_write_enable: 1,
+        depth_compare_op: 1,
+        depth_bounds_test_enable: 0,
+        stencil_test_enable: 0,
+        front: default_stencil_op_state.clone(), back: default_stencil_op_state,
+        min_depth_bounds: 0.0,
+        max_depth_bounds: 1.0 
+    };
 
 	 let create_info = VkGraphicsPipelineCreateInfo {
 		  s_type: 28,
@@ -347,8 +359,27 @@ impl crate::engine::Engine {pub fn create_pipeline(&self, pipeline: &GraphicsPip
     return pipeline;
 }}
 
-pub fn create_render_pass(device: VkDevice, swapchain_image_format: u32) -> VkRenderPass {
-    let attachment_description = VkAttachmentDescription {
+impl crate::engine::Engine {pub fn find_depth_format(&mut self) {
+    let tiling = 0;
+    let features = 0x00000200;
+
+    let candidates = [
+        126,
+        130,
+        129
+    ];
+
+    self.depth_format = candidates.into_iter().find(|candidate| {
+        let mut properties: VkFormatProperties = unsafe {std::mem::zeroed()};
+                                
+        unsafe {vkGetPhysicalDeviceFormatProperties(self.physical_device, *candidate, &mut properties as *mut VkFormatProperties)};
+
+        return (tiling == 1 && (properties.linear_tiling_features & features != 0)) || (tiling == 0)
+    }).expect("no supported depth format found!");
+}}
+
+pub fn create_render_pass(device: VkDevice, swapchain_image_format: u32, depth_format: u32) -> VkRenderPass {
+    let color_attachment_description = VkAttachmentDescription {
         flags: 0,
         format: swapchain_image_format,
         samples: 0x00000001,
@@ -359,17 +390,33 @@ pub fn create_render_pass(device: VkDevice, swapchain_image_format: u32) -> VkRe
         initial_layout: 0,
         final_layout: 1000001002
     };
+
+    let depth_attachment_description = VkAttachmentDescription {
+        flags: 0,
+        format: depth_format,
+        samples: 0x00000001,
+        load_op: 1,
+        store_op: 1,
+        stencil_load_op: 2,
+        stencil_store_op: 1,
+        initial_layout: 0,
+        final_layout: 3
+    };
     
-    let attachment_descriptions = [attachment_description];
+    let attachment_descriptions = [color_attachment_description, depth_attachment_description];
 
 
     let color_attachment = VkAttachmentReference {
         attachment: 0,
         layout: 2
     };
+    
+    let depth_attachment = VkAttachmentReference {
+        attachment: 1,
+        layout: 3
+    };
 
     let color_attachments = [color_attachment];
-
 
     let subpass_description = VkSubpassDescription {
         flags: 0,
@@ -379,7 +426,7 @@ pub fn create_render_pass(device: VkDevice, swapchain_image_format: u32) -> VkRe
         color_attachment_count: color_attachments.len() as u32,
         color_attachments: color_attachments.as_ptr(),
         resolve_attachments: std::ptr::null(),
-        depth_stencil_attachment: std::ptr::null(),
+        depth_stencil_attachment: &depth_attachment as *const VkAttachmentReference,
         preserve_attachment_count: 0,
         preserve_attachments: std::ptr::null()
     };

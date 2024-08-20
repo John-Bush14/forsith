@@ -6,6 +6,8 @@ mod drop;
 
 mod swapchain;
 
+mod commands;
+
 mod image;
 
 pub mod drawables;
@@ -41,11 +43,13 @@ use crate::vulkan::{
         WindowEvent
     },
     swapchain::{
-        image_view::VkImageView,
         VkSwapchainKHR,
         VkSurfaceFormatKHR,
-        VkImage,
         VkExtent2D
+    },
+    image::{
+        VkImage,
+        VkImageView
     },
     pipeline::{
         GraphicsPipeline,
@@ -116,6 +120,8 @@ pub struct Engine {
     world_view: world_view::WorldView,
     pub events: Vec<WindowEvent>,
     pub target_fps: f32,
+    depth_resource: (VkImage, VkDeviceMemory, VkImageView),
+    depth_format: u32
 }
 
 pub fn initialize_engine<T>(

@@ -40,3 +40,5 @@ pub mod swapchain;
 pub mod vertex;
 
 pub mod commands;
+
+pub mod image;
