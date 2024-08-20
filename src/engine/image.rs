@@ -1,6 +1,6 @@
 use crate::vulkan::{image::{
         vkBindImageMemory, vkCmdPipelineBarrier, vkCreateImage, vkCreateImageView, vkGetImageMemoryRequirements, VkComponentMapping, VkExtent3D, VkImage, VkImageCreateInfo, VkImageMemoryBarrier, VkImageSubresourceRange, VkImageView, VkImageViewCreateInfo
-    }, vertex::{vkAllocateMemory, VkDeviceMemory, VkMemoryAllocateInfo, VkMemoryRequirements, VkPhysicalDeviceMemoryProperties}};
+    }, vertex::{vkAllocateMemory, vkGetPhysicalDeviceMemoryProperties, VkDeviceMemory, VkMemoryAllocateInfo, VkMemoryRequirements, VkPhysicalDeviceMemoryProperties}};
 
 impl super::Engine {pub fn create_texture_image(&self, file: String) {
     let image = image::open(file).expect("error getting image");
@@ -19,7 +19,7 @@ impl super::Engine {pub fn create_image(&mut self,
     usage: u32,
     mem_properties: u32,
     device_mem_properties: VkPhysicalDeviceMemoryProperties
-) -> VkImage {
+) -> (VkImage, VkDeviceMemory) {
     let create_info = VkImageCreateInfo {
         s_type: 14,
         p_next: std::ptr::null(),
@@ -69,7 +69,7 @@ impl super::Engine {pub fn create_image(&mut self,
     unsafe {vkBindImageMemory(self.device, image, memory, 0)};
         
 
-    return image;
+    return (image, memory);
 }}
 
 impl crate::engine::Engine { pub fn create_image_view(&mut self, image: VkImage, aspect_mask: u32) -> VkImageView { unsafe {
@@ -165,4 +165,28 @@ impl crate::engine::Engine {pub fn transition_image_layout(&self, image: VkImage
             barriers.as_ptr()
         )};
     });
+}}
+
+impl crate::engine::Engine { pub fn create_depth_resources(&mut self) {
+    let mut device_memory_properties: VkPhysicalDeviceMemoryProperties = unsafe {std::mem::zeroed()};
+
+    unsafe {
+        vkGetPhysicalDeviceMemoryProperties(self.physical_device, &mut device_memory_properties as &mut VkPhysicalDeviceMemoryProperties);
+    }
+
+
+    (self.depth_resource.0, self.depth_resource.1) = self.create_image(
+        self.swapchain_extent.width,
+        self.swapchain_extent.height,
+        self.depth_format,
+        0,
+        0x00000020,
+        0x00000001,
+        device_memory_properties
+    );
+
+
+    self.transition_image_layout(self.depth_resource.0, self.depth_format, 0, 3);
+
+    self.depth_resource.2 = self.create_image_view(self.depth_resource.0, 0x00000002)
 }}

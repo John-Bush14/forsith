@@ -359,7 +359,26 @@ impl crate::engine::Engine {pub fn create_pipeline(&self, pipeline: &GraphicsPip
     return pipeline;
 }}
 
-pub fn create_render_pass(device: VkDevice, swapchain_image_format: u32, physical_device: VkPhysicalDevice) -> VkRenderPass {
+impl crate::engine::Engine {pub fn find_depth_format(&mut self) {
+    let tiling = 0;
+    let features = 0x00000200;
+
+    let candidates = [
+        126,
+        130,
+        129
+    ];
+
+    self.depth_format = candidates.into_iter().find(|candidate| {
+        let mut properties: VkFormatProperties = unsafe {std::mem::zeroed()};
+                                
+        unsafe {vkGetPhysicalDeviceFormatProperties(self.physical_device, *candidate, &mut properties as *mut VkFormatProperties)};
+
+        return (tiling == 1 && (properties.linear_tiling_features & features != 0)) || (tiling == 0)
+    }).expect("no supported depth format found!");
+}}
+
+pub fn create_render_pass(device: VkDevice, swapchain_image_format: u32, depth_format: u32) -> VkRenderPass {
     let color_attachment_description = VkAttachmentDescription {
         flags: 0,
         format: swapchain_image_format,
@@ -372,23 +391,6 @@ pub fn create_render_pass(device: VkDevice, swapchain_image_format: u32, physica
         final_layout: 1000001002
     };
 
-    let tiling = 0;
-    let features = 0x00000200;
-
-    let candidates = [
-        126,
-        130,
-        129
-    ];
-
-    let depth_format = candidates.into_iter().find(|candidate| {
-        let mut properties: VkFormatProperties = unsafe {std::mem::zeroed()};
-                                
-        unsafe {vkGetPhysicalDeviceFormatProperties(physical_device, *candidate, &mut properties as *mut VkFormatProperties)};
-
-        return (tiling == 1 && (properties.linear_tiling_features & features != 0)) || (tiling == 0)
-    }).expect("no supported depth format found!");
-    
     let depth_attachment_description = VkAttachmentDescription {
         flags: 0,
         format: depth_format,

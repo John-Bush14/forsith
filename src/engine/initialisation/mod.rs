@@ -62,7 +62,9 @@ impl super::Engine {
             drawables: vec!(),                  
             world_view: WorldView::zero(),
             events: vec!(),
-            target_fps: 0.0
+            target_fps: 0.0,
+            depth_resource: (0, 0, 0),
+            depth_format: 0
         };
 
         let supported_instance_extensions = unsafe { vk_enumerate_to_vec!(
@@ -88,6 +90,9 @@ impl super::Engine {
         engine.create_swapchain();
 
         engine.create_swapchain_image_views();
+
+
+        engine.find_depth_format();
         
         
         let (uniform_buffers, uniform_memories) = engine.create_uniform_buffers(Uniform::Camera2d.size_of());
