@@ -6,13 +6,38 @@ use crate::vulkan::{
 
 use std::ffi::c_void;
 
-use super::{commands::command_buffer::VkCommandBuffer, vertex::{VkDeviceMemory, VkMemoryRequirements}};
+use super::{commands::command_buffer::VkCommandBuffer, vertex::{VkBuffer, VkDeviceMemory, VkMemoryRequirements}};
 
 
 pub type VkImageView = u64;
 
 pub type VkImage = u64;
 
+
+#[repr(C)]
+pub struct VkBufferImageCopy {
+    pub buffer_offset: u64,
+    pub buffer_row_length: u32,
+    pub buffer_image_height: u32,
+    pub image_subresource: VkImageSubresourceLayers,
+    pub image_offset: VkOffset3D,
+    pub image_extent: VkExtent3D
+}
+
+#[repr(C)]
+pub struct VkOffset3D {
+   pub x: i32,
+   pub y: i32,
+   pub z: i32
+}
+
+#[repr(C)]
+pub struct VkImageSubresourceLayers {
+    pub aspect_mask: u32,
+    pub mip_level: u32,
+    pub base_array_layer: u32,
+    pub layer_count: u32
+}
 
 #[repr(C)]
 pub struct VkImageMemoryBarrier {
@@ -136,5 +161,14 @@ extern "C" {
         device: VkDevice,
         image: VkImage,
         _: *const c_void
+    );
+
+    pub fn vkCmdCopyBufferToImage(
+        command_buffer: VkCommandBuffer,
+        src_buffer: VkBuffer,
+        dst_image: VkImage,
+        dst_image_layout: u32,
+        region_count: u32,
+        regions: *const VkBufferImageCopy
     );
 }
