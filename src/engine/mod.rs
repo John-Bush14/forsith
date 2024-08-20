@@ -120,7 +120,7 @@ pub struct Engine {
     world_view: world_view::WorldView,
     pub events: Vec<WindowEvent>,
     pub target_fps: f32,
-    depth_resource: (VkImage, VkDeviceMemory, VkImageView),
+    depth_image: (VkImage, VkDeviceMemory, VkImageView),
     depth_format: u32
 }
 

@@ -38,9 +38,9 @@ impl Drop for super::Engine {
                 std::mem::drop(drawable);
             }
 
-            vkDestroyImageView(self.device, self.depth_resource.2, std::ptr::null());
-            vkFreeMemory(self.device, self.depth_resource.1, std::ptr::null());
-            vkDestroyImage(self.device, self.depth_resource.0, std::ptr::null());
+            vkDestroyImageView(self.device, self.depth_image.2, std::ptr::null());
+            vkFreeMemory(self.device, self.depth_image.1, std::ptr::null());
+            vkDestroyImage(self.device, self.depth_image.0, std::ptr::null());
 
             self.image_available_semaphores.iter().chain(self.render_finished_semaphores.iter())
                 .for_each(|&semaphore| vkDestroySemaphore(self.device, semaphore, std::ptr::null()));

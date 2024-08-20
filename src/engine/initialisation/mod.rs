@@ -63,7 +63,7 @@ impl super::Engine {
             world_view: WorldView::zero(),
             events: vec!(),
             target_fps: 0.0,
-            depth_resource: (0, 0, 0),
+            depth_image: (0, 0, 0),
             depth_format: 0
         };
 
@@ -124,7 +124,7 @@ impl super::Engine {
         );
 
  
-        engine.create_depth_resources();
+        engine.create_depth_image();
 
 
         engine.add_pipelines(engine.default_pipelines());

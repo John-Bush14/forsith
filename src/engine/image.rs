@@ -167,7 +167,7 @@ impl crate::engine::Engine {pub fn transition_image_layout(&self, image: VkImage
     });
 }}
 
-impl crate::engine::Engine { pub fn create_depth_resources(&mut self) {
+impl crate::engine::Engine { pub fn create_depth_image(&mut self) {
     let mut device_memory_properties: VkPhysicalDeviceMemoryProperties = unsafe {std::mem::zeroed()};
 
     unsafe {
@@ -175,7 +175,7 @@ impl crate::engine::Engine { pub fn create_depth_resources(&mut self) {
     }
 
 
-    (self.depth_resource.0, self.depth_resource.1) = self.create_image(
+    (self.depth_image.0, self.depth_image.1) = self.create_image(
         self.swapchain_extent.width,
         self.swapchain_extent.height,
         self.depth_format,
@@ -186,7 +186,7 @@ impl crate::engine::Engine { pub fn create_depth_resources(&mut self) {
     );
 
 
-    self.transition_image_layout(self.depth_resource.0, self.depth_format, 0, 3);
+    self.transition_image_layout(self.depth_image.0, self.depth_format, 0, 3);
 
-    self.depth_resource.2 = self.create_image_view(self.depth_resource.0, 0x00000002, self.depth_format)
+    self.depth_image.2 = self.create_image_view(self.depth_image.0, 0x00000002, self.depth_format)
 }}
