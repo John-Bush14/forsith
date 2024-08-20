@@ -1,5 +1,5 @@
 use crate::vulkan::{image::{
-        vkBindImageMemory, vkCmdCopyBufferToImage, vkCmdPipelineBarrier, vkCreateImage, vkCreateImageView, vkDestroyImage, vkGetImageMemoryRequirements, VkBufferImageCopy, VkComponentMapping, VkExtent3D, VkImage, VkImageCreateInfo, VkImageMemoryBarrier, VkImageSubresourceLayers, VkImageSubresourceRange, VkImageView, VkImageViewCreateInfo, VkOffset3D
+        vkBindImageMemory, vkCmdCopyBufferToImage, vkCmdPipelineBarrier, vkCreateImage, vkCreateImageView, vkCreateSampler, vkDestroyImage, vkGetImageMemoryRequirements, VkBufferImageCopy, VkComponentMapping, VkExtent3D, VkImage, VkImageCreateInfo, VkImageMemoryBarrier, VkImageSubresourceLayers, VkImageSubresourceRange, VkImageView, VkImageViewCreateInfo, VkOffset3D, VkSampler, VkSamplerCreateInfo
     }, vertex::{vkAllocateMemory, vkDestroyBuffer, vkFreeMemory, vkGetPhysicalDeviceMemoryProperties, VkBuffer, VkDeviceMemory, VkMemoryAllocateInfo, VkMemoryRequirements, VkPhysicalDeviceMemoryProperties}};
 
 use crate::engine::update_memory;
@@ -135,6 +135,35 @@ impl crate::engine::Engine { pub fn create_image_view(&mut self, image: VkImage,
 
     return image_view;
 }}}
+
+impl crate::engine::Engine {pub fn create_texture_sampler(&mut self) -> VkSampler {
+    let create_info = VkSamplerCreateInfo {
+        s_type: 31,
+        p_next: std::ptr::null(),
+        flags: 0,
+        mag_filter: 1,
+        min_filter: 1,
+        mipmap_mode: 1,
+        address_mode_u: 0,
+        addres_mode_v: 0,
+        address_mode_w: 0,
+        mip_lod_bias: 0.0,
+        anisotropy_enable: 1,
+        max_anisotropy: 16.0,
+        compare_enable: 0,
+        compare_op: 7,
+        min_lod: 0.0,
+        max_lod: 0.0,
+        border_color: 3,
+        unnormalized_coordinates: 0,
+    };
+
+    let mut sampler = 0;
+
+    unsafe {vkCreateSampler(self.device, &create_info as *const VkSamplerCreateInfo, std::ptr::null(), &mut sampler)};
+
+    return sampler;
+}}
 
 impl crate::engine::Engine {pub fn create_swapchain_image_views(&mut self) {
     self.swapchain_image_views = self.swapchain_images.clone().iter().map(|image| self.create_image_view(*image, 0x00000001, self.swapchain_image_format.format)).collect();              
