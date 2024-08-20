@@ -131,4 +131,10 @@ extern "C" {
         image_memory_barrier_count: u32,
         image_memory_barriers: *const VkImageMemoryBarrier
     );
+
+    pub fn vkDestroyImage(
+        device: VkDevice,
+        image: VkImage,
+        _: *const c_void
+    );
 }

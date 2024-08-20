@@ -9,7 +9,7 @@ impl crate::engine::Engine {pub fn execute_one_time_command<F: FnOnce(VkCommandB
     let allocation_info = VkCommandBufferAllocateInfo {
         s_type: 40,
         p_next: std::ptr::null(),
-        command_pool: self.transient_command_pool,
+        command_pool,
         level: 0,
         command_buffer_count: 1
     };

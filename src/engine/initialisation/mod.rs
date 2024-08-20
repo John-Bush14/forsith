@@ -85,6 +85,11 @@ impl super::Engine {
         engine.finalize_connection(chosen_window_connection, engine.app_name.clone());
         
         engine.create_surface_khr(engine.instance);
+        
+
+        engine.create_command_pool(false);
+        
+        engine.create_command_pool(true);
 
 
         engine.create_swapchain();
@@ -118,16 +123,15 @@ impl super::Engine {
             uniform_buffers
         );
 
+ 
+        engine.create_depth_resources();
+
 
         engine.add_pipelines(engine.default_pipelines());
 
         engine.create_needed_pipelines(false);
 
 
-        engine.create_command_pool(false);
-        
-        engine.create_command_pool(true);
-        
         engine.create_descriptor_pool();
 
         

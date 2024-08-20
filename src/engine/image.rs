@@ -72,7 +72,7 @@ impl super::Engine {pub fn create_image(&mut self,
     return (image, memory);
 }}
 
-impl crate::engine::Engine { pub fn create_image_view(&mut self, image: VkImage, aspect_mask: u32) -> VkImageView { unsafe {
+impl crate::engine::Engine { pub fn create_image_view(&mut self, image: VkImage, aspect_mask: u32, format: u32) -> VkImageView { unsafe {
     let components = VkComponentMapping {r: 0, g: 0, b: 0, a: 0};
 
     let subresource_range = VkImageSubresourceRange {
@@ -89,7 +89,7 @@ impl crate::engine::Engine { pub fn create_image_view(&mut self, image: VkImage,
         flags: 0,
         image,
         view_type: 1, // dimensions -1 (1 = 2D)
-        format: self.swapchain_image_format.format,
+        format,
         components,
         subresource_range
     };
@@ -104,7 +104,7 @@ impl crate::engine::Engine { pub fn create_image_view(&mut self, image: VkImage,
 }}}
 
 impl crate::engine::Engine {pub fn create_swapchain_image_views(&mut self) {
-    self.swapchain_image_views = self.swapchain_images.clone().iter().map(|image| self.create_image_view(*image, 0x00000001)).collect();              
+    self.swapchain_image_views = self.swapchain_images.clone().iter().map(|image| self.create_image_view(*image, 0x00000001, self.swapchain_image_format.format)).collect();              
 }}
 
 impl crate::engine::Engine {pub fn transition_image_layout(&self, image: VkImage, format: u32, old_layout: u32, new_layout: u32) {
@@ -188,5 +188,5 @@ impl crate::engine::Engine { pub fn create_depth_resources(&mut self) {
 
     self.transition_image_layout(self.depth_resource.0, self.depth_format, 0, 3);
 
-    self.depth_resource.2 = self.create_image_view(self.depth_resource.0, 0x00000002)
+    self.depth_resource.2 = self.create_image_view(self.depth_resource.0, 0x00000002, self.depth_format)
 }}
