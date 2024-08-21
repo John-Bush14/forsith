@@ -1,8 +1,8 @@
 use crate::vulkan::{
     commands::command_pool::vkDestroyCommandPool, devices::device::{
             vkDestroyDevice,
-            vkDeviceWaitIdle
-        }, image::{vkDestroyImage, vkDestroyImageView, vkDestroySampler}, instance::vkDestroyInstance, pipeline::{
+            vkDeviceWaitIdle, VkDevice
+        }, image::{vkDestroyImage, vkDestroyImageView, vkDestroySampler, Texture}, instance::vkDestroyInstance, pipeline::{
         vkDestroyPipelineLayout, vkDestroyShaderModule
     }, rendering::{
         vkDestroyFence,
@@ -12,8 +12,24 @@ use crate::vulkan::{
         vkDestroyDescriptorSetLayout
     }, vertex::{
         vkDestroyBuffer, vkFreeMemory
-    }, window::vkDestroySurfaceKHR
+    }, window::{self, vkDestroySurfaceKHR}
 };
+
+impl Texture {
+    pub fn drop(&mut self, device: VkDevice) {
+        unsafe {
+            if self.memory != 0 {vkFreeMemory(device, self.memory, std::ptr::null())}
+            if self.image != 0 {vkDestroyImage(device, self.image, std::ptr::null())}
+            if self.image_view != 0 {vkDestroyImageView(device, self.image_view, std::ptr::null())}
+            if self.sampler != 0 {vkDestroySampler(device, self.sampler, std::ptr::null())}
+        };
+
+        self.image = 0;
+        self.memory = 0;
+        self.image_view = 0;
+        self.sampler = 0;
+    }
+}
 
 impl Drop for crate::Drawable {
     fn drop(&mut self) { unsafe { if self.uniform_buffers.len() > 0 {
@@ -22,11 +38,8 @@ impl Drop for crate::Drawable {
             vkFreeMemory(self.device, *memory, std::ptr::null());
         }));
 
-        if let Some((_, texture)) = &self.image {
-            vkFreeMemory(self.device, texture.memory, std::ptr::null());
-            vkDestroyImage(self.device, texture.image, std::ptr::null());
-            vkDestroyImageView(self.device, texture.image_view, std::ptr::null());
-            vkDestroySampler(self.device, texture.sampler, std::ptr::null())
+        if let Some((_, texture)) = &mut self.image {
+            texture.drop(self.device)
         }
         
         vkDestroyBuffer(self.device, self.indice_buffer, std::ptr::null());
