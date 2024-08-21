@@ -6,6 +6,8 @@ impl crate::engine::Engine {pub fn add_pipelines(&mut self, pipelines: Vec<Graph
     for pipeline in pipelines {
         self.pipelines.push(pipeline);
     }
+
+    self.create_pipeline_layouts();
 }}
 
 impl crate::engine::Engine { pub fn free_pipelines(&mut self) {
@@ -20,8 +22,6 @@ impl crate::engine::Engine { pub fn create_needed_pipelines(&mut self, recreate:
 	 if recreate || self.render_pass == 0 {
         self.render_pass = create_render_pass(self.device.clone(), self.swapchain_image_format.format, self.depth_format);
     };
-
-    self.create_pipeline_layouts();
 
     let mut changed_pipelines: Vec<(usize, VkPipeline)> = vec!();
 
