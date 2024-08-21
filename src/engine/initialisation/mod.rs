@@ -125,13 +125,13 @@ impl super::Engine {
             uniform_buffers
         );
 
- 
-        engine.create_depth_image();
-
 
         engine.get_max_usable_sample_count();
 
         engine.create_color_texture();
+
+        
+        engine.create_depth_image();
 
 
         engine.add_pipelines(engine.default_pipelines());

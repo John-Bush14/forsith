@@ -77,6 +77,9 @@ impl super::Engine {pub fn create_image(&self,
     }
 
 
+    if sample_count == 0 {panic!("sample_count can't be zero! (create_image)");}
+
+
     let create_info = VkImageCreateInfo {
         s_type: 14,
         p_next: std::ptr::null(),
@@ -344,4 +347,5 @@ impl crate::engine::Engine {pub fn get_max_usable_sample_count(&mut self) {
     let possibilities: Vec<u32> = vec![0x00000040, 0x00000020,  0x00000010, 0x00000008, 0x00000004, 0x00000002, 0x00000001];
 
     self.msaa_samples = *possibilities.iter().find(|possibility| sample_counts & **possibility != 0).unwrap();
+
 }}
