@@ -135,6 +135,8 @@ impl Drawable {
     pub fn get_pipeline_id(&self) -> usize {return self.pipeline_id}
     
     pub fn set_image(&mut self, image: Texture, coords: Vec<[f32;2]>) {
+        if let Some((_, image)) = &mut self.image {image.drop(self.device)}
+
         self.image = Some((coords, image));
 
         self.image_changed = true;
