@@ -5,14 +5,14 @@ use crate::vulkan::uniform::DescriptorBindings;
 
 
 impl crate::engine::Engine { pub fn add_drawable<'a>(&'a mut self, mut drawable: Drawable) -> &'a mut Drawable {
-    let pipeline = self.pipelines[drawable.get_pipeline_id()].clone();
+    let pipeline_id = drawable.get_pipeline_id();
+
+    self.pipelines[pipeline_id].uses += 1;
+
+    let pipeline = self.pipelines[pipeline_id].clone();
     
     let descriptor_count = DescriptorBindings::from(pipeline.vertex_uniforms.clone(), pipeline.fragment_uniforms.clone());
     
-    let pipeline_key = self.pipelines.iter().position(|pipeline_| pipeline_.pipeline == pipeline.pipeline).unwrap();
-
-    self.pipelines[pipeline_key].uses += 1;
-
     let descriptor_set_layout = self.pipeline_layouts.get(&descriptor_count).expect("drawable using non-initialized pipeline").1;
 
     let mut bindings = vec!();
