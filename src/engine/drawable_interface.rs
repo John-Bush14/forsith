@@ -42,7 +42,7 @@ impl crate::engine::Engine { pub fn add_drawable<'a>(&'a mut self, mut drawable:
     }
 
     self.update_descriptor_sets(drawable.descriptor_sets.clone(), bindings, 
-        if let Some(image) = &drawable.image {image.1.clone()}
+        if let Some(image) = &drawable.image {image.clone()}
         else {Default::default()}
     );
 

@@ -42,8 +42,8 @@ pub struct Drawable {
     indices_changed: (bool, bool),
     pub device: u64,
     pipeline_id: usize,
-    pub image: Option<(Vec<[f32;2]>, Texture)>,
-    image_changed: bool
+    pub image: Option<Texture>,
+    pub coords: Option<Vec<[f32;2]>>
 }
 
 
@@ -135,11 +135,11 @@ impl Drawable {
     pub fn get_pipeline_id(&self) -> usize {return self.pipeline_id}
     
     pub fn set_image(&mut self, image: Texture, coords: Vec<[f32;2]>) {
-        if let Some((_, image)) = &mut self.image {image.drop(self.device)}
+        if let Some(image) = &mut self.image {image.drop(self.device)}
 
-        self.image = Some((coords, image));
+        self.image = Some(image);
 
-        self.image_changed = true;
+        self.coords = Some(coords);
     }
 }
 
@@ -165,7 +165,7 @@ impl Default for Drawable {
             device: 0,
             pipeline_id: PIPELINE_3D,
             image: None,
-            image_changed: false
+            coords: None,
         };
     }
 }

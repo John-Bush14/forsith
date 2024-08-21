@@ -38,7 +38,7 @@ impl Drop for crate::Drawable {
             vkFreeMemory(self.device, *memory, std::ptr::null());
         }));
 
-        if let Some((_, texture)) = &mut self.image {
+        if let Some(texture) = &mut self.image {
             texture.drop(self.device)
         }
         
