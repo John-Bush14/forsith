@@ -1,8 +1,8 @@
 use crate::vulkan::{
-    devices::{device::VkDevice, physical_device::{vkGetPhysicalDeviceFormatProperties, VkFormatProperties, VkPhysicalDevice}}, pipeline::{
+    devices::{device::VkDevice, physical_device::{vkGetPhysicalDeviceFormatProperties, VkFormatProperties}}, pipeline::{
         vkCreateFramebuffer, vkCreateGraphicsPipelines, vkCreatePipelineLayout, vkCreateRenderPass, vkCreateShaderModule, GraphicsPipeline, Uniform, VkAttachmentDescription, VkAttachmentReference, VkFramebuffer, VkFramebufferCreateInfo, VkGraphicsPipelineCreateInfo, VkOffset2D, VkPipeline, VkPipelineColorBlendAttachmentState, VkPipelineColorBlendStateCreateInfo, VkPipelineDepthStencilStateCreateInfo, VkPipelineInputAssemblyStateCreateInfo, VkPipelineLayoutCreateInfo, VkPipelineMultisampleStateCreateInfo, VkPipelineRasterizationStateCreateInfo, VkPipelineShaderStageCreateInfo, VkPipelineTessellationStateCreateInfo, VkPipelineVertexInputStateCreateInfo, VkPipelineViewportStateCreateInfo, VkRect2D, VkRenderPass, VkRenderPassCreateInfo, VkShaderModule, VkShaderModuleCreateInfo, VkStencilOpState, VkSubpassDependency, VkSubpassDescription, VkViewport
     }, uniform::DescriptorBindings, vertex::{
-        Vertex, VkVertexInputAttributeDescription, VkVertexInputBindingDescription, VERTEX_SIZE
+        Vertex, VkVertexInputAttributeDescription, VkVertexInputBindingDescription
     }
 };
 
@@ -10,7 +10,6 @@ use std::io::Read;
 
 use std::ffi::CString;
 
-use super::uniform;
 
 #[allow(dead_code)]
 pub const PIPELINE_3D: usize = 0;

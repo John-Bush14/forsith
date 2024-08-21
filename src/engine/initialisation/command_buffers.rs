@@ -7,7 +7,7 @@ use crate::vulkan::{
         }, vkCmdBeginRenderPass, vkCmdBindDescriptorSets, vkCmdBindIndexBuffer, vkCmdBindPipeline, vkCmdBindVertexBuffers, vkCmdDrawIndexed, vkCmdEndRenderPass, VkClearColorValue, VkClearDepthStencilValue, VkClearValue, VkRenderPassBeginInfo
     },
     pipeline::{
-        self, VkOffset2D, VkRect2D
+        VkOffset2D, VkRect2D
     }, uniform::DescriptorBindings
 };
 
