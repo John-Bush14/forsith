@@ -1,17 +1,17 @@
 use crate::vulkan::{image::{
-        vkBindImageMemory, vkCmdCopyBufferToImage, vkCmdPipelineBarrier, vkCreateImage, vkCreateImageView, vkCreateSampler, vkGetImageMemoryRequirements, VkBufferImageCopy, VkComponentMapping, VkExtent3D, VkImage, VkImageCreateInfo, VkImageMemoryBarrier, VkImageSubresourceLayers, VkImageSubresourceRange, VkImageView, VkImageViewCreateInfo, VkOffset3D, VkSampler, VkSamplerCreateInfo
+        vkBindImageMemory, vkCmdCopyBufferToImage, vkCmdPipelineBarrier, vkCreateImage, vkCreateImageView, vkCreateSampler, vkGetImageMemoryRequirements, Texture, VkBufferImageCopy, VkComponentMapping, VkExtent3D, VkImage, VkImageCreateInfo, VkImageMemoryBarrier, VkImageSubresourceLayers, VkImageSubresourceRange, VkImageView, VkImageViewCreateInfo, VkOffset3D, VkSampler, VkSamplerCreateInfo
     }, vertex::{vkAllocateMemory, vkDestroyBuffer, vkFreeMemory, vkGetPhysicalDeviceMemoryProperties, vkMapMemory, vkUnmapMemory, VkBuffer, VkDeviceMemory, VkMemoryAllocateInfo, VkMemoryRequirements, VkPhysicalDeviceMemoryProperties}};
 
 
-impl crate::engine::Engine {pub fn create_image_usr(&mut self, file: String) -> (VkImage, VkImageView, VkSampler) {
-    let (image, _mem) = self.create_texture_image(file);
+impl crate::engine::Engine {pub fn create_image_usr(&mut self, file: String) -> Texture {
+    let (image, mem) = self.create_texture_image(file);
     
     let image_view = self.create_image_view(image, 0x00000001, 37);
     println!("image_view: {}", image_view);
 
     let sampler = self.create_texture_sampler();
 
-    return (image, image_view, sampler);
+    return (image, mem, image_view, sampler);
 }}
 
 impl super::Engine {pub fn create_texture_image(&self, file: String) -> (VkImage, VkDeviceMemory) {

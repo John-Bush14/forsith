@@ -63,7 +63,7 @@ impl super::Engine {
             world_view: WorldView::zero(),
             events: vec!(),
             target_fps: 0.0,
-            depth_image: (0, 0, 0),
+            depth_image: (0, 0, 0, 0),
             depth_format: 0
         };
 

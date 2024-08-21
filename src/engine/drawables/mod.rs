@@ -1,5 +1,5 @@
 use crate::vulkan::{
-    image::{VkImage, VkImageView, VkSampler}, pipeline::{GraphicsPipeline, Uniform}, uniform::VkDescriptorSet, vertex::{
+    image::{Texture, VkImage, VkImageView, VkSampler}, pipeline::{GraphicsPipeline, Uniform}, uniform::VkDescriptorSet, vertex::{
         Vertex,
         VkBuffer,
         VkDeviceMemory
@@ -20,7 +20,7 @@ pub(self) use crate::{
 pub(self) use crate::engine::update_memory;
 
 
-pub type Texture = [f32; 4];
+pub type Color = [f32; 4];
 
 
 pub struct Drawable {
@@ -28,7 +28,7 @@ pub struct Drawable {
     pos: [f32;3],
     scale: [f32;3],
     rot: f32,
-    tex: Texture,
+    tex: Color,
     translation: [[f32;4];4],
     pub uniform_buffers: Vec<Vec<(VkBuffer, VkDeviceMemory)>>,
     pub indice_buffer: VkBuffer,
@@ -42,12 +42,12 @@ pub struct Drawable {
     indices_changed: (bool, bool),
     pub device: u64,
     pipeline_id: usize,
-    pub image: Option<(Vec<[f32;2]>, (VkImage, VkImageView, VkSampler))>,
+    pub image: Option<(Vec<[f32;2]>, Texture)>,
     image_changed: bool
 }
 
 
-pub(self) fn points_to_vertices(points: Vec<[f32;3]>, coords: Option<Vec<[f32;2]>>, color: Texture) -> Vec<Vertex> {
+pub(self) fn points_to_vertices(points: Vec<[f32;3]>, coords: Option<Vec<[f32;2]>>, color: Color) -> Vec<Vertex> {
     points.iter().enumerate().map(|(i, &point)| 
         return Vertex {pos: point, color, coord: 
             if let Some(coords) = &coords {coords[i]}
@@ -109,7 +109,7 @@ impl Drawable {
         return result;
     }
     
-    pub fn get_texture(&self) -> &Texture {return &self.tex}
+    pub fn get_texture(&self) -> &Color {return &self.tex}
 
     pub fn is_drawing(&self) -> bool {return self.drawing}
 
@@ -128,13 +128,13 @@ impl Drawable {
     pub fn rot(&self) -> &f32 {return &self.rot}
     pub fn set_rot(&mut self, rot: f32) {self.rot = rot; self.matrix_change();}
 
-    pub fn set_texture(&mut self, texture: Texture) {self.tex = texture;}
+    pub fn set_texture(&mut self, texture: Color) {self.tex = texture;}
 
     pub fn set_drawing(&mut self, drawing: bool) {self.drawing = drawing;}
 
     pub fn get_pipeline_id(&self) -> usize {return self.pipeline_id}
     
-    pub fn set_image(&mut self, image: (VkImage, VkImageView, VkSampler), coords: Vec<[f32;2]>) {
+    pub fn set_image(&mut self, image: Texture, coords: Vec<[f32;2]>) {
         self.image = Some((coords, image));
 
         self.image_changed = true;
