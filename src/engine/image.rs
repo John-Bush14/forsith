@@ -41,7 +41,7 @@ impl super::Engine {pub fn create_texture_image(&self, file: String) -> (VkImage
     unsafe {vkUnmapMemory(self.device, memory)};
 
 
-    let (image, image_memory) = self.create_image(width, height, 37, 0, 0x00000002 | 0x00000004, 0x00000001);
+    let (image, image_memory) = self.create_image(width, height, 37, 0x00000001, 0, 0x00000002 | 0x00000004, 0x00000001);
 
 
     self.transition_image_layout(image, 37, 0, 7);
@@ -65,6 +65,7 @@ impl super::Engine {pub fn create_image(&self,
     width: u32,
     height: u32, 
     format: u32,
+    sample_count: u32,
     tiling: u32,
     usage: u32,
     mem_properties: u32,
@@ -89,7 +90,7 @@ impl super::Engine {pub fn create_image(&self,
         },
         miplevels: 1,
         array_layers: 1,
-        samples: 0x00000001,
+        samples: sample_count,
         tiling,
         usage,
         sharing_mode: 0,
@@ -216,6 +217,13 @@ impl crate::engine::Engine {pub fn transition_image_layout(&self, image: VkImage
                 0x00000080
             ),
 
+            (0, 2) => (
+                0,
+                0x00000080 | 0x00000100,
+                0x00001000,
+                0x00000400
+            ),
+
             _ => (0, 0, 0, 0),
         };
 
@@ -272,6 +280,7 @@ impl crate::engine::Engine { pub fn create_depth_image(&mut self) {
         self.swapchain_extent.width,
         self.swapchain_extent.height,
         self.depth_format,
+        self.msaa_samples,
         0,
         0x00000020,
         0x00000001,
@@ -281,6 +290,25 @@ impl crate::engine::Engine { pub fn create_depth_image(&mut self) {
     self.transition_image_layout(self.depth_image.0, self.depth_format, 0, 3);
 
     self.depth_image.2 = self.create_image_view(self.depth_image.0, 0x00000002, self.depth_format)
+}}
+
+impl crate::engine::Engine {pub fn create_color_texture(&mut self) {
+    let format = self.swapchain_image_format.format;
+
+    (self.color_image.0, self.color_image.1) = self.create_image(
+        self.swapchain_extent.width,
+        self.swapchain_extent.height,
+        format,
+        self.msaa_samples,
+        0,
+        0x00000040 | 0x00000010,
+        0x00000001,
+    );
+
+
+    self.transition_image_layout(self.color_image.0, format, 0, 2);
+
+    self.color_image.2 = self.create_image_view(self.color_image.0, 0x00000001, format)
 }}
 
 impl crate::engine::Engine {pub fn copy_buffer_to_image(&self, buffer: VkBuffer, image: VkImage, width: u32, height: u32) {

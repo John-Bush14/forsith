@@ -131,6 +131,8 @@ impl super::Engine {
 
         engine.get_max_usable_sample_count();
 
+        engine.create_color_texture();
+
 
         engine.add_pipelines(engine.default_pipelines());
 
