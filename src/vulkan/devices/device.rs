@@ -1,8 +1,7 @@
 use super::{c_void, c_char};
 
 use crate::vulkan::{
-    devices::physical_device::VkPhysicalDevice,
-    VkResult
+    devices::physical_device::VkPhysicalDevice, VkBool32, VkResult
 };
 
 
@@ -44,6 +43,13 @@ pub struct VkDeviceQueueCreateInfo {
 }
 
 #[repr(C)]
+pub struct VkPhysicalDeviceFeatures {
+    pub buffer_front: [VkBool32;19],
+    pub anisotropy: VkBool32,
+    pub buffer_back: [VkBool32;35]
+}
+
+#[repr(C)]
 pub struct VkDeviceCreateInfo {
     pub s_type: super::VkStructureType,
     pub p_next: *const c_void,
@@ -54,5 +60,5 @@ pub struct VkDeviceCreateInfo {
     pub enabled_layer_names: *const *const c_char,
     pub enabled_extension_count: u32,
     pub enabled_extension_names: *const *const c_char,
-    pub enabled_features: *const c_void
+    pub enabled_features: *const VkPhysicalDeviceFeatures
 }

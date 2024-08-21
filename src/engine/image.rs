@@ -1,21 +1,44 @@
 use crate::vulkan::{image::{
         vkBindImageMemory, vkCmdCopyBufferToImage, vkCmdPipelineBarrier, vkCreateImage, vkCreateImageView, vkCreateSampler, vkDestroyImage, vkGetImageMemoryRequirements, VkBufferImageCopy, VkComponentMapping, VkExtent3D, VkImage, VkImageCreateInfo, VkImageMemoryBarrier, VkImageSubresourceLayers, VkImageSubresourceRange, VkImageView, VkImageViewCreateInfo, VkOffset3D, VkSampler, VkSamplerCreateInfo
-    }, vertex::{vkAllocateMemory, vkDestroyBuffer, vkFreeMemory, vkGetPhysicalDeviceMemoryProperties, VkBuffer, VkDeviceMemory, VkMemoryAllocateInfo, VkMemoryRequirements, VkPhysicalDeviceMemoryProperties}};
+    }, vertex::{vkAllocateMemory, vkDestroyBuffer, vkFreeMemory, vkGetPhysicalDeviceMemoryProperties, vkMapMemory, vkUnmapMemory, VkBuffer, VkDeviceMemory, VkMemoryAllocateInfo, VkMemoryRequirements, VkPhysicalDeviceMemoryProperties}};
 
-use crate::engine::update_memory;
+
+impl crate::engine::Engine {pub fn create_image_usr(&mut self, file: String) -> (VkImage, VkImageView, VkSampler) {
+    let (image, _mem) = self.create_texture_image(file);
+    
+    let image_view = self.create_image_view(image, 0x00000001, 37);
+    println!("image_view: {}", image_view);
+
+    let sampler = self.create_texture_sampler();
+
+    return (image, image_view, sampler);
+}}
 
 impl super::Engine {pub fn create_texture_image(&self, file: String) -> (VkImage, VkDeviceMemory) {
     let image = image::open(file).expect("error getting image");
     let image_as_rgb = image.to_rgba();
     let width = (&image_as_rgb).width();
     let height = (&image_as_rgb).height();
-    let pixels = image_as_rgb.into_raw();
+    let pixels: Vec<u8> = image_as_rgb.into_raw();
     let image_size = (pixels.len() * std::mem::size_of::<u8>()) as u64;
 
 
     let (buffer, memory, _) = self.create_buffer(image_size, 0x00000001, 0x00000002 | 0x00000004);
 
-    update_memory(memory, self.device, pixels);
+    let mut data_ptr: *mut std::ffi::c_void = std::ptr::null_mut();
+
+    unsafe {vkMapMemory(
+        self.device,
+        memory,
+        0,
+        image_size,
+        0,
+        &mut data_ptr as _
+    )};
+
+    unsafe {std::ptr::copy_nonoverlapping(pixels.as_ptr(), data_ptr as _, pixels.len())};
+
+    unsafe {vkUnmapMemory(self.device, memory)};
 
 
     let (image, image_memory) = self.create_image(width, height, 37, 0, 0x00000002 | 0x00000004, 0x00000001);
@@ -178,7 +201,22 @@ impl crate::engine::Engine {pub fn transition_image_layout(&self, image: VkImage
                 0x00000001,
                 0x00000100,
             ),
-            _ => (0, 0, 0, 0)
+
+            (0, 7) => (
+                0,
+                0x00001000,
+                0x00000001,
+                0x00001000
+            ),
+
+            (7, 5) => (
+                0x00001000,
+                0x00000020,
+                0x00001000,
+                0x00000080
+            ),
+
+            _ => (0, 0, 0, 0),
         };
 
 

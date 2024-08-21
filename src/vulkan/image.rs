@@ -17,6 +17,13 @@ pub type VkSampler = u64;
 
 
 #[repr(C)]
+pub struct VkDescriptorImageInfo {
+    pub sampler: VkSampler,
+    pub image_view: VkImageView,
+    pub image_layout: u32
+}
+
+#[repr(C)]
 pub struct VkBufferImageCopy {
     pub buffer_offset: u64,
     pub buffer_row_length: u32,
@@ -202,4 +209,10 @@ extern "C" {
         _: *const c_void,
         sampler: *mut VkSampler
     ) -> VkResult;
+
+    pub fn vkDestroySampler(
+        device: VkDevice,
+        sampler: VkSampler,
+        _: *const c_void
+    );
 }

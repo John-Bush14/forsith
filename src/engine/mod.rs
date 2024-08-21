@@ -24,6 +24,7 @@ mod pipelines;
 use crate::engine::drawables::Drawable;
 
 
+use crate::vulkan::uniform::DescriptorBindings;
 use crate::vulkan::vertex::{vkMapMemory, vkUnmapMemory};
 use crate::vulkan::{
     instance::{
@@ -92,7 +93,7 @@ pub struct Engine {
     swapchain_images: Vec<VkImage>,
     swapchain_extent: VkExtent2D,
     swapchain_image_views: Vec<VkImageView>,
-    pipeline_layouts: std::collections::HashMap<u32, (VkPipelineLayout, VkDescriptorSetLayout)>,
+    pipeline_layouts: std::collections::HashMap<DescriptorBindings, (VkPipelineLayout, VkDescriptorSetLayout)>,
     render_pass: VkRenderPass,
     pipelines: Vec<GraphicsPipeline>,
     framebuffers: Vec<VkFramebuffer>,
@@ -140,7 +141,7 @@ pub fn initialize_engine<T>(
 pub fn update_memory<T>(
     buffer_memory: VkDeviceMemory,
     device: u64,
-    data: T
+    data: T,
 ) {
     let size = std::mem::size_of::<T>() as u64;
 

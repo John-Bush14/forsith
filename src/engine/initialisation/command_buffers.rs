@@ -7,8 +7,8 @@ use crate::vulkan::{
         }, vkCmdBeginRenderPass, vkCmdBindDescriptorSets, vkCmdBindIndexBuffer, vkCmdBindPipeline, vkCmdBindVertexBuffers, vkCmdDrawIndexed, vkCmdEndRenderPass, VkClearColorValue, VkClearDepthStencilValue, VkClearValue, VkRenderPassBeginInfo
     },
     pipeline::{
-        VkOffset2D, VkRect2D
-    }
+        self, VkOffset2D, VkRect2D
+    }, uniform::DescriptorBindings
 };
 
 
@@ -110,7 +110,7 @@ impl super::super::Engine { pub fn record_and_enter_command_buffers(&mut self) {
                 vkCmdBindDescriptorSets(
                     command_buffer,
                     0,
-                    self.pipeline_layouts.get(&(pipeline.uniforms.len() as u32)).unwrap().0,
+                    self.pipeline_layouts.get(&DescriptorBindings::from(pipeline.vertex_uniforms.clone(), pipeline.fragment_uniforms.clone())).unwrap().0,
                     0,
                     1,
                     &drawable.descriptor_sets[i],

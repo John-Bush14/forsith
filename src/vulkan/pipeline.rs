@@ -31,32 +31,12 @@ pub type VkFramebuffer = u64;
 
 
 #[derive(Clone)]
-pub enum Type {
-    Matrix4,
-    Matrix3,
-    Matrix2,
-
-    Int64,
-    Int32,
-    Int16,
-    Int8,
-
-    UInt64,
-    UInt32,
-    UInt16,
-    UInt8,
-    
-    Float64,
-    Float32
-}
-
-#[derive(Clone)]
 pub enum Uniform {
-    NonBuiltin(Vec<Type>),
     Camera2d,
     Camera3d,
     Model2d,
-    Model3d
+    Model3d,
+    Image
 }
 
 
@@ -65,7 +45,8 @@ pub struct GraphicsPipeline {
     pub pipeline: VkPipeline,
     pub vertex_shader: VkShaderModule,
     pub fragment_shader: VkShaderModule,
-    pub uniforms: Vec<Uniform>,
+    pub vertex_uniforms: Vec<Uniform>,
+    pub fragment_uniforms: Vec<Uniform>,
     pub uses: u32
 }
 

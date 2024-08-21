@@ -1,20 +1,7 @@
 use crate::vulkan::{
-    uniform::{
-        vkAllocateDescriptorSets, 
-        vkCreateDescriptorPool,
-        vkCreateDescriptorSetLayout, 
-        vkUpdateDescriptorSets, 
-        VkDescriptorBufferInfo, 
-        VkDescriptorPoolCreateInfo, 
-        VkDescriptorPoolSize, 
-        VkDescriptorSet, 
-        VkDescriptorSetAllocateInfo, 
-        VkDescriptorSetLayout, 
-        VkDescriptorSetLayoutBinding, 
-        VkDescriptorSetLayoutCreateInfo, 
-        VkWriteDescriptorSet
-    },
-    vertex::{
+    image::{VkImage, VkDescriptorImageInfo, VkImageView, VkSampler}, uniform::{
+        vkAllocateDescriptorSets, vkCreateDescriptorPool, vkCreateDescriptorSetLayout, vkUpdateDescriptorSets, DescriptorBindings, VkDescriptorBufferInfo, VkDescriptorPoolCreateInfo, VkDescriptorPoolSize, VkDescriptorSet, VkDescriptorSetAllocateInfo, VkDescriptorSetLayout, VkDescriptorSetLayoutBinding, VkDescriptorSetLayoutCreateInfo, VkWriteDescriptorSet
+    }, vertex::{
         VkBuffer,
         VkDeviceMemory
     }
@@ -68,20 +55,24 @@ impl crate::engine::Engine { pub fn create_descriptor_sets(
 impl crate::engine::Engine { pub fn update_descriptor_sets(
     &mut self,
     descriptor_sets: Vec<VkDescriptorSet>,                                          
-    bindings: Vec<(u32, Vec<VkBuffer>, u64)> // binding, buffer range (object size)
+    bindings: Vec<(u32, Vec<VkBuffer>, u64)>, // binding, buffer range (object size)
+    image: Option<(VkImage, VkImageView, VkSampler)>
 ) {
     for i in 0 .. descriptor_sets.len() {
         let mut descriptor_writes = vec!();
         let mut buffer_infos = vec!();
+        let mut image_infos = vec!();
+
+        println!("bindings: {:?}", bindings);
 
         bindings.iter().for_each(|(binding, buffers, buffer_range)| {
             let buffer_info = VkDescriptorBufferInfo {
-                buffer: buffers[i],
+                buffer: if buffers.len() > 0 {buffers[i]} else {0},
                 offset: 0,
                 range: *buffer_range
             }; buffer_infos.push(buffer_info);
 
-            let descriptor_write = VkWriteDescriptorSet {
+            let mut descriptor_write = VkWriteDescriptorSet {
                 s_type: 35,
                 p_next: std::ptr::null(),
                 dst_set: descriptor_sets[i],
@@ -92,7 +83,21 @@ impl crate::engine::Engine { pub fn update_descriptor_sets(
                 image_info: std::ptr::null(),
                 buffer_info: &buffer_infos[buffer_infos.len()-1] as *const VkDescriptorBufferInfo,
                 texel_buffer_view: std::ptr::null()
-            };      
+            };
+
+            let image = match image {Some(image) => image, None => (0, 0, 0)};
+
+            let image_info = VkDescriptorImageInfo {
+                sampler: image.2,
+                image_view: image.1,
+                image_layout: 5
+            }; image_infos.push(image_info);
+
+            if *buffer_range == 0 {                 
+                descriptor_write.image_info = &image_infos[image_infos.len()-1] as *const VkDescriptorImageInfo;
+                descriptor_write.descriptor_type = 1;
+                descriptor_write.buffer_info = std::ptr::null()
+            }
 
             descriptor_writes.push(descriptor_write);
         });
@@ -107,8 +112,8 @@ impl crate::engine::Engine { pub fn update_descriptor_sets(
     }; 
 }}
 
-impl crate::engine::Engine { pub fn create_descriptor_set_layout(&self, descriptor_count: u32) -> VkDescriptorSetLayout {
-    let binding = VkDescriptorSetLayoutBinding {
+impl crate::engine::Engine { pub fn create_descriptor_set_layout(&self, descriptor_bindings: DescriptorBindings) -> VkDescriptorSetLayout {
+    let vertex_binding = VkDescriptorSetLayoutBinding {
         binding: 0,
         descriptor_type: 6,
         descriptor_count: 1,
@@ -116,9 +121,27 @@ impl crate::engine::Engine { pub fn create_descriptor_set_layout(&self, descript
         immutable_samplers: std::ptr::null()
     };
 
+    let fragment_binding = VkDescriptorSetLayoutBinding {
+        binding: 0,
+        descriptor_type: 1,
+        descriptor_count: 1,
+        stage_flags: 0x00000010,
+        immutable_samplers: std::ptr::null()
+    };
+
     let mut bindings = vec!();
 
-    for i in 0 .. descriptor_count as usize {let mut binding = binding.clone(); binding.binding = i as u32; bindings.push(binding);}
+    for i in 0 .. descriptor_bindings.0.len() as usize {
+        let mut binding = vertex_binding.clone();
+        binding.binding = i as u32; 
+        bindings.push(binding);
+    }
+    
+    for i in 0 .. descriptor_bindings.1.len() as usize {
+        let mut binding = fragment_binding.clone();
+        binding.binding = (i+descriptor_bindings.0.len()) as u32; 
+        bindings.push(binding);
+    }
 
     let create_info = VkDescriptorSetLayoutCreateInfo {
         s_type: 32,
@@ -141,12 +164,17 @@ impl crate::engine::Engine { pub fn create_descriptor_set_layout(&self, descript
 }}
 
 impl crate::engine::Engine { pub fn create_descriptor_pool(&mut self) {
-    let pool_size = VkDescriptorPoolSize {
+    let ubo_pool_size = VkDescriptorPoolSize {
         type_: 6,
         descriptor_count: self.swapchain_images.len() as u32
     };
+    
+    let sampler_pool_size = VkDescriptorPoolSize {
+        type_: 1,
+        descriptor_count: self.swapchain_images.len() as u32
+    };
 
-    let pool_sizes = [pool_size];
+    let pool_sizes = [ubo_pool_size, sampler_pool_size];
 
     let create_info = VkDescriptorPoolCreateInfo {
         s_type: 33,

@@ -1,20 +1,9 @@
 use crate::vulkan::{
     devices::{
-        physical_device::{
-            VkPhysicalDevice,
-            VkExtensionProperties,
-            VkQueueFamilyProperties,
-            vkEnumeratePhysicalDevices,
-            vkGetPhysicalDeviceProperties,
-            vkGetPhysicalDeviceQueueFamilyProperties,
-            vkEnumerateDeviceExtensionProperties
-        },
         device::{
-            VkDevice,
-            VkDeviceCreateInfo,
-            VkDeviceQueueCreateInfo,
-            vkCreateDevice,
-            vkGetDeviceQueue
+            vkCreateDevice, vkGetDeviceQueue, VkDevice, VkDeviceCreateInfo, VkDeviceQueueCreateInfo, VkPhysicalDeviceFeatures
+        }, physical_device::{
+            vkEnumerateDeviceExtensionProperties, vkEnumeratePhysicalDevices, vkGetPhysicalDeviceProperties, vkGetPhysicalDeviceQueueFamilyProperties, VkExtensionProperties, VkPhysicalDevice, VkQueueFamilyProperties
         }
     },
     window::
@@ -133,6 +122,12 @@ impl super::super::Engine { pub fn create_device(&mut self, mut test_window_conn
         "VK_KHR_swapchain",
     );
 
+    let enabled_extensions = VkPhysicalDeviceFeatures {
+        buffer_front: [0;19],
+        anisotropy: 1,
+        buffer_back: [0;35]
+    };
+
     let device_create_info = VkDeviceCreateInfo {
         s_type: 3,
         p_next: std::ptr::null(),
@@ -143,7 +138,7 @@ impl super::super::Engine { pub fn create_device(&mut self, mut test_window_conn
         enabled_layer_names: std::ptr::null(),
         enabled_extension_count: extensions_len,
         enabled_extension_names: extensions,
-        enabled_features: std::ptr::null()
+        enabled_features: &enabled_extensions as *const VkPhysicalDeviceFeatures
     };
     
     let mut device: VkDevice = 0;

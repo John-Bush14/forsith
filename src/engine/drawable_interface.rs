@@ -1,12 +1,13 @@
 use crate::engine::drawables::Drawable;
 
 use crate::vulkan::pipeline::Uniform;
+use crate::vulkan::uniform::DescriptorBindings;
 
 
 impl crate::engine::Engine { pub fn add_drawable<'a>(&'a mut self, mut drawable: Drawable) -> &'a mut Drawable {
     let pipeline = self.pipelines[drawable.get_pipeline_id()].clone();
     
-    let descriptor_count = pipeline.uniforms.len() as u32;
+    let descriptor_count = DescriptorBindings::from(pipeline.vertex_uniforms.clone(), pipeline.fragment_uniforms.clone());
     
     let pipeline_key = self.pipelines.iter().position(|pipeline_| pipeline_.pipeline == pipeline.pipeline).unwrap();
 
@@ -17,11 +18,12 @@ impl crate::engine::Engine { pub fn add_drawable<'a>(&'a mut self, mut drawable:
     let mut bindings = vec!();
         
     drawable.descriptor_sets = self.create_descriptor_sets(self.swapchain_images.len(), descriptor_set_layout);
-
-    for uniform in &pipeline.uniforms {                           
+                                                                                                                                                                                        
+    for uniform in pipeline.vertex_uniforms.iter().chain(pipeline.fragment_uniforms.iter()) { 
         let uniform_buffers = match uniform {
             Uniform::Camera3d => self.world_view.get_3d_uniform_buffers().clone(),
             Uniform::Camera2d => self.world_view.get_2d_uniform_buffers().clone(),
+            Uniform::Image => vec!(),
             _ => {
                 let (uniform_buffers, uniform_memories) = self.create_uniform_buffers(uniform.size_of());
     
@@ -37,8 +39,11 @@ impl crate::engine::Engine { pub fn add_drawable<'a>(&'a mut self, mut drawable:
 
         bindings.push(((bindings.len()) as u32, uniform_buffers, uniform.size_of()));
     }
-    
-    self.update_descriptor_sets(drawable.descriptor_sets.clone(), bindings);
+                
+    self.update_descriptor_sets(drawable.descriptor_sets.clone(), bindings, 
+        if let Some(image) = &drawable.image {Some(image.1)}
+        else {None}
+    );
 
     drawable.device = self.device;
 
