@@ -15,6 +15,8 @@ pub type VkImage = u64;
 
 pub type VkSampler = u64;
 
+pub type Texture = (VkImage, VkDeviceMemory, VkImageView, VkSampler);
+
 
 #[repr(C)]
 pub struct VkDescriptorImageInfo {

@@ -63,8 +63,10 @@ impl super::Engine {
             world_view: WorldView::zero(),
             events: vec!(),
             target_fps: 0.0,
-            depth_image: (0, 0, 0),
-            depth_format: 0
+            depth_image: (0, 0, 0, 0),
+            depth_format: 0,
+            msaa_samples: 0,
+            color_image: (0, 0, 0, 0)
         };
 
         let supported_instance_extensions = unsafe { vk_enumerate_to_vec!(
@@ -123,7 +125,12 @@ impl super::Engine {
             uniform_buffers
         );
 
- 
+
+        engine.get_max_usable_sample_count();
+
+        engine.create_color_texture();
+
+        
         engine.create_depth_image();
 
 

@@ -1,4 +1,4 @@
-use super::{points_to_vertices, Drawable, Texture};
+use super::{points_to_vertices, Drawable, Color};
 
 
 const RECT: [[f32; 3]; 6] = [
@@ -70,7 +70,7 @@ const CUBE: [[f32; 3]; 36] = [
 ];
 
 impl Drawable {
-    pub fn cube_from_transform(pos: [f32;3], width: f32, height: f32, depth: f32, col: Texture) -> Drawable {
+    pub fn cube_from_transform(pos: [f32;3], width: f32, height: f32, depth: f32, col: Color) -> Drawable {
         let mut drawable: Drawable = Default::default();
 
         drawable.tex = col;
@@ -81,7 +81,7 @@ impl Drawable {
         return drawable;
     }
     
-    pub fn rect_from_transform(pos: [f32;2], width: f32, height: f32, rot: f32, col: Texture, ui: bool, image: bool) -> Drawable {
+    pub fn rect_from_transform(pos: [f32;2], width: f32, height: f32, rot: f32, col: Color, ui: bool, image: bool) -> Drawable {
         let mut drawable: Drawable = Default::default();
 
         drawable.tex = col;

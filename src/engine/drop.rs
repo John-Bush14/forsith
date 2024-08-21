@@ -22,7 +22,8 @@ impl Drop for crate::Drawable {
             vkFreeMemory(self.device, *memory, std::ptr::null());
         }));
 
-        if let Some((_, (image, image_view, sampler))) = self.image {
+        if let Some((_, (image, memory, image_view, sampler))) = self.image {
+            vkFreeMemory(self.device, memory, std::ptr::null());
             vkDestroyImage(self.device, image, std::ptr::null());
             vkDestroyImageView(self.device, image_view, std::ptr::null());
             vkDestroySampler(self.device, sampler, std::ptr::null())
