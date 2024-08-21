@@ -7,12 +7,17 @@ use crate::vulkan::{
 
 use std::ffi::c_void;
 
+use super::image::VkDescriptorImageInfo;
+
 
 pub type VkDescriptorSetLayout = u64;
 
 pub type VkDescriptorPool = u64;
 
 pub type VkDescriptorSet = u64;
+
+#[derive(Hash, Clone, Eq, PartialEq)]
+pub struct DescriptorBindings(pub Vec<u8>, pub Vec<u8>);
 
 
 #[link(name = "vulkan")]
@@ -86,7 +91,7 @@ pub struct VkWriteDescriptorSet {
     pub dst_array_element: u32,
     pub descriptor_count: u32,
     pub descriptor_type: u32,
-    pub image_info: *const c_void,
+    pub image_info: *const VkDescriptorImageInfo,
     pub buffer_info: *const VkDescriptorBufferInfo,
     pub texel_buffer_view: *const c_void
 }

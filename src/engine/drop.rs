@@ -2,7 +2,7 @@ use crate::vulkan::{
     commands::command_pool::vkDestroyCommandPool, devices::device::{
             vkDestroyDevice,
             vkDeviceWaitIdle
-        }, image::{vkDestroyImageView, vkDestroyImage}, instance::vkDestroyInstance, pipeline::{
+        }, image::{vkDestroyImage, vkDestroyImageView, vkDestroySampler}, instance::vkDestroyInstance, pipeline::{
         vkDestroyPipelineLayout, vkDestroyShaderModule
     }, rendering::{
         vkDestroyFence,
@@ -21,6 +21,12 @@ impl Drop for crate::Drawable {
             vkDestroyBuffer(self.device, *buffer, std::ptr::null());
             vkFreeMemory(self.device, *memory, std::ptr::null());
         }));
+
+        if let Some((_, (image, image_view, sampler))) = self.image {
+            vkDestroyImage(self.device, image, std::ptr::null());
+            vkDestroyImageView(self.device, image_view, std::ptr::null());
+            vkDestroySampler(self.device, sampler, std::ptr::null())
+        }
         
         vkDestroyBuffer(self.device, self.indice_buffer, std::ptr::null());
         vkFreeMemory(self.device, self.indice_memory, std::ptr::null());
@@ -28,7 +34,7 @@ impl Drop for crate::Drawable {
 }
 
 impl Drop for super::Engine {
-    fn drop(&mut self) {
+    fn drop(&mut self) { 
         unsafe {
             if self.image_available_semaphores.len() == 0 {return}
 
@@ -37,10 +43,6 @@ impl Drop for super::Engine {
             while let Some(drawable) = self.drawables.pop() {
                 std::mem::drop(drawable);
             }
-
-            vkDestroyImageView(self.device, self.depth_image.2, std::ptr::null());
-            vkFreeMemory(self.device, self.depth_image.1, std::ptr::null());
-            vkDestroyImage(self.device, self.depth_image.0, std::ptr::null());
 
             self.image_available_semaphores.iter().chain(self.render_finished_semaphores.iter())
                 .for_each(|&semaphore| vkDestroySemaphore(self.device, semaphore, std::ptr::null()));

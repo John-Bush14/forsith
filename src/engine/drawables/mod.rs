@@ -1,5 +1,5 @@
 use crate::vulkan::{
-    pipeline::{GraphicsPipeline, Uniform}, uniform::VkDescriptorSet, vertex::{
+    image::{VkImage, VkImageView, VkSampler}, pipeline::{GraphicsPipeline, Uniform}, uniform::VkDescriptorSet, vertex::{
         Vertex,
         VkBuffer,
         VkDeviceMemory
@@ -42,11 +42,17 @@ pub struct Drawable {
     indices_changed: (bool, bool),
     pub device: u64,
     pipeline_id: usize,
+    pub image: Option<(Vec<[f32;2]>, (VkImage, VkImageView, VkSampler))>,
+    image_changed: bool
 }
 
 
-pub(self) fn points_to_vertices(points: Vec<[f32;3]>, color: Texture) -> Vec<Vertex> {
-    points.iter().map(|&point| return Vertex {pos: point, color}).collect()
+pub(self) fn points_to_vertices(points: Vec<[f32;3]>, coords: Option<Vec<[f32;2]>>, color: Texture) -> Vec<Vertex> {
+    points.iter().enumerate().map(|(i, &point)| 
+        return Vertex {pos: point, color, coord: 
+            if let Some(coords) = &coords {coords[i]}
+            else {[0.0;2]}
+    }).collect()
 }
 
 
@@ -58,7 +64,7 @@ impl Drawable {
     pub fn update(&mut self, _image_index: usize, device: u64, pipeline: &GraphicsPipeline) -> (bool, (bool, bool), (bool, bool)) { 
         let result = (self.matrix_changed, self.vertices_changed, self.indices_changed);
 
-        pipeline.uniforms.iter().filter(|x| match x {Uniform::Camera2d => false, Uniform::Camera3d => false, _ => true})
+        pipeline.vertex_uniforms.iter().filter(|x| match x {Uniform::Camera2d => false, Uniform::Camera3d => false, _ => true})
         .enumerate()
         .for_each(|(i, uniform)| {
             if self.matrix_changed && match uniform {Uniform::Model3d => true, Uniform::Model2d => true, _ => false} {
@@ -127,6 +133,12 @@ impl Drawable {
     pub fn set_drawing(&mut self, drawing: bool) {self.drawing = drawing;}
 
     pub fn get_pipeline_id(&self) -> usize {return self.pipeline_id}
+    
+    pub fn set_image(&mut self, image: (VkImage, VkImageView, VkSampler), coords: Vec<[f32;2]>) {
+        self.image = Some((coords, image));
+
+        self.image_changed = true;
+    }
 }
 
 impl Default for Drawable {
@@ -150,6 +162,8 @@ impl Default for Drawable {
             indices_changed: (true, true),
             device: 0,
             pipeline_id: PIPELINE_3D,
+            image: None,
+            image_changed: false
         };
     }
 }

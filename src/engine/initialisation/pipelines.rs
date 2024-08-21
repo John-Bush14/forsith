@@ -1,18 +1,16 @@
 use crate::vulkan::{
-    devices::{device::VkDevice, physical_device::{vkGetPhysicalDeviceFormatProperties, VkFormatProperties, VkPhysicalDevice}},                                                                                                                                                                                                                                                                                                                                                                                          
-    pipeline::{
+    devices::{device::VkDevice, physical_device::{vkGetPhysicalDeviceFormatProperties, VkFormatProperties, VkPhysicalDevice}}, pipeline::{
         vkCreateFramebuffer, vkCreateGraphicsPipelines, vkCreatePipelineLayout, vkCreateRenderPass, vkCreateShaderModule, GraphicsPipeline, Uniform, VkAttachmentDescription, VkAttachmentReference, VkFramebuffer, VkFramebufferCreateInfo, VkGraphicsPipelineCreateInfo, VkOffset2D, VkPipeline, VkPipelineColorBlendAttachmentState, VkPipelineColorBlendStateCreateInfo, VkPipelineDepthStencilStateCreateInfo, VkPipelineInputAssemblyStateCreateInfo, VkPipelineLayoutCreateInfo, VkPipelineMultisampleStateCreateInfo, VkPipelineRasterizationStateCreateInfo, VkPipelineShaderStageCreateInfo, VkPipelineTessellationStateCreateInfo, VkPipelineVertexInputStateCreateInfo, VkPipelineViewportStateCreateInfo, VkRect2D, VkRenderPass, VkRenderPassCreateInfo, VkShaderModule, VkShaderModuleCreateInfo, VkStencilOpState, VkSubpassDependency, VkSubpassDescription, VkViewport
-    }, 
-    vertex::{
-        VkVertexInputAttributeDescription,
-        VkVertexInputBindingDescription, 
-        VERTEX_SIZE
+    }, uniform::DescriptorBindings, vertex::{
+        Vertex, VkVertexInputAttributeDescription, VkVertexInputBindingDescription, VERTEX_SIZE
     }
 };
 
 use std::io::Read;
 
 use std::ffi::CString;
+
+use super::uniform;
 
 #[allow(dead_code)]
 pub const PIPELINE_3D: usize = 0;
@@ -36,7 +34,7 @@ impl Uniform {
             Self::Model2d => {szf::<[[f32;4];4]>()},
             Uniform::Camera2d => {szf::<([[f32;4];4], f32)>()},
             Uniform::Camera3d => {szf::<([[f32;4];4], [[f32;4];4])>()},
-            Uniform::NonBuiltin(_) => todo!(),
+            Uniform::Image => {0} // special
         } as u64;
     }
 }
@@ -44,7 +42,8 @@ impl Uniform {
 impl GraphicsPipeline { pub fn new(
     vertex_shader: &str,
     fragment_shader: &str, 
-    input: Vec<Uniform>, 
+    vertex_input: Vec<Uniform>, 
+    fragment_input: Vec<Uniform>,
     device: &VkDevice, 
     persistent: bool
 ) -> GraphicsPipeline {
@@ -53,7 +52,8 @@ impl GraphicsPipeline { pub fn new(
         pipeline: 0,
         vertex_shader: create_shader_module_from_file(device, vertex_shader),
         fragment_shader: create_shader_module_from_file(device, fragment_shader),
-        uniforms: input,
+        vertex_uniforms: vertex_input,
+        fragment_uniforms: fragment_input,
         uses: {if persistent {1} else {0}}
     }
 }}
@@ -64,6 +64,7 @@ impl crate::engine::Engine { pub fn default_pipelines(&self) -> Vec<GraphicsPipe
             "src/engine/shaders/3d/shader.vert.spv",
 	         "src/engine/shaders/shader.frag.spv",
             vec![Uniform::Camera3d, Uniform::Model3d],
+            vec!(),
             &self.device,
             true
         ),
@@ -71,6 +72,7 @@ impl crate::engine::Engine { pub fn default_pipelines(&self) -> Vec<GraphicsPipe
             "src/engine/shaders/2d/shader.vert.spv",
 	         "src/engine/shaders/shader.frag.spv",
             vec![Uniform::Camera2d, Uniform::Model2d],
+            vec!(),
             &self.device,
             true
         ),
@@ -78,6 +80,7 @@ impl crate::engine::Engine { pub fn default_pipelines(&self) -> Vec<GraphicsPipe
             "src/engine/shaders/ui/3d/shader.vert.spv",
 	         "src/engine/shaders/shader.frag.spv",
             vec![Uniform::Camera3d, Uniform::Model2d],
+            vec!(),
             &self.device,
             false
         ),
@@ -85,21 +88,36 @@ impl crate::engine::Engine { pub fn default_pipelines(&self) -> Vec<GraphicsPipe
             "src/engine/shaders/ui/2d/shader.vert.spv",
 	         "src/engine/shaders/shader.frag.spv",
             vec![Uniform::Camera2d, Uniform::Model2d],
+            vec!(),
+            &self.device,
+            true
+        ),
+        GraphicsPipeline::new(
+            "src/engine/shaders/image.vert.spv",
+	         "src/engine/shaders/image.frag.spv",
+            vec![Uniform::Camera2d, Uniform::Model2d],
+            vec![Uniform::Image],
             &self.device,
             true
         )
     ];
 }}
 
+impl DescriptorBindings {pub fn from(vertex_uniforms: Vec<Uniform>, fragment_uniforms: Vec<Uniform>) -> Self {                 
+    return DescriptorBindings(
+        vertex_uniforms.iter().map(|uniform| return match *uniform {Uniform::Image => 1, _ => 0}).collect(),
+        fragment_uniforms.iter().map(|uniform| return match *uniform {Uniform::Image => 1, _ => 0}).collect()
+    )
+}}
 
 impl crate::engine::Engine {pub fn create_pipeline_layouts(&mut self) {
-    self.pipelines.iter()
-        .map(|pipeline| return pipeline.uniforms.len() as u32)
-        .filter(|descriptor_count| return !self.pipeline_layouts.contains_key(&descriptor_count))
-        .collect::<std::collections::HashSet<u32>>().into_iter()
-        .collect::<Vec<u32>>().into_iter()
+    self.pipelines.iter()                                                                                                                                                                           
+        .map(|pipeline| return DescriptorBindings::from(pipeline.vertex_uniforms.clone(), pipeline.fragment_uniforms.clone()))
+        .filter(|descriptor_binding| return !self.pipeline_layouts.contains_key(&descriptor_binding))
+        .collect::<std::collections::HashSet<_>>().into_iter()
+        .collect::<Vec<_>>().into_iter()
         .for_each(|descriptor_count| {
-            let descriptor_set_layout = self.create_descriptor_set_layout(descriptor_count);
+            let descriptor_set_layout = self.create_descriptor_set_layout(descriptor_count.clone());
 
             let pipeline_layout_create_info = VkPipelineLayoutCreateInfo {
 	             s_type: 30,
@@ -153,7 +171,8 @@ impl crate::engine::Engine {pub fn create_framebuffers(&mut self) {
                     
 impl crate::engine::Engine {pub fn create_pipeline(&self, pipeline: &GraphicsPipeline) -> VkPipeline {
     let entry_point_name = CString::new("main").unwrap();
-    let pipeline_layout = self.pipeline_layouts.get(&(pipeline.uniforms.len() as u32)).unwrap().0;
+    let descriptor_bindings = DescriptorBindings::from(pipeline.vertex_uniforms.clone(), pipeline.fragment_uniforms.clone());
+    let pipeline_layout = self.pipeline_layouts.get(&descriptor_bindings).unwrap().0;
 
     let vertex_shader_stage_create_info = VkPipelineShaderStageCreateInfo {
 		  s_type: 18,
@@ -179,7 +198,7 @@ impl crate::engine::Engine {pub fn create_pipeline(&self, pipeline: &GraphicsPip
 
 	 let vertex_input_binding_description = VkVertexInputBindingDescription {
 		  binding: 0,
-		  stride: VERTEX_SIZE as u32,
+		  stride: std::mem::size_of::<Vertex>() as u32,
 		  input_rate: 0,
 	 };
 
@@ -196,10 +215,19 @@ impl crate::engine::Engine {pub fn create_pipeline(&self, pipeline: &GraphicsPip
 		  format: 109,
 		  offset: 12
 	 };
+	 
+    let coords_vertex_input_attribute_description = VkVertexInputAttributeDescription {
+		  location: 2,
+		  binding: 0,
+		  format: 103,
+		  offset: 28
+	 };
 
 	 let vertex_binding_descriptions = [vertex_input_binding_description];
 
-    let vertex_attribute_descriptions = [position_vertex_input_attribute_description, color_vertex_input_attribute_description];
+    let mut vertex_attribute_descriptions = vec![position_vertex_input_attribute_description, color_vertex_input_attribute_description];
+                
+    if descriptor_bindings.0.contains(&1) || descriptor_bindings.1.contains(&1) {vertex_attribute_descriptions.push(coords_vertex_input_attribute_description);}
 
 	 let vertex_input_state_create_info = VkPipelineVertexInputStateCreateInfo {
 		  s_type: 19,

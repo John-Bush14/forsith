@@ -6,13 +6,47 @@ use crate::vulkan::{
 
 use std::ffi::c_void;
 
-use super::{commands::command_buffer::VkCommandBuffer, vertex::{VkDeviceMemory, VkMemoryRequirements}};
+use super::{commands::command_buffer::VkCommandBuffer, vertex::{VkBuffer, VkDeviceMemory, VkMemoryRequirements}, VkBool32};
 
 
 pub type VkImageView = u64;
 
 pub type VkImage = u64;
 
+pub type VkSampler = u64;
+
+
+#[repr(C)]
+pub struct VkDescriptorImageInfo {
+    pub sampler: VkSampler,
+    pub image_view: VkImageView,
+    pub image_layout: u32
+}
+
+#[repr(C)]
+pub struct VkBufferImageCopy {
+    pub buffer_offset: u64,
+    pub buffer_row_length: u32,
+    pub buffer_image_height: u32,
+    pub image_subresource: VkImageSubresourceLayers,
+    pub image_offset: VkOffset3D,
+    pub image_extent: VkExtent3D
+}
+
+#[repr(C)]
+pub struct VkOffset3D {
+   pub x: i32,
+   pub y: i32,
+   pub z: i32
+}
+
+#[repr(C)]
+pub struct VkImageSubresourceLayers {
+    pub aspect_mask: u32,
+    pub mip_level: u32,
+    pub base_array_layer: u32,
+    pub layer_count: u32
+}
 
 #[repr(C)]
 pub struct VkImageMemoryBarrier {
@@ -60,6 +94,28 @@ pub struct VkComponentMapping {
     pub g: u32,
     pub b: u32,
     pub a: u32
+}
+
+#[repr(C)]
+pub struct VkSamplerCreateInfo {
+    pub s_type: VkStructureType,
+    pub p_next: *const c_void,
+    pub flags: u32,
+    pub mag_filter: u32,
+    pub min_filter: u32,
+    pub mipmap_mode: u32,
+    pub address_mode_u: u32,
+    pub addres_mode_v: u32,
+    pub address_mode_w: u32,
+    pub mip_lod_bias: f32,
+    pub anisotropy_enable: VkBool32,
+    pub max_anisotropy: f32,
+    pub compare_enable: VkBool32,
+    pub compare_op: u32,
+    pub min_lod: f32,
+    pub max_lod: f32,
+    pub border_color: u32,
+    pub unnormalized_coordinates: VkBool32
 }
 
 #[repr(C)]
@@ -135,6 +191,28 @@ extern "C" {
     pub fn vkDestroyImage(
         device: VkDevice,
         image: VkImage,
+        _: *const c_void
+    );
+
+    pub fn vkCmdCopyBufferToImage(
+        command_buffer: VkCommandBuffer,
+        src_buffer: VkBuffer,
+        dst_image: VkImage,
+        dst_image_layout: u32,
+        region_count: u32,
+        regions: *const VkBufferImageCopy
+    );
+    
+    pub fn vkCreateSampler(
+        device: VkDevice,
+        create_info: *const VkSamplerCreateInfo,
+        _: *const c_void,
+        sampler: *mut VkSampler
+    ) -> VkResult;
+
+    pub fn vkDestroySampler(
+        device: VkDevice,
+        sampler: VkSampler,
         _: *const c_void
     );
 }

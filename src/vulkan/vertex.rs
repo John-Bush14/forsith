@@ -2,7 +2,7 @@ pub const VERTICES: [Vertex; 0] = [];
 
 pub const INDICES: [u16; 0] = [];
 
-pub const VERTEX_SIZE: usize = 28;
+pub const VERTEX_SIZE: usize = 36;
 
 
 use crate::vulkan::{
@@ -130,7 +130,8 @@ pub struct VkMemoryRequirements {
 #[repr(C)]
 pub struct Vertex {
     pub pos: [f32; 3],
-    pub color: [f32; 4]
+    pub color: [f32; 4],
+    pub coord: [f32; 2]
 }
 
 impl Eq for Vertex {}

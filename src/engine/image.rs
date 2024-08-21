@@ -1,25 +1,81 @@
 use crate::vulkan::{image::{
-        vkBindImageMemory, vkCmdPipelineBarrier, vkCreateImage, vkCreateImageView, vkGetImageMemoryRequirements, VkComponentMapping, VkExtent3D, VkImage, VkImageCreateInfo, VkImageMemoryBarrier, VkImageSubresourceRange, VkImageView, VkImageViewCreateInfo
-    }, vertex::{vkAllocateMemory, vkGetPhysicalDeviceMemoryProperties, VkDeviceMemory, VkMemoryAllocateInfo, VkMemoryRequirements, VkPhysicalDeviceMemoryProperties}};
+        vkBindImageMemory, vkCmdCopyBufferToImage, vkCmdPipelineBarrier, vkCreateImage, vkCreateImageView, vkCreateSampler, vkDestroyImage, vkGetImageMemoryRequirements, VkBufferImageCopy, VkComponentMapping, VkExtent3D, VkImage, VkImageCreateInfo, VkImageMemoryBarrier, VkImageSubresourceLayers, VkImageSubresourceRange, VkImageView, VkImageViewCreateInfo, VkOffset3D, VkSampler, VkSamplerCreateInfo
+    }, vertex::{vkAllocateMemory, vkDestroyBuffer, vkFreeMemory, vkGetPhysicalDeviceMemoryProperties, vkMapMemory, vkUnmapMemory, VkBuffer, VkDeviceMemory, VkMemoryAllocateInfo, VkMemoryRequirements, VkPhysicalDeviceMemoryProperties}};
 
-impl super::Engine {pub fn create_texture_image(&self, file: String) {
-    let image = image::open(file).expect("error getting image");
-    let image_as_rgb = image.to_rgba();
-    let _image_width = (&image_as_rgb).width();
-    let _image_height = (&image_as_rgb).height();
-    let pixels = image_as_rgb.into_raw();
-    let _image_size = (pixels.len() * std::mem::size_of::<u8>()) as u64;
+
+impl crate::engine::Engine {pub fn create_image_usr(&mut self, file: String) -> (VkImage, VkImageView, VkSampler) {
+    let (image, _mem) = self.create_texture_image(file);
+    
+    let image_view = self.create_image_view(image, 0x00000001, 37);
+    println!("image_view: {}", image_view);
+
+    let sampler = self.create_texture_sampler();
+
+    return (image, image_view, sampler);
 }}
 
-impl super::Engine {pub fn create_image(&mut self, 
+impl super::Engine {pub fn create_texture_image(&self, file: String) -> (VkImage, VkDeviceMemory) {
+    let image = image::open(file).expect("error getting image");
+    let image_as_rgb = image.to_rgba();
+    let width = (&image_as_rgb).width();
+    let height = (&image_as_rgb).height();
+    let pixels: Vec<u8> = image_as_rgb.into_raw();
+    let image_size = (pixels.len() * std::mem::size_of::<u8>()) as u64;
+
+
+    let (buffer, memory, _) = self.create_buffer(image_size, 0x00000001, 0x00000002 | 0x00000004);
+
+    let mut data_ptr: *mut std::ffi::c_void = std::ptr::null_mut();
+
+    unsafe {vkMapMemory(
+        self.device,
+        memory,
+        0,
+        image_size,
+        0,
+        &mut data_ptr as _
+    )};
+
+    unsafe {std::ptr::copy_nonoverlapping(pixels.as_ptr(), data_ptr as _, pixels.len())};
+
+    unsafe {vkUnmapMemory(self.device, memory)};
+
+
+    let (image, image_memory) = self.create_image(width, height, 37, 0, 0x00000002 | 0x00000004, 0x00000001);
+
+
+    self.transition_image_layout(image, 37, 0, 7);
+
+
+    self.copy_buffer_to_image(buffer, image, width, height);
+    
+
+    self.transition_image_layout(image, 37, 7, 5);
+
+
+    unsafe {
+        vkDestroyBuffer(self.device, buffer, std::ptr::null());
+        vkFreeMemory(self.device, memory, std::ptr::null())
+    }
+
+    return (image, image_memory);
+}}
+
+impl super::Engine {pub fn create_image(&self, 
     width: u32,
     height: u32, 
     format: u32,
     tiling: u32,
     usage: u32,
     mem_properties: u32,
-    device_mem_properties: VkPhysicalDeviceMemoryProperties
 ) -> (VkImage, VkDeviceMemory) {
+    let mut device_memory_properties: VkPhysicalDeviceMemoryProperties = unsafe {std::mem::zeroed()};
+
+    unsafe {
+        vkGetPhysicalDeviceMemoryProperties(self.physical_device, &mut device_memory_properties as &mut VkPhysicalDeviceMemoryProperties);
+    }
+
+
     let create_info = VkImageCreateInfo {
         s_type: 14,
         p_next: std::ptr::null(),
@@ -52,7 +108,7 @@ impl super::Engine {pub fn create_image(&mut self,
 
     unsafe {vkGetImageMemoryRequirements(self.device, image, &mut memory_requirements as *mut VkMemoryRequirements)};
 
-    let mem_type_index = self.find_memory_type(device_mem_properties, &memory_requirements, mem_properties);
+    let mem_type_index = self.find_memory_type(device_memory_properties, &memory_requirements, mem_properties);
 
 
     let alloc_info = VkMemoryAllocateInfo {
@@ -103,6 +159,35 @@ impl crate::engine::Engine { pub fn create_image_view(&mut self, image: VkImage,
     return image_view;
 }}}
 
+impl crate::engine::Engine {pub fn create_texture_sampler(&mut self) -> VkSampler {
+    let create_info = VkSamplerCreateInfo {
+        s_type: 31,
+        p_next: std::ptr::null(),
+        flags: 0,
+        mag_filter: 1,
+        min_filter: 1,
+        mipmap_mode: 1,
+        address_mode_u: 0,
+        addres_mode_v: 0,
+        address_mode_w: 0,
+        mip_lod_bias: 0.0,
+        anisotropy_enable: 1,
+        max_anisotropy: 16.0,
+        compare_enable: 0,
+        compare_op: 7,
+        min_lod: 0.0,
+        max_lod: 0.0,
+        border_color: 3,
+        unnormalized_coordinates: 0,
+    };
+
+    let mut sampler = 0;
+
+    unsafe {vkCreateSampler(self.device, &create_info as *const VkSamplerCreateInfo, std::ptr::null(), &mut sampler)};
+
+    return sampler;
+}}
+
 impl crate::engine::Engine {pub fn create_swapchain_image_views(&mut self) {
     self.swapchain_image_views = self.swapchain_images.clone().iter().map(|image| self.create_image_view(*image, 0x00000001, self.swapchain_image_format.format)).collect();              
 }}
@@ -116,7 +201,22 @@ impl crate::engine::Engine {pub fn transition_image_layout(&self, image: VkImage
                 0x00000001,
                 0x00000100,
             ),
-            _ => (0, 0, 0, 0)
+
+            (0, 7) => (
+                0,
+                0x00001000,
+                0x00000001,
+                0x00001000
+            ),
+
+            (7, 5) => (
+                0x00001000,
+                0x00000020,
+                0x00001000,
+                0x00000080
+            ),
+
+            _ => (0, 0, 0, 0),
         };
 
 
@@ -168,13 +268,6 @@ impl crate::engine::Engine {pub fn transition_image_layout(&self, image: VkImage
 }}
 
 impl crate::engine::Engine { pub fn create_depth_image(&mut self) {
-    let mut device_memory_properties: VkPhysicalDeviceMemoryProperties = unsafe {std::mem::zeroed()};
-
-    unsafe {
-        vkGetPhysicalDeviceMemoryProperties(self.physical_device, &mut device_memory_properties as &mut VkPhysicalDeviceMemoryProperties);
-    }
-
-
     (self.depth_image.0, self.depth_image.1) = self.create_image(
         self.swapchain_extent.width,
         self.swapchain_extent.height,
@@ -182,11 +275,30 @@ impl crate::engine::Engine { pub fn create_depth_image(&mut self) {
         0,
         0x00000020,
         0x00000001,
-        device_memory_properties
     );
 
 
     self.transition_image_layout(self.depth_image.0, self.depth_format, 0, 3);
 
     self.depth_image.2 = self.create_image_view(self.depth_image.0, 0x00000002, self.depth_format)
+}}
+
+impl crate::engine::Engine {pub fn copy_buffer_to_image(&self, buffer: VkBuffer, image: VkImage, width: u32, height: u32) {
+    self.execute_one_time_command(self.command_pool, self.graphics_queue, |cmd_buffer| {
+        let region = VkBufferImageCopy {
+            buffer_offset: 0,
+            buffer_row_length: 0,
+            buffer_image_height: 0,
+            image_subresource: VkImageSubresourceLayers {
+                aspect_mask: 0x00000001,
+                mip_level: 0,
+                base_array_layer: 0,
+                layer_count: 1,
+            },
+            image_offset: VkOffset3D {x: 0, y: 0, z: 0},
+            image_extent: VkExtent3D {width, height, depth: 1},
+        };
+
+        unsafe {vkCmdCopyBufferToImage(cmd_buffer, buffer, image, 7, 1, &region as *const VkBufferImageCopy)};
+    })
 }}
