@@ -143,7 +143,7 @@ impl crate::engine::Engine {pub fn create_pipeline_layouts(&mut self) {
 
 impl crate::engine::Engine {pub fn create_framebuffers(&mut self) {
     self.framebuffers = self.swapchain_image_views.iter()
-        .map(|view| [self.color_image.image_view, self.depth_image.image_view, *view]).map(|attachments| {
+        .map(|view| [self.color_texture.image_view, self.depth_texture.image_view, *view]).map(|attachments| {
 
         let framebuffer_create_info = VkFramebufferCreateInfo {
             s_type: 37,

@@ -122,10 +122,10 @@ pub struct Engine {
     world_view: world_view::WorldView,
     pub events: Vec<WindowEvent>,
     pub target_fps: f32,
-    depth_image: Texture,
+    depth_texture: Texture,
     depth_format: u32,
     msaa_samples: u32,
-    color_image: Texture
+    color_texture: Texture
 }
 
 pub fn initialize_engine<T>(

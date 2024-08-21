@@ -285,8 +285,8 @@ impl crate::engine::Engine {pub fn transition_image_layout(&self, image: VkImage
     });
 }}
 
-impl crate::engine::Engine { pub fn create_depth_image(&mut self) {
-    (self.depth_image.image, self.depth_image.memory) = self.create_image(
+impl crate::engine::Engine { pub fn create_depth_texture(&mut self) {
+    (self.depth_texture.image, self.depth_texture.memory) = self.create_image(
         self.swapchain_extent.width,
         self.swapchain_extent.height,
         self.depth_format,
@@ -297,15 +297,15 @@ impl crate::engine::Engine { pub fn create_depth_image(&mut self) {
     );
 
 
-    self.transition_image_layout(self.depth_image.image, self.depth_format, 0, 3);
+    self.transition_image_layout(self.depth_texture.image, self.depth_format, 0, 3);
 
-    self.depth_image.image_view = self.create_image_view(self.depth_image.image, 0x00000002, self.depth_format)
+    self.depth_texture.image_view = self.create_image_view(self.depth_texture.image, 0x00000002, self.depth_format)
 }}
 
 impl crate::engine::Engine {pub fn create_color_texture(&mut self) {
     let format = self.swapchain_image_format.format;
 
-    (self.color_image.image, self.color_image.memory) = self.create_image(
+    (self.color_texture.image, self.color_texture.memory) = self.create_image(
         self.swapchain_extent.width,
         self.swapchain_extent.height,
         format,
@@ -316,9 +316,9 @@ impl crate::engine::Engine {pub fn create_color_texture(&mut self) {
     );
 
 
-    self.transition_image_layout(self.color_image.image, format, 0, 2);
+    self.transition_image_layout(self.color_texture.image, format, 0, 2);
 
-    self.color_image.image_view = self.create_image_view(self.color_image.image, 0x00000001, format)
+    self.color_texture.image_view = self.create_image_view(self.color_texture.image, 0x00000001, format)
 }}
 
 impl crate::engine::Engine {pub fn copy_buffer_to_image(&self, buffer: VkBuffer, image: VkImage, width: u32, height: u32) {

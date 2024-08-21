@@ -63,10 +63,10 @@ impl super::Engine {
             world_view: WorldView::zero(),
             events: vec!(),
             target_fps: 0.0,
-            depth_image: Default::default(),
+            depth_texture: Default::default(),
             depth_format: 0,
             msaa_samples: 0,
-            color_image: Default::default()
+            color_texture: Default::default()
         };
 
         let supported_instance_extensions = unsafe { vk_enumerate_to_vec!(
@@ -131,7 +131,7 @@ impl super::Engine {
         engine.create_color_texture();
 
         
-        engine.create_depth_image();
+        engine.create_depth_texture();
 
 
         engine.add_pipelines(engine.default_pipelines());
