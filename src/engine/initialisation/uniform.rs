@@ -56,7 +56,7 @@ impl crate::engine::Engine { pub fn update_descriptor_sets(
     &mut self,
     descriptor_sets: Vec<VkDescriptorSet>,                                          
     bindings: Vec<(u32, Vec<VkBuffer>, u64)>, // binding, buffer range (object size)
-    image: Option<Texture>
+    image: Texture
 ) {
     for i in 0 .. descriptor_sets.len() {
         let mut descriptor_writes = vec!();
@@ -85,11 +85,9 @@ impl crate::engine::Engine { pub fn update_descriptor_sets(
                 texel_buffer_view: std::ptr::null()
             };
 
-            let image = match image {Some(image) => image, None => (0, 0, 0, 0)};
-
             let image_info = VkDescriptorImageInfo {
-                sampler: image.3,
-                image_view: image.2,
+                sampler: image.sampler,
+                image_view: image.image_view,
                 image_layout: 5
             }; image_infos.push(image_info);
 

@@ -63,10 +63,10 @@ impl super::Engine {
             world_view: WorldView::zero(),
             events: vec!(),
             target_fps: 0.0,
-            depth_image: (0, 0, 0, 0),
+            depth_image: Default::default(),
             depth_format: 0,
             msaa_samples: 0,
-            color_image: (0, 0, 0, 0)
+            color_image: Default::default()
         };
 
         let supported_instance_extensions = unsafe { vk_enumerate_to_vec!(

@@ -15,8 +15,14 @@ pub type VkImage = u64;
 
 pub type VkSampler = u64;
 
-pub type Texture = (VkImage, VkDeviceMemory, VkImageView, VkSampler);
 
+#[derive(Clone)]
+pub struct Texture {
+    pub image: VkImage, 
+    pub memory: VkDeviceMemory,
+    pub image_view: VkImageView, 
+    pub sampler: VkSampler
+}
 
 #[repr(C)]
 pub struct VkDescriptorImageInfo {

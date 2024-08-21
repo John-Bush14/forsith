@@ -20,9 +20,9 @@ impl super::Engine { pub fn cleanup_swapchain(&mut self) { unsafe {
 
     self.swapchain_image_views.iter().for_each(|&image_view| vkDestroyImageView(self.device, image_view, std::ptr::null()));
 
-    vkDestroyImageView(self.device, self.depth_image.2, std::ptr::null());
-    vkFreeMemory(self.device, self.depth_image.1, std::ptr::null());
-    vkDestroyImage(self.device, self.depth_image.0, std::ptr::null());
+    vkDestroyImageView(self.device, self.depth_image.image_view, std::ptr::null());
+    vkFreeMemory(self.device, self.depth_image.memory, std::ptr::null());
+    vkDestroyImage(self.device, self.depth_image.image, std::ptr::null());
 
     vkDestroySwapchainKHR(self.device, self.swapchain, std::ptr::null());
 }}}

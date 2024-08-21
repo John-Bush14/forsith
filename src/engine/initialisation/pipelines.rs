@@ -142,7 +142,9 @@ impl crate::engine::Engine {pub fn create_pipeline_layouts(&mut self) {
 }}
 
 impl crate::engine::Engine {pub fn create_framebuffers(&mut self) {
-    self.framebuffers = self.swapchain_image_views.iter().map(|view| [self.color_image.2, self.depth_image.2, *view]).map(|attachments| {
+    self.framebuffers = self.swapchain_image_views.iter()
+        .map(|view| [self.color_image.image_view, self.depth_image.image_view, *view]).map(|attachments| {
+
         let framebuffer_create_info = VkFramebufferCreateInfo {
             s_type: 37,
             p_next: std::ptr::null(),

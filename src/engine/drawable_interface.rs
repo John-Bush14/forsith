@@ -1,5 +1,6 @@
 use crate::engine::drawables::Drawable;
 
+use crate::vulkan::image::Texture;
 use crate::vulkan::pipeline::Uniform;
 use crate::vulkan::uniform::DescriptorBindings;
 
@@ -39,10 +40,10 @@ impl crate::engine::Engine { pub fn add_drawable<'a>(&'a mut self, mut drawable:
 
         bindings.push(((bindings.len()) as u32, uniform_buffers, uniform.size_of()));
     }
-                
+
     self.update_descriptor_sets(drawable.descriptor_sets.clone(), bindings, 
-        if let Some(image) = &drawable.image {Some(image.1)}
-        else {None}
+        if let Some(image) = &drawable.image {image.1.clone()}
+        else {Default::default()}
     );
 
     drawable.device = self.device;
