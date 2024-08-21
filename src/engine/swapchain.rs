@@ -22,6 +22,8 @@ impl super::Engine { pub fn cleanup_swapchain(&mut self) { unsafe {
 
     self.depth_image.drop(self.device);
 
+    self.color_image.drop(self.device);
+
     vkDestroySwapchainKHR(self.device, self.swapchain, std::ptr::null());
 }}}
 
@@ -39,6 +41,8 @@ impl super::Engine { pub fn recreate_swapchain(&mut self) {
     self.create_swapchain();
     
     self.create_depth_image();
+
+    self.create_color_texture();
                                                                                                                                                                                                     
     self.create_swapchain_image_views();
 
