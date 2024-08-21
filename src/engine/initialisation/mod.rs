@@ -129,8 +129,6 @@ impl super::Engine {
 
         engine.add_pipelines(engine.default_pipelines());
 
-        engine.create_needed_pipelines(false);
-
 
         engine.create_descriptor_pool();
 
