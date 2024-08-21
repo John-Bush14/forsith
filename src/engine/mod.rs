@@ -123,7 +123,9 @@ pub struct Engine {
     pub events: Vec<WindowEvent>,
     pub target_fps: f32,
     depth_image: Texture,
-    depth_format: u32
+    depth_format: u32,
+    msaa_samples: u32,
+    color_image: Texture
 }
 
 pub fn initialize_engine<T>(

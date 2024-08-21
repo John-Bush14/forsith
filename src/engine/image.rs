@@ -1,4 +1,4 @@
-use crate::vulkan::{image::{
+use crate::vulkan::{devices::physical_device::{vkGetPhysicalDeviceProperties, VkPhysicalDeviceProperties}, image::{
         vkBindImageMemory, vkCmdCopyBufferToImage, vkCmdPipelineBarrier, vkCreateImage, vkCreateImageView, vkCreateSampler, vkGetImageMemoryRequirements, Texture, VkBufferImageCopy, VkComponentMapping, VkExtent3D, VkImage, VkImageCreateInfo, VkImageMemoryBarrier, VkImageSubresourceLayers, VkImageSubresourceRange, VkImageView, VkImageViewCreateInfo, VkOffset3D, VkSampler, VkSamplerCreateInfo
     }, vertex::{vkAllocateMemory, vkDestroyBuffer, vkFreeMemory, vkGetPhysicalDeviceMemoryProperties, vkMapMemory, vkUnmapMemory, VkBuffer, VkDeviceMemory, VkMemoryAllocateInfo, VkMemoryRequirements, VkPhysicalDeviceMemoryProperties}};
 
@@ -301,4 +301,19 @@ impl crate::engine::Engine {pub fn copy_buffer_to_image(&self, buffer: VkBuffer,
 
         unsafe {vkCmdCopyBufferToImage(cmd_buffer, buffer, image, 7, 1, &region as *const VkBufferImageCopy)};
     })
+}}
+
+impl crate::engine::Engine {pub fn get_max_usable_sample_count(&mut self) {
+    let mut properties: VkPhysicalDeviceProperties = unsafe {std::mem::zeroed()};
+
+    unsafe {vkGetPhysicalDeviceProperties(self.physical_device, &mut properties as *mut VkPhysicalDeviceProperties)};
+
+    let color_sample_counts = properties.limits.framebuffer_color_sample_counts;
+    let depth_sample_counts = properties.limits.framebuffer_depth_sample_counts;
+
+    let sample_counts = color_sample_counts.min(depth_sample_counts);
+
+    let possibilities: Vec<u32> = vec![0x00000040, 0x00000020,  0x00000010, 0x00000008, 0x00000004, 0x00000002, 0x00000001];
+
+    self.msaa_samples = *possibilities.iter().find(|possibility| sample_counts & **possibility != 0).unwrap();
 }}
