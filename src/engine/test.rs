@@ -9,13 +9,6 @@ mod tests {
         momentum: [f32;3]
     }
 
-    const RECT: [[f32; 2]; 4] = [
-        [0.0, 0.0],
-        [1.0, 0.0],
-        [1.0, 1.0],
-        [0.0, 1.0],
-    ];
-
     #[test]
     fn template() {
         engine::initialize_engine(
@@ -27,7 +20,7 @@ mod tests {
 
                 let mut rect = Drawable::rect_from_transform([-0.5, -0.5], 0.25, 0.25, 0.0, [1.0;4], false, true);
                 let image = engine.create_texture("src/engine/assets/test.jpg".to_string());
-                rect.set_image(image, RECT.to_vec());
+                rect.set_image(image);
 
                 let cuber = Drawable::cube_from_transform([4.0, 0.0, 0.0], 1.0, 1.0, 1.0, [1.0, 0.0, 0.0, 1.0]);
                 let cubeg = Drawable::cube_from_transform([00.0, 4.0, 0.0], 1.0, 1.0, 1.0, [0.0, 1.0, 0.0, 1.0]);

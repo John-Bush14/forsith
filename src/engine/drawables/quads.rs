@@ -1,4 +1,4 @@
-use super::{points_to_vertices, Drawable, Color};
+use super::{points_to_vertices, points_to_coords, Drawable, Color};
 
 
 const RECT: [[f32; 3]; 6] = [
@@ -76,7 +76,9 @@ impl Drawable {
         drawable.tex = col;
         drawable.pos = pos;
         drawable.scale = [width, height, depth];
-        drawable.vertices = points_to_vertices(CUBE.to_vec(), None, col);
+        drawable.vertices = points_to_vertices(CUBE.to_vec(), col);
+
+        drawable.coords = points_to_coords(CUBE.to_vec());
 
         return drawable;
     }
@@ -88,8 +90,10 @@ impl Drawable {
         drawable.pos = [pos[0], pos[1], 0.0];
         drawable.scale = [width, height, 1.0];
         drawable.rot = rot;
-        drawable.vertices = points_to_vertices(RECT.to_vec(), Some(RECT_COORDS.to_vec()), col);
+        drawable.vertices = points_to_vertices(RECT.to_vec(), col);
         drawable.pipeline_id = if ui {super::PIPELINE_UI_2D} else if image {4} else {super::PIPELINE_2D};
+
+        drawable.coords = RECT_COORDS.to_vec();
 
         return drawable;
     }

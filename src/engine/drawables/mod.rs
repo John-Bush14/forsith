@@ -43,18 +43,19 @@ pub struct Drawable {
     pub device: u64,
     pipeline_id: usize,
     pub image: Option<Texture>,
-    pub coords: Option<Vec<[f32;2]>>
+    pub coords: Vec<[f32;2]>
 }
 
 
-pub(self) fn points_to_vertices(points: Vec<[f32;3]>, coords: Option<Vec<[f32;2]>>, color: Color) -> Vec<Vertex> {
-    points.iter().enumerate().map(|(i, &point)| 
-        return Vertex {pos: point, color, coord: 
-            if let Some(coords) = &coords {coords[i]}
-            else {[0.0;2]}
-    }).collect()
+pub(self) fn points_to_vertices(points: Vec<[f32;3]>, color: Color) -> Vec<Vertex> {
+    points.iter().map(|&point| 
+        return Vertex {pos: point, color, coord: [0.0;2]}
+    ).collect()
 }
 
+pub(self) fn points_to_coords(points: Vec<[f32;3]>) -> Vec<[f32;2]> {
+    return points.iter().map(|point| [point[0] + 0.5, point[1] + 0.5]).collect();
+}
 
 impl Drawable {
     pub fn get_vertices(&self) -> &Vec<Vertex> {
@@ -116,7 +117,11 @@ impl Drawable {
     pub fn get_id(&self) -> usize {return self.id}
 }
 
-impl Drawable {
+impl Drawable {                                     
+    pub fn update_vertice_coords(&mut self) {
+        self.vertices.iter_mut().enumerate().for_each(|(i, vertice)| vertice.coord = self.coords[i]);
+    }               
+
     pub fn matrix_change(&mut self) {self.matrix_changed = true}
 
     pub fn pos(&self) -> &[f32;3] {return &self.pos}
@@ -134,12 +139,10 @@ impl Drawable {
 
     pub fn get_pipeline_id(&self) -> usize {return self.pipeline_id}
     
-    pub fn set_image(&mut self, image: Texture, coords: Vec<[f32;2]>) {
+    pub fn set_image(&mut self, image: Texture) {
         if let Some(image) = &mut self.image {image.drop(self.device)}
 
         self.image = Some(image);
-
-        self.coords = Some(coords);
     }
 }
 
@@ -165,7 +168,7 @@ impl Default for Drawable {
             device: 0,
             pipeline_id: PIPELINE_3D,
             image: None,
-            coords: None,
+            coords: vec!(),
         };
     }
 }

@@ -6,6 +6,8 @@ use crate::vulkan::uniform::DescriptorBindings;
 
 
 impl crate::engine::Engine { pub fn add_drawable<'a>(&'a mut self, mut drawable: Drawable) -> &'a mut Drawable {
+    drawable.update_vertice_coords();
+
     let pipeline_id = drawable.get_pipeline_id();
 
     self.pipelines[pipeline_id].uses += 1;
