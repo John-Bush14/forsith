@@ -59,7 +59,6 @@ impl crate::engine::Engine { pub fn create_instance(&mut self, supported_extensi
     let (extensions, extensions_len) = prepare_extensions!(supported_extensions,
         "VK_KHR_surface",
         "VK_KHR_xlib_surface",
-        #[cfg(debug_assertions)]
         "VK_EXT_debug_utils",
         "VK_KHR_wayland_surface",
         "VK_KHR_win32_surface",
@@ -69,7 +68,6 @@ impl crate::engine::Engine { pub fn create_instance(&mut self, supported_extensi
     let supported_layers = vk_enumerate_to_vec!(vkEnumerateInstanceLayerProperties, VkLayerProperties,);
 
     let (layers, layer_len) = prepare_extensions![supported_layers,
-        #[cfg(debug_assertions)]
         "VK_LAYER_KHRONOS_validation",
     ];
 
