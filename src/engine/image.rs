@@ -139,7 +139,7 @@ impl super::Engine {pub fn create_image(&self,
     return (image, memory);
 }}
 
-impl crate::engine::Engine { pub fn create_image_view(&mut self, image: VkImage, aspect_mask: u32, format: u32) -> VkImageView { unsafe {
+impl crate::engine::Engine { pub fn create_image_view(&self, image: VkImage, aspect_mask: u32, format: u32) -> VkImageView { unsafe {
     let components = VkComponentMapping {r: 0, g: 0, b: 0, a: 0};
 
     let subresource_range = VkImageSubresourceRange {
@@ -200,7 +200,7 @@ impl crate::engine::Engine {pub fn create_texture_sampler(&mut self) -> VkSample
 }}
 
 impl crate::engine::Engine {pub fn create_swapchain_image_views(&mut self) {
-    self.swapchain_image_views = self.swapchain_images.clone().iter()
+    self.swapchain_image_views = self.swapchain_images.iter()
         .map(|image| self.create_image_view(*image, 0x00000001, self.swapchain_image_format.format)).collect();
 }}
 
