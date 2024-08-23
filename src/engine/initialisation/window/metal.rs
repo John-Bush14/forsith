@@ -19,13 +19,13 @@ impl Window for MWindow {
     fn set_height(&mut self, height: u32) {todo!();}
 
     fn init_connection(dimensions: [i32; 2]) -> Self where Self: Sized {return MWindow {}}
-    
-    fn init_window(&mut self, name: String) {panic!("metal not yet implemented!!!")}
+
+    fn init_window(&mut self, name: &str) {panic!("metal not yet implemented!!!")}
 
     fn create_surfaceKHR(&self, instance: crate::vulkan::instance::VkInstance) -> VkSurfaceKHR {todo!();}
 
     fn get_events(&mut self, dimensions: [i32; 2]) -> Vec<WindowEvent> {todo!();}
-    
+
     fn supports_physical_device_queue(&self, physical_device: VkPhysicalDevice, queue: u32) -> bool {todo!();}
 
     fn commit_suicide(&self) {todo!();}

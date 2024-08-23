@@ -23,8 +23,8 @@ mod metal;
 #[cfg(target_os = "macos")]
 use crate::vulkan::window::metal::MWindow;
 
-impl super::super::Engine { 
-    pub fn create_test_connections(&self, _supported_instance_extensions: Vec<VkExtensionProperties>) -> Vec<Box<dyn Window>> {
+impl super::super::Engine {
+    pub fn create_test_connections(&self) -> Vec<Box<dyn Window>> {
         let mut test_connections: Vec<Box<dyn Window>> = vec![];
 
         if cfg!(target_os = "linux") {
@@ -39,7 +39,7 @@ impl super::super::Engine {
 
         #[cfg(target_os = "windows")]
         test_connections.push(Box::new(WinWindow::init_connection(self.dimensions)));
-        
+
         #[cfg(target_os = "macos")]
         test_connections.push(Box::new(MWindow::init_connection(self.dimensions)));
 
@@ -47,8 +47,8 @@ impl super::super::Engine {
     }
 }
 
-impl super::super::Engine { pub fn finalize_connection(&mut self, mut connection: Box<dyn Window>, name: String) {
-    connection.init_window(name);
+impl super::super::Engine { pub fn finalize_connection(&mut self, mut connection: Box<dyn Window>) {
+    connection.init_window(&self.app_name);
     self.window = connection;
 }}
 

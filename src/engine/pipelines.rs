@@ -13,14 +13,14 @@ impl crate::engine::Engine {pub fn add_pipelines(&mut self, pipelines: Vec<Graph
 impl crate::engine::Engine { pub fn free_pipelines(&mut self) {
     self.pipelines.iter_mut().filter(|pipeline| pipeline.uses <= 0)
         .for_each(|pipeline| {
-            unsafe {vkDestroyPipeline(self.device, pipeline.pipeline, std::ptr::null())}; 
+            unsafe {vkDestroyPipeline(self.device, pipeline.pipeline, std::ptr::null())};
             pipeline.pipeline = 0;
     });
 }}
 
 impl crate::engine::Engine { pub fn create_needed_pipelines(&mut self, recreate: bool) {
 	 if recreate || self.render_pass == 0 {
-        self.render_pass = create_render_pass(self.device.clone(), self.swapchain_image_format.format, self.depth_format, self.msaa_samples);
+        self.render_pass = create_render_pass(self.device, self.swapchain_image_format.format, self.depth_format, self.msaa_samples);
     };
 
     let mut changed_pipelines: Vec<(usize, VkPipeline)> = vec!();

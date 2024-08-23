@@ -21,9 +21,9 @@ use super::world_view::WorldView;
 
 
 impl super::Engine {
-    pub fn init(name: String, version: [u8;3]) -> Result<Self, Box<dyn std::error::Error>> { 
+    pub fn init(name: String, version: [u8;3]) -> Result<Self, Box<dyn std::error::Error>> {
         let mut engine: super::Engine = super::Engine {
-            app_name: name.clone(),
+            app_name: name,
             app_version: vk_make_version(version[0] as u32, version[1] as u32, version[2] as u32),
             vertices: vec!(),
             instance: 0,
@@ -44,7 +44,7 @@ impl super::Engine {
             command_pool: 0,
             transient_command_pool: 0,
             command_buffers: vec!(),
-            image_available_semaphores: vec!(), 
+            image_available_semaphores: vec!(),
             render_finished_semaphores: vec!(),
             in_flight_fences: vec!(),
             current_frame: 0,
@@ -59,7 +59,7 @@ impl super::Engine {
             descriptor_pool: 0,
             vertex_usage_counts: std::collections::HashMap::new(),
             vertex_indices: std::collections::HashMap::new(),
-            drawables: vec!(),                  
+            drawables: vec!(),
             world_view: WorldView::zero(),
             events: vec!(),
             target_fps: 0.0,
@@ -70,27 +70,27 @@ impl super::Engine {
         };
 
         let supported_instance_extensions = unsafe { vk_enumerate_to_vec!(
-            vkEnumerateInstanceExtensionProperties, 
+            vkEnumerateInstanceExtensionProperties,
             VkExtensionProperties,
             std::ptr::null(),
         )};
 
 
-        engine.create_instance(supported_instance_extensions.clone());
+        engine.create_instance(supported_instance_extensions);
 
 
-        let test_window_connections = engine.create_test_connections(supported_instance_extensions);
+        let test_window_connections = engine.create_test_connections();
 
         let chosen_window_connection = engine.create_device(test_window_connections);
-    
 
-        engine.finalize_connection(chosen_window_connection, engine.app_name.clone());
-        
+
+        engine.finalize_connection(chosen_window_connection);
+
         engine.create_surface_khr(engine.instance);
-        
+
 
         engine.create_command_pool(false);
-        
+
         engine.create_command_pool(true);
 
 
@@ -100,8 +100,8 @@ impl super::Engine {
 
 
         engine.find_depth_format();
-        
-        
+
+
         let (uniform_buffers, uniform_memories) = engine.create_uniform_buffers(Uniform::Camera2d.size_of());
         let uniform_buffers_2d = uniform_buffers.iter()
             .zip(uniform_memories.iter())
@@ -130,7 +130,7 @@ impl super::Engine {
 
         engine.create_color_texture();
 
-        
+
         engine.create_depth_texture();
 
 
@@ -139,7 +139,7 @@ impl super::Engine {
 
         engine.create_descriptor_pool();
 
-        
+
         return Ok(engine);
     }
 }

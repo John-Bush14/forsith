@@ -16,30 +16,32 @@ use crate::vulkan::{
 impl super::Engine { pub fn process_events(&mut self) -> bool {
     let events = self.window.get_events(self.dimensions);
 
-    self.events = events.clone();
-
-    for event in events {match event {
+    for event in &events {match *event {
         WindowEvent::Death => return true,
         WindowEvent::WindowResize(dimensions) => {self.new_dimensions = Some(dimensions)},
         _ => {}
-    }} return false;
+    }};
+
+    self.events = events;
+
+    return false;
 }}
 
 impl super::Engine { pub fn start_loop<T>(mut self, event_loop: fn(&mut super::Engine, &mut T, f32), mut user_data: T) {
     if self.vertices.len() > 0 {self.create_vertex_buffer()}
 
-    
+
     self.create_needed_pipelines(false);
 
-        
+
     self.create_command_buffers();
-        
+
     self.record_and_enter_command_buffers();
 
 
     self.create_sync_objects();
 
-    
+
     let mut deltadur = std::time::Instant::now();
 
 
@@ -52,9 +54,9 @@ impl super::Engine { pub fn start_loop<T>(mut self, event_loop: fn(&mut super::E
         let seconds = deltatime.as_secs() as f32;
         let nanoseconds = deltatime.subsec_nanos() as f32;
         let delta = seconds + nanoseconds / 1_000_000_000.0;
-        
+
         deltadur = std::time::Instant::now();
-        
+
         self.create_needed_pipelines(false);
         self.free_pipelines();
 
@@ -62,19 +64,19 @@ impl super::Engine { pub fn start_loop<T>(mut self, event_loop: fn(&mut super::E
 
         let image_available_semaphore = self.image_available_semaphores[self.current_frame];
         let render_finished_semaphore = self.render_finished_semaphores[self.current_frame];
-        
+
         let in_flight_fence = self.in_flight_fences[self.current_frame];
 
-        
+
         let wait_fences = [in_flight_fence];
-        
+
         unsafe {
             vkWaitForFences(self.device, wait_fences.len() as u32, wait_fences.as_ptr(), 1, std::u64::MAX);
 
             vkResetFences(self.device, wait_fences.len() as u32, wait_fences.as_ptr());
         };
 
-        
+
         let mut image_index: u32 = 0;
 
         unsafe { vkAcquireNextImageKHR(
@@ -85,15 +87,15 @@ impl super::Engine { pub fn start_loop<T>(mut self, event_loop: fn(&mut super::E
             0,
             &mut image_index
         )};
-        
+
         let aspect = self.swapchain_extent.width as f32 / self.swapchain_extent.height as f32;
-        
+
         self.world_view.update(aspect, self.device);
 
         for drawable in &mut self.drawables {
             drawable.update(image_index as usize, self.device, &self.pipelines[drawable.get_pipeline_id()]);
         }
-    
+
         let wait_semaphores = [image_available_semaphore];
         let signal_semaphores = [render_finished_semaphore];
 
@@ -118,7 +120,7 @@ impl super::Engine { pub fn start_loop<T>(mut self, event_loop: fn(&mut super::E
 
 
         let swapchains = [self.swapchain];
-        
+
         let image_indices = [image_index];
 
         let present_info = VkPresentInfoKHR {
@@ -131,18 +133,18 @@ impl super::Engine { pub fn start_loop<T>(mut self, event_loop: fn(&mut super::E
             image_indices: image_indices.as_ptr(),
             results: std::ptr::null_mut()
         };
-            
+
         let result = unsafe {vkQueuePresentKHR(self.presentation_queue, &present_info as *const VkPresentInfoKHR)};
-        
-        if  result == 1000001003 
-            || result == 1000001004 
-            || self.new_dimensions.is_some() 
-            
+
+        if  result == 1000001003
+            || result == 1000001004
+            || self.new_dimensions.is_some()
+
             {self.recreate_swapchain()}
 
         self.current_frame = (self.current_frame + 1) % MAX_FRAMES_IN_FLIGHT as usize;
-        
-        
+
+
         if self.target_fps > 0.0 {
             let elapsed_time = start.elapsed();
             let target_spf = 1.0/self.target_fps;
@@ -151,7 +153,7 @@ impl super::Engine { pub fn start_loop<T>(mut self, event_loop: fn(&mut super::E
 
             if target_fps_duration > elapsed_time {
                 let extra_wait_time = target_fps_duration - elapsed_time;
-            
+
                 std::thread::sleep(extra_wait_time);
             }
         }

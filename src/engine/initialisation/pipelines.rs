@@ -37,16 +37,16 @@ impl Uniform {
         } as u64;
     }
 }
-                                                            
+
 impl GraphicsPipeline { pub fn new(
     vertex_shader: &str,
-    fragment_shader: &str, 
-    vertex_input: Vec<Uniform>, 
+    fragment_shader: &str,
+    vertex_input: Vec<Uniform>,
     fragment_input: Vec<Uniform>,
-    device: &VkDevice, 
+    device: &VkDevice,
     persistent: bool
 ) -> GraphicsPipeline {
-    
+
     return GraphicsPipeline {
         pipeline: 0,
         vertex_shader: create_shader_module_from_file(device, vertex_shader),
@@ -102,7 +102,7 @@ impl crate::engine::Engine { pub fn default_pipelines(&self) -> Vec<GraphicsPipe
     ];
 }}
 
-impl DescriptorBindings {pub fn from(vertex_uniforms: Vec<Uniform>, fragment_uniforms: Vec<Uniform>) -> Self {                 
+impl DescriptorBindings {pub fn from(vertex_uniforms: &Vec<Uniform>, fragment_uniforms: &Vec<Uniform>) -> Self {
     return DescriptorBindings(
         vertex_uniforms.iter().map(|uniform| return match *uniform {Uniform::Image => 1, _ => 0}).collect(),
         fragment_uniforms.iter().map(|uniform| return match *uniform {Uniform::Image => 1, _ => 0}).collect()
@@ -110,13 +110,13 @@ impl DescriptorBindings {pub fn from(vertex_uniforms: Vec<Uniform>, fragment_uni
 }}
 
 impl crate::engine::Engine {pub fn create_pipeline_layouts(&mut self) {
-    self.pipelines.iter()                                                                                                                                                                           
-        .map(|pipeline| return DescriptorBindings::from(pipeline.vertex_uniforms.clone(), pipeline.fragment_uniforms.clone()))
+    self.pipelines.iter()
+        .map(|pipeline| return DescriptorBindings::from(&pipeline.vertex_uniforms, &pipeline.fragment_uniforms))
         .filter(|descriptor_binding| return !self.pipeline_layouts.contains_key(&descriptor_binding))
         .collect::<std::collections::HashSet<_>>().into_iter()
         .collect::<Vec<_>>().into_iter()
         .for_each(|descriptor_count| {
-            let descriptor_set_layout = self.create_descriptor_set_layout(descriptor_count.clone());
+            let descriptor_set_layout = self.create_descriptor_set_layout(&descriptor_count);
 
             let pipeline_layout_create_info = VkPipelineLayoutCreateInfo {
 	             s_type: 30,
@@ -131,7 +131,7 @@ impl crate::engine::Engine {pub fn create_pipeline_layouts(&mut self) {
             let mut pipeline_layout = 0;
 
             unsafe { vkCreatePipelineLayout(
-		          self.device.clone(),
+		          self.device,
 		          &pipeline_layout_create_info as *const VkPipelineLayoutCreateInfo,
 	 	          std::ptr::null(),
 		          &mut pipeline_layout
@@ -169,10 +169,10 @@ impl crate::engine::Engine {pub fn create_framebuffers(&mut self) {
         return framebuffer;
     }).collect();
 }}
-                    
+
 impl crate::engine::Engine {pub fn create_pipeline(&self, pipeline: &GraphicsPipeline) -> VkPipeline {
     let entry_point_name = CString::new("main").unwrap();
-    let descriptor_bindings = DescriptorBindings::from(pipeline.vertex_uniforms.clone(), pipeline.fragment_uniforms.clone());
+    let descriptor_bindings = DescriptorBindings::from(&pipeline.vertex_uniforms, &pipeline.fragment_uniforms);
     let pipeline_layout = self.pipeline_layouts.get(&descriptor_bindings).unwrap().0;
 
     let vertex_shader_stage_create_info = VkPipelineShaderStageCreateInfo {
@@ -194,7 +194,7 @@ impl crate::engine::Engine {pub fn create_pipeline(&self, pipeline: &GraphicsPip
 		  name: entry_point_name.as_ptr(),
 		  specialization_info: std::ptr::null()
 	 };
-    
+
 	 let shader_stage_create_infos = [vertex_shader_stage_create_info, fragment_shader_stage_create_info];
 
 	 let vertex_input_binding_description = VkVertexInputBindingDescription {
@@ -216,7 +216,7 @@ impl crate::engine::Engine {pub fn create_pipeline(&self, pipeline: &GraphicsPip
 		  format: 109,
 		  offset: 12
 	 };
-	 
+
     let coords_vertex_input_attribute_description = VkVertexInputAttributeDescription {
 		  location: 2,
 		  binding: 0,
@@ -227,7 +227,7 @@ impl crate::engine::Engine {pub fn create_pipeline(&self, pipeline: &GraphicsPip
 	 let vertex_binding_descriptions = [vertex_input_binding_description];
 
     let mut vertex_attribute_descriptions = vec![position_vertex_input_attribute_description, color_vertex_input_attribute_description];
-                
+
     if descriptor_bindings.0.contains(&1) || descriptor_bindings.1.contains(&1) {vertex_attribute_descriptions.push(coords_vertex_input_attribute_description);}
 
 	 let vertex_input_state_create_info = VkPipelineVertexInputStateCreateInfo {
@@ -239,7 +239,7 @@ impl crate::engine::Engine {pub fn create_pipeline(&self, pipeline: &GraphicsPip
 		  vertex_attribute_description_count: vertex_attribute_descriptions.len() as u32,
 		  vertex_attribute_descriptions: vertex_attribute_descriptions.as_ptr()
 	 };
-    
+
 
 	 let input_assembly_state_create_info = VkPipelineInputAssemblyStateCreateInfo {
 		  s_type: 20,
@@ -335,19 +335,19 @@ impl crate::engine::Engine {pub fn create_pipeline(&self, pipeline: &GraphicsPip
 	 tessellation_state_create_info.p_next = std::ptr::null();
 
     let default_stencil_op_state: VkStencilOpState = unsafe {std::mem::zeroed()};
-	 	
+
 	 let depth_stencil_create_info = VkPipelineDepthStencilStateCreateInfo {
         s_type: 25,
         p_next: std::ptr::null(),
         flags: 0,
-        depth_test_enable: 1, 
+        depth_test_enable: 1,
         depth_write_enable: 1,
         depth_compare_op: 1,
         depth_bounds_test_enable: 0,
         stencil_test_enable: 0,
         front: default_stencil_op_state.clone(), back: default_stencil_op_state,
         min_depth_bounds: 0.0,
-        max_depth_bounds: 1.0 
+        max_depth_bounds: 1.0
     };
 
 	 let create_info = VkGraphicsPipelineCreateInfo {
@@ -373,13 +373,13 @@ impl crate::engine::Engine {pub fn create_pipeline(&self, pipeline: &GraphicsPip
 	 };
 
     let create_infos = [create_info];
-    
+
     let mut pipeline = 0;
 
     unsafe { vkCreateGraphicsPipelines(
-		  self.device.clone(),
+		  self.device,
 		  0,
-	     create_infos.len() as u32,                                                                                                                                                                                                                                     
+	     create_infos.len() as u32,
 		  create_infos.as_ptr(),
 		  std::ptr::null(),
 		  &mut pipeline
@@ -400,7 +400,7 @@ impl crate::engine::Engine {pub fn find_depth_format(&mut self) {
 
     self.depth_format = candidates.into_iter().find(|candidate| {
         let mut properties: VkFormatProperties = unsafe {std::mem::zeroed()};
-                                
+
         unsafe {vkGetPhysicalDeviceFormatProperties(self.physical_device, *candidate, &mut properties as *mut VkFormatProperties)};
 
         return (tiling == 1 && (properties.linear_tiling_features & features != 0)) || (tiling == 0)
@@ -431,7 +431,7 @@ pub fn create_render_pass(device: VkDevice, swapchain_image_format: u32, depth_f
         initial_layout: 0,
         final_layout: 3
     };
-    
+
     let resolve_attachment_description = VkAttachmentDescription {
         flags: 0,
         format: swapchain_image_format,
@@ -446,7 +446,7 @@ pub fn create_render_pass(device: VkDevice, swapchain_image_format: u32, depth_f
 
 
     let attachment_descriptions = [
-        color_attachment_description, 
+        color_attachment_description,
         depth_attachment_description,
         resolve_attachment_description
     ];
@@ -456,7 +456,7 @@ pub fn create_render_pass(device: VkDevice, swapchain_image_format: u32, depth_f
         attachment: 0,
         layout: 2
     };
-    
+
     let depth_attachment = VkAttachmentReference {
         attachment: 1,
         layout: 3
@@ -481,9 +481,9 @@ pub fn create_render_pass(device: VkDevice, swapchain_image_format: u32, depth_f
         preserve_attachment_count: 0,
         preserve_attachments: std::ptr::null()
     };
-    
+
     let subpass_descriptions = [subpass_description];
-    
+
 
     let dependency = VkSubpassDependency {
         src_subpass: std::u32::MAX,
@@ -509,7 +509,7 @@ pub fn create_render_pass(device: VkDevice, swapchain_image_format: u32, depth_f
         dependency_count: dependencies.len() as u32,
         dependencies: dependencies.as_ptr()
     };
-    
+
 
     let mut render_pass: VkRenderPass = 0;
 
@@ -538,7 +538,7 @@ fn create_shader_module_from_file(device: &VkDevice, file: &str) -> VkShaderModu
         code_size: code.len()*4,
         code: code.as_ptr()
     };
-    
+
     let mut shader_module: VkShaderModule = unsafe{std::mem::zeroed()};
 
     unsafe { vkCreateShaderModule(
@@ -547,6 +547,6 @@ fn create_shader_module_from_file(device: &VkDevice, file: &str) -> VkShaderModu
         std::ptr::null(),
         &mut shader_module as *mut VkShaderModule
     )};
-    
+
     return shader_module;
 }

@@ -13,7 +13,7 @@ impl crate::engine::Engine {pub fn create_texture(&mut self, file: String) -> Te
     let mut texture: Texture = Default::default();
 
     (texture.image, texture.memory) = self.create_texture_image(file);
-    
+
     texture.image_view = self.create_image_view(texture.image, 0x00000001, 37);
 
     texture.sampler = self.create_texture_sampler();
@@ -55,7 +55,7 @@ impl super::Engine {pub fn create_texture_image(&self, file: String) -> (VkImage
 
 
     self.copy_buffer_to_image(buffer, image, width, height);
-    
+
 
     self.transition_image_layout(image, 37, 7, 5);
 
@@ -68,9 +68,9 @@ impl super::Engine {pub fn create_texture_image(&self, file: String) -> (VkImage
     return (image, image_memory);
 }}
 
-impl super::Engine {pub fn create_image(&self, 
+impl super::Engine {pub fn create_image(&self,
     width: u32,
-    height: u32, 
+    height: u32,
     format: u32,
     sample_count: u32,
     tiling: u32,
@@ -134,7 +134,7 @@ impl super::Engine {pub fn create_image(&self,
     unsafe {vkAllocateMemory(self.device, &alloc_info as *const VkMemoryAllocateInfo, std::ptr::null(), &mut memory)};
 
     unsafe {vkBindImageMemory(self.device, image, memory, 0)};
-        
+
 
     return (image, memory);
 }}
@@ -149,7 +149,7 @@ impl crate::engine::Engine { pub fn create_image_view(&mut self, image: VkImage,
         base_array_layer: 0,
         layer_count: 1
     };
-        
+
     let image_view_create_info = VkImageViewCreateInfo {
         s_type: 15,
         p_next: std::ptr::null(),
@@ -200,7 +200,8 @@ impl crate::engine::Engine {pub fn create_texture_sampler(&mut self) -> VkSample
 }}
 
 impl crate::engine::Engine {pub fn create_swapchain_image_views(&mut self) {
-    self.swapchain_image_views = self.swapchain_images.clone().iter().map(|image| self.create_image_view(*image, 0x00000001, self.swapchain_image_format.format)).collect();              
+    self.swapchain_image_views = self.swapchain_images.clone().iter()
+        .map(|image| self.create_image_view(*image, 0x00000001, self.swapchain_image_format.format)).collect();
 }}
 
 impl crate::engine::Engine {pub fn transition_image_layout(&self, image: VkImage, format: u32, old_layout: u32, new_layout: u32) {
@@ -275,7 +276,7 @@ impl crate::engine::Engine {pub fn transition_image_layout(&self, image: VkImage
             src_stage,
             dst_stage,
             0,
-            0, 
+            0,
             std::ptr::null(),
             0,
             std::ptr::null(),

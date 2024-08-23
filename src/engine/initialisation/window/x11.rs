@@ -43,9 +43,9 @@ use std::ffi::{
 };
 
 
-const EXPOSURE_MASK: i64 = 
+const EXPOSURE_MASK: i64 =
     0x0002_0000     // Stucture Notify
-    | 0x0020_0000   // property change mask   
+    | 0x0020_0000   // property change mask
     | 0x0001_0000   // visibiliy change
     | 0x0000_0001   // key down
     | 0x0000_0002   // key up
@@ -104,7 +104,7 @@ impl Window for XWindow {
                     WindowEvent::MouseMove(x, y)
                 }
                 _ => {
-                    if event.type_ == x11::CLIENT_MESSAGE 
+                    if event.type_ == x11::CLIENT_MESSAGE
                     && event.client_message.data.longs[0] as XAtom == self.delete_window_protocol {
                         WindowEvent::Death
                     } else {WindowEvent::Undefined}
@@ -131,7 +131,7 @@ impl Window for XWindow {
             dpy: self.display,
             window: self.handle,
         };
-        
+
         let mut surface_khr: VkSurfaceKHR = 0;
 
         unsafe { vkCreateXlibSurfaceKHR(instance, &create_info, std::ptr::null(), &mut surface_khr); };
@@ -142,17 +142,17 @@ impl Window for XWindow {
     fn init_connection(dimensions: [i32; 2]) -> XWindow {
         unsafe {XInitThreads()};
 
-        let display = unsafe {XOpenDisplay(std::ptr::null())} as *mut c_void;  
+        let display = unsafe {XOpenDisplay(std::ptr::null())} as *mut c_void;
         if display.is_null() {panic!("XOpenDisplay failed! :'(");}
 
         let screen_number = unsafe {XDefaultScreen(display)};
         let root_window = unsafe {XRootWindow(display, screen_number)};
 
          unsafe {XSelectInput(display, root_window, EXPOSURE_MASK)};
-        
-        unsafe {XWarpPointer(display, 0, root_window, 0, 0, 0, 0, 100, 100)};    
+
+        unsafe {XWarpPointer(display, 0, root_window, 0, 0, 0, 0, 100, 100)};
         unsafe {XFlush(display)};
-    
+
         let mut window_attributes: XWindowCreateAttributes = unsafe{std::mem::zeroed()};
         window_attributes.background_pixel = 0;
         window_attributes.event_mask = EXPOSURE_MASK;
@@ -170,7 +170,7 @@ impl Window for XWindow {
             std::ptr::null_mut(),
             CW_EVENT_MASK,
             &window_attributes as *const XWindowCreateAttributes,
-        )};      
+        )};
 
         println!("{}", window);
 
@@ -183,7 +183,7 @@ impl Window for XWindow {
         };
     }
 
-    fn init_window(&mut self, name: String) { unsafe {
+    fn init_window(&mut self, name: &str) { unsafe {
         let window_title = CString::new(name).expect("CString::new failed");
         XStoreName(self.display, self.handle, window_title.as_ptr());
 
@@ -203,14 +203,14 @@ impl Window for XWindow {
             protocols.as_mut_ptr(),
             protocols.len() as i32,
         );
-    
+
         // Map (show) the window
         XMapWindow(self.display, self.handle);
-    
+
         // Select input events to listen for
         XSelectInput(self.display, self.root_handle, EXPOSURE_MASK as i64);
     }}
-    
+
     fn supports_physical_device_queue(&self, physical_device: VkPhysicalDevice, queue: u32) -> bool {
         let mut attributes: XWindowAttributes = unsafe {std::mem::zeroed()};
 
@@ -230,7 +230,7 @@ impl Window for XWindow {
     }
 
     fn set_mouse(&mut self, x: f32, y: f32) {
-        unsafe {XWarpPointer(self.display, 0, self.handle, 0, 0, 0, 0, x as i32, y as i32)};    
+        unsafe {XWarpPointer(self.display, 0, self.handle, 0, 0, 0, 0, x as i32, y as i32)};
         unsafe {XFlush(self.display)};
         self.mouse_position = [x, y];
     }

@@ -43,7 +43,7 @@ unsafe extern "system" fn vulkan_debug_callback(
 }
 
 impl crate::engine::Engine { pub fn create_instance(&mut self, supported_extensions: Vec<VkExtensionProperties>) { unsafe {
-    let app_name = CString::new(self.app_name.clone()).unwrap();
+    let app_name = CString::new(self.app_name.as_str()).unwrap();
     let engine_name = CString::new("Forsith").unwrap();
 
     let application_info = VkApplicationInfo {
@@ -55,7 +55,7 @@ impl crate::engine::Engine { pub fn create_instance(&mut self, supported_extensi
         engine_version: vk_make_version(0, 1, 0),
         api_version: vk_make_version(1, 1, 0)
     };
-    
+
     let (extensions, extensions_len) = prepare_extensions!(supported_extensions,
         "VK_KHR_surface",
         "VK_KHR_xlib_surface",
@@ -65,7 +65,7 @@ impl crate::engine::Engine { pub fn create_instance(&mut self, supported_extensi
         "VK_KHR_win32_surface",
         "VK_EXT_metal_surface",
     );
-    
+
     let supported_layers = vk_enumerate_to_vec!(vkEnumerateInstanceLayerProperties, VkLayerProperties,);
 
     let (layers, layer_len) = prepare_extensions![supported_layers,

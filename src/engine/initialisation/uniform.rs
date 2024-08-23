@@ -13,7 +13,7 @@ impl crate::engine::Engine { pub fn create_uniform_buffers(&self, size: u64) -> 
     let mut uniform_memories = vec!();
 
     for _ in 0 .. self.swapchain_images.len() {
-        let (uniform_buffer, uniform_buffer_memory, _) = 
+        let (uniform_buffer, uniform_buffer_memory, _) =
             self.create_buffer(
                 size,
                 0x00000010,
@@ -47,16 +47,16 @@ impl crate::engine::Engine { pub fn create_descriptor_sets(
 
     unsafe {vkAllocateDescriptorSets(self.device, &allocate_info as *const VkDescriptorSetAllocateInfo, descriptor_sets.as_mut_ptr())};
 
-    
+
     return descriptor_sets;
 }}
 
 
 impl crate::engine::Engine { pub fn update_descriptor_sets(
     &mut self,
-    descriptor_sets: Vec<VkDescriptorSet>,                                          
+    descriptor_sets: &Vec<VkDescriptorSet>,
     bindings: Vec<(u32, Vec<VkBuffer>, u64)>, // binding, buffer range (object size)
-    image: Texture
+    image: &Texture
 ) {
     for i in 0 .. descriptor_sets.len() {
         let mut descriptor_writes = vec!();
@@ -91,7 +91,7 @@ impl crate::engine::Engine { pub fn update_descriptor_sets(
                 image_layout: 5
             }; image_infos.push(image_info);
 
-            if *buffer_range == 0 {                 
+            if *buffer_range == 0 {
                 descriptor_write.image_info = &image_infos[image_infos.len()-1] as *const VkDescriptorImageInfo;
                 descriptor_write.descriptor_type = 1;
                 descriptor_write.buffer_info = std::ptr::null()
@@ -107,10 +107,10 @@ impl crate::engine::Engine { pub fn update_descriptor_sets(
             0,
             std::ptr::null()
         )};
-    }; 
+    };
 }}
 
-impl crate::engine::Engine { pub fn create_descriptor_set_layout(&self, descriptor_bindings: DescriptorBindings) -> VkDescriptorSetLayout {
+impl crate::engine::Engine { pub fn create_descriptor_set_layout(&self, descriptor_bindings: &DescriptorBindings) -> VkDescriptorSetLayout {
     let vertex_binding = VkDescriptorSetLayoutBinding {
         binding: 0,
         descriptor_type: 6,
@@ -131,13 +131,13 @@ impl crate::engine::Engine { pub fn create_descriptor_set_layout(&self, descript
 
     for i in 0 .. descriptor_bindings.0.len() as usize {
         let mut binding = vertex_binding.clone();
-        binding.binding = i as u32; 
+        binding.binding = i as u32;
         bindings.push(binding);
     }
-    
+
     for i in 0 .. descriptor_bindings.1.len() as usize {
         let mut binding = fragment_binding.clone();
-        binding.binding = (i+descriptor_bindings.0.len()) as u32; 
+        binding.binding = (i+descriptor_bindings.0.len()) as u32;
         bindings.push(binding);
     }
 
@@ -152,9 +152,9 @@ impl crate::engine::Engine { pub fn create_descriptor_set_layout(&self, descript
     let mut descriptor_set_layout = 0;
 
     unsafe {vkCreateDescriptorSetLayout(
-        self.device, 
-        &create_info as *const VkDescriptorSetLayoutCreateInfo, 
-        std::ptr::null(), 
+        self.device,
+        &create_info as *const VkDescriptorSetLayoutCreateInfo,
+        std::ptr::null(),
         &mut descriptor_set_layout
     )};
 
@@ -166,7 +166,7 @@ impl crate::engine::Engine { pub fn create_descriptor_pool(&mut self) {
         type_: 6,
         descriptor_count: self.swapchain_images.len() as u32
     };
-    
+
     let sampler_pool_size = VkDescriptorPoolSize {
         type_: 1,
         descriptor_count: self.swapchain_images.len() as u32
@@ -185,7 +185,7 @@ impl crate::engine::Engine { pub fn create_descriptor_pool(&mut self) {
 
     unsafe {vkCreateDescriptorPool(
         self.device,
-        &create_info as *const VkDescriptorPoolCreateInfo, 
+        &create_info as *const VkDescriptorPoolCreateInfo,
         std::ptr::null(),
         &mut self.descriptor_pool
     )};

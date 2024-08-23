@@ -21,12 +21,12 @@ impl crate::engine::Engine { pub fn create_swapchain(&mut self) { unsafe {
     let present_modes = vk_enumerate_to_vec!(vkGetPhysicalDeviceSurfacePresentModesKHR, u32, self.physical_device, self.surface_khr,);
 
     let present_mode = {if present_modes.contains(&1) {1} else {2}};
-    
-    
+
+
     let mut capabilities: VkSurfaceCapabilitiesKHR = std::mem::zeroed();
 
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(self.physical_device, self.surface_khr, &mut capabilities as *mut VkSurfaceCapabilitiesKHR);
-    
+
     let extent = {
         if capabilities.current_extent.width == std::u32::MAX {VkExtent2D { width: self.dimensions[0] as u32, height: self.dimensions[1] as u32}}
         else {
@@ -49,14 +49,18 @@ impl crate::engine::Engine { pub fn create_swapchain(&mut self) { unsafe {
 
     let surface_format = {
         let supported_formats = vk_enumerate_to_vec!(
-            vkGetPhysicalDeviceSurfaceFormatsKHR, 
-            VkSurfaceFormatKHR, 
+            vkGetPhysicalDeviceSurfaceFormatsKHR,
+            VkSurfaceFormatKHR,
             self.physical_device,
             self.surface_khr,
         );
 
+        let format_0 = supported_formats[0].clone();
+
         if !(supported_formats.len() <= 1 && supported_formats[0].format == 0) {
-            supported_formats.iter().find(|format| format.format == 37 && format.color_space == 0).unwrap_or(&supported_formats[0]).clone()
+            supported_formats.into_iter()
+                .find(|format| format.format == 37 && format.color_space == 0)
+                .unwrap_or(format_0)
         } else {
             VkSurfaceFormatKHR {format: 37, color_space: 0}
         }
@@ -65,7 +69,7 @@ impl crate::engine::Engine { pub fn create_swapchain(&mut self) { unsafe {
     println!("{:?}", surface_format);
 
     let queue_family_indices = {
-        if self.presentation_family == self.graphics_family {vec![self.graphics_family]} 
+        if self.presentation_family == self.graphics_family {vec![self.graphics_family]}
         else {vec![self.presentation_family, self.graphics_family]}
     };
 
@@ -94,7 +98,7 @@ impl crate::engine::Engine { pub fn create_swapchain(&mut self) { unsafe {
     let mut swapchain: VkSwapchainKHR = std::mem::zeroed();
 
     vkCreateSwapchainKHR(
-        self.device, 
+        self.device,
         &swapchain_create_info as *const VkSwapchainCreateInfo,
         std::ptr::null(),
         &mut swapchain as *mut VkSwapchainKHR

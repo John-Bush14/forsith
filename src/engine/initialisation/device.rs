@@ -8,7 +8,7 @@ use crate::vulkan::{
     },
     window::
         Window
-    
+
 };
 
 use crate::{
@@ -31,22 +31,22 @@ impl super::super::Engine { pub fn create_device(&mut self, mut test_window_conn
         instance,
     );
 
-    
+
     let (&best_physical_device, graphics_family, presentation_family, chosen_window_connection) = physical_devices
-        .iter() 
+        .iter()
         .map(|device| {
-            let family_queue_properties = vk_enumerate_to_vec!(vkGetPhysicalDeviceQueueFamilyProperties, VkQueueFamilyProperties, device.clone(),);
-            
+            let family_queue_properties = vk_enumerate_to_vec!(vkGetPhysicalDeviceQueueFamilyProperties, VkQueueFamilyProperties, *device,);
+
             let graphics_queue = family_queue_properties.iter().position(|x| x.flags & 0x00000001 != 0);
-            
+
             let mut presentation_queue: Option<usize> = None;
             let mut window_connection: Option<usize> = None;
-            
-            for i in 0..family_queue_properties.len() { 
+
+            for i in 0..family_queue_properties.len() {
                 for connection in 0..test_window_connections.len() {
-                    if test_window_connections[connection].supports_physical_device_queue(device.clone(), i as u32) {
-                        presentation_queue = Some(i); 
-                        window_connection = Some(connection); 
+                    if test_window_connections[connection].supports_physical_device_queue(*device, i as u32) {
+                        presentation_queue = Some(i);
+                        window_connection = Some(connection);
                         break;
                     }
                 }
@@ -56,18 +56,18 @@ impl super::super::Engine { pub fn create_device(&mut self, mut test_window_conn
 
             return (device, graphics_queue, presentation_queue, window_connection)
         })
-        .filter(|(_, graphics_queue, presentation_queue, window_connection)| 
+        .filter(|(_, graphics_queue, presentation_queue, window_connection)|
             return graphics_queue.is_some() && presentation_queue.is_some() && window_connection.is_some()
         )
-        .map(|(device, graphics_queue, presentation_queue, connection)| 
+        .map(|(device, graphics_queue, presentation_queue, connection)|
             return (device, graphics_queue.unwrap() as u32, presentation_queue.unwrap() as u32, connection.unwrap())
         )
         .max_by_key(|(&device, _, _, _)| {
             let mut properties = std::mem::zeroed();
             let mut score: u16 = 0;
-            
+
             vkGetPhysicalDeviceProperties(device, &mut properties);
-        
+
             match properties.device_type {
                 1 => {score += 1000;},
                 2 => {score += 500;},
@@ -84,7 +84,7 @@ impl super::super::Engine { pub fn create_device(&mut self, mut test_window_conn
     self.presentation_family = presentation_family;
 
 
-    self.physical_device = best_physical_device;    
+    self.physical_device = best_physical_device;
 
     let queue_priorities = [1.0f32];
 
@@ -96,7 +96,7 @@ impl super::super::Engine { pub fn create_device(&mut self, mut test_window_conn
         queue_count: 1,
         queue_priorities: queue_priorities.as_ptr()
     };
-    
+
     let presentation_device_queue_create_info = VkDeviceQueueCreateInfo {
         s_type: 2,
         p_next: std::ptr::null(),
@@ -110,11 +110,11 @@ impl super::super::Engine { pub fn create_device(&mut self, mut test_window_conn
         if self.graphics_family != self.presentation_family {vec![graphics_device_queue_create_info, presentation_device_queue_create_info]}
         else {vec![graphics_device_queue_create_info]}
     };
-    
+
     let supported_extensions = vk_enumerate_to_vec!(
-        vkEnumerateDeviceExtensionProperties, 
+        vkEnumerateDeviceExtensionProperties,
         VkExtensionProperties,
-        best_physical_device, 
+        best_physical_device,
         std::ptr::null(),
     );
 
@@ -140,21 +140,21 @@ impl super::super::Engine { pub fn create_device(&mut self, mut test_window_conn
         enabled_extension_names: extensions,
         enabled_features: &enabled_extensions as *const VkPhysicalDeviceFeatures
     };
-    
+
     let mut device: VkDevice = 0;
 
 
     let result = vkCreateDevice(
         best_physical_device, &device_create_info, std::ptr::null(), &mut device
     );
-    
-    
+
+
     vkGetDeviceQueue(device, self.graphics_family, 0, &mut self.graphics_queue);
-    
+
     vkGetDeviceQueue(device, self.presentation_family, 0, &mut self.presentation_queue);
 
 
     if result == 0 {self.device = device; return test_window_connections.remove(chosen_window_connection);}
-    
+
     panic!("vkCreateDevice failed!");
 }}}

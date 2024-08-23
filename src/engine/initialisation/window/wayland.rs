@@ -17,13 +17,13 @@ impl Window for WayWindow {
     fn set_height(&mut self, _height: u32) {todo!();}
 
     fn init_connection(_dimensions: [i32; 2]) -> Self where Self: Sized {return WayWindow {}}
-    
-    fn init_window(&mut self, _name: String) {panic!("wayland not yet implemented!!!");}
+
+    fn init_window(&mut self, _name: &str) {panic!("wayland not yet implemented!!!");}
 
     fn create_surface_khr(&self, _instance: crate::vulkan::instance::VkInstance) -> VkSurfaceKHR {todo!();}
 
     fn get_events(&mut self, _dimensions: [i32; 2]) -> Vec<WindowEvent> {todo!();}
-    
+
     fn supports_physical_device_queue(&self, _physical_device: VkPhysicalDevice, _queue: u32) -> bool {todo!();}
 
     fn commit_suicide(&self) {todo!();}

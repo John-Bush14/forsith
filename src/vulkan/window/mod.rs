@@ -31,13 +31,13 @@ pub trait Window {
     fn set_height(&mut self, height: u32);
 
     fn init_connection(dimensions: [i32; 2]) -> Self where Self: Sized;
-    
-    fn init_window(&mut self, name: String);
+
+    fn init_window(&mut self, name: &str);
 
     fn create_surface_khr(&self, instance: crate::vulkan::instance::VkInstance) -> VkSurfaceKHR;
 
     fn get_events(&mut self, dimensions: [i32; 2]) -> Vec<WindowEvent>;
-    
+
     fn supports_physical_device_queue(&self, physical_device: VkPhysicalDevice, queue: u32) -> bool;
 
     fn commit_suicide(&self);
@@ -55,13 +55,13 @@ impl Window for Dummy {
     fn set_height(&mut self, _height: u32) {todo!();}
 
     fn init_connection(_dimensions: [i32; 2]) -> Self where Self: Sized {todo!();}
-    
-    fn init_window(&mut self, _name: String) {todo!();}
+
+    fn init_window(&mut self, _name: &str) {todo!();}
 
     fn create_surface_khr(&self, _instance: crate::vulkan::instance::VkInstance) -> VkSurfaceKHR {todo!();}
 
     fn get_events(&mut self, _dimensions: [i32; 2]) -> Vec<WindowEvent> {todo!();}
-    
+
     fn supports_physical_device_queue(&self, _physical_device: VkPhysicalDevice,_queuee: u32) -> bool {todo!();}
 
     fn commit_suicide(&self) {todo!();}

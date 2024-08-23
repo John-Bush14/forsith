@@ -21,7 +21,7 @@ pub struct DescriptorBindings(pub Vec<u8>, pub Vec<u8>);
 
 
 #[link(name = "vulkan")]
-extern "C" { 
+extern "C" {
     pub fn vkCreateDescriptorSetLayout(
         device: VkDevice,
         create_info: *const VkDescriptorSetLayoutCreateInfo,

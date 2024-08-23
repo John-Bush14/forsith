@@ -42,7 +42,7 @@ impl super::super::Engine { pub fn create_command_buffers(&mut self) { unsafe {
 
 
     vkAllocateCommandBuffers(
-        self.device, 
+        self.device,
         &allocate_info as *const VkCommandBufferAllocateInfo,
         self.command_buffers.as_mut_ptr()
     );
@@ -70,7 +70,7 @@ impl super::super::Engine { pub fn record_and_enter_command_buffers(&mut self) {
                 VkClearValue {color: VkClearColorValue {float32: [0.0, 0.0, 0.0, 1.0]}},
                 VkClearValue {depth_stencil: VkClearDepthStencilValue {depth: 1.0, stencil: 0}}
             ];
-            
+
             let render_pass_begin_info = VkRenderPassBeginInfo {
                 s_type: 43,
                 p_next: std::ptr::null(),
@@ -88,13 +88,13 @@ impl super::super::Engine { pub fn record_and_enter_command_buffers(&mut self) {
             let offsets = [0];
 
             if vertex_buffers[0] != 0 {vkCmdBindVertexBuffers(
-                command_buffer, 
+                command_buffer,
                 0,
                 vertex_buffers.len() as u32,
                 vertex_buffers.as_ptr(),
                 offsets.as_ptr()
             )};
-            
+
             for drawable in &self.drawables {
                 let pipeline = &self.pipelines[drawable.get_pipeline_id()];
 
@@ -110,7 +110,7 @@ impl super::super::Engine { pub fn record_and_enter_command_buffers(&mut self) {
                 vkCmdBindDescriptorSets(
                     command_buffer,
                     0,
-                    self.pipeline_layouts.get(&DescriptorBindings::from(pipeline.vertex_uniforms.clone(), pipeline.fragment_uniforms.clone())).unwrap().0,
+                    self.pipeline_layouts.get(&DescriptorBindings::from(&pipeline.vertex_uniforms, &pipeline.fragment_uniforms)).unwrap().0,
                     0,
                     1,
                     &drawable.descriptor_sets[i],
@@ -121,7 +121,7 @@ impl super::super::Engine { pub fn record_and_enter_command_buffers(&mut self) {
                 if drawable.indices.len() != 0 {vkCmdDrawIndexed(command_buffer, drawable.indices.len() as u32, 1, 0, 0, 0)}
             }
 
-            
+
             vkCmdEndRenderPass(command_buffer);
 
             vkEndCommandBuffer(command_buffer);
