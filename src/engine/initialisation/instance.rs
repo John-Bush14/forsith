@@ -42,7 +42,7 @@ unsafe extern "system" fn vulkan_debug_callback(
     return 0;
 }
 
-impl crate::engine::Engine { pub fn create_instance(&mut self, supported_extensions: Vec<VkExtensionProperties>) { unsafe {
+impl crate::engine::Engine { pub(crate) fn create_instance(&mut self, supported_extensions: Vec<VkExtensionProperties>) { unsafe {
     let app_name = CString::new(self.app_name.as_str()).unwrap();
     let engine_name = CString::new("Forsith").unwrap();
 

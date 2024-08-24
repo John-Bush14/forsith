@@ -1,6 +1,6 @@
 use crate::vulkan::{commands::{command_buffer::{vkAllocateCommandBuffers, vkBeginCommandBuffer, vkEndCommandBuffer, vkFreeCommandBuffers, VkCommandBuffer, VkCommandBufferAllocateInfo, VkCommandBufferBeginInfo}, command_pool::VkCommandPool}, devices::device::VkQueue, rendering::{vkQueueSubmit, vkQueueWaitIdle, VkSubmitInfo}};
 
-impl crate::engine::Engine {pub fn execute_one_time_command<F: FnOnce(VkCommandBuffer)>(
+impl crate::engine::Engine {pub(crate) fn execute_one_time_command<F: FnOnce(VkCommandBuffer)>(
     &self,
     command_pool: VkCommandPool,
     queue: VkQueue,
@@ -20,7 +20,7 @@ impl crate::engine::Engine {pub fn execute_one_time_command<F: FnOnce(VkCommandB
 
     let command_buffer = command_buffers[0];
 
-    
+
     let begin_info = VkCommandBufferBeginInfo {
         s_type: 42,
         p_next: std::ptr::null(),
@@ -33,8 +33,8 @@ impl crate::engine::Engine {pub fn execute_one_time_command<F: FnOnce(VkCommandB
     executor(command_buffer);
 
     unsafe {vkEndCommandBuffer(command_buffer)};
-    
-    
+
+
     let mut submit_info: VkSubmitInfo = unsafe {std::mem::zeroed()};
 
     submit_info.s_type = 4;

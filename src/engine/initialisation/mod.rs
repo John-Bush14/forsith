@@ -21,7 +21,7 @@ use super::world_view::WorldView;
 
 
 impl super::Engine {
-    pub fn init(name: String, version: [u8;3]) -> Result<Self, Box<dyn std::error::Error>> {
+    pub(crate) fn init(name: String, version: [u8;3]) -> Result<Self, Box<dyn std::error::Error>> {
         let mut engine: super::Engine = super::Engine {
             app_name: name,
             app_version: vk_make_version(version[0] as u32, version[1] as u32, version[2] as u32),

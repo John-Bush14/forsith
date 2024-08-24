@@ -8,7 +8,7 @@ use crate::vulkan::{
 };
 
 
-impl crate::engine::Engine { pub fn create_uniform_buffers(&self, size: u64) -> (Vec<VkBuffer>, Vec<VkDeviceMemory>) {
+impl crate::engine::Engine { pub(crate) fn create_uniform_buffers(&self, size: u64) -> (Vec<VkBuffer>, Vec<VkDeviceMemory>) {
     let mut uniform_buffers = vec!();
     let mut uniform_memories = vec!();
 
@@ -27,7 +27,7 @@ impl crate::engine::Engine { pub fn create_uniform_buffers(&self, size: u64) -> 
     return (uniform_buffers, uniform_memories);
 }}
 
-impl crate::engine::Engine { pub fn create_descriptor_sets(
+impl crate::engine::Engine { pub(crate) fn create_descriptor_sets(
     &mut self,
     uniform_buffers_len: usize,
     descriptor_set_layout: VkDescriptorSetLayout
@@ -52,7 +52,7 @@ impl crate::engine::Engine { pub fn create_descriptor_sets(
 }}
 
 
-impl crate::engine::Engine { pub fn update_descriptor_sets(
+impl crate::engine::Engine { pub(crate) fn update_descriptor_sets(
     &mut self,
     descriptor_sets: &Vec<VkDescriptorSet>,
     bindings: Vec<(u32, Vec<VkBuffer>, u64)>, // binding, buffer range (object size)
@@ -113,7 +113,7 @@ impl crate::engine::Engine { pub fn update_descriptor_sets(
     };
 }}
 
-impl crate::engine::Engine { pub fn create_descriptor_set_layout(&self, descriptor_bindings: &DescriptorBindings) -> VkDescriptorSetLayout {
+impl crate::engine::Engine { pub(crate) fn create_descriptor_set_layout(&self, descriptor_bindings: &DescriptorBindings) -> VkDescriptorSetLayout {
     let vertex_binding = VkDescriptorSetLayoutBinding {
         binding: 0,
         descriptor_type: 6,
@@ -164,7 +164,7 @@ impl crate::engine::Engine { pub fn create_descriptor_set_layout(&self, descript
     return descriptor_set_layout;
 }}
 
-impl crate::engine::Engine { pub fn create_descriptor_pool(&mut self) {
+impl crate::engine::Engine { pub(crate) fn create_descriptor_pool(&mut self) {
     let ubo_pool_size = VkDescriptorPoolSize {
         type_: 6,
         descriptor_count: self.swapchain_images.len() as u32

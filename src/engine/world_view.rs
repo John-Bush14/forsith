@@ -11,8 +11,8 @@ pub struct WorldView {
     far: f32,
     eye: [f32;3],
     target: [f32;3],
-    pub aspect: f32,
-    pub changed: (bool, bool),
+    pub(crate) aspect: f32,
+    pub(crate) changed: (bool, bool),
     view_matrix: [[f32;4];4],
     projection_matrix: [[f32;4];4],
     _up_vector: [f32;3],
@@ -24,9 +24,11 @@ pub struct WorldView {
 impl WorldView {pub fn zero() -> WorldView {WorldView { fov: 0.0, near: 0.0, far: 0.0, eye: [0.0;3], target: [0.0;3], aspect: 0.0, changed: (false, false), view_matrix: [[0.0;4];4], projection_matrix: [[0.0;4];4], _up_vector: [0.0;3], matrix_2d: [[0.0;4];4], uniform_buffers_2d: vec!(), uniform_buffers_3d: vec!() }}}
 
 impl WorldView {
-    pub fn get_2d_uniform_buffers(&self) -> &Vec<(u64, u64)> {&self.uniform_buffers_2d}
+    pub fn get_aspect(&self) -> f32 {return self.aspect}
 
-    pub fn get_3d_uniform_buffers(&self) -> &Vec<(u64, u64)> {&self.uniform_buffers_3d}
+    pub(crate) fn get_2d_uniform_buffers(&self) -> &Vec<(u64, u64)> {&self.uniform_buffers_2d}
+
+    pub(crate) fn get_3d_uniform_buffers(&self) -> &Vec<(u64, u64)> {&self.uniform_buffers_3d}
 
     pub fn set_fov(&mut self, fov: f32) {self.fov = fov; self.changed.1 = true}
 
@@ -56,12 +58,12 @@ impl WorldView {
         let side_direction = [-direction_normalized[2], direction_normalized[0]];
 
         self.move_eye([
-            movement[0] * side_direction[0] + movement[2] * direction_normalized[0], 
+            movement[0] * side_direction[0] + movement[2] * direction_normalized[0],
             movement[1],
-            movement[0] * side_direction[1] + movement[2] * direction_normalized[2], 
+            movement[0] * side_direction[1] + movement[2] * direction_normalized[2],
         ]);
     }
-    
+
     pub fn set_target(&mut self, target: [f32;3]) {self.target = target; self.changed.0 = true}
 
     pub fn move_target(&mut self, movement: [f32;3]) {
@@ -84,7 +86,7 @@ impl WorldView {
         ])
     }
 
-    pub fn update(&mut self, aspect: f32, device: VkDevice) {
+    pub(crate) fn update(&mut self, aspect: f32, device: VkDevice) {
         if self.changed.0 || self.changed.1 || self.aspect != aspect {
             for i in 0 .. self.uniform_buffers_2d.len() {
                 update_memory(self.uniform_buffers_3d[i].1, device, (self.get_view_matrix(), self.get_projection_matrix(aspect)));
@@ -93,7 +95,7 @@ impl WorldView {
         }
     }
 
-    pub fn get_view_matrix(&mut self) -> [[f32;4];4] {
+    pub(crate) fn get_view_matrix(&mut self) -> [[f32;4];4] {
         if self.changed.0 {
             let target: [f32;3] = self.target.iter().zip(self.eye.iter()).map(|(x, y)| x + y).collect::<Vec<f32>>().try_into().unwrap();
 
@@ -109,7 +111,7 @@ impl WorldView {
         return self.view_matrix;
     }
 
-    pub fn get_projection_matrix(&mut self, aspect: f32) -> [[f32;4];4] {
+    pub(crate) fn get_projection_matrix(&mut self, aspect: f32) -> [[f32;4];4] {
         if self.changed.1 || self.aspect != aspect {
             let fo = 1.0/(self.fov.to_radians()/2.0).tan();
             let fas = fo/aspect;
@@ -133,10 +135,10 @@ impl WorldView {
         return self.projection_matrix;
     }
 
-    pub fn get_2d_camera_matrix(&mut self) -> [[f32;4];4] {
+    pub(crate) fn get_2d_camera_matrix(&mut self) -> [[f32;4];4] {
         if self.changed.0 {
             let eye: [f32;3] = [self.eye[0], self.eye[1], 0.0];
-            
+
             let target = [self.eye[0], self.eye[1], -1.0];
 
             self.matrix_2d = Matrix4::look_at_rh(
@@ -152,7 +154,7 @@ impl WorldView {
     }
 
     pub fn new(
-        eye: [f32;3], 
+        eye: [f32;3],
         target: [f32;3],
         fov: f32,
         far: f32,

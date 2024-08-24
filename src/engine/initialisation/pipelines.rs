@@ -23,6 +23,9 @@ pub const PIPELINE_UI_3D: usize = 2;
 #[allow(dead_code)]
 pub const PIPELINE_UI_2D: usize = 3;
 
+#[allow(dead_code)]
+pub const PIPELINE_UI_IMAGE: usize = 4;
+
 
 impl UniformType {
     pub fn size_of(&self) -> u64 {
@@ -82,7 +85,7 @@ impl GraphicsPipeline { pub fn new(
     }
 }}
 
-impl crate::engine::Engine { pub fn default_pipelines(&self) -> Vec<GraphicsPipeline> {
+impl crate::engine::Engine { pub(crate) fn default_pipelines(&self) -> Vec<GraphicsPipeline> {
     use UniformType as UT;
     use BuiltinUniform as BU;
     use ShaderType as ST;
@@ -131,7 +134,7 @@ impl crate::engine::Engine { pub fn default_pipelines(&self) -> Vec<GraphicsPipe
     ];
 }}
 
-impl crate::engine::Engine {pub fn create_pipeline_layouts(&mut self) {
+impl crate::engine::Engine {pub(crate) fn create_pipeline_layouts(&mut self) {
     self.pipelines.iter()
         .map(|pipeline| return pipeline.descriptor_bindings.clone())
         .filter(|descriptor_binding| return !self.pipeline_layouts.contains_key(&descriptor_binding))
@@ -163,7 +166,7 @@ impl crate::engine::Engine {pub fn create_pipeline_layouts(&mut self) {
     });
 }}
 
-impl crate::engine::Engine {pub fn create_framebuffers(&mut self) {
+impl crate::engine::Engine {pub(crate) fn create_framebuffers(&mut self) {
     self.framebuffers = self.swapchain_image_views.iter()
         .map(|view| [self.color_texture.image_view, self.depth_texture.image_view, *view]).map(|attachments| {
 
@@ -410,7 +413,7 @@ impl crate::engine::Engine {pub fn create_pipeline(&self, pipeline: &GraphicsPip
     return pipeline;
 }}
 
-impl crate::engine::Engine {pub fn find_depth_format(&mut self) {
+impl crate::engine::Engine {pub(crate) fn find_depth_format(&mut self) {
     let tiling = 0;
     let features = 0x00000200;
 
@@ -429,7 +432,7 @@ impl crate::engine::Engine {pub fn find_depth_format(&mut self) {
     }).expect("no supported depth format found!");
 }}
 
-pub fn create_render_pass(device: VkDevice, swapchain_image_format: u32, depth_format: u32, msaa_samples: u32) -> VkRenderPass {
+pub(crate) fn create_render_pass(device: VkDevice, swapchain_image_format: u32, depth_format: u32, msaa_samples: u32) -> VkRenderPass {
     let color_attachment_description = VkAttachmentDescription {
         flags: 0,
         format: swapchain_image_format,

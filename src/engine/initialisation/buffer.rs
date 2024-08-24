@@ -21,11 +21,11 @@ use crate::vulkan::{
 };
 
 
-impl crate::engine::Engine { pub fn create_vertex_buffer(&mut self) {
+impl crate::engine::Engine { pub(crate) fn create_vertex_buffer(&mut self) {
     (self.vertex_buffer, self.vertex_buffer_memory) = self.create_device_local_buffer_with_data::<u32, _>(0x00000080, &self.vertices);
 }}
 
-impl crate::engine::Engine { pub fn create_device_local_buffer_with_data<A, T: Copy>(&self, usage: u32, data: &[T]) -> (u64, u64) {
+impl crate::engine::Engine { pub(crate) fn create_device_local_buffer_with_data<A, T: Copy>(&self, usage: u32, data: &[T]) -> (u64, u64) {
     let buffer_size = (data.len() * std::mem::size_of::<T>()) as u64;
 
     let (staging_buffer, staging_memory, _staging_size) = self.create_buffer(buffer_size, 0x00000001, 0x00000002 | 0x00000004);
@@ -60,16 +60,16 @@ impl crate::engine::Engine { pub fn create_device_local_buffer_with_data<A, T: C
     return (buffer, memory)
 }}
 
-impl crate::engine::Engine { pub fn find_memory_type(
+impl crate::engine::Engine { pub(crate) fn find_memory_type(
     &self,
     memory_properties: VkPhysicalDeviceMemoryProperties,
     memory_requirements: &VkMemoryRequirements,
     required_properties: u32
 ) -> u32 {
     for i in 0 .. memory_properties.memory_type_count {
-        if 
+        if
             memory_requirements.memory_type_bits & (1 << i) != 0
-            && memory_properties.memory_types[i as usize].flags & (required_properties) != 0 
+            && memory_properties.memory_types[i as usize].flags & (required_properties) != 0
         {
             return i;
         }
@@ -77,7 +77,7 @@ impl crate::engine::Engine { pub fn find_memory_type(
     panic!("no memory_type found!");
 }}
 
-impl crate::engine::Engine { pub fn create_buffer(
+impl crate::engine::Engine { pub(crate) fn create_buffer(
     &self, buffer_size: u64, usage_flags: u32, property_flags: u32
 ) -> (VkBuffer, VkDeviceMemory, u64) {
 
@@ -100,16 +100,16 @@ impl crate::engine::Engine { pub fn create_buffer(
     let mut memory_requirements: VkMemoryRequirements = unsafe {std::mem::zeroed()};
 
     unsafe {vkGetBufferMemoryRequirements(self.device, buffer, &mut memory_requirements as *mut VkMemoryRequirements)};
-    
+
 
     let mut memory_properties: VkPhysicalDeviceMemoryProperties = unsafe {std::mem::zeroed()};
 
     unsafe {vkGetPhysicalDeviceMemoryProperties(self.physical_device, &mut memory_properties as *mut VkPhysicalDeviceMemoryProperties)};
 
-    
+
     let memory_type = self.find_memory_type(memory_properties, &memory_requirements, property_flags);
 
-    
+
     let allocate_info = VkMemoryAllocateInfo {
         s_type: 5,
         p_next: std::ptr::null(),
@@ -128,7 +128,7 @@ impl crate::engine::Engine { pub fn create_buffer(
     return (buffer, memory, memory_requirements.size)
 }}
 
-impl crate::engine::Engine { pub fn copy_buffer(&self, src: VkBuffer, dst: VkBuffer, size: u64) {
+impl crate::engine::Engine { pub(crate) fn copy_buffer(&self, src: VkBuffer, dst: VkBuffer, size: u64) {
     self.execute_one_time_command(self.transient_command_pool, self.graphics_queue, |command_buffer| {
         let region = VkBufferCopy {
             src_offset: 0,

@@ -13,7 +13,7 @@ use crate::vulkan::{
 };
 
 
-impl super::Engine { pub fn process_events(&mut self) -> bool {
+impl super::Engine { pub(crate) fn process_events(&mut self) -> bool {
     let events = self.window.get_events(self.dimensions);
 
     for event in &events {match *event {
@@ -27,7 +27,7 @@ impl super::Engine { pub fn process_events(&mut self) -> bool {
     return false;
 }}
 
-impl super::Engine { pub fn start_loop<T>(mut self, event_loop: fn(&mut super::Engine, &mut T, f32), mut user_data: T) {
+impl super::Engine { pub(crate) fn start_loop<T>(mut self, event_loop: fn(&mut super::Engine, &mut T, f32), mut user_data: T) {
     if self.vertices.len() > 0 {self.create_vertex_buffer()}
 
 

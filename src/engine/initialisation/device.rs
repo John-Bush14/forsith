@@ -22,7 +22,7 @@ use std::ffi::{
 };
 
 
-impl super::super::Engine { pub fn create_device(&mut self, mut test_window_connections: Vec<Box<dyn Window>>) -> Box<dyn Window> { unsafe {
+impl super::super::Engine { pub(crate) fn create_device(&mut self, mut test_window_connections: Vec<Box<dyn Window>>) -> Box<dyn Window> { unsafe {
     let instance = self.instance;
 
     let physical_devices: Vec<VkPhysicalDevice> = vk_enumerate_to_vec!(

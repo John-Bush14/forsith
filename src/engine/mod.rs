@@ -29,7 +29,7 @@ use crate::vulkan::uniform::DescriptorBindings;
 use crate::vulkan::vertex::{vkMapMemory, vkUnmapMemory};
 use crate::vulkan::{
     instance::{
-        VkInstance, 
+        VkInstance,
         VkDebugUtilsMessengerEXT
     },
     devices::{
@@ -79,8 +79,6 @@ use crate::vulkan::{
 };
 
 
-pub enum Event {}
-
 pub struct Engine {
     app_name: String,
     app_version: u32,
@@ -88,7 +86,7 @@ pub struct Engine {
     device: VkDevice,
     physical_device: VkPhysicalDevice,
     surface_khr: VkSurfaceKHR,
-    pub window: Box<dyn Window>,
+    pub(crate) window: Box<dyn Window>,
     swapchain: VkSwapchainKHR,
     swapchain_image_format: VkSurfaceFormatKHR,
     swapchain_images: Vec<VkImage>,
@@ -110,7 +108,7 @@ pub struct Engine {
     presentation_queue: VkQueue,
     graphics_family: u32,
     presentation_family: u32,
-    pub dimensions: [i32; 2],
+    pub(crate) dimensions: [i32; 2],
     new_dimensions: Option<[i32; 2]>,
     vertex_buffer: VkBuffer,
     vertex_buffer_memory: VkDeviceMemory,
@@ -119,8 +117,8 @@ pub struct Engine {
     vertex_usage_counts: std::collections::HashMap<Vertex, usize>, // <Vertex, usage count>
     vertex_indices: std::collections::HashMap<Vertex, u16>, // <Vertex, Indice>
     drawables: Vec<Drawable>,
-    world_view: world_view::WorldView,
-    pub events: Vec<WindowEvent>,
+    pub(crate) world_view: world_view::WorldView,
+    pub(crate) events: Vec<WindowEvent>,
     pub target_fps: f32,
     depth_texture: Texture,
     depth_format: u32,
@@ -128,14 +126,24 @@ pub struct Engine {
     color_texture: Texture
 }
 
+impl Engine {
+    pub fn get_events(&self) -> &Vec<WindowEvent> {return &self.events}
+
+    pub fn get_world_view(&self) -> &world_view::WorldView {return &self.world_view}
+
+    pub fn get_dimensions(&self) -> &[i32;2] {return &self.dimensions}
+
+    pub fn get_window(&self) -> &Box<dyn Window> {return &self.window}
+}
+
 pub fn initialize_engine<T>(
     name: String,
-    version: [u8;3], 
-    ready_func: fn(&mut Engine) -> T, 
+    version: [u8;3],
+    ready_func: fn(&mut Engine) -> T,
     event_loop: fn(&mut Engine, &mut T, f32)
 ) {
     let mut engine = Engine::init(name, version).expect("Initialisation of engine failed");
-    
+
     let user_data = ready_func(&mut engine);
 
     engine.start_loop(event_loop, user_data);

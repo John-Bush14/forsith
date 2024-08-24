@@ -17,7 +17,7 @@ use crate::vulkan::{
 use crate::vk_enumerate_to_vec;
 
 
-impl crate::engine::Engine { pub fn create_swapchain(&mut self) { unsafe {
+impl crate::engine::Engine { pub(crate) fn create_swapchain(&mut self) { unsafe {
     let present_modes = vk_enumerate_to_vec!(vkGetPhysicalDeviceSurfacePresentModesKHR, u32, self.physical_device, self.surface_khr,);
 
     let present_mode = {if present_modes.contains(&1) {1} else {2}};

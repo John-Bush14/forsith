@@ -12,7 +12,7 @@ use crate::vulkan::{
 };
 
 
-impl super::super::Engine { pub fn create_command_pool(&mut self, transient: bool) { unsafe {
+impl super::super::Engine { pub(crate) fn create_command_pool(&mut self, transient: bool) { unsafe {
     let command_pool_create_info = VkCommandPoolCreateInfo {
         s_type: 39,
         p_next: std::ptr::null(),
@@ -29,7 +29,7 @@ impl super::super::Engine { pub fn create_command_pool(&mut self, transient: boo
 }}}
 
 
-impl super::super::Engine { pub fn create_command_buffers(&mut self) { unsafe {
+impl super::super::Engine { pub(crate) fn create_command_buffers(&mut self) { unsafe {
     self.command_buffers = self.framebuffers.iter().map(|_| 0).collect();
 
     let allocate_info = VkCommandBufferAllocateInfo {
@@ -49,7 +49,7 @@ impl super::super::Engine { pub fn create_command_buffers(&mut self) { unsafe {
 }}}
 
 
-impl super::super::Engine { pub fn record_and_enter_command_buffers(&mut self) { unsafe {
+impl super::super::Engine { pub(crate) fn record_and_enter_command_buffers(&mut self) { unsafe {
     let command_buffers = &self.command_buffers;
 
     command_buffers.iter().enumerate()

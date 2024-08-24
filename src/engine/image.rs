@@ -21,7 +21,7 @@ impl crate::engine::Engine {pub fn create_texture(&mut self, file: String) -> Te
     return texture;
 }}
 
-impl super::Engine {pub fn create_texture_image(&self, file: String) -> (VkImage, VkDeviceMemory) {
+impl super::Engine {pub(crate) fn create_texture_image(&self, file: String) -> (VkImage, VkDeviceMemory) {
     let image = image::open(file).expect("error getting image");
     let image_as_rgb = image.to_rgba();
     let width = (&image_as_rgb).width();
@@ -68,7 +68,7 @@ impl super::Engine {pub fn create_texture_image(&self, file: String) -> (VkImage
     return (image, image_memory);
 }}
 
-impl super::Engine {pub fn create_image(&self,
+impl super::Engine {pub(crate) fn create_image(&self,
     width: u32,
     height: u32,
     format: u32,
@@ -139,7 +139,7 @@ impl super::Engine {pub fn create_image(&self,
     return (image, memory);
 }}
 
-impl crate::engine::Engine { pub fn create_image_view(&self, image: VkImage, aspect_mask: u32, format: u32) -> VkImageView { unsafe {
+impl crate::engine::Engine { pub(crate) fn create_image_view(&self, image: VkImage, aspect_mask: u32, format: u32) -> VkImageView { unsafe {
     let components = VkComponentMapping {r: 0, g: 0, b: 0, a: 0};
 
     let subresource_range = VkImageSubresourceRange {
@@ -170,7 +170,7 @@ impl crate::engine::Engine { pub fn create_image_view(&self, image: VkImage, asp
     return image_view;
 }}}
 
-impl crate::engine::Engine {pub fn create_texture_sampler(&mut self) -> VkSampler {
+impl crate::engine::Engine {pub(crate) fn create_texture_sampler(&mut self) -> VkSampler {
     let create_info = VkSamplerCreateInfo {
         s_type: 31,
         p_next: std::ptr::null(),
@@ -199,12 +199,12 @@ impl crate::engine::Engine {pub fn create_texture_sampler(&mut self) -> VkSample
     return sampler;
 }}
 
-impl crate::engine::Engine {pub fn create_swapchain_image_views(&mut self) {
+impl crate::engine::Engine {pub(crate) fn create_swapchain_image_views(&mut self) {
     self.swapchain_image_views = self.swapchain_images.iter()
         .map(|image| self.create_image_view(*image, 0x00000001, self.swapchain_image_format.format)).collect();
 }}
 
-impl crate::engine::Engine {pub fn transition_image_layout(&self, image: VkImage, format: u32, old_layout: u32, new_layout: u32) {
+impl crate::engine::Engine {pub(crate) fn transition_image_layout(&self, image: VkImage, format: u32, old_layout: u32, new_layout: u32) {
     self.execute_one_time_command(self.command_pool, self.graphics_queue, |cmd_buffer| {
         let (src_access_mask, dst_access_mask, src_stage, dst_stage) = match (old_layout, new_layout) {
             (0, 3) => (
@@ -286,7 +286,7 @@ impl crate::engine::Engine {pub fn transition_image_layout(&self, image: VkImage
     });
 }}
 
-impl crate::engine::Engine { pub fn create_depth_texture(&mut self) {
+impl crate::engine::Engine { pub(crate) fn create_depth_texture(&mut self) {
     (self.depth_texture.image, self.depth_texture.memory) = self.create_image(
         self.swapchain_extent.width,
         self.swapchain_extent.height,
@@ -303,7 +303,7 @@ impl crate::engine::Engine { pub fn create_depth_texture(&mut self) {
     self.depth_texture.image_view = self.create_image_view(self.depth_texture.image, 0x00000002, self.depth_format)
 }}
 
-impl crate::engine::Engine {pub fn create_color_texture(&mut self) {
+impl crate::engine::Engine {pub(crate) fn create_color_texture(&mut self) {
     let format = self.swapchain_image_format.format;
 
     (self.color_texture.image, self.color_texture.memory) = self.create_image(
@@ -322,7 +322,7 @@ impl crate::engine::Engine {pub fn create_color_texture(&mut self) {
     self.color_texture.image_view = self.create_image_view(self.color_texture.image, 0x00000001, format)
 }}
 
-impl crate::engine::Engine {pub fn copy_buffer_to_image(&self, buffer: VkBuffer, image: VkImage, width: u32, height: u32) {
+impl crate::engine::Engine {pub(crate) fn copy_buffer_to_image(&self, buffer: VkBuffer, image: VkImage, width: u32, height: u32) {
     self.execute_one_time_command(self.command_pool, self.graphics_queue, |cmd_buffer| {
         let region = VkBufferImageCopy {
             buffer_offset: 0,
@@ -342,7 +342,7 @@ impl crate::engine::Engine {pub fn copy_buffer_to_image(&self, buffer: VkBuffer,
     })
 }}
 
-impl crate::engine::Engine {pub fn get_max_usable_sample_count(&mut self) {
+impl crate::engine::Engine {pub(crate) fn get_max_usable_sample_count(&mut self) {
     let mut properties: VkPhysicalDeviceProperties = unsafe {std::mem::zeroed()};
 
     unsafe {vkGetPhysicalDeviceProperties(self.physical_device, &mut properties as *mut VkPhysicalDeviceProperties)};
@@ -355,5 +355,4 @@ impl crate::engine::Engine {pub fn get_max_usable_sample_count(&mut self) {
     let possibilities: Vec<u32> = vec![0x00000040, 0x00000020,  0x00000010, 0x00000008, 0x00000004, 0x00000002, 0x00000001];
 
     self.msaa_samples = *possibilities.iter().find(|possibility| sample_counts & **possibility != 0).unwrap();
-
 }}

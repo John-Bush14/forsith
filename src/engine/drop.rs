@@ -1,4 +1,4 @@
-use crate::vulkan::{
+use crate::{vulkan::{
     commands::command_pool::vkDestroyCommandPool, devices::device::{
             vkDestroyDevice,
             vkDeviceWaitIdle, VkDevice
@@ -13,7 +13,7 @@ use crate::vulkan::{
     }, vertex::{
         vkDestroyBuffer, vkFreeMemory
     }, window::{self, vkDestroySurfaceKHR}
-};
+}, ShaderItem, ShaderType};
 
 impl Texture {
     pub fn drop(&mut self, device: VkDevice) {
@@ -38,9 +38,12 @@ impl Drop for crate::Drawable {
             vkFreeMemory(self.device, *memory, std::ptr::null());
         }));
 
-        if let Some(texture) = &mut self.image {
-            texture.drop(self.device)
-        }
+        for (_shader_stage, uniforms) in self.uniforms.iter() { for uniform in uniforms.clone() {
+            match uniform {
+                ShaderItem::Sampler2D(mut texture) => texture.drop(self.device),
+                _ => {}
+            }
+        }}
 
         vkDestroyBuffer(self.device, self.indice_buffer, std::ptr::null());
         vkFreeMemory(self.device, self.indice_memory, std::ptr::null());

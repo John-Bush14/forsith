@@ -82,8 +82,8 @@ impl Drawable {
 
         return drawable;
     }
-    
-    pub fn rect_from_transform(pos: [f32;2], width: f32, height: f32, rot: f32, col: Color, ui: bool, image: bool) -> Drawable {
+
+    pub fn rect_from_transform(pos: [f32;2], width: f32, height: f32, rot: f32, col: Color) -> Drawable {
         let mut drawable: Drawable = Default::default();
 
         drawable.tex = col;
@@ -91,7 +91,7 @@ impl Drawable {
         drawable.scale = [width, height, 1.0];
         drawable.rot = rot;
         drawable.vertices = points_to_vertices(RECT.to_vec(), col);
-        drawable.pipeline_id = if ui {super::PIPELINE_UI_2D} else if image {4} else {super::PIPELINE_2D};
+        drawable.pipeline_id = super::PIPELINE_2D;
 
         drawable.coords = RECT_COORDS.to_vec();
 

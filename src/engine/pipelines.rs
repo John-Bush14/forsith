@@ -10,7 +10,7 @@ impl crate::engine::Engine {pub fn add_pipelines(&mut self, pipelines: Vec<Graph
     self.create_pipeline_layouts();
 }}
 
-impl crate::engine::Engine { pub fn free_pipelines(&mut self) {
+impl crate::engine::Engine { pub(crate) fn free_pipelines(&mut self) {
     self.pipelines.iter_mut().filter(|pipeline| pipeline.uses <= 0)
         .for_each(|pipeline| {
             unsafe {vkDestroyPipeline(self.device, pipeline.pipeline, std::ptr::null())};
@@ -18,7 +18,7 @@ impl crate::engine::Engine { pub fn free_pipelines(&mut self) {
     });
 }}
 
-impl crate::engine::Engine { pub fn create_needed_pipelines(&mut self, recreate: bool) {
+impl crate::engine::Engine { pub(crate) fn create_needed_pipelines(&mut self, recreate: bool) {
 	 if recreate || self.render_pass == 0 {
         self.render_pass = create_render_pass(self.device, self.swapchain_image_format.format, self.depth_format, self.msaa_samples);
     };

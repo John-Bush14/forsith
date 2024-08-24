@@ -30,21 +30,20 @@ pub struct Drawable {
     rot: f32,
     tex: Color,
     translation: [[f32;4];4],
-    pub uniform_buffers: Vec<Vec<(VkBuffer, VkDeviceMemory)>>,
-    pub indice_buffer: VkBuffer,
-    pub indice_memory: VkDeviceMemory,
+    pub(crate) uniform_buffers: Vec<Vec<(VkBuffer, VkDeviceMemory)>>,
+    pub(crate) indice_buffer: VkBuffer,
+    pub(crate) indice_memory: VkDeviceMemory,
     vertices: Vec<Vertex>,
-    pub descriptor_sets: Vec<VkDescriptorSet>,
-    pub indices: Vec<u16>,
-    pub id: usize,
+    pub(crate) descriptor_sets: Vec<VkDescriptorSet>,
+    pub(crate) indices: Vec<u16>,
+    pub(crate) id: usize,
     matrix_changed: bool,
-    pub vertices_changed: (bool, bool),
+    pub(crate) vertices_changed: (bool, bool),
     indices_changed: (bool, bool),
-    pub device: u64,
+    pub(crate) device: u64,
     pipeline_id: usize,
-    pub image: Option<Texture>,
-    pub coords: Vec<[f32;2]>,
-    pub uniforms: std::collections::HashMap<ShaderStage, Vec<ShaderItem>>
+    pub(crate) coords: Vec<[f32;2]>,
+    pub(crate) uniforms: std::collections::HashMap<ShaderStage, Vec<ShaderItem>>
 }
 
 
@@ -59,11 +58,11 @@ pub(self) fn points_to_coords(points: Vec<[f32;3]>) -> Vec<[f32;2]> {
 }
 
 impl Drawable {
-    pub fn get_vertices(&self) -> &Vec<Vertex> {
+    pub(crate) fn get_vertices(&self) -> &Vec<Vertex> {
         return &self.vertices
     }
 
-    pub fn update(&mut self, _image_index: usize, device: u64, pipeline: &GraphicsPipeline) -> (bool, (bool, bool), (bool, bool)) {
+    pub(crate) fn update(&mut self, _image_index: usize, device: u64, pipeline: &GraphicsPipeline) -> (bool, (bool, bool), (bool, bool)) {
         let result = (self.matrix_changed, self.vertices_changed, self.indices_changed);
 
         let mut uniform_buffer_i = 0;
@@ -135,8 +134,6 @@ impl Drawable {
         return result;
     }
 
-    pub fn get_texture(&self) -> &Color {return &self.tex}
-
     pub fn is_drawing(&self) -> bool {return self.drawing}
 
     pub fn get_id(&self) -> usize {return self.id}
@@ -147,11 +144,11 @@ impl Drawable {
 }
 
 impl Drawable {
-    pub fn update_vertice_coords(&mut self) {
+    pub(crate) fn update_vertice_coords(&mut self) {
         self.vertices.iter_mut().enumerate().for_each(|(i, vertice)| vertice.coord = self.coords[i]);
     }
 
-    pub fn matrix_change(&mut self) {self.matrix_changed = true}
+    pub(crate) fn matrix_change(&mut self) {self.matrix_changed = true}
 
     pub fn pos(&self) -> &[f32;3] {return &self.pos}
     pub fn set_pos(&mut self, pos: [f32;3]) {self.pos = pos; self.matrix_change();}
@@ -162,22 +159,14 @@ impl Drawable {
     pub fn rot(&self) -> &f32 {return &self.rot}
     pub fn set_rot(&mut self, rot: f32) {self.rot = rot; self.matrix_change();}
 
-    pub fn set_texture(&mut self, texture: Color) {self.tex = texture;}
-
     pub fn set_drawing(&mut self, drawing: bool) {self.drawing = drawing;}
 
     pub fn get_pipeline_id(&self) -> usize {return self.pipeline_id}
-
-    pub fn set_image(&mut self, image: Texture) {
-        if let Some(image) = &mut self.image {image.drop(self.device)}
-
-        self.image = Some(image);
-    }
 }
 
 impl Default for Drawable {
     fn default() -> Drawable {
-        let mut uniforms = std::collections::HashMap::new();
+        let uniforms = std::collections::HashMap::new();
 
         return Drawable {
             drawing: true,
@@ -198,7 +187,6 @@ impl Default for Drawable {
             indices_changed: (true, true),
             device: 0,
             pipeline_id: PIPELINE_3D,
-            image: None,
             coords: vec!(),
             uniforms
         };

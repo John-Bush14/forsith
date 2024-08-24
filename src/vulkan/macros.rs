@@ -13,7 +13,7 @@ macro_rules! vk_enumerate_to_vec {
         $vk_function(
             $($var,)* &mut len, vec.as_mut_ptr()
         );
-    
+
         vec
     }};
 }
@@ -45,8 +45,8 @@ macro_rules! prepare_extensions {
         )*
 
         let extensions = extension_ptrs.as_ptr();
-        
-        let extensions_len = extension_ptrs.len() as u32; 
+
+        let extensions_len = extension_ptrs.len() as u32;
 
         std::mem::forget(extension_ptrs);
 

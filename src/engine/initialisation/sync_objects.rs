@@ -9,9 +9,9 @@ use crate::vulkan::rendering::{
 };
 
 
-impl super::super::Engine { pub fn create_sync_objects(&mut self) { unsafe {
+impl super::super::Engine { pub(crate) fn create_sync_objects(&mut self) { unsafe {
     let semaphore_create_info = VkSemaphoreCreateInfo {s_type: 9, p_next: std::ptr::null(), flags: 0};
-    
+
     let fence_create_info = VkFenceCreateInfo {s_type: 8, p_next: std::ptr::null(), flags: 0x00000001};
 
     for _ in 0 .. MAX_FRAMES_IN_FLIGHT {
