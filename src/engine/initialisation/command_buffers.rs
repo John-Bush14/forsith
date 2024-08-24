@@ -110,7 +110,7 @@ impl super::super::Engine { pub fn record_and_enter_command_buffers(&mut self) {
                 vkCmdBindDescriptorSets(
                     command_buffer,
                     0,
-                    self.pipeline_layouts.get(&DescriptorBindings::from(&pipeline.vertex_uniforms, &pipeline.fragment_uniforms)).unwrap().0,
+                    self.pipeline_layouts.get(&pipeline.descriptor_bindings).unwrap().0,
                     0,
                     1,
                     &drawable.descriptor_sets[i],

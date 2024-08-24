@@ -1,5 +1,5 @@
 use crate::vulkan::{
-    image::{Texture, VkDescriptorImageInfo, VkImage, VkImageView, VkSampler}, uniform::{
+    image::{Texture, VkDescriptorImageInfo, VkImage, VkImageView, VkSampler}, pipeline::ShaderItem, uniform::{
         vkAllocateDescriptorSets, vkCreateDescriptorPool, vkCreateDescriptorSetLayout, vkUpdateDescriptorSets, DescriptorBindings, VkDescriptorBufferInfo, VkDescriptorPoolCreateInfo, VkDescriptorPoolSize, VkDescriptorSet, VkDescriptorSetAllocateInfo, VkDescriptorSetLayout, VkDescriptorSetLayoutBinding, VkDescriptorSetLayoutCreateInfo, VkWriteDescriptorSet
     }, vertex::{
         VkBuffer,
@@ -56,7 +56,7 @@ impl crate::engine::Engine { pub fn update_descriptor_sets(
     &mut self,
     descriptor_sets: &Vec<VkDescriptorSet>,
     bindings: Vec<(u32, Vec<VkBuffer>, u64)>, // binding, buffer range (object size)
-    image: &Texture
+    uniforms: Vec<ShaderItem>
 ) {
     for i in 0 .. descriptor_sets.len() {
         let mut descriptor_writes = vec!();
@@ -85,16 +85,19 @@ impl crate::engine::Engine { pub fn update_descriptor_sets(
                 texel_buffer_view: std::ptr::null()
             };
 
-            let image_info = VkDescriptorImageInfo {
-                sampler: image.sampler,
-                image_view: image.image_view,
-                image_layout: 5
-            }; image_infos.push(image_info);
+            match &uniforms[*binding as usize] {
+                ShaderItem::Sampler2D(texture) => {
+                    let image_info = VkDescriptorImageInfo {
+                        sampler: texture.sampler,
+                        image_view: texture.image_view,
+                        image_layout: 5
+                    }; image_infos.push(image_info);
 
-            if *buffer_range == 0 {
-                descriptor_write.image_info = &image_infos[image_infos.len()-1] as *const VkDescriptorImageInfo;
-                descriptor_write.descriptor_type = 1;
-                descriptor_write.buffer_info = std::ptr::null()
+                    descriptor_write.image_info = &image_infos[image_infos.len()-1] as *const VkDescriptorImageInfo;
+                    descriptor_write.descriptor_type = 1;
+                    descriptor_write.buffer_info = std::ptr::null()
+                },
+                ShaderItem::Void => {}
             }
 
             descriptor_writes.push(descriptor_write);
@@ -129,15 +132,15 @@ impl crate::engine::Engine { pub fn create_descriptor_set_layout(&self, descript
 
     let mut bindings = vec!();
 
-    for i in 0 .. descriptor_bindings.0.len() as usize {
+    for i in 0 .. descriptor_bindings.vertex as usize {
         let mut binding = vertex_binding.clone();
         binding.binding = i as u32;
         bindings.push(binding);
     }
 
-    for i in 0 .. descriptor_bindings.1.len() as usize {
+    for i in 0 .. descriptor_bindings.fragment as usize {
         let mut binding = fragment_binding.clone();
-        binding.binding = (i+descriptor_bindings.0.len()) as u32;
+        binding.binding = i as u32 + descriptor_bindings.vertex;
         bindings.push(binding);
     }
 

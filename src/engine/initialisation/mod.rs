@@ -12,7 +12,7 @@ pub mod buffer;
 use crate::vulkan::{
     instance::{
         vkEnumerateInstanceExtensionProperties, VkExtensionProperties
-    }, pipeline::Uniform, vk_make_version, window::Dummy
+    }, pipeline::{BuiltinUniform, UniformType}, vk_make_version, window::Dummy
 };
 
 use crate::vk_enumerate_to_vec;
@@ -102,19 +102,19 @@ impl super::Engine {
         engine.find_depth_format();
 
 
-        let (uniform_buffers, uniform_memories) = engine.create_uniform_buffers(Uniform::Camera2d.size_of());
-        let uniform_buffers_2d = uniform_buffers.iter()
-            .zip(uniform_memories.iter())
-            .map(|(x, y)| (*x, *y))
-            .collect::<Vec<(_, _)>>();
+        let camera_uniform_buffers = vec![
+            UniformType::Builtin(BuiltinUniform::Camera3d),
+            UniformType::Builtin(BuiltinUniform::Camera2d)
+        ]
 
-        let (uniform_buffers, uniform_memories) = engine.create_uniform_buffers(Uniform::Camera3d.size_of());
-        let uniform_buffers_3d = uniform_buffers.iter()
-            .zip(uniform_memories.iter())
-            .map(|(x, y)| (*x, *y))
-            .collect::<Vec<(_, _)>>();
+        .into_iter().map(|uniform_type| {
+            let (uniform_buffers, uniform_memories) = engine.create_uniform_buffers(uniform_type.size_of());
 
-        let uniform_buffers = vec![uniform_buffers_3d, uniform_buffers_2d];
+            uniform_buffers.iter()
+                .zip(uniform_memories.iter())
+                .map(|(x, y)| (*x, *y))
+                .collect::<Vec<(_, _)>>()
+        }).collect();
 
         engine.world_view = super::world_view::WorldView::new(
             [0.0, 0.0, 1.0],
@@ -122,7 +122,7 @@ impl super::Engine {
             60.0,
             100.0,
             0.1,
-            uniform_buffers
+            camera_uniform_buffers
         );
 
 

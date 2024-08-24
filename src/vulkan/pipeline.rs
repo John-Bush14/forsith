@@ -16,6 +16,8 @@ use std::ffi::{
     c_char
 };
 
+use super::{image::Texture, uniform::DescriptorBindings};
+
 
 pub type VkShaderModule = u64;
 
@@ -31,22 +33,60 @@ pub type VkFramebuffer = u64;
 
 
 #[derive(Clone)]
-pub enum Uniform {
+pub enum BuiltinUniform {
     Camera2d,
     Camera3d,
     Model2d,
     Model3d,
-    Image
 }
 
+#[derive(Clone)]
+pub enum ShaderType {
+    Sampler2D
+}
+
+impl UniformType {
+    pub fn to_shader_item(&self) -> ShaderItem {
+        match self {
+            Self::Builtin(_) => ShaderItem::Void,
+            _ =>  {
+                let shader_type = match self {Self::Local(x) => x, Self::Global(x) => x, _ => &ShaderType::Sampler2D};
+
+                match shader_type {
+                    ShaderType::Sampler2D => ShaderItem::Sampler2D(Default::default())
+                }
+            }
+        }
+    }
+}
+
+#[derive(Clone)]
+pub enum ShaderItem {
+    Sampler2D(Texture),
+    Void
+}
+
+#[derive(Clone)]
+pub enum UniformType {
+    Builtin(BuiltinUniform),
+    Local(ShaderType),
+    Global(ShaderType)
+}
+
+#[derive(Clone, Hash, Eq, PartialEq)]
+pub enum ShaderStage {
+    Fragment,
+    Vertex
+}
 
 #[derive(Clone)]
 pub struct GraphicsPipeline {
     pub pipeline: VkPipeline,
     pub vertex_shader: VkShaderModule,
     pub fragment_shader: VkShaderModule,
-    pub vertex_uniforms: Vec<Uniform>,
-    pub fragment_uniforms: Vec<Uniform>,
+    pub uniform_layout: std::collections::HashMap<ShaderStage, Vec<UniformType>>,
+    pub global_uniforms: std::collections::HashMap<ShaderStage, Vec<ShaderItem>>,
+    pub descriptor_bindings: DescriptorBindings,
     pub uses: u32
 }
 

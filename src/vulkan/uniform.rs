@@ -17,7 +17,10 @@ pub type VkDescriptorPool = u64;
 pub type VkDescriptorSet = u64;
 
 #[derive(Hash, Clone, Eq, PartialEq)]
-pub struct DescriptorBindings(pub Vec<u8>, pub Vec<u8>);
+pub struct DescriptorBindings {
+    pub vertex: u32,
+    pub fragment: u32
+}
 
 
 #[link(name = "vulkan")]

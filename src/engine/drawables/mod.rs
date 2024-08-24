@@ -1,5 +1,5 @@
 use crate::vulkan::{
-    image::{Texture, VkImage, VkImageView, VkSampler}, pipeline::{GraphicsPipeline, Uniform}, uniform::VkDescriptorSet, vertex::{
+    image::{Texture, VkImage, VkImageView, VkSampler}, pipeline::{BuiltinUniform, GraphicsPipeline, ShaderItem, ShaderStage, UniformType}, uniform::VkDescriptorSet, vertex::{
         Vertex,
         VkBuffer,
         VkDeviceMemory
@@ -43,12 +43,13 @@ pub struct Drawable {
     pub device: u64,
     pipeline_id: usize,
     pub image: Option<Texture>,
-    pub coords: Vec<[f32;2]>
+    pub coords: Vec<[f32;2]>,
+    pub uniforms: std::collections::HashMap<ShaderStage, Vec<ShaderItem>>
 }
 
 
 pub(self) fn points_to_vertices(points: Vec<[f32;3]>, color: Color) -> Vec<Vertex> {
-    points.iter().map(|&point| 
+    points.iter().map(|&point|
         return Vertex {pos: point, color, coord: [0.0;2]}
     ).collect()
 }
@@ -62,65 +63,93 @@ impl Drawable {
         return &self.vertices
     }
 
-    pub fn update(&mut self, _image_index: usize, device: u64, pipeline: &GraphicsPipeline) -> (bool, (bool, bool), (bool, bool)) { 
+    pub fn update(&mut self, _image_index: usize, device: u64, pipeline: &GraphicsPipeline) -> (bool, (bool, bool), (bool, bool)) {
         let result = (self.matrix_changed, self.vertices_changed, self.indices_changed);
 
-        pipeline.vertex_uniforms.iter().filter(|x| match x {Uniform::Camera2d => false, Uniform::Camera3d => false, _ => true})
-        .enumerate()
-        .for_each(|(i, uniform)| {
-            if self.matrix_changed && match uniform {Uniform::Model3d => true, Uniform::Model2d => true, _ => false} {
-                let uniform_buffer = &self.uniform_buffers[i];
+        let mut uniform_buffer_i = 0;
 
-                match uniform {
-                    Uniform::Model3d => {
-                        let rot_radians = self.rot.to_radians();
-                        let cos = rot_radians.cos(); let sin = rot_radians.sin();
-    
-                        self.translation = [
-                            [cos*self.scale[0], sin, 0.0, self.pos[0]],
-                            [-sin, cos*self.scale[1], 0.0, self.pos[1]],
-                            [0.0, 0.0, self.scale[2], self.pos[2]],
-                            [0.0, 0.0, 0.0, 1.0]
-                        ];
+        for (stage, uniform_types) in pipeline.uniform_layout.iter() {
+            let uniforms = self.uniforms.get(&stage).unwrap();
+
+            for i in 0 .. uniform_types.len() {
+                let uniform_type = &uniform_types[i];
+
+                let _uniform = &uniforms[i];
+
+                match uniform_type {
+                    UniformType::Builtin(builtin) => {
+                        match builtin {BuiltinUniform::Camera2d => continue, BuiltinUniform::Camera3d => continue, _ => {}}
+
+
+                        let uniform_buffer = &self.uniform_buffers[uniform_buffer_i];
+
+                        uniform_buffer_i += 1;
+
+
+                        if !self.matrix_changed {continue}
+
+
+                        match builtin {
+                            BuiltinUniform::Model2d => {
+                                let rot_radians = self.rot.to_radians();
+                                let cos = rot_radians.cos(); let sin = rot_radians.sin();
+
+                                self.translation = [
+                                    [cos*self.scale[0], sin, 0.0, self.pos[0]],
+                                   [-sin, cos*self.scale[1], 0.0, self.pos[1]],
+                                    [0.0, 0.0, 0.0, 0.0],
+                                    [0.0, 0.0, 0.0, 1.0]
+                                ];
+                            },
+
+                            BuiltinUniform::Model3d => {
+                                let rot_radians = self.rot.to_radians();
+                                let cos = rot_radians.cos(); let sin = rot_radians.sin();
+
+                                self.translation = [
+                                    [cos*self.scale[0], sin, 0.0, self.pos[0]],
+                                    [-sin, cos*self.scale[1], 0.0, self.pos[1]],
+                                    [0.0, 0.0, self.scale[2], self.pos[2]],
+                                   [0.0, 0.0, 0.0, 1.0]
+                                ];
+                            },
+
+                            _ => {}
+                        }
+
+
+                        for image_index in 0 .. uniform_buffer.len() {
+                            update_memory(uniform_buffer[image_index].1, device, self.translation);
+                        }
+
+                        self.matrix_changed = false;
                     },
-                    Uniform::Model2d => {
-                        let rot_radians = self.rot.to_radians();
-                        let cos = rot_radians.cos(); let sin = rot_radians.sin();
-    
-                        self.translation = [
-                            [cos*self.scale[0], sin, 0.0, self.pos[0]],
-                            [-sin, cos*self.scale[1], 0.0, self.pos[1]],
-                            [0.0, 0.0, 0.0, 0.0],
-                            [0.0, 0.0, 0.0, 1.0]
-                        ];
+                    UniformType::Local(_shader_type) => {
+                        if uniform_type.size_of() == 0 {continue;}
                     },
                     _ => {}
                 }
-
-                println!("{:?}", self.translation);
-
-                for image_index in 0 .. uniform_buffer.len() {
-                    update_memory(uniform_buffer[image_index].1, device, self.translation);
-                }
-                
-                self.matrix_changed = false;
             }
-        });
+        }
 
         return result;
     }
-    
+
     pub fn get_texture(&self) -> &Color {return &self.tex}
 
     pub fn is_drawing(&self) -> bool {return self.drawing}
 
     pub fn get_id(&self) -> usize {return self.id}
+
+    pub fn set_pipeline_id(&mut self, pipeline_id: usize) {
+        self.pipeline_id = pipeline_id;
+    }
 }
 
-impl Drawable {                                     
+impl Drawable {
     pub fn update_vertice_coords(&mut self) {
         self.vertices.iter_mut().enumerate().for_each(|(i, vertice)| vertice.coord = self.coords[i]);
-    }               
+    }
 
     pub fn matrix_change(&mut self) {self.matrix_changed = true}
 
@@ -129,7 +158,7 @@ impl Drawable {
 
     pub fn scale(&self) -> &[f32; 3] {return &self.scale}
     pub fn set_scale(&mut self, scale: [f32; 3]) {self.scale = scale; self.matrix_change();}
-    
+
     pub fn rot(&self) -> &f32 {return &self.rot}
     pub fn set_rot(&mut self, rot: f32) {self.rot = rot; self.matrix_change();}
 
@@ -138,7 +167,7 @@ impl Drawable {
     pub fn set_drawing(&mut self, drawing: bool) {self.drawing = drawing;}
 
     pub fn get_pipeline_id(&self) -> usize {return self.pipeline_id}
-    
+
     pub fn set_image(&mut self, image: Texture) {
         if let Some(image) = &mut self.image {image.drop(self.device)}
 
@@ -148,6 +177,8 @@ impl Drawable {
 
 impl Default for Drawable {
     fn default() -> Drawable {
+        let mut uniforms = std::collections::HashMap::new();
+
         return Drawable {
             drawing: true,
             pos: [0f32, 0f32, 0f32],
@@ -169,6 +200,7 @@ impl Default for Drawable {
             pipeline_id: PIPELINE_3D,
             image: None,
             coords: vec!(),
+            uniforms
         };
     }
 }
