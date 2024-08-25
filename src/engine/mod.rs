@@ -79,6 +79,9 @@ use crate::vulkan::{
 };
 
 
+/// struct containing literaly everything.
+///
+/// `target_fps` is the max fps the program will run at
 pub struct Engine {
     app_name: String,
     app_version: u32,
@@ -127,15 +130,33 @@ pub struct Engine {
 }
 
 impl Engine {
+    /// pop's all the window events which happened since the last call
     pub fn get_events(&self) -> &Vec<WindowEvent> {return &self.events}
 
+    /// returns a reference of the world_view
     pub fn get_world_view(&self) -> &world_view::WorldView {return &self.world_view}
 
+    /// returns the window dimensions
     pub fn get_dimensions(&self) -> &[i32;2] {return &self.dimensions}
 
+    /// returns a reference to the window
     pub fn get_window(&self) -> &Box<dyn Window> {return &self.window}
 }
 
+/// ##### Initializes [`Engine`] + starts the engine graphics loop.
+///
+/// Generic `T` is user defined data which is kept consistent trough iterations
+///
+///
+/// `ready_func` is called before specific vulkan objects are created,
+/// leading it to be the most efficient place for [`Engine::add_drawable`] and [`Engine::add_pipelines`].
+/// It is also where the persistent user data is initialized.
+///
+///
+/// `event_loop` is called on every iteration with the persistent user data and deltatime
+///
+///
+/// `name` and `version` are the name and version of the user app.
 pub fn initialize_engine<T>(
     name: String,
     version: [u8;3],

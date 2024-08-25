@@ -2,6 +2,7 @@ use crate::vulkan::pipeline::{vkDestroyPipeline, GraphicsPipeline, VkPipeline};
 
 use super::initialisation::pipelines::create_render_pass;
 
+/// add's the pipelines to the engine, activating them
 impl crate::engine::Engine {pub fn add_pipelines(&mut self, pipelines: Vec<GraphicsPipeline>) {
     for pipeline in pipelines {
         self.pipelines.push(pipeline);

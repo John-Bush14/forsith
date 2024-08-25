@@ -8,26 +8,74 @@ use std::ffi::c_void;
 
 pub type VkSurfaceKHR = u64;
 
+/// possible window events
 #[derive(PartialEq, Clone)]
 pub enum WindowEvent {
+    /// window creation
     Birth,
+
+    /// window death
     Death,
+
+    /// change in some window property
     MetaChange,
+
+    /// mouse button pressed, `u32` = button keycode
     MouseDown(u32),
+
+    /// mouse button release, `u32` = button keycode
     MouseUp(u32),
+
+    /// key pressed, `u32` = keycode
     KeyUp(u32),
+
+    /// key released, `u32` = keycode, `bool` = holding
     KeyDown(u32, bool),
+
+    /// mouse moved first `f32` on the x-axis and second `f32` on the y-axis
     MouseMove(f32, f32),
+
+    /// focus changed, `bool` = window is focused
     FocusChange(bool),
+
+    /// window is resized, `[i32;2]` are the new dimensions
     WindowResize([i32; 2]),
+
+    /// event unique to window manager wich can not be defined with [`WindowEvent`]
     Undefined
 }
 
+use crate::engine::Engine;
+/// trait implemented by engine's [`Engine::get_window`]
+///
+/// #### pub(crate) functions
+///
+/// I don't know how to private individual functions, so these functions should not be called
+/// if you don't know what you're doing:
+///
+/// `init_connection`,
+///
+/// `init_window`,
+///
+/// `create_surface_khr`,
+///
+/// `commit_suicide`,
+///
+/// `supports_physical_device_queue`,
+///
+/// and `get_events` wich should be called trough [`Engine::get_events`]
+///
 pub trait Window {
+    /// get's the width of the window
     fn get_width(&self) -> u32;
+
+    /// get's the height of the window
     fn get_height(&self) -> u32;
 
+    /// set's the width of the window
     fn set_width(&mut self, width: u32);
+
+    /// set's the height of the window
     fn set_height(&mut self, height: u32);
 
     fn init_connection(dimensions: [i32; 2]) -> Self where Self: Sized;
@@ -42,6 +90,7 @@ pub trait Window {
 
     fn commit_suicide(&self);
 
+    /// moves the mouse to [x, y]
     fn set_mouse(&mut self, x: f32, y: f32);
 }
 

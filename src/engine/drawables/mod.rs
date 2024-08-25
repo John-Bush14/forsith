@@ -23,6 +23,9 @@ pub(self) use crate::engine::update_memory;
 pub type Color = [f32; 4];
 
 
+/// an object wich can be drawn on the screen
+///
+/// is only drawn if `drawing` is true
 pub struct Drawable {
     drawing: bool,
     pos: [f32;3],
@@ -134,10 +137,15 @@ impl Drawable {
         return result;
     }
 
+    /// returns `drawing`
     pub fn is_drawing(&self) -> bool {return self.drawing}
 
+    /// returns the drawables id (engine.drawables\[id\] = drawable)
     pub fn get_id(&self) -> usize {return self.id}
 
+    /// set's the pipeline using the pipeline id (engine.pipelines\[id\] = pipeline)
+    ///
+    /// the PIPELINE consts are pipeline id's
     pub fn set_pipeline_id(&mut self, pipeline_id: usize) {
         self.pipeline_id = pipeline_id;
     }
@@ -150,17 +158,28 @@ impl Drawable {
 
     pub(crate) fn matrix_change(&mut self) {self.matrix_changed = true}
 
+    /// gets the drawable pos
     pub fn pos(&self) -> &[f32;3] {return &self.pos}
+
+    /// sets the drawable pos
     pub fn set_pos(&mut self, pos: [f32;3]) {self.pos = pos; self.matrix_change();}
 
+    /// gets the drawable scale
     pub fn scale(&self) -> &[f32; 3] {return &self.scale}
+
+    /// sets the drawable scale
     pub fn set_scale(&mut self, scale: [f32; 3]) {self.scale = scale; self.matrix_change();}
 
+    /// gets the drawable scale
     pub fn rot(&self) -> &f32 {return &self.rot}
+
+    /// sets the drawable scale
     pub fn set_rot(&mut self, rot: f32) {self.rot = rot; self.matrix_change();}
 
+    /// sets if the drawable is drawing
     pub fn set_drawing(&mut self, drawing: bool) {self.drawing = drawing;}
 
+    /// gets the pipeline id
     pub fn get_pipeline_id(&self) -> usize {return self.pipeline_id}
 }
 

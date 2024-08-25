@@ -70,6 +70,7 @@ const CUBE: [[f32; 3]; 36] = [
 ];
 
 impl Drawable {
+    /// creates a 3d cube from a transform
     pub fn cube_from_transform(pos: [f32;3], width: f32, height: f32, depth: f32, col: Color) -> Drawable {
         let mut drawable: Drawable = Default::default();
 
@@ -83,6 +84,7 @@ impl Drawable {
         return drawable;
     }
 
+    /// creates a 2d rect from a transfrom
     pub fn rect_from_transform(pos: [f32;2], width: f32, height: f32, rot: f32, col: Color) -> Drawable {
         let mut drawable: Drawable = Default::default();
 

@@ -31,22 +31,36 @@ pub type VkPipelineCache = u64;
 
 pub type VkFramebuffer = u64;
 
-
+/// builtin uniforms, explanation in [`UniformType`]
 #[derive(Clone)]
 pub enum BuiltinUniform {
+    /// contains the 2d camera model matrix `[[f32;4];4]`
+    /// and the aspect `f32`
     Camera2d,
+
+    /// contains the 3d camera model matrix `[[f32;4];4]`
+    /// and the the projections matrix `[[f32;4];4]`
     Camera3d,
+
+    /// contains the 2d drawable model matrix `[[f32;4];4]`
     Model2d,
+
+    /// contains the 3d drawable model matrix `[[f32;4];4]`
     Model3d,
 }
 
+/// glsl types (with a bit of abstraction)
 #[derive(Clone)]
 pub enum ShaderType {
+    /// a 2d image sampler
     Sampler2D
 }
 
 impl UniformType {
-    pub fn to_shader_item(&self) -> ShaderItem {
+
+    /// creates [`ShaderItem`]s from the corresponding [`ShaderType`]s, creating [`ShaderItem::Void`] for
+    /// the [`BuiltinUniform`]s
+    pub(crate) fn to_shader_item(&self) -> ShaderItem {
         match self {
             Self::Builtin(_) => ShaderItem::Void,
             _ =>  {
@@ -60,34 +74,49 @@ impl UniformType {
     }
 }
 
+/// glsl items, with the content needed to enter them as uniforms
 #[derive(Clone)]
 pub enum ShaderItem {
+    /// 2d image sampler + texture wich will be sampled
     Sampler2D(Texture),
+
+    /// placeholder for a [`BuiltinUniform`] in `UniformType::to_shader_item` (wich is pub(crate))
     Void
 }
 
+/// types of uniforms wich can be used by pipelines
 #[derive(Clone)]
 pub enum UniformType {
+    /// builtin uniforms are created and updated automatically by the engine
     Builtin(BuiltinUniform),
+
+    /// local uniforms are unique to every drawable, you can edit them in the drawables uniforms.
     Local(ShaderType),
+
+    /// global uniforms are the same for every drawable, you can edit them in the pipeline's global_uniforms
     Global(ShaderType)
 }
 
+/// possible shader stages
 #[derive(Clone, Hash, Eq, PartialEq)]
 pub enum ShaderStage {
+    /// shader stage called for every pixel
     Fragment,
+
+    /// shader stage called for every vertex
     Vertex
 }
 
+/// struct containing necessary data to use, create and free vulkan pipelines
 #[derive(Clone)]
 pub struct GraphicsPipeline {
-    pub pipeline: VkPipeline,
-    pub vertex_shader: VkShaderModule,
-    pub fragment_shader: VkShaderModule,
-    pub uniform_layout: std::collections::HashMap<ShaderStage, Vec<UniformType>>,
-    pub global_uniforms: std::collections::HashMap<ShaderStage, Vec<ShaderItem>>,
-    pub descriptor_bindings: DescriptorBindings,
-    pub uses: u32
+    pub(crate) pipeline: VkPipeline,
+    pub(crate) vertex_shader: VkShaderModule,
+    pub(crate) fragment_shader: VkShaderModule,
+    pub(crate) uniform_layout: std::collections::HashMap<ShaderStage, Vec<UniformType>>,
+    pub(crate) global_uniforms: std::collections::HashMap<ShaderStage, Vec<ShaderItem>>,
+    pub(crate) descriptor_bindings: DescriptorBindings,
+    pub(crate) uses: u32
 }
 
 

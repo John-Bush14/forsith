@@ -4,7 +4,23 @@ use crate::vulkan::{devices::device::VkDevice, vertex::{VkBuffer, VkDeviceMemory
 
 pub(self) use crate::engine::update_memory;
 
-
+/// the camera, containing all the projection matrix + camera model matrix related items
+///
+/// #### projection matrix related settings:
+///
+///     fov: f32 (degrees)
+///
+///     near: f32
+///
+///     far: f32
+///
+/// #### camera model matrix related settings:
+///
+///     eye: [f32;3]
+///
+///     target: [f32;3]
+///
+/// target is relative to eye, so [1, 0, 0] will always make you look left
 pub struct WorldView {
     fov: f32,
     near: f32,
@@ -21,29 +37,42 @@ pub struct WorldView {
     uniform_buffers_3d: Vec<(VkBuffer, VkDeviceMemory)>
 }
 
-impl WorldView {pub fn zero() -> WorldView {WorldView { fov: 0.0, near: 0.0, far: 0.0, eye: [0.0;3], target: [0.0;3], aspect: 0.0, changed: (false, false), view_matrix: [[0.0;4];4], projection_matrix: [[0.0;4];4], _up_vector: [0.0;3], matrix_2d: [[0.0;4];4], uniform_buffers_2d: vec!(), uniform_buffers_3d: vec!() }}}
+impl WorldView {
+    /// returns a manual std::mem::zeroed()
+    pub fn zero() -> WorldView {WorldView { fov: 0.0, near: 0.0, far: 0.0, eye: [0.0;3], target: [0.0;3], aspect: 0.0, changed: (false, false), view_matrix: [[0.0;4];4], projection_matrix: [[0.0;4];4], _up_vector: [0.0;3], matrix_2d: [[0.0;4];4], uniform_buffers_2d: vec!(), uniform_buffers_3d: vec!() }}
+}
 
 impl WorldView {
+    /// returns the aspect ratio of the window (width/height)
     pub fn get_aspect(&self) -> f32 {return self.aspect}
 
     pub(crate) fn get_2d_uniform_buffers(&self) -> &Vec<(u64, u64)> {&self.uniform_buffers_2d}
 
     pub(crate) fn get_3d_uniform_buffers(&self) -> &Vec<(u64, u64)> {&self.uniform_buffers_3d}
 
+    /// sets the pov
     pub fn set_fov(&mut self, fov: f32) {self.fov = fov; self.changed.1 = true}
 
+    /// sets the near
     pub fn set_near(&mut self, near: f32) {self.near = near; self.changed.1 = true}
 
+    /// sets the far
     pub fn set_far(&mut self, far: f32) {self.far = far; self.changed.1 = true}
 
+    /// sets the eye location
     pub fn set_eye(&mut self, eye: [f32;3]) {self.eye = eye; self.changed.0 = true}
 
+    /// moves the eye location (eye.pos += `movement`)
     pub fn move_eye(&mut self, movement: [f32;3]) {
         self.set_eye(self.eye.iter().zip(movement.iter())
             .map(|(&a, &b)| if !b.is_nan() {a + b} else {a}).collect::<Vec<f32>>()
             .try_into().unwrap())
     }
 
+    /// moves the location relative to where the camera is looking (except the y-axis)
+    ///
+    /// for example if the camera is looking at [1, 0, 0], then `move_eye_local([0, 0, 1])` will
+    /// move it 1 unit forward so 1 unit to the x-axis (+ [1, 0, 0])
     pub fn move_eye_local(&mut self, movement: [f32;3]) {
         if movement == [0.0, 0.0, 0.0] {return;}
 
@@ -64,14 +93,17 @@ impl WorldView {
         ]);
     }
 
+    /// set target pos
     pub fn set_target(&mut self, target: [f32;3]) {self.target = target; self.changed.0 = true}
 
+    /// move target pos (target.pos += `movement`)
     pub fn move_target(&mut self, movement: [f32;3]) {
         self.set_target(self.target.iter().zip(movement.iter())
             .map(|(a, b)| a + b).collect::<Vec<f32>>()
             .try_into().unwrap())
     }
 
+    /// set's the target position with yaw and pitch (in degrees)
     pub fn set_target_yaw_pitch(&mut self, yaw_degrees: f32, pitch_degrees: f32) {
         let yaw = yaw_degrees.to_radians(); let pitch = pitch_degrees.to_radians();
 
@@ -153,7 +185,7 @@ impl WorldView {
         return self.matrix_2d;
     }
 
-    pub fn new(
+    pub(crate) fn new(
         eye: [f32;3],
         target: [f32;3],
         fov: f32,

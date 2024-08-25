@@ -16,6 +16,7 @@ use crate::{vulkan::{
 }, ShaderItem, ShaderType};
 
 impl Texture {
+    /// manual drop method
     pub fn drop(&mut self, device: VkDevice) {
         unsafe {
             if self.memory != 0 {vkFreeMemory(device, self.memory, std::ptr::null())}

@@ -15,12 +15,12 @@ pub type VkImage = u64;
 
 pub type VkSampler = u64;
 
-
+/// contains the data needed for vulkan textures or samplers
 #[derive(Clone)]
 pub struct Texture {
-    pub image: VkImage, 
+    pub image: VkImage,
     pub memory: VkDeviceMemory,
-    pub image_view: VkImageView, 
+    pub image_view: VkImageView,
     pub sampler: VkSampler
 }
 
@@ -210,7 +210,7 @@ extern "C" {
         region_count: u32,
         regions: *const VkBufferImageCopy
     );
-    
+
     pub fn vkCreateSampler(
         device: VkDevice,
         create_info: *const VkSamplerCreateInfo,

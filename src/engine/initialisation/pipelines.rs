@@ -10,25 +10,92 @@ use std::io::Read;
 
 use std::ffi::CString;
 
+macro_rules! default_pipelines {
+    ($($const:ident: $id:expr => [$vert_shader:expr, $frag_shader:expr, $vert_in:expr, $frag_in:expr, $persistent:expr],)*) => {
+        $(
+            #[doc = concat!(r"
+                ### Definition
+                ```rust
+                pub const ", stringify!($const), r": usize = ", stringify!($id), r"
 
-#[allow(dead_code)]
-pub const PIPELINE_3D: usize = 0;
+                GraphicsPipeline::new(
+                    ", stringify!($vert_shader), r"
+                    ", stringify!($frag_shader), r"
+                    ", stringify!($vert_in), r"
+                    ", stringify!($frag_in), r"
+                    &self.device,
+                    ", stringify!($persistent), r"
+                )
+                ```
 
-#[allow(dead_code)]
-pub const PIPELINE_2D: usize = 1;
+                [`GraphicsPipeline::new`]
+            ")]
+            #[allow(dead_code)]
+            pub const $const: usize = $id;
+        )*
 
-#[allow(dead_code)]
-pub const PIPELINE_UI_3D: usize = 2;
+        impl crate::engine::Engine { pub(crate) fn default_pipelines(&self) -> Vec<GraphicsPipeline> {
+            return vec![
+                $(
+                    GraphicsPipeline::new(
+                        $vert_shader,
+                        $frag_shader,
+                        $vert_in,
+                        $frag_in,
+                        &self.device,
+                        $persistent
+                    ),
+                )*
+            ]
+        }}
+    };
+}
 
-#[allow(dead_code)]
-pub const PIPELINE_UI_2D: usize = 3;
+use UniformType as UT;
+use BuiltinUniform as BU;
+use ShaderType as ST;
 
-#[allow(dead_code)]
-pub const PIPELINE_UI_IMAGE: usize = 4;
+default_pipelines!(
+    PIPELINE_3D: 0 => [
+        "src/engine/shaders/3d/shader.vert.spv",
+        "src/engine/shaders/shader.frag.spv",
+        vec![UT::Builtin(BU::Camera3d), UT::Builtin(BU::Model3d)],
+        vec![],
+        true
+    ],
+    PIPELINE_2D: 1 => [
+        "src/engine/shaders/2d/shader.vert.spv",
+        "src/engine/shaders/shader.frag.spv",
+        vec![UT::Builtin(BU::Camera2d), UT::Builtin(BU::Model2d)],
+        vec![],
+        true
+    ],
+    PIPELINE_UI_3D: 2 => [
+        "src/engine/shaders/ui/3d/shader.vert.spv",
+        "src/engine/shaders/shader.frag.spv",
+        vec![UT::Builtin(BU::Camera3d), UT::Builtin(BU::Model2d)],
+        vec![],
+        false
+    ],
+    PIPELINE_UI_2D: 3 => [
+        "src/engine/shaders/ui/2d/shader.vert.spv",
+        "src/engine/shaders/shader.frag.spv",
+        vec![UT::Builtin(BU::Camera2d), UT::Builtin(BU::Model2d)],
+        vec![],
+        true
+    ],
+    PIPELINE_UI_IMAGE: 4 => [
+        "src/engine/shaders/image.vert.spv",
+        "src/engine/shaders/image.frag.spv",
+        vec![UT::Builtin(BU::Camera2d), UT::Builtin(BU::Model2d)],
+        vec![UT::Local(ST::Sampler2D)],
+        true
+    ],
+);
 
 
 impl UniformType {
-    pub fn size_of(&self) -> u64 {
+    pub(crate) fn size_of(&self) -> u64 {
         use std::mem::size_of as szf;
 
         return match self {
@@ -49,6 +116,15 @@ impl UniformType {
     }
 }
 
+/// creates a new [`GraphicsPipeline`],
+///
+/// this doesn't create an actualy vulkan pipeline though, the actual vulkan pipeline will only be created when added
+/// to the engine and when it is needed
+///
+/// if it is needed is decided by if the amount of drawables using it is above 0 or if `persistent`
+/// is true
+///
+/// the shaders need to be paths to .vert.spv or .frag.spv files respectively.
 impl GraphicsPipeline { pub fn new(
     vertex_shader: &str,
     fragment_shader: &str,
@@ -85,54 +161,6 @@ impl GraphicsPipeline { pub fn new(
     }
 }}
 
-impl crate::engine::Engine { pub(crate) fn default_pipelines(&self) -> Vec<GraphicsPipeline> {
-    use UniformType as UT;
-    use BuiltinUniform as BU;
-    use ShaderType as ST;
-
-    return vec![
-        GraphicsPipeline::new(
-            "src/engine/shaders/3d/shader.vert.spv",
-	         "src/engine/shaders/shader.frag.spv",
-            vec![UT::Builtin(BU::Camera3d), UT::Builtin(BU::Model3d)],
-            vec!(),
-            &self.device,
-            true
-        ),
-        GraphicsPipeline::new(
-            "src/engine/shaders/2d/shader.vert.spv",
-	         "src/engine/shaders/shader.frag.spv",
-            vec![UT::Builtin(BU::Camera2d), UT::Builtin(BU::Model2d)],
-            vec!(),
-            &self.device,
-            true
-        ),
-        GraphicsPipeline::new(
-            "src/engine/shaders/ui/3d/shader.vert.spv",
-	         "src/engine/shaders/shader.frag.spv",
-            vec![UT::Builtin(BU::Camera3d), UT::Builtin(BU::Model2d)],
-            vec!(),
-            &self.device,
-            false
-        ),
-        GraphicsPipeline::new(
-            "src/engine/shaders/ui/2d/shader.vert.spv",
-	         "src/engine/shaders/shader.frag.spv",
-            vec![UT::Builtin(BU::Camera2d), UT::Builtin(BU::Model2d)],
-            vec!(),
-            &self.device,
-            true
-        ),
-        GraphicsPipeline::new(
-            "src/engine/shaders/image.vert.spv",
-	         "src/engine/shaders/image.frag.spv",
-            vec![UT::Builtin(BU::Camera2d), UT::Builtin(BU::Model2d)],
-            vec![UT::Local(ST::Sampler2D)],
-            &self.device,
-            true
-        )
-    ];
-}}
 
 impl crate::engine::Engine {pub(crate) fn create_pipeline_layouts(&mut self) {
     self.pipelines.iter()
@@ -195,7 +223,7 @@ impl crate::engine::Engine {pub(crate) fn create_framebuffers(&mut self) {
     }).collect();
 }}
 
-impl crate::engine::Engine {pub fn create_pipeline(&self, pipeline: &GraphicsPipeline) -> VkPipeline {
+impl crate::engine::Engine {pub(crate) fn create_pipeline(&self, pipeline: &GraphicsPipeline) -> VkPipeline {
     let entry_point_name = CString::new("main").unwrap();
     let descriptor_bindings = &pipeline.descriptor_bindings;
     let pipeline_layout = self.pipeline_layouts.get(&descriptor_bindings).unwrap().0;

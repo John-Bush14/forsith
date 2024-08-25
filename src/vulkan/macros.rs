@@ -1,4 +1,3 @@
-#[macro_export]
 macro_rules! vk_enumerate_to_vec {
     ($vk_function:ident, $vk_struct:ty, $($var:expr,)*) => {{
         let mut len: u32 = 0;
@@ -18,7 +17,6 @@ macro_rules! vk_enumerate_to_vec {
     }};
 }
 
-#[macro_export]
 macro_rules! prepare_extensions {
     ($supported_extensions:expr, $($extension:expr,)*) => {{
         let supported_extensions: Vec<String> = $supported_extensions.iter()
@@ -53,3 +51,6 @@ macro_rules! prepare_extensions {
         (extensions, extensions_len)
     }};
 }
+
+pub(crate) use vk_enumerate_to_vec;
+pub(crate) use prepare_extensions;

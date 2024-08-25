@@ -2,6 +2,11 @@ pub(crate) mod vulkan;
 
 pub(crate) mod engine;
 
+pub(crate) use vulkan::macros::{
+    vk_enumerate_to_vec,
+    prepare_extensions
+};
+
 
 pub use engine::{
     initialize_engine,
@@ -23,7 +28,9 @@ pub use vulkan::{
         BuiltinUniform,
         UniformType,
         ShaderItem,
-        ShaderType
+        ShaderType,
+        GraphicsPipeline,
     },
+    image::Texture,
     window::{WindowEvent, Window}
 };

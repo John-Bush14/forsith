@@ -9,6 +9,7 @@ impl Default for Texture {
     }
 }
 
+/// creates a [`Texture`] from an image file path
 impl crate::engine::Engine {pub fn create_texture(&mut self, file: String) -> Texture {
     let mut texture: Texture = Default::default();
 

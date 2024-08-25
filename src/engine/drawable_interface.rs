@@ -5,6 +5,7 @@ use crate::vulkan::pipeline::{BuiltinUniform, GraphicsPipeline, ShaderItem, Shad
 use crate::vulkan::uniform::DescriptorBindings;
 
 
+/// creates the [`ShaderItem`]s for the drawable's pipeline's local uniforms
 impl Drawable { pub fn prepare_uniforms(&mut self, pipelines: &Vec<GraphicsPipeline>) {
     self.uniforms = std::collections::HashMap::new();
 
@@ -15,10 +16,13 @@ impl Drawable { pub fn prepare_uniforms(&mut self, pipelines: &Vec<GraphicsPipel
     }
 }}
 
+/// mutably gets a local uniform of a drawable, [`Drawable::prepare_uniforms`] needs to be called
+/// before this to create the local uniforms
 impl Drawable {pub fn get_uniform(&mut self, stage: ShaderStage, i: usize) -> &mut ShaderItem {
     return &mut self.uniforms.get_mut(&stage).unwrap()[i]
 }}
 
+/// adds a drawable to the engine, actually activating it
 impl crate::engine::Engine { pub fn add_drawable<'a>(&'a mut self, mut drawable: Drawable) -> &'a mut Drawable {
     if !drawable.uniforms.contains_key(&ShaderStage::Fragment) {
         drawable.prepare_uniforms(&self.pipelines);
@@ -116,6 +120,7 @@ impl crate::engine::Engine { pub fn add_drawable<'a>(&'a mut self, mut drawable:
     return &mut self.drawables[id];
 }}
 
+/// removes a drawable from the engine
 impl crate::engine::Engine { pub fn remove_drawable(&mut self, drawable_index: usize) {
     let drawable = self.drawables.remove(drawable_index);
 
