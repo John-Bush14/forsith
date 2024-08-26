@@ -22,12 +22,14 @@ impl Drawable {
 
 
         for indice in indices {
+            if *indice as usize >= positions.len() {panic!("what the fuck! {:?}", indice);}
+
             let pi = (indice * 3) as usize;
             let ci = (indice * 2) as usize;
 
-            let x = positions[pi * 3];
-            let y = positions[pi * 3 + 1];
-            let z = positions[pi * 3 + 2];
+            let x = positions[pi];
+            let y = positions[pi + 1];
+            let z = positions[pi + 2];
             let u = coords[ci];
             let v = coords[ci + 1];
 

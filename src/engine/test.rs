@@ -26,6 +26,11 @@ mod tests {
                 let image = engine.create_texture("src/engine/assets/test.jpg".to_string());
                 *rect.get_uniform(ShaderStage::Fragment, 0) = ShaderItem::Sampler2D(image);
 
+                let among_us = "src/engine/assets/among_us/among_us.obj";
+                let mut model = Drawable::model_from_obj(among_us);
+                model.set_scale([0.01;3]);
+                model.set_pos([0.0, -1.0, 0.0]);
+
                 let cuber = Drawable::cube_from_transform([4.0, 0.0, 0.0], 1.0, 1.0, 1.0, [1.0, 0.0, 0.0, 1.0]);
                 let cubeg = Drawable::cube_from_transform([00.0, 4.0, 0.0], 1.0, 1.0, 1.0, [0.0, 1.0, 0.0, 1.0]);
                 let cubeb = Drawable::cube_from_transform([00.0, 0.0, 4.0], 1.0, 1.0, 1.0, [0.0, 0.0, 1.0, 1.0]);
@@ -34,6 +39,7 @@ mod tests {
                 engine.add_drawable(cuber);
                 engine.add_drawable(cubeg);
                 engine.add_drawable(cubeb);
+                engine.add_drawable(model);
 
                 let state = State {yaw: -270.0, pitch: 0.0, momentum: [0f32;3]};
 
