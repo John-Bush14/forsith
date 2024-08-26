@@ -16,7 +16,8 @@ pub use engine::{
         PIPELINE_3D,
         PIPELINE_UI_2D,
         PIPELINE_UI_3D,
-        PIPELINE_UI_IMAGE
+        PIPELINE_UI_IMAGE_2D,
+        PIPELINE_UI_IMAGE_3D
     },
     Engine,
     world_view::WorldView

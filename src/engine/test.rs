@@ -1,7 +1,7 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::{engine, vulkan::{pipeline::{ShaderItem, ShaderStage}, window::WindowEvent}, Drawable, PIPELINE_UI_IMAGE};
+    use crate::{engine, vulkan::{pipeline::{ShaderItem, ShaderStage}, window::WindowEvent}, Drawable, PIPELINE_UI_IMAGE_2D};
 
     struct State {
         yaw: f32,
@@ -19,11 +19,11 @@ mod tests {
                 engine.target_fps = 60.0;
 
                 let mut rect = Drawable::rect_from_transform([-0.5, -0.5], 0.25, 0.25, 0.0, [1.0;4]);
-                rect.set_pipeline_id(PIPELINE_UI_IMAGE);
+                rect.set_pipeline_id(PIPELINE_UI_IMAGE_2D);
 
                 rect.prepare_uniforms(&engine.pipelines);
 
-                let image = engine.create_texture("src/engine/assets/test.jpg".to_string());
+                let image = engine.create_texture("src/engine/assets/test.jpg".to_string(), false);
                 *rect.get_uniform(ShaderStage::Fragment, 0) = ShaderItem::Sampler2D(image);
 
                 let among_us = "src/engine/assets/among_us/among_us.obj";
