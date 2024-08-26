@@ -9,3 +9,4 @@ build = "build.rs"
 [dependencies]
 cgmath = "0.18.0"
 image = "0.21.0"
+tobj = "0.1.6"

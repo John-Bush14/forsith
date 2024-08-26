@@ -8,6 +8,8 @@ use crate::vulkan::{
 
 pub mod quads;
 
+pub mod model;
+
 
 #[allow(unused_imports)]
 pub(self) use crate::{
