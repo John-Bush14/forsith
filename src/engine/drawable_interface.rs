@@ -51,7 +51,7 @@ impl crate::engine::Engine { pub fn add_drawable<'a>(&'a mut self, mut drawable:
 
     let empty = vec!();
 
-    for (_, uniforms) in uniform_layout { for uniform in uniforms {
+    for shader_stage in [ShaderStage::Vertex, ShaderStage::Fragment] { for uniform in uniform_layout.get(&shader_stage).unwrap() {
         let uniform_buffers = match uniform {
             UniformType::Builtin(ref builtin) => match builtin {
                 BuiltinUniform::Camera3d => self.world_view.get_3d_uniform_buffers(),
@@ -79,10 +79,10 @@ impl crate::engine::Engine { pub fn add_drawable<'a>(&'a mut self, mut drawable:
         bindings.push(((bindings.len()) as u32, uniform_buffers, uniform.size_of()));
     }}
 
-    let flat_uniforms = [
-        drawable.uniforms.get(&ShaderStage::Vertex).unwrap().clone(),
-        drawable.uniforms.get(&ShaderStage::Fragment).unwrap().clone()
-    ].into_iter().flatten().collect();
+    let mut flat_uniforms = vec!();
+
+    for uniform in drawable.uniforms.get(&ShaderStage::Vertex).unwrap().clone() {flat_uniforms.push(uniform);}
+    for uniform in drawable.uniforms.get(&ShaderStage::Fragment).unwrap().clone() {flat_uniforms.push(uniform);}
 
     self.update_descriptor_sets(&drawable.descriptor_sets, bindings, flat_uniforms);
 
