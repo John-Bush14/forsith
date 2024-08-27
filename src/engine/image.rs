@@ -68,7 +68,8 @@ impl super::Engine {pub(crate) fn create_texture_image(&self, file: String, mipm
     self.copy_buffer_to_image(buffer, image, width, height);
 
 
-    self.transition_image_layout(image, 37, mip_levels, 7, 5);
+    self.generate_mipmaps(image, width, height, 37, mip_levels);
+    // self.transition_image_layout(image, 37, mip_levels, 7, 5);
 
 
     unsafe {
@@ -78,6 +79,8 @@ impl super::Engine {pub(crate) fn create_texture_image(&self, file: String, mipm
 
     return (image, image_memory, mip_levels);
 }}
+
+impl super::Engine {pub fn generate_mipmaps(&self, image: VkImage, width: u32, height: u32, format: u32, mip_levels: u32) {todo!()}}
 
 impl super::Engine {pub(crate) fn create_image(&self,
     width: u32,
