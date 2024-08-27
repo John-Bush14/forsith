@@ -84,10 +84,17 @@ default_pipelines!(
         vec![],
         true
     ],
-    PIPELINE_UI_IMAGE: 4 => [
-        "src/engine/shaders/image.vert.spv",
-        "src/engine/shaders/image.frag.spv",
+    PIPELINE_UI_IMAGE_2D: 4 => [
+        "src/engine/shaders/image/ui/2d/shader.vert.spv",
+        "src/engine/shaders/image/shader.frag.spv",
         vec![UT::Builtin(BU::Camera2d), UT::Builtin(BU::Model2d)],
+        vec![UT::Local(ST::Sampler2D)],
+        true
+    ],
+    PIPELINE_UI_IMAGE_3D: 5 => [
+        "src/engine/shaders/image/ui/3d/shader.vert.spv",
+        "src/engine/shaders/image/shader.frag.spv",
+        vec![UT::Builtin(BU::Camera3d), UT::Builtin(BU::Model3d)],
         vec![UT::Local(ST::Sampler2D)],
         true
     ],

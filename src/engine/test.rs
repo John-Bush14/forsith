@@ -1,7 +1,7 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::{engine, vulkan::{pipeline::{ShaderItem, ShaderStage}, window::WindowEvent}, Drawable, PIPELINE_UI_IMAGE};
+    use crate::{engine, vulkan::{pipeline::{ShaderItem, ShaderStage}, window::WindowEvent}, Drawable, PIPELINE_UI_IMAGE_2D, PIPELINE_UI_IMAGE_3D};
 
     struct State {
         yaw: f32,
@@ -19,12 +19,23 @@ mod tests {
                 engine.target_fps = 60.0;
 
                 let mut rect = Drawable::rect_from_transform([-0.5, -0.5], 0.25, 0.25, 0.0, [1.0;4]);
-                rect.set_pipeline_id(PIPELINE_UI_IMAGE);
+                rect.set_pipeline_id(PIPELINE_UI_IMAGE_2D);
 
                 rect.prepare_uniforms(&engine.pipelines);
 
-                let image = engine.create_texture("src/engine/assets/test.jpg".to_string());
+                let image = engine.create_texture("src/engine/assets/test.jpg".to_string(), false);
                 *rect.get_uniform(ShaderStage::Fragment, 0) = ShaderItem::Sampler2D(image);
+
+                let among_us = "src/engine/assets/among_us/among_us.obj";
+                let among_us_texture = engine.create_texture("src/engine/assets/among_us/among_us.png".to_string(), true);
+                let mut model = Drawable::model_from_obj(among_us);
+                model.set_scale([1.5;3]);
+                model.set_pos([0.0, -0.5, 0.0]);
+                model.set_pipeline_id(PIPELINE_UI_IMAGE_3D);
+
+                model.prepare_uniforms(&engine.pipelines);
+
+                *model.get_uniform(ShaderStage::Fragment, 0) = ShaderItem::Sampler2D(among_us_texture);
 
                 let cuber = Drawable::cube_from_transform([4.0, 0.0, 0.0], 1.0, 1.0, 1.0, [1.0, 0.0, 0.0, 1.0]);
                 let cubeg = Drawable::cube_from_transform([00.0, 4.0, 0.0], 1.0, 1.0, 1.0, [0.0, 1.0, 0.0, 1.0]);
@@ -34,6 +45,7 @@ mod tests {
                 engine.add_drawable(cuber);
                 engine.add_drawable(cubeg);
                 engine.add_drawable(cubeb);
+                engine.add_drawable(model);
 
                 let state = State {yaw: -270.0, pitch: 0.0, momentum: [0f32;3]};
 

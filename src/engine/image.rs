@@ -10,7 +10,9 @@ impl Default for Texture {
 }
 
 /// creates a [`Texture`] from an image file path
-impl crate::engine::Engine {pub fn create_texture(&mut self, file: String) -> Texture {
+///
+/// mipmaps means that lower quality textures will be created to use when a higher quality is not neccesary
+impl crate::engine::Engine {pub fn create_texture(&mut self, file: String, mipmaps: bool) -> Texture {
     let mut texture: Texture = Default::default();
 
     (texture.image, texture.memory) = self.create_texture_image(file);
