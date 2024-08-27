@@ -1,5 +1,5 @@
-use crate::vulkan::{devices::physical_device::{vkGetPhysicalDeviceProperties, VkPhysicalDeviceProperties}, image::{
-        vkBindImageMemory, vkCmdCopyBufferToImage, vkCmdPipelineBarrier, vkCreateImage, vkCreateImageView, vkCreateSampler, vkGetImageMemoryRequirements, Texture, VkBufferImageCopy, VkComponentMapping, VkExtent3D, VkImage, VkImageCreateInfo, VkImageMemoryBarrier, VkImageSubresourceLayers, VkImageSubresourceRange, VkImageView, VkImageViewCreateInfo, VkOffset3D, VkSampler, VkSamplerCreateInfo
+use crate::vulkan::{devices::physical_device::{vkGetPhysicalDeviceFormatProperties, vkGetPhysicalDeviceProperties, VkFormatProperties, VkPhysicalDeviceProperties}, image::{
+        vkBindImageMemory, vkCmdBlitImage, vkCmdCopyBufferToImage, vkCmdPipelineBarrier, vkCreateImage, vkCreateImageView, vkCreateSampler, vkGetImageMemoryRequirements, Texture, VkBufferImageCopy, VkComponentMapping, VkExtent3D, VkImage, VkImageBlit, VkImageCreateInfo, VkImageMemoryBarrier, VkImageSubresourceLayers, VkImageSubresourceRange, VkImageView, VkImageViewCreateInfo, VkOffset3D, VkSampler, VkSamplerCreateInfo
     }, vertex::{vkAllocateMemory, vkDestroyBuffer, vkFreeMemory, vkGetPhysicalDeviceMemoryProperties, vkMapMemory, vkUnmapMemory, VkBuffer, VkDeviceMemory, VkMemoryAllocateInfo, VkMemoryRequirements, VkPhysicalDeviceMemoryProperties}};
 
 
@@ -59,7 +59,7 @@ impl super::Engine {pub(crate) fn create_texture_image(&self, file: String, mipm
     unsafe {vkUnmapMemory(self.device, memory)};
 
 
-    let (image, image_memory) = self.create_image(width, height, 37, mip_levels, 0x00000001, 0, 0x00000002 | 0x00000004, 0x00000001);
+    let (image, image_memory) = self.create_image(width, height, 37, mip_levels, 0x00000001, 0, 0x00000001 | 0x00000002 | 0x00000004, 0x00000001);
 
 
     self.transition_image_layout(image, 37, mip_levels, 0, 7);
@@ -80,7 +80,128 @@ impl super::Engine {pub(crate) fn create_texture_image(&self, file: String, mipm
     return (image, image_memory, mip_levels);
 }}
 
-impl super::Engine {pub fn generate_mipmaps(&self, image: VkImage, width: u32, height: u32, format: u32, mip_levels: u32) {todo!()}}
+impl super::Engine {pub fn generate_mipmaps(&self, image: VkImage, width: u32, height: u32, format: u32, mip_levels: u32) {
+    let mut format_properties: VkFormatProperties = unsafe {std::mem::zeroed()};
+
+    unsafe {vkGetPhysicalDeviceFormatProperties(self.physical_device, format, &mut format_properties as *mut VkFormatProperties)};
+
+    if format_properties.optimal_tiling_features & 0x00001000 == 0 {panic!("linear blitting aint supported for format {} bruv", format);}
+
+
+    self.execute_one_time_command(self.command_pool, self.graphics_queue, |cmd_buffer| {
+        let mut barrier = VkImageMemoryBarrier {
+            s_type: 45,
+            p_next: std::ptr::null(),
+            src_access_mask: 0,
+            dst_access_mask: 0,
+            old_layout: 7,
+            new_layout: 6,
+            src_queue_family_index: std::u32::MAX,
+            dst_queue_family_index: std::u32::MAX,
+            image,
+            subresource_range: VkImageSubresourceRange {
+                aspect_mask: 0x00000001,
+                base_mip_level: 0,
+                level_count: 1,
+                base_array_layer: 0,
+                layer_count: 1,
+            },
+        };
+
+
+        let mut mip_width = width as i32;
+        let mut mip_height = height as i32;
+
+        for level in 1..mip_levels {
+            let next_mip_width = if mip_width > 1 {mip_width / 2} else {mip_width};
+
+            let next_mip_height = if mip_height > 1 {mip_height / 2} else {mip_height};
+
+
+            barrier.subresource_range.base_mip_level = level-1;
+            barrier.old_layout = 7;
+            barrier.new_layout = 6;
+            barrier.src_access_mask = 0x00001000;
+            barrier.dst_access_mask = 0x00000800;
+
+            unsafe {vkCmdPipelineBarrier(
+                cmd_buffer,
+                0x00001000,
+                0x00001000,
+                0,
+                0,
+                std::ptr::null(),
+                0,
+                std::ptr::null(),
+                1,
+                &barrier as *const VkImageMemoryBarrier
+            )};
+
+
+            let blit = VkImageBlit {
+                src_subresource: VkImageSubresourceLayers {
+                    aspect_mask: 0x00000001,
+                    mip_level: level-1,
+                    base_array_layer: 0,
+                    layer_count: 1
+                },
+                src_offsets: [VkOffset3D {x: 0, y: 0, z: 0}, VkOffset3D {x: mip_width, y: mip_height, z: 1}],
+
+                dst_subresource: VkImageSubresourceLayers {
+                    aspect_mask: 0x00000001,
+                    mip_level: level,
+                    base_array_layer: 0,
+                    layer_count: 1
+                },
+                dst_offsets: [VkOffset3D {x: 0, y: 0, z: 0}, VkOffset3D {x: next_mip_width, y: next_mip_height, z: 1}]
+            };
+
+            unsafe {vkCmdBlitImage(cmd_buffer, image, 6, image, 7, 1, &blit as *const VkImageBlit, 1)};
+
+
+            barrier.old_layout = 6;
+            barrier.new_layout = 5;
+            barrier.src_access_mask = 0x00000800;
+            barrier.dst_access_mask = 0x00000020;
+
+            unsafe {vkCmdPipelineBarrier(
+                cmd_buffer,
+                0x00001000,
+                0x00000080,
+                0,
+                0,
+                std::ptr::null(),
+                0,
+                std::ptr::null(),
+                1,
+                &barrier as *const VkImageMemoryBarrier
+            )};
+
+
+            mip_width = next_mip_width;
+            mip_height = next_mip_height;
+        }
+
+        barrier.subresource_range.base_mip_level = mip_levels-1;
+        barrier.old_layout = 7;
+        barrier.new_layout = 5;
+        barrier.src_access_mask = 0x00001000;
+        barrier.dst_access_mask = 0x00000020;
+
+        unsafe {vkCmdPipelineBarrier(
+            cmd_buffer,
+            0x00001000,
+            0x00000080,
+            0,
+            0,
+            std::ptr::null(),
+            0,
+            std::ptr::null(),
+            1,
+            &barrier as *const VkImageMemoryBarrier
+        )};
+    });
+}}
 
 impl super::Engine {pub(crate) fn create_image(&self,
     width: u32,
