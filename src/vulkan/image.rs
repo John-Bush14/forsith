@@ -105,6 +105,14 @@ pub struct VkComponentMapping {
 }
 
 #[repr(C)]
+pub struct VkImageBlit {
+    pub src_subresource: VkImageSubresourceLayers,
+    pub src_offsets: [VkOffset3D;2],
+    pub dst_subresource: VkImageSubresourceLayers,
+    pub dst_offsets: [VkOffset3D;2]
+}
+
+#[repr(C)]
 pub struct VkSamplerCreateInfo {
     pub s_type: VkStructureType,
     pub p_next: *const c_void,
@@ -222,5 +230,16 @@ extern "C" {
         device: VkDevice,
         sampler: VkSampler,
         _: *const c_void
+    );
+
+    pub fn vkCmdBlitImage(
+        command_buffer: VkCommandBuffer,
+        src_image: VkImage,
+        src_image_layout: u32,
+        dst_image: VkImage,
+        dst_image_layout: u32,
+        region_count: u32,
+        regions: *const VkImageBlit,
+        filter: u32
     );
 }
