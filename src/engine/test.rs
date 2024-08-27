@@ -1,7 +1,7 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::{engine, vulkan::{pipeline::{ShaderItem, ShaderStage}, window::WindowEvent}, Drawable, PIPELINE_UI_IMAGE_2D};
+    use crate::{engine, vulkan::{pipeline::{ShaderItem, ShaderStage}, window::WindowEvent}, Drawable, PIPELINE_UI_IMAGE_2D, PIPELINE_UI_IMAGE_3D};
 
     struct State {
         yaw: f32,
@@ -27,9 +27,15 @@ mod tests {
                 *rect.get_uniform(ShaderStage::Fragment, 0) = ShaderItem::Sampler2D(image);
 
                 let among_us = "src/engine/assets/among_us/among_us.obj";
+                let among_us_texture = engine.create_texture("src/engine/assets/among_us/among_us.png".to_string(), true);
                 let mut model = Drawable::model_from_obj(among_us);
-                model.set_scale([0.01;3]);
-                model.set_pos([0.0, -1.0, 0.0]);
+                model.set_scale([1.5;3]);
+                model.set_pos([0.0, -0.5, 0.0]);
+                model.set_pipeline_id(PIPELINE_UI_IMAGE_3D);
+
+                model.prepare_uniforms(&engine.pipelines);
+
+                *model.get_uniform(ShaderStage::Fragment, 0) = ShaderItem::Sampler2D(among_us_texture);
 
                 let cuber = Drawable::cube_from_transform([4.0, 0.0, 0.0], 1.0, 1.0, 1.0, [1.0, 0.0, 0.0, 1.0]);
                 let cubeg = Drawable::cube_from_transform([00.0, 4.0, 0.0], 1.0, 1.0, 1.0, [0.0, 1.0, 0.0, 1.0]);
