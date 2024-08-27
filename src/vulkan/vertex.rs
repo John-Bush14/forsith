@@ -10,7 +10,7 @@ use crate::vulkan::{
         device::VkDevice,
         physical_device::VkPhysicalDevice
     },
-    VkResult, 
+    VkResult,
     VkStructureType
 };
 
@@ -30,7 +30,7 @@ extern "C" {
         _: *const c_void,
         buffer: *mut VkBuffer
     ) -> VkResult;
-    
+
     pub fn vkGetBufferMemoryRequirements(
         device: VkDevice,
         buffer: VkBuffer,
@@ -143,6 +143,9 @@ impl std::hash::Hash for Vertex {
         }
         for &color_val in &self.color {
             state.write_u32(color_val.to_bits());
+        }
+        for &coord_val in &self.coord {
+            state.write_u32(coord_val.to_bits())
         }
     }
 }
