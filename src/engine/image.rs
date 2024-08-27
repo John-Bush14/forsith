@@ -15,22 +15,26 @@ impl Default for Texture {
 impl crate::engine::Engine {pub fn create_texture(&mut self, file: String, mipmaps: bool) -> Texture {
     let mut texture: Texture = Default::default();
 
-    (texture.image, texture.memory) = self.create_texture_image(file);
+    let (image, memory, mip_levels) = self.create_texture_image(file, mipmaps);
 
-    texture.image_view = self.create_image_view(texture.image, 0x00000001, 37);
+    texture.image = image; texture.memory = memory;
 
-    texture.sampler = self.create_texture_sampler();
+    texture.image_view = self.create_image_view(texture.image, 0x00000001, 37, mip_levels);
+
+    texture.sampler = self.create_texture_sampler(mip_levels);
 
     return texture;
 }}
 
-impl super::Engine {pub(crate) fn create_texture_image(&self, file: String) -> (VkImage, VkDeviceMemory) {
+impl super::Engine {pub(crate) fn create_texture_image(&self, file: String, mipmaps: bool) -> (VkImage, VkDeviceMemory, u32) {
     let image = image::open(file).expect("error getting image");
     let image_as_rgb = image.to_rgba();
     let width = (&image_as_rgb).width();
     let height = (&image_as_rgb).height();
     let pixels: Vec<u8> = image_as_rgb.into_raw();
     let image_size = (pixels.len() * std::mem::size_of::<u8>()) as u64;
+
+    let mip_levels = if mipmaps {todo!()} else {1};
 
 
     let (buffer, memory, _) = self.create_buffer(image_size, 0x00000001, 0x00000002 | 0x00000004);
@@ -51,16 +55,16 @@ impl super::Engine {pub(crate) fn create_texture_image(&self, file: String) -> (
     unsafe {vkUnmapMemory(self.device, memory)};
 
 
-    let (image, image_memory) = self.create_image(width, height, 37, 0x00000001, 0, 0x00000002 | 0x00000004, 0x00000001);
+    let (image, image_memory) = self.create_image(width, height, 37, mip_levels, 0x00000001, 0, 0x00000002 | 0x00000004, 0x00000001);
 
 
-    self.transition_image_layout(image, 37, 0, 7);
+    self.transition_image_layout(image, 37, mip_levels, 0, 7);
 
 
     self.copy_buffer_to_image(buffer, image, width, height);
 
 
-    self.transition_image_layout(image, 37, 7, 5);
+    self.transition_image_layout(image, 37, mip_levels, 7, 5);
 
 
     unsafe {
@@ -68,13 +72,14 @@ impl super::Engine {pub(crate) fn create_texture_image(&self, file: String) -> (
         vkFreeMemory(self.device, memory, std::ptr::null())
     }
 
-    return (image, image_memory);
+    return (image, image_memory, mip_levels);
 }}
 
 impl super::Engine {pub(crate) fn create_image(&self,
     width: u32,
     height: u32,
     format: u32,
+    mip_levels: u32,
     sample_count: u32,
     tiling: u32,
     usage: u32,
@@ -101,7 +106,7 @@ impl super::Engine {pub(crate) fn create_image(&self,
             height,
             depth: 1
         },
-        miplevels: 1,
+        miplevels: mip_levels,
         array_layers: 1,
         samples: sample_count,
         tiling,
@@ -142,13 +147,13 @@ impl super::Engine {pub(crate) fn create_image(&self,
     return (image, memory);
 }}
 
-impl crate::engine::Engine { pub(crate) fn create_image_view(&self, image: VkImage, aspect_mask: u32, format: u32) -> VkImageView { unsafe {
+impl crate::engine::Engine { pub(crate) fn create_image_view(&self, image: VkImage, aspect_mask: u32, format: u32, mip_levels: u32) -> VkImageView { unsafe {
     let components = VkComponentMapping {r: 0, g: 0, b: 0, a: 0};
 
     let subresource_range = VkImageSubresourceRange {
         aspect_mask,
         base_mip_level: 0,
-        level_count: 1,
+        level_count: mip_levels,
         base_array_layer: 0,
         layer_count: 1
     };
@@ -173,7 +178,7 @@ impl crate::engine::Engine { pub(crate) fn create_image_view(&self, image: VkIma
     return image_view;
 }}}
 
-impl crate::engine::Engine {pub(crate) fn create_texture_sampler(&mut self) -> VkSampler {
+impl crate::engine::Engine {pub(crate) fn create_texture_sampler(&mut self, mip_levels: u32) -> VkSampler {
     let create_info = VkSamplerCreateInfo {
         s_type: 31,
         p_next: std::ptr::null(),
@@ -190,7 +195,7 @@ impl crate::engine::Engine {pub(crate) fn create_texture_sampler(&mut self) -> V
         compare_enable: 0,
         compare_op: 7,
         min_lod: 0.0,
-        max_lod: 0.0,
+        max_lod: mip_levels as f32,
         border_color: 3,
         unnormalized_coordinates: 0,
     };
@@ -204,10 +209,10 @@ impl crate::engine::Engine {pub(crate) fn create_texture_sampler(&mut self) -> V
 
 impl crate::engine::Engine {pub(crate) fn create_swapchain_image_views(&mut self) {
     self.swapchain_image_views = self.swapchain_images.iter()
-        .map(|image| self.create_image_view(*image, 0x00000001, self.swapchain_image_format.format)).collect();
+        .map(|image| self.create_image_view(*image, 0x00000001, self.swapchain_image_format.format, 1)).collect();
 }}
 
-impl crate::engine::Engine {pub(crate) fn transition_image_layout(&self, image: VkImage, format: u32, old_layout: u32, new_layout: u32) {
+impl crate::engine::Engine {pub(crate) fn transition_image_layout(&self, image: VkImage, format: u32, mip_levels: u32, old_layout: u32, new_layout: u32) {
     self.execute_one_time_command(self.command_pool, self.graphics_queue, |cmd_buffer| {
         let (src_access_mask, dst_access_mask, src_stage, dst_stage) = match (old_layout, new_layout) {
             (0, 3) => (
@@ -266,7 +271,7 @@ impl crate::engine::Engine {pub(crate) fn transition_image_layout(&self, image: 
             subresource_range: VkImageSubresourceRange {
                 aspect_mask,
                 base_mip_level: 0,
-                level_count: 1,
+                level_count: mip_levels,
                 base_array_layer: 0,
                 layer_count: 1,
             },
@@ -294,6 +299,7 @@ impl crate::engine::Engine { pub(crate) fn create_depth_texture(&mut self) {
         self.swapchain_extent.width,
         self.swapchain_extent.height,
         self.depth_format,
+        1,
         self.msaa_samples,
         0,
         0x00000020,
@@ -301,9 +307,9 @@ impl crate::engine::Engine { pub(crate) fn create_depth_texture(&mut self) {
     );
 
 
-    self.transition_image_layout(self.depth_texture.image, self.depth_format, 0, 3);
+    self.transition_image_layout(self.depth_texture.image, self.depth_format, 1, 0, 3);
 
-    self.depth_texture.image_view = self.create_image_view(self.depth_texture.image, 0x00000002, self.depth_format)
+    self.depth_texture.image_view = self.create_image_view(self.depth_texture.image, 0x00000002, self.depth_format, 1)
 }}
 
 impl crate::engine::Engine {pub(crate) fn create_color_texture(&mut self) {
@@ -313,6 +319,7 @@ impl crate::engine::Engine {pub(crate) fn create_color_texture(&mut self) {
         self.swapchain_extent.width,
         self.swapchain_extent.height,
         format,
+        1,
         self.msaa_samples,
         0,
         0x00000040 | 0x00000010,
@@ -320,9 +327,9 @@ impl crate::engine::Engine {pub(crate) fn create_color_texture(&mut self) {
     );
 
 
-    self.transition_image_layout(self.color_texture.image, format, 0, 2);
+    self.transition_image_layout(self.color_texture.image, format, 1, 0, 2);
 
-    self.color_texture.image_view = self.create_image_view(self.color_texture.image, 0x00000001, format)
+    self.color_texture.image_view = self.create_image_view(self.color_texture.image, 0x00000001, format, 1)
 }}
 
 impl crate::engine::Engine {pub(crate) fn copy_buffer_to_image(&self, buffer: VkBuffer, image: VkImage, width: u32, height: u32) {
