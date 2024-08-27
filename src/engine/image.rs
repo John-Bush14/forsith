@@ -26,6 +26,10 @@ impl crate::engine::Engine {pub fn create_texture(&mut self, file: String, mipma
     return texture;
 }}
 
+fn calculate_max_mip_levels(width: u32, height: u32) -> u32 {
+    return ((width.min(height) as f32).log2().floor() + 1.0) as u32;
+}
+
 impl super::Engine {pub(crate) fn create_texture_image(&self, file: String, mipmaps: bool) -> (VkImage, VkDeviceMemory, u32) {
     let image = image::open(file).expect("error getting image");
     let image_as_rgb = image.to_rgba();
@@ -34,7 +38,7 @@ impl super::Engine {pub(crate) fn create_texture_image(&self, file: String, mipm
     let pixels: Vec<u8> = image_as_rgb.into_raw();
     let image_size = (pixels.len() * std::mem::size_of::<u8>()) as u64;
 
-    let mip_levels = if mipmaps {todo!()} else {1};
+    let mip_levels = if mipmaps {calculate_max_mip_levels(width, height)} else {1};
 
 
     let (buffer, memory, _) = self.create_buffer(image_size, 0x00000001, 0x00000002 | 0x00000004);
