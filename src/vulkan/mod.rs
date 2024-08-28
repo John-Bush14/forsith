@@ -11,11 +11,6 @@ pub type VkBool32 = u32;
 const _RTLD_NOW: i32 = 2;
 
 
-extern "C" {
-    pub fn dlsym(handle: *mut c_void, symbol: *const c_char) -> *mut c_void;
-    pub fn dlclose(handle: *mut c_void) -> i32;
-}
-
 pub fn vk_make_version(major: u32, minor: u32, patch: u32) -> u32 {
     (major << 22) | (minor << 12) | patch
 }
