@@ -24,7 +24,7 @@ impl Window for MWindow {
 
     fn create_surfaceKHR(&self, instance: crate::vulkan::instance::VkInstance) -> VkSurfaceKHR {todo!();}
 
-    fn get_events(&mut self, dimensions: [i32; 2]) -> Vec<WindowEvent> {todo!();}
+    fn poll_events(&mut self, dimensions: [i32; 2]) -> Vec<WindowEvent> {todo!();}
 
     fn supports_physical_device_queue(&self, physical_device: VkPhysicalDevice, queue: u32) -> bool {todo!();}
 

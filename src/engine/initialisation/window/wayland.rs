@@ -22,7 +22,7 @@ impl Window for WayWindow {
 
     fn create_surface_khr(&self, _instance: crate::vulkan::instance::VkInstance) -> VkSurfaceKHR {todo!();}
 
-    fn get_events(&mut self, _dimensions: [i32; 2]) -> Vec<WindowEvent> {todo!();}
+    fn poll_events(&mut self, _dimensions: [i32; 2]) -> Vec<WindowEvent> {todo!();}
 
     fn supports_physical_device_queue(&self, _physical_device: VkPhysicalDevice, _queue: u32) -> bool {todo!();}
 

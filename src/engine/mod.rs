@@ -131,7 +131,7 @@ pub struct Engine {
 
 impl Engine {
     /// pop's all the window events which happened since the last call
-    pub fn get_events(&self) -> &Vec<WindowEvent> {return &self.events}
+    pub fn poll_events(&self) -> &Vec<WindowEvent> {return &self.events}
 
     /// returns a reference of the world_view
     pub fn get_world_view(&self) -> &world_view::WorldView {return &self.world_view}
