@@ -53,17 +53,17 @@ use crate::engine::Engine;
 /// I don't know how to private individual functions, so these functions should not be called
 /// if you don't know what you're doing:
 ///
-/// `init_connection`,
+/// [`Window::init_connection`],
 ///
-/// `init_window`,
+/// [`Window::init_window`],
 ///
-/// `create_surface_khr`,
+/// [`Window::create_surface_khr`],
 ///
-/// `commit_suicide`,
+/// [`Window::commit_suicide`],
 ///
-/// `supports_physical_device_queue`,
+/// [`Window::supports_physical_device_queue`],
 ///
-/// and `poll_events` wich should be called trough [`Engine::poll_events`]
+/// and [`Window::poll_and_process_events`] wich should be called trough [`Engine::poll_events`]
 ///
 pub trait Window {
     /// get's the width of the window
@@ -84,7 +84,7 @@ pub trait Window {
 
     fn create_surface_khr(&self, instance: crate::vulkan::instance::VkInstance) -> VkSurfaceKHR;
 
-    fn poll_events(&mut self, dimensions: [i32; 2]) -> Vec<WindowEvent>;
+    fn poll_and_process_events(&mut self, dimensions: [i32; 2]) -> Vec<WindowEvent>;
 
     fn supports_physical_device_queue(&self, physical_device: VkPhysicalDevice, queue: u32) -> bool;
 
@@ -109,7 +109,7 @@ impl Window for Dummy {
 
     fn create_surface_khr(&self, _instance: crate::vulkan::instance::VkInstance) -> VkSurfaceKHR {todo!();}
 
-    fn poll_events(&mut self, _dimensions: [i32; 2]) -> Vec<WindowEvent> {todo!();}
+    fn poll_and_process_events(&mut self, _dimensions: [i32; 2]) -> Vec<WindowEvent> {todo!();}
 
     fn supports_physical_device_queue(&self, _physical_device: VkPhysicalDevice,_queuee: u32) -> bool {todo!();}
 

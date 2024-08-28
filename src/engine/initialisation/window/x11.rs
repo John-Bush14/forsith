@@ -58,7 +58,7 @@ const CW_EVENT_MASK: u64 = 0x0800;
 
 
 impl Window for XWindow {
-    fn poll_events(&mut self, dimensions: [i32; 2]) -> Vec<WindowEvent> {
+    fn poll_and_process_events(&mut self, dimensions: [i32; 2]) -> Vec<WindowEvent> {
         let mut events: Vec<WindowEvent> = vec!();
 
         let mut keys_released_recent = vec!();

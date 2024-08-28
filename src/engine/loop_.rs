@@ -14,7 +14,7 @@ use crate::vulkan::{
 
 
 impl super::Engine { pub(crate) fn process_events(&mut self) -> bool {
-    let events = self.window.poll_events(self.dimensions);
+    let events = self.window.poll_and_process_events(self.dimensions);
 
     for event in &events {match *event {
         WindowEvent::Death => return true,
