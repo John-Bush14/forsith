@@ -1,6 +1,7 @@
 use crate::vulkan::vertex::Vertex;
-
 use super::Drawable;
+use crate::engine::parsers::parse_model;
+
 
 impl Drawable {
     pub fn model_from_obj(file: &str) -> Drawable {
@@ -11,6 +12,19 @@ impl Drawable {
 
         drawable.vertices = vec!();
         drawable.coords = vec!();
+
+
+    for mesh in parse_model(std::path::Path::new(&file)).expect("failed to load obj file").into_iter() {
+            for vertex in mesh.into_iter() {
+                drawable.coords.push(vertex.coord);
+                drawable.vertices.push(vertex);
+            }
+        }
+
+
+        #[allow(unreachable_code)]
+        return drawable;
+
 
         let (mut models, _) = tobj::load_obj(std::path::Path::new(file)).unwrap();
         while let Some(model) = models.pop() {

@@ -2,6 +2,8 @@ use crate::vulkan::{devices::physical_device::{vkGetPhysicalDeviceFormatProperti
         vkBindImageMemory, vkCmdBlitImage, vkCmdCopyBufferToImage, vkCmdPipelineBarrier, vkCreateImage, vkCreateImageView, vkCreateSampler, vkGetImageMemoryRequirements, Texture, VkBufferImageCopy, VkComponentMapping, VkExtent3D, VkImage, VkImageBlit, VkImageCreateInfo, VkImageMemoryBarrier, VkImageSubresourceLayers, VkImageSubresourceRange, VkImageView, VkImageViewCreateInfo, VkOffset3D, VkSampler, VkSamplerCreateInfo
     }, vertex::{vkAllocateMemory, vkDestroyBuffer, vkFreeMemory, vkGetPhysicalDeviceMemoryProperties, vkMapMemory, vkUnmapMemory, VkBuffer, VkDeviceMemory, VkMemoryAllocateInfo, VkMemoryRequirements, VkPhysicalDeviceMemoryProperties}};
 
+use super::parsers::parse_image;
+
 
 impl Default for Texture {
     fn default() -> Texture {
@@ -31,12 +33,7 @@ fn calculate_max_mip_levels(width: u32, height: u32) -> u32 {
 }
 
 impl super::Engine {pub(crate) fn create_texture_image(&self, file: String, mipmaps: bool) -> (VkImage, VkDeviceMemory, u32) {
-    let image = image::open(file).expect("error getting image");
-    let image_as_rgb = image.to_rgba();
-    let width = (&image_as_rgb).width();
-    let height = (&image_as_rgb).height();
-    let pixels: Vec<u8> = image_as_rgb.into_raw();
-    let image_size = (pixels.len() * std::mem::size_of::<u8>()) as u64;
+    let ((width, height), image_size, pixels) = parse_image(std::path::Path::new(&file)).expect("error loading texture image");
 
     let mip_levels = if mipmaps {calculate_max_mip_levels(width, height)} else {1};
 

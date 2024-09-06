@@ -20,6 +20,8 @@ pub mod world_view;
 
 mod pipelines;
 
+pub mod parsers;
+
 
 use crate::engine::drawables::Drawable;
 
