@@ -1,33 +1,38 @@
-use super::ModelParser;
-use std::path::Path;
 use crate::vulkan::vertex::Vertex;
 
+use super::ModelParser;
+use super::Mesh;
+use std::path::Path;
 
-#[derive(Default)]
-pub struct ObjParser {
-    meshes: Vec<Vec<Vertex>>
-}
+
+pub struct ObjParser {}
+
 
 pub enum LineAction {
-    Comment
+    Comment,
+    NamedObject(String),
+    GeometricVertice(f32, f32, f32, Option<f32>),
+    TextureCoordinate(f32, Option<f32>, Option<f32>),
+    Indices(Vec<(u32, Option<u32>, Option<u32>)>),
+    VertexNormal(f32, f32, f32)
 }
 
 
 impl ModelParser for ObjParser {
-    fn parse(file: &Path) -> Result<Vec<Vec<Vertex>>, Box<(dyn std::error::Error + 'static)>> {
+    fn parse(file: &Path) -> Result<Vec<Mesh>, Box<(dyn std::error::Error + 'static)>> {
         let file_content = std::fs::read_to_string(file)?;
 
 
-        let mut parser: ObjParser = Default::default();
+        let mut meshes = vec!();
 
 
         file_content
             .lines().into_iter()
             .map(|file_line| Self::parse_line_action(file_line))
-            .for_each(|line_action| parser.run_line_action(line_action));
+            .for_each(|line_action| Self::run_line_action(&mut meshes, line_action));
 
 
-        return Ok(parser.meshes);
+        return Ok(meshes);
     }
 }
 
@@ -36,11 +41,51 @@ impl ObjParser {
         let mut arguments = line.split(" ");
 
         return match arguments.next().unwrap() {
-            "o" => todo!(),
-            "v" => todo!(),
-            "vt" => todo!(),
-            "vn" => todo!(),
-            "f" => todo!(),
+            "o" => LineAction::NamedObject(arguments.next().unwrap().to_string()),
+            "v" => {
+                let coordinates: (f32, f32, f32, Option<f32>) = (
+                    arguments.next().unwrap().parse::<f32>().unwrap(),
+                    arguments.next().unwrap().parse::<f32>().unwrap(),
+                    arguments.next().unwrap().parse::<f32>().unwrap(),
+                    if let Some(argument) = arguments.next() {Some(argument.parse::<f32>().unwrap())} else {None}
+                );
+
+                let (x, y, z, w) = coordinates;
+                LineAction::GeometricVertice(x, y, z, w)
+            },
+            "vt" => {
+                let coordinates: (f32, Option<f32>, Option<f32>) = (
+                    arguments.next().unwrap().parse::<f32>().unwrap(),
+                    if let Some(argument) = arguments.next() {Some(argument.parse::<f32>().unwrap())} else {None},
+                    if let Some(argument) = arguments.next() {Some(argument.parse::<f32>().unwrap())} else {None}
+                );
+
+                let (u, v, w) = coordinates;
+                LineAction::TextureCoordinate(u, v, w)
+            },
+            "vn" => {
+                let coordinates: (f32, f32, f32) = (
+                    arguments.next().unwrap().parse::<f32>().unwrap(),
+                    arguments.next().unwrap().parse::<f32>().unwrap(),
+                    arguments.next().unwrap().parse::<f32>().unwrap(),
+                );
+
+                let (x, y, z) = coordinates;
+                LineAction::VertexNormal(x, y, z)
+            },
+            "f" => {
+                let indices = arguments.map(|argument| {
+                    let mut indices = argument.split("/");
+
+                    return (
+                        indices.next().unwrap().parse::<u32>().unwrap(),
+                        if let Some(txcoord_indice) = indices.next() {Some(txcoord_indice.parse::<u32>().unwrap())} else {None},
+                        if let Some(normal_indice) = indices.next() {Some(normal_indice.parse::<u32>().unwrap())} else {None},
+                    );
+                }).collect();
+
+                LineAction::Indices(indices)
+            },
             "#" => LineAction::Comment,
             line_action => panic!("unsupported or incorrect line action '{:?}'", line_action)
         }
@@ -48,5 +93,37 @@ impl ObjParser {
 }
 
 impl ObjParser {
-    fn run_line_action(&mut self, line_action: LineAction) {todo!();}
+    fn run_line_action(meshes: &mut Vec<Mesh>, line_action: LineAction) {
+        let len = meshes.len();
+
+        let mesh = &mut meshes[len-1];
+
+        match line_action {
+            LineAction::NamedObject(name) => {
+                meshes.push(Mesh::new(name));
+            },
+
+            LineAction::GeometricVertice(x, y, z, _w) => {
+                mesh.vertices.push([x, y, z]);
+            },
+
+            LineAction::TextureCoordinate(u, v_opt, _w) => {
+                let v = if let Some(v) = v_opt {v} else {0.0};
+
+                mesh.texcoords.push([u, v]);
+            },
+
+            LineAction::VertexNormal(_, _, _) => {},
+
+            LineAction::Indices(indices) => {
+                for indice in indices {
+                    mesh.vertex_indices.push(indice.0);
+
+                    if let Some(texcoord_indice) = indice.2 {mesh.texcoord_indices.push(texcoord_indice);}
+                }
+            }
+
+            LineAction::Comment => {},
+        }
+    }
 }
