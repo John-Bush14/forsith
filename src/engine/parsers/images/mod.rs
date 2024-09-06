@@ -2,7 +2,7 @@ use std::path::Path;
 use std::ffi::OsStr;
 
 
-mod jpg;
+mod ppm;
 
 
 pub trait ImageParser {
@@ -17,7 +17,7 @@ pub fn parse_image(file: &Path) -> Result<((u32, u32), u64, Vec<u8>), Box<dyn st
     return match file_extension {
         None => panic!("parse_image: path {:?} doesn't have file extension?", file),
         Some(extension) => match extension.to_str().unwrap() {
-            "jpg" | "jpeg" => return jpg::JpgParser::parse(file),
+            "ppm" => return ppm::PPMParser::parse(file),
             _ => panic!("unsupported format (parse_image): {:?}", file)
         }
     }

@@ -23,7 +23,7 @@ mod tests {
 
                 rect.prepare_uniforms(&engine.pipelines);
 
-                let image = engine.create_texture("src/engine/assets/test.jpg".to_string(), false);
+                let image = engine.create_texture("src/engine/assets/test.ppm".to_string(), false);
                 *rect.get_uniform(ShaderStage::Fragment, 0) = ShaderItem::Sampler2D(image);
 
                 let among_us = "src/engine/assets/among_us/among_us.obj";
