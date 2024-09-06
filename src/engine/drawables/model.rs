@@ -14,46 +14,30 @@ impl Drawable {
         drawable.coords = vec!();
 
 
-    for mesh in parse_model(std::path::Path::new(&file)).expect("failed to load obj file").into_iter() {
-            for vertex in mesh.into_iter() {
-                drawable.coords.push(vertex.coord);
-                drawable.vertices.push(vertex);
-            }
-        }
+        let mut meshes = parse_model(&std::path::Path::new(file)).unwrap();
+        while let Some(mesh) = meshes.pop() {
 
+            let vertices = mesh.vertices.as_slice();
+            let texcoords = mesh.texcoords.as_slice();
 
-        #[allow(unreachable_code)]
-        return drawable;
+            let vertex_indices = mesh.vertex_indices.as_slice();
+            let texcoord_indices = mesh.texcoord_indices.as_slice();
 
+            drawable.vertices.reserve(vertex_indices.len());
+            drawable.coords.reserve(texcoord_indices.len());
 
-        let (mut models, _) = tobj::load_obj(std::path::Path::new(file)).unwrap();
-        while let Some(model) = models.pop() {
-            let mesh = model.mesh;
-
-            let positions = mesh.positions.as_slice();
-            let coords = mesh.texcoords.as_slice();
-            let indices = mesh.indices.as_slice();
-
-            drawable.vertices.reserve(indices.len());
-            drawable.coords.reserve(indices.len());
-
-            for indice in indices {
-                if *indice as usize >= positions.len() {panic!("what the fuck! {:?}", indice);}
-
-                let pi = (indice * 3) as usize;
-                let ci = (indice * 2) as usize;
-
-                let x = positions[pi];
-                let y = positions[pi + 1];
-                let z = positions[pi + 2];
-                let u = coords[ci];
-                let v = coords[ci + 1];
+            for indice in vertex_indices {
+                let pos = vertices[*indice as usize];
 
                 drawable.vertices.push(Vertex {
-                    pos: [x, y, z],
+                    pos,
                     coord: [0.0;2],
                     color: [1.0;4]
                 });
+            }
+
+            for indice in texcoord_indices {
+                let [u, v] = texcoords[*indice as usize];
 
                 drawable.coords.push([
                     u,
