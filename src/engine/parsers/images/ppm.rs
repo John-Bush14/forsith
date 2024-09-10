@@ -1,3 +1,5 @@
+use crate::engine::parsers::images::{read_decimal_int, skip_bytes};
+
 use super::ImageParser;
 use std::path::Path;
 use std::fs::File;
@@ -24,6 +26,12 @@ impl ImageParser for PPMParser {
         if magic_number != MAGIC_NUMBER && !plain {panic!("Called PPMParser::parse on non-ppm file (wrong magic number)");}
 
 
+        skip_bytes(&mut file, 1);
+
+
+        let mut dimensions = [0;2];
+
+        for dimension in dimensions.iter_mut() {*dimension = read_decimal_int(&mut file)?;}
 
 
         todo!();
