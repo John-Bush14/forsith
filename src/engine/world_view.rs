@@ -169,15 +169,12 @@ impl WorldView {
 
     pub(crate) fn get_2d_camera_matrix(&mut self) -> [[f32;4];4] {
         if self.changed.0 {
-            let eye: [f32;3] = [self.eye[0], self.eye[1], 0.0];
-
-            let target = [self.eye[0], self.eye[1], -1.0];
-
-            self.matrix_2d = Matrix4::look_at_rh(
-                Point3::from(eye),
-                Point3::from(target),
-                Vector3::new(0.0, 1.0, 0.0),
-            ).into();
+            self.matrix_2d = [
+                [1.0, 0.0, 0.0, self.eye[0]],
+                [0.0, 1.0, 0.0, self.eye[1]],
+                [0.0, 0.0, 1.0, self.eye[2]],
+                [0.0, 0.0, 0.0, 1.0]
+            ];
 
             self.changed.0 = false;
         }
