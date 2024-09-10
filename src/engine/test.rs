@@ -27,7 +27,7 @@ mod tests {
                 *rect.get_uniform(ShaderStage::Fragment, 0) = ShaderItem::Sampler2D(image);
 
                 let among_us = "src/engine/assets/among_us/among_us.obj";
-                let among_us_texture = engine.create_texture("src/engine/assets/among_us/among_us.png".to_string(), true);
+                let among_us_texture = engine.create_texture("src/engine/assets/among_us/among_us.ppm".to_string(), true);
                 let mut model = Drawable::model_from_obj(among_us);
                 model.set_scale([1.5;3]);
                 model.set_pos([0.0, -0.5, 0.0]);
