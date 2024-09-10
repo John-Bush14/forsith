@@ -40,6 +40,7 @@ impl super::Engine {pub(crate) fn create_texture_image(&self, file: String, mipm
 
     let (buffer, memory, _) = self.create_buffer(image_size, 0x00000001, 0x00000002 | 0x00000004);
 
+
     let mut data_ptr: *mut std::ffi::c_void = std::ptr::null_mut();
 
     unsafe {vkMapMemory(
@@ -51,7 +52,7 @@ impl super::Engine {pub(crate) fn create_texture_image(&self, file: String, mipm
         &mut data_ptr as _
     )};
 
-    unsafe {std::ptr::copy_nonoverlapping(pixels.as_ptr(), data_ptr as _, pixels.len())};
+    unsafe {std::ptr::copy_nonoverlapping(pixels.as_ptr(), data_ptr as _, image_size as usize)};
 
     unsafe {vkUnmapMemory(self.device, memory)};
 
