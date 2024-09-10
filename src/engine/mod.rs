@@ -1,5 +1,7 @@
 pub(crate) mod initialisation;
 
+pub(crate) mod math;
+
 mod loop_;
 
 mod drop;
