@@ -2,6 +2,8 @@ pub(crate) mod vulkan;
 
 pub(crate) mod engine;
 
+pub(crate) type DynError = Box<dyn std::error::Error>;
+
 pub(crate) use vulkan::macros::{
     vk_enumerate_to_vec,
     prepare_extensions
