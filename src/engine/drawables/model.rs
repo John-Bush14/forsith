@@ -14,12 +14,8 @@ impl Drawable {
         drawable.coords = vec!();
 
 
-        let mut meshes = parse_model(&std::path::Path::new(file)).unwrap();
+        let (mut meshes, vertices, texcoords) = parse_model(&std::path::Path::new(file)).unwrap();
         while let Some(mesh) = meshes.pop() {
-
-            let vertices = mesh.vertices.as_slice();
-            let texcoords = mesh.texcoords.as_slice();
-
             let vertex_indices = mesh.vertex_indices.as_slice();
             let texcoord_indices = mesh.texcoord_indices.as_slice();
 
