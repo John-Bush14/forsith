@@ -119,9 +119,9 @@ impl ObjParser {
 
             LineAction::Indices(indices) => {
                 for indice in indices {
-                    mesh.vertex_indices.push(indice.0 - 1);
+                    mesh.vertex_indices.push(indice.0-1);
 
-                    if let Some(texcoord_indice) = indice.2 {mesh.texcoord_indices.push(texcoord_indice - 1);}
+                    if let Some(texcoord_indice) = indice.1 {mesh.texcoord_indices.push(texcoord_indice-1);}
                 }
             }
 
