@@ -1,4 +1,4 @@
-use crate::engine::parsers::images::{read_decimal_int, skip_bytes};
+use crate::engine::parsers::images::{read_decimal_int, read_decimal_word, skip_bytes};
 
 use super::ImageParser;
 use std::path::Path;
@@ -19,21 +19,40 @@ impl ImageParser for PPMParser {
         let mut file: File = File::open(path)?;
 
 
-        let magic_number: [u8; 2] = read_bytes(&mut file, [0u8;2])?;
+        let magic_number: String = read_decimal_word(&mut file)?;
 
-        let plain = magic_number == PLAIN_MAGIC_NUMBER;
+        let plain = &magic_number == "p3";
 
-        if magic_number != MAGIC_NUMBER && !plain {panic!("Called PPMParser::parse on non-ppm file (wrong magic number)");}
-
-
-        skip_bytes(&mut file, 1);
+        if &magic_number != "p6" && !plain {panic!("Called PPMParser::parse on non-ppm file (wrong magic number)");}
 
 
-        let mut dimensions = [0;2];
+        let mut dimensions = [0u32;2];
 
-        for dimension in dimensions.iter_mut() {*dimension = read_decimal_int(&mut file)?;}
+        for dimension in dimensions.iter_mut() {*dimension = read_decimal_int(&mut file)? as u32;}
+
+        let size = (dimensions[0] * dimensions[1]) as u64;
 
 
-        todo!();
+        let maxval = read_decimal_int(&mut file)?; let sample_size = if maxval < 256 {1} else {2};
+
+
+        let mut pixels: Vec<u8> = Vec::with_capacity(size as usize);
+
+
+        for _y in 0..dimensions[0] {
+            for _x in 0..dimensions[1] {
+                pixels.push(
+                    (match (plain, sample_size) {
+                        (true, _) => read_decimal_int(&mut file)?,
+                        (false, 1) => read_bytes(&mut file, [0u8])?[0] as u16,
+                        (false, 2) => u16::from_le_bytes(read_bytes(&mut file, [0u8;2])?),
+                        _ => unreachable!()
+                    } / maxval * 255) as u8
+                );
+            }
+        }
+
+
+        return Ok((dimensions.into(), size, pixels));
     }
 }
