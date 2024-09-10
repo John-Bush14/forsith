@@ -19,9 +19,29 @@ pub(crate) fn read_bytes<T: AsMut<[u8]>>(file: &mut File, mut buffer: T) -> Resu
     return Ok(buffer);
 }
 
-pub(crate) fn read_decimal_int(file: &File) -> Result<u16, DynError> {return Ok(read_decimal_word(file)?.parse::<u16>()?);}
+pub(crate) fn read_decimal_int(file: &mut File) -> Result<u16, DynError> {return Ok(read_decimal_word(file)?.parse::<u16>()?);}
 
-pub(crate) fn read_decimal_word(file: &File) -> Result<String, DynError> {todo!();}
+pub(crate) fn read_decimal_word(file: &mut File) -> Result<String, DynError> {
+    let is_whitespace = |c| c == ' ' || c == '\n' || c == '\t' || c == '\r';
+
+
+    let mut result = "".to_string();
+
+
+    let mut char = read_bytes(file, [0u8;1])?[0] as char;
+
+    while !is_whitespace(char) {
+        result.push(char);
+        char = read_bytes(file, [0u8;1])?[0] as char;
+    }
+
+
+    dbg!("{}", result.clone());
+
+
+    return Ok(result);
+}
+
 
 #[allow(unreachable_code, dead_code, non_snake_case)]
 pub fn parse_image(file: &Path) -> Result<((u32, u32), u64, Vec<u8>), Box<dyn std::error::Error>> {
