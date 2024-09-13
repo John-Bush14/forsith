@@ -1,6 +1,6 @@
-use cgmath::{Matrix4, Point3, Vector3};
-
 use crate::vulkan::{devices::device::VkDevice, vertex::{VkBuffer, VkDeviceMemory}};
+
+use crate::engine::math::{Vec3, Vector};
 
 pub(self) use crate::engine::update_memory;
 
@@ -129,13 +129,38 @@ impl WorldView {
 
     pub(crate) fn get_view_matrix(&mut self) -> [[f32;4];4] {
         if self.changed.0 {
-            let target: [f32;3] = self.target.iter().zip(self.eye.iter()).map(|(x, y)| x + y).collect::<Vec<f32>>().try_into().unwrap();
+            let eye = Vec3 {
+                x: self.eye[0],
+                y: self.eye[1],
+                z: self.eye[2]
+            };
 
-            self.view_matrix = Matrix4::look_at_rh(
-                Point3::from(self.eye),
-                Point3::from(target),
-                Vector3::new(0.0, 1.0, 0.0),
-            ).into();
+            let target = Vec3 {
+                x: self.target[0],
+                y: self.target[1],
+                z: self.target[2]
+            };
+
+            let up = Vec3 {
+                x: 0.0,
+                y: 1.0,
+                z: 0.0
+            };
+
+
+            let f = target.normalize();
+
+            let s = f.cross(&up).normalize();
+
+            let u = s.cross(&f);
+
+            self.view_matrix = [
+                [s.x, u.x, -f.x, 0.0],
+                [s.y, u.y, -f.y, 0.0],
+                [s.z, u.z, -f.z, 0.0],
+                [-eye.dot(&s), -eye.dot(&u), eye.dot(&f), 1.0]
+            ];
+
 
             self.changed.0 = false;
         }
