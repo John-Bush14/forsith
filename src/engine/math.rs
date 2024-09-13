@@ -48,7 +48,7 @@ impl Vector for Vec2 {
     }
 
     fn normalize(&self) -> Self {
-        let sum = self.sum() as f32;
+        let sum = (self.x.powf(2.0) + self.y.powf(2.0)).sqrt();
 
         return Vec2 {x: self.x/sum, y: self.y/sum};
     }
@@ -99,7 +99,7 @@ impl Vector for Vec3 {
     }
 
     fn normalize(&self) -> Self {
-        let sum = self.sum() as f32;
+        let sum = (self.x.powf(2.0) + self.y.powf(2.0) + self.z.powf(2.0)).sqrt();
 
         return Vec3 {x: self.x/sum, y: self.y/sum, z: self.z/sum};
     }
