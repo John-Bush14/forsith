@@ -12,6 +12,7 @@ pub(crate) trait Vector {
 }
 
 
+#[derive(Debug, Clone, Copy)]
 pub struct Vec2 {
     pub x: f32,
     pub y: f32
@@ -61,6 +62,7 @@ impl Vector for Vec2 {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct Vec3 {
     pub x: f32,
     pub y: f32,
