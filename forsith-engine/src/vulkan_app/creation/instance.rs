@@ -1,8 +1,10 @@
 use bindings::{instance::{vkCreateInstance, VkApplicationInfo, VkInstance, VkInstanceCreateInfo}, structure_type::{VK_STRUCTURE_TYPE_APPLICATION_INFO, VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO}, VkVersion};
 use std::ffi::CString;
 
+use crate::DynError;
 
-pub(super) fn create_instance(app_name: &str, app_version: VkVersion) -> VkInstance {
+
+pub(super) fn create_instance(app_name: &str, app_version: VkVersion) -> Result<VkInstance, DynError> {
     let app_name_c = CString::new(app_name).expect("invalid VulkanApp name!");
 
     let engine_name_c = CString::new(crate::ENGINE_NAME).expect("invalid engine name!");
@@ -37,10 +39,10 @@ pub(super) fn create_instance(app_name: &str, app_version: VkVersion) -> VkInsta
         &create_info as *const VkInstanceCreateInfo,
         std::ptr::null(),
         &mut instance
-    )};
+    ).as_error()?};
 
 
-    return instance;
+    return Ok(instance);
 }
 
 
@@ -50,7 +52,7 @@ mod instance_creation_tests {
 
     #[test]
     fn instance_creation_test() {
-        let instance = create_instance("instance_creation_test", 0);
+        let instance = create_instance("instance_creation_test", 0).expect("Some error occured in create_instance");
 
         assert!(instance != 0, "vkCreateInstance didn't modify instance, is still 0");
     }

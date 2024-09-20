@@ -1,6 +1,9 @@
 use bindings::VkVersion;
 
 
+pub type DynError = Box<dyn std::error::Error>;
+
+
 mod drop;
 
 #[allow(non_snake_case)]

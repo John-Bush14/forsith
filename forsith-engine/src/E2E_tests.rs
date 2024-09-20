@@ -6,6 +6,6 @@ mod visual_test {
 
     #[test]
     fn test() {
-        let vulkan_app = VulkanApp::new("test", vk_make_version(0, 0, 0));
+        let _vulkan_app = VulkanApp::new("test", vk_make_version(0, 0, 0)).expect("Some error occured in VulkanApp::new()");
     }
 }
