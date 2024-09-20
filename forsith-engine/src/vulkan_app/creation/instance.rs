@@ -42,3 +42,16 @@ pub(super) fn create_instance(app_name: &str, app_version: VkVersion) -> VkInsta
 
     return instance;
 }
+
+
+#[cfg(test)]
+mod instance_creation_tests {
+    use super::create_instance;
+
+    #[test]
+    fn instance_creation_test() {
+        let instance = create_instance("instance_creation_test", 0);
+
+        assert!(instance != 0, "vkCreateInstance didn't modify instance, is still 0");
+    }
+}
