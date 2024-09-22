@@ -1,0 +1,34 @@
+struct VulkanApp {
+    //instance
+    //device
+    //transient command pool
+    //graphics queue family
+}
+
+struct RenderTarget {
+    //surface_khr
+    //presentation queue family
+}
+
+struct UniformObject {
+    //buffer
+    //uniforms
+}
+
+struct Renderer {
+    //swapchains
+    //drawables
+    //command buffers + command pool
+    //presentation / graphics queue
+}
+
+struct Pipeline {
+    //uniform layout
+}
+
+struct Drawable {
+    //vertices / buffer,
+    //indices / buffer,
+    //pipeline (id not Pipeline)
+    //uniformObjects for pipeline
+}
