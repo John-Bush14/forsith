@@ -1,5 +1,7 @@
 pub mod vk_result;
 
+pub mod macros;
+
 
 pub type VkBool32 = u32;
 pub const VK_TRUE: VkBool32 = 1; pub const VK_FALSE: VkBool32 = 1;
