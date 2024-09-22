@@ -9,7 +9,15 @@ pub type VkHandle = u64;
 
 pub type VkEnum = u32;
 
+
 pub type VkBitmask = u32;
+pub type VkBitflag = u32;
+
+pub trait Bitmask {
+    type Bitflag;
+
+    fn contains(&self, bitflag: Self::Bitflag) -> bool;
+}
 
 
 pub type VkVersion = u32;
