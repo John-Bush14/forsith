@@ -1,0 +1,7 @@
+[workspace]
+resolver = "2"
+
+members = [
+   "forsith-engine",
+   "forsith-bindings"
+]
