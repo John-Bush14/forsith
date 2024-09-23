@@ -3,6 +3,8 @@ use bindings::{command_pool::VkCommandPool, device::VkDevice, instance::VkInstan
 
 mod creation;
 
+mod drop;
+
 
 pub struct VulkanApp {
     instance: VkInstance,
