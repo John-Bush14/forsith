@@ -17,3 +17,24 @@ macro_rules! define_vk_bitmask {
         )*}
     };
 }
+
+
+#[cfg(test)]
+mod macro_tests {
+    use crate::Bitmask;
+
+    define_vk_bitmask!(
+        TestBitmask(TestBitflag): {
+            DEAD = 1,
+            ALIVE = 2
+        }
+    );
+
+    #[test]
+    fn use_defined_vk_bitmask() {
+        let alive = TestBitmask(2);
+
+        assert!(alive.contains(TestBitflag::ALIVE));
+        assert!(!alive.contains(TestBitflag::DEAD));
+    }
+}
