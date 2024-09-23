@@ -18,9 +18,31 @@ macro_rules! define_vk_bitmask {
     };
 }
 
+#[macro_export]
+macro_rules! define_vk_enum {
+    ($enum:ident {$($variant:ident = $value:expr $(,)?)*}) => {
+        #[repr(u32)]
+        pub enum $enum {
+            $($variant = $value,)*
+        }
+    };
+}
+
 
 #[cfg(test)]
 mod macro_tests {
+    define_vk_enum!(TestVkEnum {
+        ONE = 1,
+        TWO = 2
+    });
+
+    #[test]
+    fn use_defined_vk_enum() {
+        assert!(TestVkEnum::ONE as u32 == 1);
+        assert!(TestVkEnum::TWO as u32 == 2);
+    }
+
+
     use crate::Bitmask;
 
     define_vk_bitmask!(
