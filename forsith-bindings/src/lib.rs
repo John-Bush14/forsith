@@ -2,6 +2,8 @@ pub mod vk_result;
 
 pub mod macros;
 
+pub mod structure_type;
+
 
 pub mod instance;
 
