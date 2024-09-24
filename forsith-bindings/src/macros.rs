@@ -20,8 +20,9 @@ macro_rules! define_vk_bitmask {
 
 #[macro_export]
 macro_rules! define_vk_enum {
-    ($enum:ident {$($variant:ident = $value:expr $(,)?)*}) => {
+    ($enum:ident {$($variant:ident = $value:expr $(,)? )*}) => {
         #[repr(u32)]
+        #[allow(non_camel_case_types)]
         pub enum $enum {
             $($variant = $value,)*
         }
