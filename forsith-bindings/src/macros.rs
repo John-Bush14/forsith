@@ -18,10 +18,11 @@ macro_rules! define_vk_bitmask {
 #[macro_export]
 macro_rules! define_vk_enum {
     ($enum:ident {$($variant:ident = $value:expr $(,)? )*}) => {
-        #[repr(u32)]
-        #[allow(non_camel_case_types)]
-        pub enum $enum {
-            $($variant = $value,)*
+        paste::item! {
+            #[repr(u32)]
+            pub enum $enum {
+                $([<$variant:camel>] = $value,)*
+            }
         }
     };
 }
@@ -36,8 +37,8 @@ mod macro_tests {
 
     #[test]
     fn use_defined_vk_enum() {
-        assert!(TestVkEnum::ONE as u32 == 1);
-        assert!(TestVkEnum::TWO as u32 == 2);
+        assert!(TestVkEnum::One as u32 == 1);
+        assert!(TestVkEnum::Two as u32 == 2);
     }
 
 
@@ -54,7 +55,7 @@ mod macro_tests {
     fn use_defined_vk_bitmask() {
         let alive = TestBitmask(2);
 
-        assert!(alive.contains(TestBitflag::ALIVE));
-        assert!(!alive.contains(TestBitflag::DEAD));
+        assert!(alive.contains(TestBitflag::Alive));
+        assert!(!alive.contains(TestBitflag::Dead));
     }
 }
