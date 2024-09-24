@@ -1,6 +1,6 @@
 #[macro_export]
 macro_rules! define_vk_bitmask {
-    ($bitmask:ident($bitflag_enum:ident) {$($bitflag:ident = $bit:expr $(,)?)*}) => {
+    ($bitmask:ident($bitflag_enum:ident) {$($bitflag:ident = $bit:expr $(,)?)+}) => {
         pub struct $bitmask(crate::VkBitmask);
 
         impl crate::Bitmask for $bitmask {
@@ -11,17 +11,17 @@ macro_rules! define_vk_bitmask {
             }
         }
 
-        crate::define_vk_enum!($bitflag_enum {$($bitflag = $bit,)*});
+        crate::define_vk_enum!($bitflag_enum {$($bitflag = $bit,)+});
     };
 }
 
 #[macro_export]
 macro_rules! define_vk_enum {
-    ($enum:ident {$($variant:ident = $value:expr $(,)? )*}) => {
+    ($enum:ident {$($variant:ident = $value:expr $(,)? )+}) => {
         paste::item! {
             #[repr(u32)]
             pub enum $enum {
-                $([<$variant:camel>] = $value,)*
+                $([<$variant:camel>] = $value,)+
             }
         }
     };
