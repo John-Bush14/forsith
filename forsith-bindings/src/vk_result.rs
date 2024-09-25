@@ -8,6 +8,7 @@ impl From<VkResult> for Result<VkResult, VkResult> {
     }
 }
 
+#[allow(dead_code)]
 impl VkResult {
     pub fn result(self) -> Result<VkResult, VkResult> {self.into()}
 }

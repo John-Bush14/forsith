@@ -4,11 +4,13 @@ use super::VulkanApp;
 use bindings::vk_version;
 
 
+#[allow(dead_code)]
 pub const API_VERSION: fn() -> VkVersion = || vk_version(1, 0, 0);
 
 
+#[allow(dead_code)]
 impl VulkanApp {
-    fn new(app_name: &str, app_version: VkVersion) -> Result<Self, DynError> {todo!();}
+    fn new(_app_name: &str, _app_version: VkVersion) -> Result<Self, DynError> {todo!();}
 }
 
 

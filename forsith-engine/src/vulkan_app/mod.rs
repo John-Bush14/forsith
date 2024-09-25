@@ -6,6 +6,7 @@ mod creation;
 mod drop;
 
 
+#[allow(dead_code)]
 pub struct VulkanApp {
     instance: VkInstance,
     device: VkDevice,
