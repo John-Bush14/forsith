@@ -17,7 +17,7 @@ impl VkResult {
 #[repr(i32)]
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
-enum VkResult {
+pub enum VkResult {
     VkSuccess = 0,
     VkNotReady = 1,
     VkTimeout = 2,
