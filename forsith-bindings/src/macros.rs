@@ -30,9 +30,6 @@ macro_rules! define_vk_enum {
 #[macro_export]
 macro_rules! define_vk_struct {
     ($visibility:vis $struct:ident {$($field:ident: $type:ty $(,)? )*}) => {
-        #[allow(dead_code, unused_imports)]
-        use std::ffi::{c_char, c_void};
-
         paste::item! {
             #[repr(C)]
             $visibility struct $struct {
@@ -42,18 +39,15 @@ macro_rules! define_vk_struct {
     };
 
     ($visibility:vis $struct:ident($structure_type:expr) {$($field:ident: $type:ty $(,)? )*}) => {
-        #[allow(dead_code)]
-        use crate::structure_type::VkStructureType;
-
         crate::define_vk_struct!( $visibility $struct {
-            s_type: VkStructureType,
-            p_next: *const c_void,
+            s_type: crate::structure_type::VkStructureType,
+            p_next: *const std::ffi::c_void,
             $($field: $type,)*
         });
 
         #[allow(dead_code)]
         impl $struct {
-            $visibility fn structure_type() -> VkStructureType {$structure_type}
+            $visibility fn structure_type() -> crate::structure_type::VkStructureType {$structure_type}
         }
     };
 }
@@ -73,7 +67,7 @@ mod macro_tests {
     }
 
 
-    use crate::Bitmask;
+    use crate::{structure_type::VkStructureType, Bitmask};
 
     define_vk_bitmask!(
         TestBitmask(TestBitflag) {
