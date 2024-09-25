@@ -37,3 +37,7 @@ extern "C" {
     ) -> VkResult;
 }
 
+
+#[cfg(test)]
+#[test]
+fn test_vulkan_link() {unsafe {vkCreateInstance(std::ptr::null(), std::ptr::null(), std::ptr::null_mut());}}
