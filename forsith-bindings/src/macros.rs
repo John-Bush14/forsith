@@ -29,20 +29,20 @@ macro_rules! define_vk_enum {
 
 #[macro_export]
 macro_rules! define_vk_struct {
-    ($visibility:ident $struct:ident {$($field:ident: $type:ty $(,)? )*}) => {
+    ($visibility:vis $struct:ident {$($field:ident: $type:ty $(,)? )*}) => {
         paste::item! {
             #[repr(C)]
             $visibility struct $struct {
-                $($visibility [<$field:snake>]: $type,)*
+                $( $visibility [<$field:snake>]: $type, )*
             }
         }
     };
 
-    ($visibility:ident $struct:ident($structure_type:ident) {$($field:ident: $type:ty $(,)? )*}) => {
+    ($visibility:vis $struct:ident($structure_type:ident) {$($field:ident: $type:ty $(,)? )*}) => {
         #[allow(dead_code)]
         use crate::structure_type::VkStructureType;
 
-        crate::define_vk_struct!($visibility $struct {
+        crate::define_vk_struct!( $visibility $struct {
             s_type: VkStructureType,
             p_next: *const std::ffi::c_void,
             $($field: $type,)*
