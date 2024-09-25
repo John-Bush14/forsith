@@ -38,7 +38,7 @@ macro_rules! define_vk_struct {
         }
     };
 
-    ($visibility:vis $struct:ident($structure_type:ident) {$($field:ident: $type:ty $(,)? )*}) => {
+    ($visibility:vis $struct:ident($structure_type:expr) {$($field:ident: $type:ty $(,)? )*}) => {
         #[allow(dead_code)]
         use crate::structure_type::VkStructureType;
 
@@ -48,9 +48,9 @@ macro_rules! define_vk_struct {
             $($field: $type,)*
         });
 
-        paste::item! {impl $struct {
-            $visibility fn structure_type() -> VkStructureType {VkStructureType::[<$structure_type:camel>]}
-        }}
+        impl $struct {
+            $visibility fn structure_type() -> VkStructureType {$structure_type}
+        }
     };
 }
 
@@ -94,7 +94,7 @@ mod macro_tests {
     );
 
     define_vk_struct!(
-        pub TestVkCreateStruct(VK_STRUCTURE_TYPE_APPLICATION_INFO) {
+        pub TestVkCreateStruct(VkStructureType::VkStructureTypeApplicationInfo) {
             field: *const u32
         }
     );
