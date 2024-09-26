@@ -14,11 +14,11 @@ impl VulkanApp {
 
         return Ok(Self {
             instance,
-            device: todo!(),
-            physical_device: todo!(),
-            transient_command_pool: todo!(),
-            graphics_queue_family: todo!(),
-            graphics_queue: todo!(),
+            device: 0,
+            physical_device: 0,
+            transient_command_pool: 0,
+            graphics_queue_family: 0,
+            graphics_queue: 0,
         });
     }
 }
