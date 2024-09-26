@@ -1,79 +1,86 @@
 #[macro_export]
-macro_rules! define_vk_bitmask {
-    ($bitmask:ident($bitflag_enum:ident) {$($bitflag:ident = $bit:expr $(,)?)+}) => {
-        #[repr(C)]
-        pub struct $bitmask(pub crate::VkBitmask);
+macro_rules! define_vk_bitmasks {
+    ($($bitmask:ident($bitflag_enum:ident) {$($bitflag:ident = $bit:expr $(,)?)+})+) => {
+        $(
+            #[repr(C)]
+            pub struct $bitmask(pub crate::VkBitmask);
 
-        impl crate::Bitmask for $bitmask {
-            type Bitflag = $bitflag_enum;
+            impl crate::Bitmask for $bitmask {
+                type Bitflag = $bitflag_enum;
 
-            fn contains(&self, bitflag: $bitflag_enum) -> bool {
-                return self.0 & (bitflag as crate::VkBitflag) != 0
+                fn contains(&self, bitflag: $bitflag_enum) -> bool {
+                    return self.0 & (bitflag as crate::VkBitflag) != 0
+                }
             }
-        }
+        )+
 
-        crate::define_vk_enum!($bitflag_enum {$($bitflag = $bit,)+});
+        crate::define_vk_enums!($(
+            $bitflag_enum {$($bitflag = $bit,)+}
+        )+);
     };
 }
 
 #[macro_export]
-macro_rules! define_vk_enum {
-    ($enum:ident {$($variant:ident = $value:expr $(,)? )+}) => {
-        paste::item! {
+macro_rules! define_vk_enums {
+    ($($enum:ident {$($variant:ident = $value:expr $(,)? )+})+) => {
+        paste::item! {$(
             #[repr(u32)]
             pub enum $enum {
                 $([<$variant:camel>] = $value,)+
             }
-        }
+        )+}
     };
 }
 
 #[macro_export]
-macro_rules! define_vk_struct {
-    ($visibility:vis $struct:ident {$($field:ident: $type:ty $(,)? )*}) => {
-        paste::item! {
+macro_rules! define_vk_structs {
+    ($($visibility:vis $struct:ident {$($field:ident: $type:ty $(,)? )*})+) => {
+        paste::item! {$(
             #[repr(C)]
             $visibility struct $struct {
                 $( $visibility [<$field:snake>]: $type, )*
             }
-        }
+        )+}
     };
 
-    ($visibility:vis $struct:ident($structure_type:expr) {$($field:ident: $type:ty $(,)? )*}) => {
-        crate::define_vk_struct!( $visibility $struct {
+    ($($visibility:vis $struct:ident($structure_type:expr) {$($field:ident: $type:ty $(,)? )*})+) => {
+        crate::define_vk_structs!($(
+            $visibility $struct {
             s_type: crate::structure_type::VkStructureType,
             p_next: *const std::ffi::c_void,
             $($field: $type,)*
-        });
+        })+);
 
-        #[allow(dead_code)]
-        impl $struct {
-            $visibility fn structure_type() -> crate::structure_type::VkStructureType {$structure_type}
-        }
+        $(
+            #[allow(dead_code)]
+            impl $struct {
+                $visibility fn structure_type() -> crate::structure_type::VkStructureType {$structure_type}
+            }
+        )+
     };
 }
 
 #[macro_export]
-macro_rules! define_extern_function {
-    ([$lib:expr]($extern:expr) $vis:vis $function:ident($($arg:ident:  $type:ty $(,)?)*) -> $return_type:ty) => {
+macro_rules! define_extern_functions {
+    ([$lib:expr]($extern:expr) $($vis:vis $function:ident($($arg:ident:  $type:ty $(,)?)*) $(-> $return_type:ty)? )+) => {
         #[link(name = $lib)]
-        extern $extern {
+        extern $extern {$(
             #[allow(clashing_extern_declarations)]
-            fn $function($($arg: $type,)*) -> $return_type;
-        }
+            fn $function($($arg: $type,)*) $(-> $return_type)?;
+        )+}
 
-        paste::item! {
-            $vis fn [<$function:snake>]($($arg: $type,)*) -> $return_type {
+        paste::item! {$(
+            $vis fn [<$function:snake>]($($arg: $type,)*) $(-> $return_type)? {
                 unsafe {$function($($arg,)*)}
             }
-        }
+        )+}
     };
 }
 
 
 #[cfg(test)]
 mod macro_tests {
-    define_vk_enum!(TestVkEnum {
+    define_vk_enums!(TestVkEnum {
         ONE = 1,
         TWO = 2
     });
@@ -87,7 +94,7 @@ mod macro_tests {
 
     use crate::{instance::VkInstance, structure_type::VkStructureType, vk_result::VkResult, Bitmask};
 
-    define_vk_bitmask!(
+    define_vk_bitmasks!(
         TestBitmask(TestBitflag) {
             DEAD = 1,
             ALIVE = 2
@@ -103,13 +110,13 @@ mod macro_tests {
     }
 
 
-    define_vk_struct!(
+    define_vk_structs!(
         pub TestVkStruct {
             field: *const u32
         }
     );
 
-    define_vk_struct!(
+    define_vk_structs!(
         pub TestVkCreateStruct(VkStructureType::VkStructureTypeApplicationInfo) {
             field: *const u32
         }
@@ -131,7 +138,7 @@ mod macro_tests {
 
     use std::ffi::c_void;
 
-    define_extern_function!(["vulkan"]("C") vkCreateInstance(_a: *const c_void, _b: *const c_void, instance: *mut VkInstance) -> VkResult);
+    define_extern_functions!(["vulkan"]("C") vkCreateInstance(_a: *const c_void, _b: *const c_void, instance: *mut VkInstance) -> VkResult);
 
     #[test]
     fn use_defined_c_function() {

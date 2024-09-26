@@ -1,7 +1,7 @@
-use crate::define_vk_enum;
+use crate::define_vk_enums;
 
 
-define_vk_enum!(VkStructureType {
+define_vk_enums!(VkStructureType {
     VK_STRUCTURE_TYPE_APPLICATION_INFO = 0,
     VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO = 1,
     VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO = 2,
