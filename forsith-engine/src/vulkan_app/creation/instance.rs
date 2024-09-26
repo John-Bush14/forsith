@@ -1,12 +1,14 @@
 use bindings::{instance::{vkCreateInstance, VkApplicationInfo, VkInstance, VkInstanceCreateFlags, VkInstanceCreateInfo}, vk_version, VkVersion};
 use std::ffi::CString;
+use crate::DynError;
+
 use super::API_VERSION;
 
 
-pub fn create_instance(app_name: &str, app_version: VkVersion) -> VkInstance {
-    let c_app_name = CString::new(app_name).expect("invalid app name");
+pub fn create_instance(app_name: &str, app_version: VkVersion) -> Result<VkInstance, DynError> {
+    let c_app_name = CString::new(app_name)?;
 
-    let engine_name = CString::new("forsith").unwrap();
+    let engine_name = CString::new("forsith")?;
 
 
     let app_info = VkApplicationInfo {
@@ -34,8 +36,8 @@ pub fn create_instance(app_name: &str, app_version: VkVersion) -> VkInstance {
 
     let mut instance = 0;
 
-    unsafe {vkCreateInstance(&instance_info as *const VkInstanceCreateInfo, std::ptr::null(), &mut instance)};
+    unsafe {vkCreateInstance(&instance_info as *const VkInstanceCreateInfo, std::ptr::null(), &mut instance).result()?};
 
 
-    return instance;
+    return Ok(instance);
 }
