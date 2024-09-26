@@ -20,3 +20,8 @@ pub const ENGINE_NAME: fn() -> CString = || CString::new("forsith").unwrap();
 
 
 pub type DynError = Box<dyn std::error::Error>;
+
+
+#[cfg(test)]
+#[test]
+fn test_engine_version() {assert_eq!(ENGINE_VERSION(), vk_version(0, 1, 0))}
