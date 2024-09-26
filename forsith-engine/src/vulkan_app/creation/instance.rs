@@ -1,6 +1,6 @@
-use bindings::{instance::{vk_create_instance, VkApplicationInfo, VkInstance, VkInstanceCreateFlags, VkInstanceCreateInfo}, vk_version, VkVersion};
+use bindings::{instance::{vk_create_instance, VkApplicationInfo, VkInstance, VkInstanceCreateFlags, VkInstanceCreateInfo}, VkVersion};
 use std::ffi::CString;
-use crate::DynError;
+use crate::{DynError, ENGINE_NAME, ENGINE_VERSION};
 
 use crate::API_VERSION;
 
@@ -8,7 +8,7 @@ use crate::API_VERSION;
 pub fn create_instance(app_name: &str, app_version: VkVersion) -> Result<VkInstance, DynError> {
     let c_app_name = CString::new(app_name)?;
 
-    let engine_name = CString::new("forsith")?;
+    let engine_name = ENGINE_NAME();
 
 
     let app_info = VkApplicationInfo {
@@ -17,7 +17,7 @@ pub fn create_instance(app_name: &str, app_version: VkVersion) -> Result<VkInsta
         application_name: c_app_name.as_ptr(),
         application_version: app_version,
         engine_name: engine_name.as_ptr(),
-        engine_version: vk_version(0, 1, 0),
+        engine_version: ENGINE_VERSION(),
         api_version: API_VERSION(),
     };
 

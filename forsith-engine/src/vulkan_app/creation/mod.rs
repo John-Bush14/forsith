@@ -26,4 +26,8 @@ impl VulkanApp {
 
 #[cfg(test)]
 #[test]
-fn vulkan_app_creation_test() {VulkanApp::new("test", vk_version(0, 0, 0)).unwrap();}
+fn vulkan_app_creation_test() {
+    use bindings::vk_version;
+
+    VulkanApp::new("test", vk_version(0, 0, 0)).unwrap();
+}
