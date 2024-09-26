@@ -53,6 +53,23 @@ macro_rules! define_vk_struct {
     };
 }
 
+#[macro_export]
+macro_rules! define_extern_function {
+    ([$lib:expr]($extern:expr) $vis:vis $function:ident($($arg:ident:  $type:ty $(,)?)*) -> $return_type:ty) => {
+        #[link(name = $lib)]
+        extern $extern {
+            #[allow(clashing_extern_declarations)]
+            fn $function($($arg: $type,)*) -> $return_type;
+        }
+
+        paste::item! {
+            $vis fn [<$function:snake>]($($arg: $type,)*) -> $return_type {
+                unsafe {$function($($arg,)*)}
+            }
+        }
+    };
+}
+
 
 #[cfg(test)]
 mod macro_tests {
@@ -68,7 +85,7 @@ mod macro_tests {
     }
 
 
-    use crate::{structure_type::VkStructureType, Bitmask};
+    use crate::{instance::VkInstance, structure_type::VkStructureType, vk_result::VkResult, Bitmask};
 
     define_vk_bitmask!(
         TestBitmask(TestBitflag) {
@@ -109,5 +126,16 @@ mod macro_tests {
         assert!(test_vk_create_struct.s_type as u32 == VkStructureType::VkStructureTypeApplicationInfo as u32);
 
         let _test_vk_struct = TestVkStruct {field: std::ptr::null()};
+    }
+
+
+    use std::ffi::c_void;
+
+    define_extern_function!(["vulkan"]("C") vkCreateInstance(_a: *const c_void, _b: *const c_void, instance: *mut VkInstance) -> VkResult);
+
+    #[test]
+    fn use_defined_c_function() {
+        let result = vk_create_instance(std::ptr::null(), std::ptr::null(), std::ptr::null_mut());
+        assert_eq!(result as u32, VkResult::VkErrorInitializationFailed as u32);
     }
 }

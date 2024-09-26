@@ -1,4 +1,4 @@
-use crate::{define_vk_bitmask, define_vk_struct, structure_type::VkStructureType, vk_result::VkResult, VkAllocationCallbacks, VkHandle, VkVersion};
+use crate::{define_extern_function, define_vk_bitmask, define_vk_struct, structure_type::VkStructureType, vk_result::VkResult, VkAllocationCallbacks, VkHandle, VkVersion};
 use std::ffi::c_char;
 
 
@@ -28,14 +28,11 @@ define_vk_struct!(pub VkInstanceCreateInfo(VkStructureType::VkStructureTypeInsta
 });
 
 
-#[link(name = "vulkan")]
-extern "C" {
-    pub fn vkCreateInstance(
-        create_info: *const VkInstanceCreateInfo,
-        allocator: *const VkAllocationCallbacks,
-        instance: *mut VkInstance
-    ) -> VkResult;
-}
+define_extern_function!(["vulkan"]("C") pub vkCreateInstance(
+    create_info: *const VkInstanceCreateInfo,
+    allocator: *const VkAllocationCallbacks,
+    instance: *mut VkInstance
+) -> VkResult);
 
 
 #[cfg(test)]

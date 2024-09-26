@@ -1,4 +1,4 @@
-use bindings::{instance::{vkCreateInstance, VkApplicationInfo, VkInstance, VkInstanceCreateFlags, VkInstanceCreateInfo}, vk_version, VkVersion};
+use bindings::{instance::{vk_create_instance, VkApplicationInfo, VkInstance, VkInstanceCreateFlags, VkInstanceCreateInfo}, vk_version, VkVersion};
 use std::ffi::CString;
 use crate::DynError;
 
@@ -36,7 +36,7 @@ pub fn create_instance(app_name: &str, app_version: VkVersion) -> Result<VkInsta
 
     let mut instance = 0;
 
-    unsafe {vkCreateInstance(&instance_info as *const VkInstanceCreateInfo, std::ptr::null(), &mut instance).result()?};
+    vk_create_instance(&instance_info as *const VkInstanceCreateInfo, std::ptr::null(), &mut instance).result()?;
 
 
     return Ok(instance);
