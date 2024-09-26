@@ -16,7 +16,15 @@ impl VulkanApp {
     fn new(app_name: &str, app_version: VkVersion) -> Result<Self, DynError> {
         let instance = instance::create_instance(app_name, app_version)?;
 
-        todo!();
+
+        return Ok(Self {
+            instance,
+            device: todo!(),
+            physical_device: todo!(),
+            transient_command_pool: todo!(),
+            graphics_queue_family: todo!(),
+            graphics_queue: todo!(),
+        });
     }
 }
 
