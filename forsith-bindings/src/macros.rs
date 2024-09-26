@@ -62,7 +62,7 @@ macro_rules! define_vk_structs {
 
 #[macro_export]
 macro_rules! define_extern_functions {
-    ([$lib:expr]($extern:expr) $($vis:vis $function:ident($($arg:ident:  $type:ty $(,)?)*) $(-> $return_type:ty)? )+) => {
+    ([$lib:expr]($extern:expr) $($vis:vis $function:ident($($arg:ident:  $type:ty $(,)?)*) $(-> $return_type:ty)? $(;)? )+) => {
         #[link(name = $lib)]
         extern $extern {$(
             #[allow(clashing_extern_declarations)]
