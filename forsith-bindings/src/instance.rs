@@ -32,10 +32,15 @@ define_vk_structs!(
 );
 
 
-define_extern_functions!(
-    ["vulkan"]("C") pub vkCreateInstance(
+define_extern_functions!(["vulkan"]("C")
+    pub vkCreateInstance(
         create_info: *const VkInstanceCreateInfo,
         allocator: *const VkAllocationCallbacks,
         instance: *mut VkInstance
-    ) -> VkResult
+    ) -> VkResult;
+
+    pub vkDestroyInstance(
+        instance: VkInstance,
+        allocator: *const VkAllocationCallbacks
+    );
 );
