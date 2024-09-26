@@ -1,14 +1,9 @@
 use bindings::VkVersion;
 use crate::DynError;
 use super::VulkanApp;
-use bindings::vk_version;
 
 
 mod instance;
-
-
-#[allow(dead_code)]
-pub const API_VERSION: fn() -> VkVersion = || vk_version(1, 0, 0);
 
 
 #[allow(dead_code)]

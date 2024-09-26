@@ -2,7 +2,7 @@ use bindings::{instance::{vk_create_instance, VkApplicationInfo, VkInstance, VkI
 use std::ffi::CString;
 use crate::DynError;
 
-use super::API_VERSION;
+use crate::API_VERSION;
 
 
 pub fn create_instance(app_name: &str, app_version: VkVersion) -> Result<VkInstance, DynError> {
