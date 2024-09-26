@@ -2,7 +2,7 @@
 macro_rules! define_vk_bitmask {
     ($bitmask:ident($bitflag_enum:ident) {$($bitflag:ident = $bit:expr $(,)?)+}) => {
         #[repr(C)]
-        pub struct $bitmask(crate::VkBitmask);
+        pub struct $bitmask(pub crate::VkBitmask);
 
         impl crate::Bitmask for $bitmask {
             type Bitflag = $bitflag_enum;
