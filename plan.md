@@ -1,3 +1,4 @@
+```rust
 fn main() {
     let vulkan_app = forsith::VulkanApp::new("forsith-plan", forsith::vulkan_version(0, 1, 0))
 
@@ -27,3 +28,4 @@ fn main() {
 
     while renderer.loop() {}
 }
+```

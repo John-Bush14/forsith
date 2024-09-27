@@ -1,3 +1,4 @@
+```rust
 struct VulkanApp {
     //instance
     //device with only graphics queue
@@ -36,3 +37,4 @@ struct Drawable {
     //pipeline (id not Pipeline)
     //uniformObjects for pipeline
 }
+```
