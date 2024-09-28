@@ -6,7 +6,7 @@ pub type VkInstance = VkHandle;
 
 
 define_vk_bitmasks!(
-    VkInstanceCreateFlags(VkInstanceCreateFlagBits) {
+    pub VkInstanceCreateFlags(VkInstanceCreateFlagBits) {
         VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR = 0x00000001
     }
 );

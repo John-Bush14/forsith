@@ -32,10 +32,10 @@
 /// ```
 #[macro_export]
 macro_rules! define_vk_bitmasks {
-    ($($bitmask:ident($bitflag_enum:ident) {$($bitflag:ident = $bit:expr $(,)?)+})+) => {
+    ($($vis:vis $bitmask:ident($bitflag_enum:ident) {$($bitflag:ident = $bit:expr $(,)?)+})+) => {
         $(
             #[repr(C)]
-            pub struct $bitmask(pub crate::VkBitmask);
+            $vis struct $bitmask(pub crate::VkBitmask);
 
             impl crate::Bitmask for $bitmask {
                 type Bitflag = $bitflag_enum;
@@ -47,7 +47,7 @@ macro_rules! define_vk_bitmasks {
         )+
 
         crate::define_vk_enums!($(
-            $bitflag_enum {$($bitflag = $bit,)+}
+            $vis $bitflag_enum {$($bitflag = $bit,)+}
         )+);
     };
 }
@@ -72,10 +72,10 @@ macro_rules! define_vk_bitmasks {
 /// ```
 #[macro_export]
 macro_rules! define_vk_enums {
-    ($($enum:ident {$($variant:ident = $value:expr $(,)? )+})+) => {
+    ($($vis:vis $enum:ident {$($variant:ident = $value:expr $(,)? )+})+) => {
         paste::item! {$(
             #[repr(u32)]
-            pub enum $enum {
+            $vis enum $enum {
                 $([<$variant:camel>] = $value,)+
             }
         )+}
@@ -100,7 +100,7 @@ macro_rules! define_vk_enums {
 /// #[repr(C)]
 /// pub struct ExampleVkStruct {
 ///     pub s_type: VkStructureType::StructureTypeExampleVkStruct, // only if (..) is provided
-///     pub p_next: *const c_void // same thing
+///     pub p_next: *const c_void, // same thing
 ///     pub example_field: u8
 /// }
 ///
