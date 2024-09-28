@@ -1,3 +1,35 @@
+/// defines repr(C) bitflag enum(s) and their corresponding
+/// repr(C) bitmask(s) with the [`crate::Bitmask`] trait implemented.
+/// also makes all bitflags CamelCase
+///
+/// ## example use
+/// ```rust
+/// define_vk_bitmasks!(
+///     ExampleBitmask(ExampleBitmaskBitflag) {
+///         EXAMPLE_BIT_FLAG = 0x0020030
+///     }
+/// );
+/// ```
+///
+/// ## example outcome
+/// ```rust
+/// #[repr(C)]
+/// pub struct ExampleBitmask(pub crate::VkBitmask);
+///
+/// impl crate::Bitmask for ExampleBitmask {
+///     type Bitflag = ExampleBitmaskBitFlag;
+///
+///     fn contains(&self, bitflag: ExampleBitmaskBitflag) {
+///         return self.0 & (bitflag as crate::VkBitflag) != 0
+///     }
+/// }
+///
+/// crate::define_vk_enums!(
+///     ExampleBitmaskBitflag {
+///         ExampleBitFlag = 0X0020030
+///     }
+/// );
+/// ```
 #[macro_export]
 macro_rules! define_vk_bitmasks {
     ($($bitmask:ident($bitflag_enum:ident) {$($bitflag:ident = $bit:expr $(,)?)+})+) => {
@@ -20,6 +52,24 @@ macro_rules! define_vk_bitmasks {
     };
 }
 
+/// defines repr(u32) enum(s) with all variants made CamelCase
+///
+/// ## example use
+/// ```rust
+/// define_vk_enums!(
+///     pub ExampleVkEnum {
+///         ExampleVkVariant = 69420
+///     }
+/// );
+/// ```
+///
+/// ## example outcome
+/// ```rust
+/// #[repr(u32)]
+/// pub enum ExampleVkEnum {
+///     ExampleVkVariant = 69420
+/// }
+/// ```
 #[macro_export]
 macro_rules! define_vk_enums {
     ($($enum:ident {$($variant:ident = $value:expr $(,)? )+})+) => {
@@ -32,6 +82,35 @@ macro_rules! define_vk_enums {
     };
 }
 
+/// defines repr(C) struct with snake case fields.
+/// optionally adds p_next + s_type fields and implements structure_type() func
+/// by adding (VkStructureType::....) after struct name
+///
+/// ## example
+/// ```rust
+/// define_vk_struct!(
+///     pub ExampleVkStruct(VkStructureType::StructureTypeExampleVkStruct) { // (..) is optional
+///         example_field: u8
+///     }
+/// );
+/// ```
+///
+/// ## example outcome
+/// ```rust
+/// #[repr(C)]
+/// pub struct ExampleVkStruct {
+///     pub s_type: VkStructureType::StructureTypeExampleVkStruct, // only if (..) is provided
+///     pub p_next: *const c_void // same thing
+///     pub example_field: u8
+/// }
+///
+/// #[allow(dead_code)]
+/// impl ExampleVkStruct {
+///     pub fn structure_type() -> VkStructureType {
+///         VkStructureType::StructureTypeExampleVkStruct
+///     }
+/// }
+/// ```
 #[macro_export]
 macro_rules! define_vk_structs {
     ($($visibility:vis $struct:ident {$($field:ident: $type:ty $(,)? )*})+) => {
@@ -60,6 +139,31 @@ macro_rules! define_vk_structs {
     };
 }
 
+/// defines private extern $extern function(s) linked to $lib
+/// and then defines safe wrapper function(s) for it with a snake_case name
+///
+/// ## example use
+/// ```rust
+/// define_extern_functions!(["vulkan"]("C")
+///     pub TestExternFunction(
+///         test_field: u8
+///     ) -> u16;
+/// );
+/// ```
+///
+/// ## example outcome
+/// ```rust
+/// #[link(name = "vulkan")]
+/// extern "C" {
+///     TestExternFunction(
+///         test_field: u8
+///     ) -> u16
+/// }
+///
+/// pub fn test_extern_function(test_field: u8) -> u16 {
+///     unsafe {TestExternFunction(test_field)}
+/// }
+/// ```
 #[macro_export]
 macro_rules! define_extern_functions {
     ([$lib:expr]($extern:expr) $($vis:vis $function:ident($($arg:ident:  $type:ty $(,)?)*) $(-> $return_type:ty)? $(;)? )+) => {
