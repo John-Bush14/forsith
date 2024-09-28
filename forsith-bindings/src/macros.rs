@@ -3,7 +3,7 @@
 /// also makes all bitflags CamelCase
 ///
 /// ## example use
-/// ```rust
+/// ```ignore
 /// define_vk_bitmasks!(
 ///     ExampleBitmask(ExampleBitmaskBitflag) {
 ///         EXAMPLE_BIT_FLAG = 0x0020030
@@ -12,11 +12,11 @@
 /// ```
 ///
 /// ## example outcome
-/// ```rust
+/// ```ignore
 /// #[repr(C)]
-/// pub struct ExampleBitmask(pub crate::VkBitmask);
+/// pub struct ExampleBitmask(pub VkBitmask);
 ///
-/// impl crate::Bitmask for ExampleBitmask {
+/// impl Bitmask for ExampleBitmask {
 ///     type Bitflag = ExampleBitmaskBitFlag;
 ///
 ///     fn contains(&self, bitflag: ExampleBitmaskBitflag) {
@@ -24,7 +24,7 @@
 ///     }
 /// }
 ///
-/// crate::define_vk_enums!(
+/// define_vk_enums!(
 ///     ExampleBitmaskBitflag {
 ///         ExampleBitFlag = 0X0020030
 ///     }
@@ -55,16 +55,15 @@ macro_rules! define_vk_bitmasks {
 /// defines repr(u32) enum(s) with all variants made CamelCase
 ///
 /// ## example use
-/// ```rust
+/// ```ignore
 /// define_vk_enums!(
 ///     pub ExampleVkEnum {
 ///         ExampleVkVariant = 69420
 ///     }
 /// );
 /// ```
-///
 /// ## example outcome
-/// ```rust
+/// ```ignore
 /// #[repr(u32)]
 /// pub enum ExampleVkEnum {
 ///     ExampleVkVariant = 69420
@@ -87,8 +86,8 @@ macro_rules! define_vk_enums {
 /// by adding (VkStructureType::....) after struct name
 ///
 /// ## example
-/// ```rust
-/// define_vk_struct!(
+/// ```ignore
+/// define_vk_structs!(
 ///     pub ExampleVkStruct(VkStructureType::StructureTypeExampleVkStruct) { // (..) is optional
 ///         example_field: u8
 ///     }
@@ -96,7 +95,7 @@ macro_rules! define_vk_enums {
 /// ```
 ///
 /// ## example outcome
-/// ```rust
+/// ```ignore
 /// #[repr(C)]
 /// pub struct ExampleVkStruct {
 ///     pub s_type: VkStructureType::StructureTypeExampleVkStruct, // only if (..) is provided
@@ -143,7 +142,7 @@ macro_rules! define_vk_structs {
 /// and then defines safe wrapper function(s) for it with a snake_case name
 ///
 /// ## example use
-/// ```rust
+/// ```ignore
 /// define_extern_functions!(["vulkan"]("C")
 ///     pub TestExternFunction(
 ///         test_field: u8
@@ -152,12 +151,12 @@ macro_rules! define_vk_structs {
 /// ```
 ///
 /// ## example outcome
-/// ```rust
+/// ```ignore
 /// #[link(name = "vulkan")]
 /// extern "C" {
-///     TestExternFunction(
+///     fn TestExternFunction(
 ///         test_field: u8
-///     ) -> u16
+///     ) -> u16;
 /// }
 ///
 /// pub fn test_extern_function(test_field: u8) -> u16 {
