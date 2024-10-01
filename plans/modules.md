@@ -18,7 +18,7 @@
 ### interface
 ##### pub(crate)
  * one time command buffers
- * physical device + queue family choosing
+ * device creation
  * getters(all)
  * setters(cached data)
 
