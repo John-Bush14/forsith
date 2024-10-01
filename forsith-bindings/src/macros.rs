@@ -112,29 +112,25 @@ macro_rules! define_vk_enums {
 /// ```
 #[macro_export]
 macro_rules! define_vk_structs {
-    ($($visibility:vis $struct:ident {$($field:ident: $type:ty $(,)? )*})+) => {
+    ($($visibility:vis $struct:ident$(($structure_type:expr))? {$($field:ident: $type:ty $(,)? )*})+) => {
         paste::item! {$(
             #[repr(C)]
             $visibility struct $struct {
+                $(
+                    $visibility s_type: crate::structure_type::VkStructureType,
+                    #[doc = concat!("This should be ", stringify!($structure_type), ".")]
+                    $visibility p_next: *const std::ffi::c_void,
+                )?
                 $( $visibility [<$field:snake>]: $type, )*
             }
         )+}
-    };
 
-    ($($visibility:vis $struct:ident($structure_type:expr) {$($field:ident: $type:ty $(,)? )*})+) => {
-        crate::define_vk_structs!($(
-            $visibility $struct {
-            s_type: crate::structure_type::VkStructureType,
-            p_next: *const std::ffi::c_void,
-            $($field: $type,)*
-        })+);
-
-        $(
+        $($(
             #[allow(dead_code)]
             impl $struct {
                 $visibility fn structure_type() -> crate::structure_type::VkStructureType {$structure_type}
             }
-        )+
+        )?)+
     };
 }
 
