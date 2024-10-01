@@ -69,10 +69,8 @@ define_vk_structs!(
 
 
 define_extern_functions!(["vulkan"]("C")
-    pub vkEnumeratePhysicalDevices(
+    pub (enumerate physical_devices: VkPhysicalDevice) vkEnumeratePhysicalDevices(
         instance: VkInstance,
-        count: *mut u32,
-        physical_devices: *mut VkPhysicalDevice
     ) -> VkResult;
 
     pub vkGetPhysicalDeviceProperties(
@@ -80,9 +78,7 @@ define_extern_functions!(["vulkan"]("C")
         physical_device_properties: *mut VkPhysicalDeviceProperties
     );
 
-    pub vkGetPhysicalDeviceQueueFamilyProperties(
+    pub (enumerate queue_family_properties: VkQueueFamilyProperties) vkGetPhysicalDeviceQueueFamilyProperties(
         device: VkPhysicalDevice,
-        count: *mut u32,
-        queue_family_properties: *mut VkQueueFamilyProperties
     );
 );

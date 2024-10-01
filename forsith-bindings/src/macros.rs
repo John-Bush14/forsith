@@ -161,18 +161,41 @@ macro_rules! define_vk_structs {
 /// ```
 #[macro_export]
 macro_rules! define_extern_functions {
-    ([$lib:expr]($extern:expr) $($vis:vis $function:ident($($arg:ident:  $type:ty $(,)?)*) $(-> $return_type:ty)? $(;)? )+) => {
-        #[link(name = $lib)]
-        extern $extern {$(
-            #[allow(clashing_extern_declarations)]
-            fn $function($($arg: $type,)*) $(-> $return_type)?;
-        )+}
+    ([$lib:expr]($extern:expr) $(
+        $vis:vis
+            $((enumerate $enumeration_field:ident: $enumerator:ty))?
+        $function:ident ($($arg:ident:  $type:ty $(,)?)*) $(-> $return_type:ty)? $(;)?)+) => {
+            $(define_extern_functions!(![$lib]($extern) $vis $((enumerate $enumeration_field: $enumerator))? $function ($($arg: $type,)*) $( -> $return_type)?);)+
+    };
 
-        paste::item! {$(
-            $vis fn [<$function:snake>]($($arg: $type,)*) $(-> $return_type)? {
-                unsafe {$function($($arg,)*)}
-            }
-        )+}
+    (![$lib:expr]($extern:expr) $vis:vis $function:ident($($arg:ident:  $type:ty $(,)?)*) $(-> $return_type:ty)?) => {
+        #[allow(clashing_extern_declarations)]
+        #[link(name = $lib)]
+        extern $extern { fn $function($($arg: $type,)+) $(-> $return_type)?;}
+
+        paste::item! {$vis fn [<$function:snake>]($($arg: $type,)+) $(-> $return_type)? {
+            return unsafe {$function($($arg,)*)};
+        }}
+    };
+
+    (![$lib:expr]($extern:expr) $vis:vis (enumerate $enumeration_field:ident: $enumerator:ty) $function:ident($($arg:ident:  $type:ty $(,)?)*) $(-> $return_type:ty)?) => {
+        #[allow(clashing_extern_declarations)]
+        #[link(name = $lib)]
+        extern $extern {fn $function($($arg: $type,)+ count: *mut u32, $enumeration_field: *mut $enumerator) $(-> $return_type)?;}
+
+        paste::item! {$vis fn [<$function:snake>]($($arg: $type,)+) -> Vec<$enumerator> {
+            let mut count = 0;
+
+            unsafe {$function($($arg,)+ &mut count, std::ptr::null_mut())};
+
+            let mut vec = Vec::with_capacity(count as usize);
+
+            unsafe {$function($($arg,)+ &mut count, vec.as_mut_ptr())};
+
+            unsafe {vec.set_len(count as usize)};
+
+            return vec;
+        }}
     };
 }
 
@@ -237,7 +260,9 @@ mod macro_tests {
 
     use std::ffi::c_void;
 
-    define_extern_functions!(["vulkan"]("C") vkCreateInstance(_a: *const c_void, _b: *const c_void, instance: *mut VkInstance) -> VkResult);
+    define_extern_functions!(["vulkan"]("C")
+        vkCreateInstance(_a: *const c_void, _b: *const c_void, instance: *mut VkInstance) -> VkResult;
+    );
 
     #[test]
     fn use_defined_c_function() {
