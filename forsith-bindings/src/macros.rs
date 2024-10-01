@@ -35,6 +35,7 @@ macro_rules! define_vk_bitmasks {
     ($($vis:vis $bitmask:ident($bitflag_enum:ident) {$($bitflag:ident = $bit:expr $(,)?)+})+) => {
         $(
             #[repr(C)]
+            #[derive(Clone, Debug)]
             $vis struct $bitmask(pub crate::VkBitmask);
 
             impl crate::Bitmask for $bitmask {
@@ -74,6 +75,7 @@ macro_rules! define_vk_enums {
     ($($vis:vis $enum:ident {$($variant:ident = $value:expr $(,)? )+})+) => {
         paste::item! {$(
             #[repr(u32)]
+            #[derive(Clone, Debug)]
             $vis enum $enum {
                 $([<$variant:camel>] = $value,)+
             }
@@ -114,6 +116,7 @@ macro_rules! define_vk_enums {
 macro_rules! define_vk_structs {
     ($($visibility:vis $struct:ident$(($structure_type:expr))? {$($field:ident: $type:ty $(,)? )*})+) => {
         paste::item! {$(
+            #[derive(Clone, Debug)]
             #[repr(C)]
             $visibility struct $struct {
                 $(
