@@ -1,4 +1,5 @@
-use crate::{define_vk_bitmasks, VkHandle};
+use crate::{define_extern_functions, define_vk_bitmasks, define_vk_enums, define_vk_structs, instance::VkInstance, vk_result::VkResult, VkBool32, VkExtent3D, VkHandle};
+use std::ffi::c_char;
 
 
 pub type VkPhysicalDevice = VkHandle;
@@ -23,4 +24,65 @@ define_vk_bitmasks!(
         // Provided by VK_NV_optical_flow
         VK_QUEUE_OPTICAL_FLOW_BIT_NV = 0x00000100,
     }
+);
+
+
+define_vk_enums!(
+    pub VkPhysicalDeviceType {
+        VK_PHYSICAL_DEVICE_TYPE_OTHER = 0,
+        VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU = 1,
+        VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU = 2,
+        VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU = 3,
+        VK_PHYSICAL_DEVICE_TYPE_CPU = 4,
+    }
+);
+
+
+define_vk_structs!(
+    pub VkPhysicalDeviceProperties {
+        api_version: u32,
+        driver_version: u32,
+        vendor_id: u32,
+        device_id: u32,
+        device_type: VkPhysicalDeviceType,
+        device_name: [c_char; 256],
+        pipeline_cache_UUID: [u8; 16],
+        limits: [u8; 504],
+        sparse_properties: VkPhysicalDeviceSparseProperties
+    }
+
+    pub VkPhysicalDeviceSparseProperties {
+        residencyStandard2DBlockShape: VkBool32,
+        residencyStandard2DMultisampleBlockShape: VkBool32,
+        residencyStandard3DBlockShape: VkBool32,
+        residencyAlignedMipSize: VkBool32,
+        residencyNonResidentStrict: VkBool32
+    }
+
+    pub VkQueueFamilyProperties {
+        queue_flags: VkQueueFlags,
+        queue_count: u32,
+        timestamp_valid_bits: u32,
+        minImageTransferGranularity: VkExtent3D
+    }
+);
+
+
+define_extern_functions!(["vulkan"]("C")
+    pub vkEnumeratePhysicalDevices(
+        instance: VkInstance,
+        count: *mut u32,
+        physical_devices: *mut VkPhysicalDevice
+    ) -> VkResult;
+
+    pub vkGetPhysicalDeviceProperties(
+        device: VkPhysicalDevice,
+        physical_device_properties: *mut VkPhysicalDeviceProperties
+    );
+
+    pub vkGetPhysicalDeviceQueueFamilyProperties(
+        device: VkPhysicalDevice,
+        count: *mut u32,
+        queue_family_properties: *mut VkQueueFamilyProperties
+    );
 );

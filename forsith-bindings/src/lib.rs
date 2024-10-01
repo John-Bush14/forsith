@@ -47,3 +47,12 @@ pub fn vk_version(major: u32, minor: u32, patch: u32) -> VkVersion {(major << 22
 
 /// information about memory management
 pub type VkAllocationCallbacks = std::ffi::c_void;
+
+
+define_vk_structs!(
+    pub VkExtent3D {
+        width: u32,
+        height: u32,
+        depth: u32
+    }
+);
