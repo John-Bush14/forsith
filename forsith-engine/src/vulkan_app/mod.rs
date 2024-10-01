@@ -5,6 +5,7 @@ mod creation;
 
 mod drop;
 
+pub(crate) mod device;
 
 #[allow(dead_code)]
 pub struct VulkanApp {
