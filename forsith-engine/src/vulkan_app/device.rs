@@ -1,5 +1,7 @@
 use bindings::{device::{vk_create_device, VkDevice, VkDeviceCreateInfo, VkDeviceQueueCreateInfo}, physical_device::{self, vk_enumerate_physical_devices, vk_get_physical_device_properties, vk_get_physical_device_queue_family_properties, VkPhysicalDevice, VkPhysicalDeviceProperties, VkPhysicalDeviceType, VkQueue, VkQueueFamily, VkQueueFamilyProperties, VkQueueFlagBits}};
 
+use crate::DynError;
+
 use super::VulkanApp;
 
 
@@ -28,7 +30,10 @@ fn rate_device_type(device_type: VkPhysicalDeviceType) -> u32 {
 
 
 impl VulkanApp {
-    pub(crate) fn create_device(&self, queue_family_qualifiers: Vec<fn(VkPhysicalDevice, VkQueueFamilyProperties) -> bool>) -> Device {
+    pub(crate) fn create_device(
+        &self,
+        queue_family_qualifiers: Vec<fn(VkPhysicalDevice, VkQueueFamilyProperties) -> bool>
+    ) -> Result<Device, DynError> {
         let physical_devices: Vec<VkPhysicalDevice> = vk_enumerate_physical_devices(self.instance);
 
 
@@ -88,7 +93,7 @@ impl VulkanApp {
             enabled_features: std::ptr::null(),
         };
 
-        vk_create_device(physical_device, &create_info as *const VkDeviceCreateInfo, std::ptr::null(), &mut vk_device).result().unwrap();
+        vk_create_device(physical_device, &create_info as *const VkDeviceCreateInfo, std::ptr::null(), &mut vk_device).result()?;
 
 
         todo!();
