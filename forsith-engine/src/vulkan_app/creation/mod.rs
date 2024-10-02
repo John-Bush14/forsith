@@ -1,6 +1,6 @@
-use bindings::VkVersion;
+use bindings::{physical_device::{VkQueueFamilyProperties, VkQueueFlagBits}, Bitmask, VkVersion};
 use crate::DynError;
-use super::VulkanApp;
+use super::{device::create_device, VulkanApp};
 
 
 mod instance;
@@ -11,14 +11,14 @@ impl VulkanApp {
     fn new(app_name: &str, app_version: VkVersion) -> Result<Self, DynError> {
         let instance = instance::create_instance(app_name, app_version)?;
 
+        let general_device = create_device(instance, vec![|_physical_device, queue_family_props: VkQueueFamilyProperties| {
+            return queue_family_props.queue_flags.contains(VkQueueFlagBits::VkQueueGraphicsBit)
+        }])?;
 
         return Ok(Self {
             instance,
-            device: 0,
-            physical_device: 0,
+            general_device,
             transient_command_pool: 0,
-            graphics_queue_family: 0,
-            graphics_queue: 0,
         });
     }
 }

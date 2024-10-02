@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use bindings::{device::{vk_create_device, vk_get_device_queue, VkDevice, VkDeviceCreateInfo, VkDeviceQueueCreateInfo}, physical_device::{self, vk_enumerate_physical_devices, vk_get_physical_device_properties, vk_get_physical_device_queue_family_properties, VkPhysicalDevice, VkPhysicalDeviceProperties, VkPhysicalDeviceType, VkQueue, VkQueueFamily, VkQueueFamilyProperties, VkQueueFlagBits}};
+use bindings::{device::{vk_create_device, vk_get_device_queue, VkDevice, VkDeviceCreateInfo, VkDeviceQueueCreateInfo}, instance::VkInstance, physical_device::{self, vk_enumerate_physical_devices, vk_get_physical_device_properties, vk_get_physical_device_queue_family_properties, VkPhysicalDevice, VkPhysicalDeviceProperties, VkPhysicalDeviceType, VkQueue, VkQueueFamily, VkQueueFamilyProperties, VkQueueFlagBits}};
 
 use crate::DynError;
 
@@ -30,12 +30,11 @@ fn rate_device_type(device_type: VkPhysicalDeviceType) -> u32 {
 }
 
 
-impl VulkanApp {
     pub(crate) fn create_device(
-        &self,
+        instance: VkInstance,
         queue_family_qualifiers: Vec<fn(VkPhysicalDevice, VkQueueFamilyProperties) -> bool>
     ) -> Result<Device, DynError> {
-        let physical_devices: Vec<VkPhysicalDevice> = vk_enumerate_physical_devices(self.instance);
+        let physical_devices: Vec<VkPhysicalDevice> = vk_enumerate_physical_devices(instance);
 
 
         let (physical_device, queue_families) = physical_devices.into_iter()
@@ -125,4 +124,3 @@ impl VulkanApp {
             device: vk_device,
         });
     }
-}

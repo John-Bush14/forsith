@@ -10,9 +10,6 @@ pub(crate) mod device;
 #[allow(dead_code)]
 pub struct VulkanApp {
     instance: VkInstance,
-    device: VkDevice,
-    physical_device: VkPhysicalDevice,
+    general_device: device::Device,
     transient_command_pool: VkCommandPool,
-    graphics_queue_family: VkQueueFamily,
-    graphics_queue: VkQueue
 }
