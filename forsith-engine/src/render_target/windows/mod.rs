@@ -1,4 +1,7 @@
-pub trait Window {
+use super::RenderTarget;
+
+
+pub trait Window: RenderTarget {
     fn initialize_connection() -> Self where Self: Sized;
 
     fn map_window(&mut self);
