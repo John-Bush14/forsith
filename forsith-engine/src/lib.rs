@@ -4,6 +4,8 @@ use std::ffi::CString;
 
 pub mod vulkan_app;
 
+pub mod render_target;
+
 
 pub const API_VERSION: fn() -> VkVersion = || vk_version(1, 0, 0);
 

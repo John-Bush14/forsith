@@ -7,8 +7,6 @@ pub mod structure_type;
 
 pub mod instance;
 
-pub mod windows;
-
 pub mod device;
 
 pub mod physical_device;

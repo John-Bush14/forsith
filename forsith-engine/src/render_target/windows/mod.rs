@@ -1,4 +1,4 @@
-use crate::VkSurfaceKHR;
+use bindings::VkSurfaceKHR;
 
 
 pub trait Window {
