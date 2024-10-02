@@ -1,4 +1,4 @@
-use bindings::{device::VkDevice, physical_device::{self, vk_enumerate_physical_devices, vk_get_physical_device_properties, vk_get_physical_device_queue_family_properties, VkPhysicalDevice, VkPhysicalDeviceProperties, VkPhysicalDeviceType, VkQueue, VkQueueFamily, VkQueueFamilyProperties, VkQueueFlagBits}};
+use bindings::{device::{vk_create_device, VkDevice, VkDeviceCreateInfo, VkDeviceQueueCreateInfo}, physical_device::{self, vk_enumerate_physical_devices, vk_get_physical_device_properties, vk_get_physical_device_queue_family_properties, VkPhysicalDevice, VkPhysicalDeviceProperties, VkPhysicalDeviceType, VkQueue, VkQueueFamily, VkQueueFamilyProperties, VkQueueFlagBits}};
 
 use super::VulkanApp;
 
@@ -33,19 +33,21 @@ impl VulkanApp {
 
 
         let (physical_device, queue_families) = physical_devices.into_iter()
-            .map(|physical_device| -> Option<(VkPhysicalDevice, VkQueueFamily)> {
+            .map(|physical_device| -> Option<(VkPhysicalDevice, Vec<u32>)> {
                 let queue_families = vk_get_physical_device_queue_family_properties(physical_device);
 
 
                 let mut qualifying_queue_families = Vec::with_capacity(queue_family_qualifiers.len());
 
                 for queue_family_qualifier in &queue_family_qualifiers {
-                    qualifying_queue_families.push(queue_families.iter().find(|&queue_familie| {
+                    let (qualifying_queue_family, _) = queue_families.iter().enumerate().find(|(_i, &ref queue_familie)| {
                         return queue_family_qualifier(physical_device, queue_familie.clone())
-                    })?);
+                    })?;
+
+                    qualifying_queue_families.push(qualifying_queue_family as u32);
                 }
 
-                return None
+                return Some((physical_device, qualifying_queue_families));
             })
             .filter(|a| a.is_some()).map(|a| a.unwrap())
             .max_by_key(|(physical_device, _queue_families)| {
@@ -55,6 +57,38 @@ impl VulkanApp {
 
                 return rate_device_type(properties.device_type)
             }).unwrap();
+
+
+        let priority = 1.0f32;
+
+        let queue_create_infos = queue_families.iter().map(|queue_family| {
+            return VkDeviceQueueCreateInfo {
+                s_type: VkDeviceQueueCreateInfo::structure_type(),
+                p_next: std::ptr::null(),
+                flags: bindings::device::VkDeviceQueueCreateFlags(0),
+                queue_family_index: *queue_family,
+                queue_count: 1,
+                queue_priorities: &priority,
+            }}
+        ).collect::<Vec<VkDeviceQueueCreateInfo>>();
+
+
+        let mut vk_device = 0;
+
+        let create_info = VkDeviceCreateInfo {
+            s_type: VkDeviceCreateInfo::structure_type(),
+            p_next: std::ptr::null(),
+            flags: bindings::device::VkDeviceCreateFlags(0),
+            queue_create_info_count: queue_families.len() as u32,
+            queue_create_infos: queue_create_infos.as_ptr(),
+            enabled_layer_count: 0,
+            enabled_layer_names: std::ptr::null(),
+            enabled_extension_count: 0,
+            enabled_extensions: std::ptr::null(),
+            enabled_features: std::ptr::null(),
+        };
+
+        vk_create_device(physical_device, &create_info as *const VkDeviceCreateInfo, std::ptr::null(), &mut vk_device).result().unwrap();
 
 
         todo!();
