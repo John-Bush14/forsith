@@ -1,4 +1,6 @@
-use bindings::{device::{vk_create_device, VkDevice, VkDeviceCreateInfo, VkDeviceQueueCreateInfo}, physical_device::{self, vk_enumerate_physical_devices, vk_get_physical_device_properties, vk_get_physical_device_queue_family_properties, VkPhysicalDevice, VkPhysicalDeviceProperties, VkPhysicalDeviceType, VkQueue, VkQueueFamily, VkQueueFamilyProperties, VkQueueFlagBits}};
+use std::collections::HashMap;
+
+use bindings::{device::{vk_create_device, vk_get_device_queue, VkDevice, VkDeviceCreateInfo, VkDeviceQueueCreateInfo}, physical_device::{self, vk_enumerate_physical_devices, vk_get_physical_device_properties, vk_get_physical_device_queue_family_properties, VkPhysicalDevice, VkPhysicalDeviceProperties, VkPhysicalDeviceType, VkQueue, VkQueueFamily, VkQueueFamilyProperties, VkQueueFlagBits}};
 
 use crate::DynError;
 
@@ -94,6 +96,24 @@ impl VulkanApp {
         };
 
         vk_create_device(physical_device, &create_info as *const VkDeviceCreateInfo, std::ptr::null(), &mut vk_device).result()?;
+
+
+        let mut queue_count: HashMap<VkQueueFamily, u32> = HashMap::new();
+
+        let queues = queue_families.iter().map(|queue_family| {
+            let mut count = 0;
+
+            if let Some(actual_count) = queue_count.get_mut(queue_family) {
+                *actual_count += 1;
+                count = *actual_count;
+            } else {queue_count.insert(*queue_family, 0);}
+
+            let mut queue = 0;
+
+            vk_get_device_queue(vk_device, *queue_family, count, &mut queue);
+
+            return queue;
+        }).collect::<Vec<VkQueue>>();
 
 
         todo!();

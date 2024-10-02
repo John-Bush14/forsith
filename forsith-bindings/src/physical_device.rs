@@ -4,7 +4,7 @@ use std::ffi::c_char;
 
 pub type VkPhysicalDevice = VkHandle;
 
-pub type VkQueueFamily = VkHandle;
+pub type VkQueueFamily = u32;
 
 pub type VkQueue = VkHandle;
 
