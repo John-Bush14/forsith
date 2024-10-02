@@ -7,6 +7,8 @@ pub mod structure_type;
 
 pub mod instance;
 
+pub mod windows;
+
 pub mod device;
 
 pub mod physical_device;
@@ -39,6 +41,9 @@ pub trait Bitmask {
 
     fn contains(&self, bitflag: Self::Bitflag) -> bool;
 }
+
+/// type of vulkan KHR surfaces
+pub type VkSurfaceKHR = VkHandle;
 
 /// type of vulkan versions
 pub type VkVersion = u32;
