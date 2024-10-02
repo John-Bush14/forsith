@@ -1,6 +1,6 @@
 use bindings::{physical_device::{VkQueueFamilyProperties, VkQueueFlagBits}, Bitmask, VkVersion};
-use crate::DynError;
-use super::{device::create_device, VulkanApp};
+use crate::{device::create_device, DynError};
+use super::{VulkanApp};
 
 
 mod instance;
