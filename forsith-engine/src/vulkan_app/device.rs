@@ -10,7 +10,6 @@ use super::VulkanApp;
 pub struct Queue {
     family: VkQueueFamily,
     queue: VkQueue,
-    flags: VkQueueFlagBits
 }
 
 pub struct Device {
@@ -112,10 +111,18 @@ impl VulkanApp {
 
             vk_get_device_queue(vk_device, *queue_family, count, &mut queue);
 
-            return queue;
-        }).collect::<Vec<VkQueue>>();
+
+            return Queue {
+                family: *queue_family,
+                queue,
+            };
+        }).collect::<Vec<Queue>>();
 
 
-        todo!();
+        return Ok(Device {
+            physical_device,
+            queues,
+            device: vk_device,
+        });
     }
 }
