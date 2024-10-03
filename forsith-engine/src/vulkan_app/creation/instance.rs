@@ -5,7 +5,7 @@ use crate::{DynError, ENGINE_NAME, ENGINE_VERSION};
 use crate::API_VERSION;
 
 
-pub fn create_instance(app_name: &str, app_version: VkVersion) -> Result<VkInstance, DynError> {
+pub(crate) fn create_instance(app_name: &str, app_version: VkVersion) -> Result<VkInstance, DynError> {
     let c_app_name = CString::new(app_name)?;
 
     let engine_name = ENGINE_NAME();

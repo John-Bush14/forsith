@@ -3,7 +3,7 @@ use crate::{device::create_device, DynError};
 use super::{VulkanApp};
 
 
-mod instance;
+pub(crate) mod instance;
 
 
 #[allow(dead_code)]

@@ -51,4 +51,9 @@ define_extern_functions!(["vulkan"]("C")
         queue_index: u32,
         queue: *mut VkQueue
     );
+
+    pub vkDestroyDevice(
+        device: VkDevice,
+        allocator: *const VkAllocationCallbacks
+    );
 );

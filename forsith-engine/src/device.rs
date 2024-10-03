@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use bindings::{device::{vk_create_device, vk_get_device_queue, VkDevice, VkDeviceCreateInfo, VkDeviceQueueCreateInfo}, instance::VkInstance, physical_device::{self, vk_enumerate_physical_devices, vk_get_physical_device_properties, vk_get_physical_device_queue_family_properties, VkPhysicalDevice, VkPhysicalDeviceProperties, VkPhysicalDeviceType, VkQueue, VkQueueFamily, VkQueueFamilyProperties, VkQueueFlagBits}};
+use bindings::{device::{vk_create_device, vk_destroy_device, vk_get_device_queue, VkDevice, VkDeviceCreateInfo, VkDeviceQueueCreateInfo}, instance::VkInstance, physical_device::{self, vk_enumerate_physical_devices, vk_get_physical_device_properties, vk_get_physical_device_queue_family_properties, VkPhysicalDevice, VkPhysicalDeviceProperties, VkPhysicalDeviceType, VkQueue, VkQueueFamily, VkQueueFamilyProperties, VkQueueFlagBits}, vk_result::VkResult};
 
 use crate::DynError;
 
@@ -15,6 +15,15 @@ pub struct Device {
     queues: Vec<Queue>,
     device: VkDevice
 }
+
+
+impl Device {pub(crate) fn destroy(&self) -> Result<(), DynError> {
+    if self.device == 0 {return Err(Box::new(VkResult::VkErrorDeviceLost));}
+
+    vk_destroy_device(self.device, std::ptr::null());
+
+    return Ok(());
+}}
 
 
 fn rate_device_type(device_type: VkPhysicalDeviceType) -> u32 {
@@ -121,4 +130,25 @@ pub(crate) fn create_device(
         queues,
         device: vk_device,
     });
+}
+
+
+#[cfg(test)]
+mod device_tests {
+    use bindings::{instance::vk_destroy_instance, vk_version};
+
+    use crate::{vulkan_app::{self, creation::instance::create_instance}, DynError};
+
+    use super::create_device;
+
+    #[test]
+    fn test_device_creation_and_destroyal() -> Result<(), DynError> {
+        let instance = create_instance("device creation test", vk_version(0, 0, 0)).expect("device creation did not fail, instance creation did");
+
+        create_device(instance, vec![|_, _| return true])?.destroy()?;
+
+        vk_destroy_instance(instance, std::ptr::null());
+
+        return Ok(());
+    }
 }
