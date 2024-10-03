@@ -3,6 +3,8 @@ use crate::{define_extern_functions, define_vk_bitmasks, define_vk_structs, devi
 
 pub type VkCommandPool = VkHandle;
 
+pub type VkCommandBuffer = VkHandle;
+
 
 define_vk_bitmasks!(
     pub VkCommandPoolCreateFlags(VkCommandPoolCreateFlagBits) {
