@@ -1,15 +1,17 @@
 use std::collections::HashMap;
 
-use bindings::{device::{vk_create_device, vk_destroy_device, vk_get_device_queue, VkDevice, VkDeviceCreateInfo, VkDeviceQueueCreateInfo}, instance::VkInstance, physical_device::{self, vk_enumerate_physical_devices, vk_get_physical_device_properties, vk_get_physical_device_queue_family_properties, VkPhysicalDevice, VkPhysicalDeviceProperties, VkPhysicalDeviceType, VkQueue, VkQueueFamily, VkQueueFamilyProperties, VkQueueFlagBits}, vk_result::VkResult};
+use bindings::{device::{vk_create_device, vk_destroy_device, vk_get_device_queue, VkDevice, VkDeviceCreateInfo, VkDeviceQueueCreateInfo}, instance::VkInstance, physical_device::{vk_enumerate_physical_devices, vk_get_physical_device_properties, vk_get_physical_device_queue_family_properties, VkPhysicalDevice, VkPhysicalDeviceProperties, VkPhysicalDeviceType, VkQueue, VkQueueFamily, VkQueueFamilyProperties}, vk_result::VkResult};
 
 use crate::DynError;
 
 
+#[allow(dead_code)]
 pub struct Queue {
     family: VkQueueFamily,
     queue: VkQueue,
 }
 
+#[allow(dead_code)]
 pub struct Device {
     physical_device: VkPhysicalDevice,
     queues: Vec<Queue>,
@@ -137,7 +139,7 @@ pub(crate) fn create_device(
 mod device_tests {
     use bindings::{instance::vk_destroy_instance, vk_version};
 
-    use crate::{vulkan_app::{self, creation::instance::create_instance}, DynError};
+    use crate::{vulkan_app::creation::instance::create_instance, DynError};
 
     use super::create_device;
 

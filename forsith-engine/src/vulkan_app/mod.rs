@@ -1,4 +1,4 @@
-use bindings::{command_pool::VkCommandPool, device::VkDevice, instance::VkInstance, physical_device::{VkPhysicalDevice, VkQueue, VkQueueFamily}};
+use bindings::{command_pool::VkCommandPool, instance::VkInstance};
 
 
 pub(crate) mod creation;

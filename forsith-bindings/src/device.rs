@@ -1,5 +1,5 @@
 use std::ffi::{c_char, c_void};
-use crate::{define_extern_functions, define_vk_bitmasks, define_vk_enums, define_vk_structs, physical_device::{VkPhysicalDevice, VkQueue, VkQueueFamily}, structure_type::VkStructureType, vk_result::VkResult, VkAllocationCallbacks, VkHandle};
+use crate::{define_extern_functions, define_vk_bitmasks, define_vk_structs, physical_device::{VkPhysicalDevice, VkQueue, VkQueueFamily}, structure_type::VkStructureType, vk_result::VkResult, VkAllocationCallbacks, VkHandle};
 
 
 pub type VkDevice = VkHandle;
