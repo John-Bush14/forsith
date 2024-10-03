@@ -32,4 +32,10 @@ define_extern_functions!(["vulkan"]("C")
         allocator: *const VkAllocationCallbacks,
         command_pool: *mut VkCommandPool
     ) -> VkResult;
+
+    pub vkDestroyCommandPool(
+        device: VkDevice,
+        command_pool: VkCommandPool,
+        allocator: *const VkAllocationCallbacks
+    );
 );

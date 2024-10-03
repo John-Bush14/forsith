@@ -27,6 +27,10 @@ impl Device {pub(crate) fn destroy(&self) -> Result<(), DynError> {
     return Ok(());
 }}
 
+impl Device {pub(crate) fn get_queue(&self, i: usize) -> &Queue {return &self.queues[i];}}
+impl Device {pub(crate) fn get_device(&self) -> &VkDevice {return &self.device;}}
+impl Queue {pub(crate) fn family(&self) -> VkQueueFamily {return self.family;}}
+
 
 fn rate_device_type(device_type: VkPhysicalDeviceType) -> u32 {
     match device_type {
