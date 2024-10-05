@@ -1,3 +1,7 @@
+#![allow(clippy::needless_return)]
+#![allow(clippy::not_unsafe_ptr_arg_deref)]
+
+
 pub mod vk_result;
 
 pub mod macros;

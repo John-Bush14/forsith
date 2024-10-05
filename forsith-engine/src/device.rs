@@ -27,8 +27,11 @@ impl Device {pub(crate) fn destroy(&self) -> Result<(), DynError> {
     return Ok(());
 }}
 
+#[allow(dead_code)]
 impl Device {pub(crate) fn get_queue(&self, i: usize) -> &Queue {return &self.queues[i];}}
+#[allow(dead_code)]
 impl Device {pub(crate) fn get_device(&self) -> &VkDevice {return &self.device;}}
+#[allow(dead_code)]
 impl Queue {pub(crate) fn family(&self) -> VkQueueFamily {return self.family;}}
 
 
@@ -51,15 +54,15 @@ pub(crate) fn create_device(
 
 
     let (physical_device, queue_families) = physical_devices.into_iter()
-        .map(|physical_device| -> Option<(VkPhysicalDevice, Vec<u32>)> {
+        .filter_map(|physical_device| -> Option<(VkPhysicalDevice, Vec<u32>)> {
             let queue_families = vk_get_physical_device_queue_family_properties(physical_device);
 
 
             let mut qualifying_queue_families = Vec::with_capacity(queue_family_qualifiers.len());
 
             for queue_family_qualifier in &queue_family_qualifiers {
-                let (qualifying_queue_family, _) = queue_families.iter().enumerate().find(|(_i, &ref queue_familie)| {
-                    return queue_family_qualifier(physical_device, queue_familie.clone())
+                let (qualifying_queue_family, _) = queue_families.iter().enumerate().find(|(_i, queue_familie)| {
+                    return queue_family_qualifier(physical_device, (**queue_familie).clone())
                 })?;
 
                 qualifying_queue_families.push(qualifying_queue_family as u32);
@@ -67,7 +70,6 @@ pub(crate) fn create_device(
 
             return Some((physical_device, qualifying_queue_families));
         })
-        .filter(|a| a.is_some()).map(|a| a.unwrap())
         .max_by_key(|(physical_device, _queue_families)| {
             let mut properties: VkPhysicalDeviceProperties = unsafe {std::mem::zeroed()};
 

@@ -13,6 +13,7 @@ pub struct CommandPool {
 }
 
 
+#[allow(dead_code)]
 impl CommandPool {
     pub fn destroy(&self) {
         vk_destroy_command_pool(self.vk_device, self.command_pool, std::ptr::null());
