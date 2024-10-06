@@ -17,7 +17,7 @@ impl VulkanApp {
 
 
         let transient_command_pool = CommandPool::new(
-            *general_device.get_device(),
+            &general_device,
             VkCommandPoolCreateFlags(VkCommandPoolCreateFlagBits::VkCommandPoolCreateTransientBit as _),
             general_device.get_queue(0).family()
         )?;

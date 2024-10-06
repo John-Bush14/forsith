@@ -1,6 +1,6 @@
 use bindings::{command_pool::{vk_create_command_pool, vk_destroy_command_pool, VkCommandBuffer, VkCommandPool, VkCommandPoolCreateFlags, VkCommandPoolCreateInfo}, device::VkDevice, physical_device::VkQueueFamily};
 
-use crate::DynError;
+use crate::{device::Device, DynError};
 
 
 #[allow(dead_code)]
@@ -19,7 +19,7 @@ impl CommandPool {
         vk_destroy_command_pool(self.vk_device, self.command_pool, std::ptr::null());
     }
 
-    pub fn new(device: VkDevice, flags: VkCommandPoolCreateFlags, queue_family: VkQueueFamily) -> Result<Self, DynError>  {
+    pub fn new(device: &Device, flags: VkCommandPoolCreateFlags, queue_family: VkQueueFamily) -> Result<Self, DynError>  {
         let create_info = VkCommandPoolCreateInfo {
             s_type: VkCommandPoolCreateInfo::structure_type(),
             p_next: std::ptr::null(),
@@ -28,9 +28,12 @@ impl CommandPool {
         };
 
 
+        let vk_device = *device.get_device();
+
+
         let mut vk_command_pool = 0;
 
-        vk_create_command_pool(device, &create_info as *const VkCommandPoolCreateInfo, std::ptr::null(), &mut vk_command_pool).result()?;
+        vk_create_command_pool(vk_device, &create_info as *const VkCommandPoolCreateInfo, std::ptr::null(), &mut vk_command_pool).result()?;
 
 
         let command_pool = CommandPool {
@@ -38,7 +41,7 @@ impl CommandPool {
             command_buffers: vec!(),
             flags,
             queue_family,
-            vk_device: device
+            vk_device
         };
 
         return Ok(command_pool);
@@ -60,7 +63,7 @@ mod command_pool_tests {
         let device = create_device(instance, vec![|_, _| return true]).expect("failed because of device creation");
 
 
-        let command_pool = CommandPool::new(*device.get_device(), VkCommandPoolCreateFlags(0), device.get_queue(0).family())?;
+        let command_pool = CommandPool::new(&device, VkCommandPoolCreateFlags(0), device.get_queue(0).family())?;
 
         command_pool.destroy();
 
