@@ -1,5 +1,5 @@
-use bindings::{physical_device::{VkQueueFamilyProperties, VkQueueFlagBits}, Bitmask, VkVersion};
-use crate::{device::create_device, DynError};
+use bindings::{command_pool::{VkCommandPoolCreateFlagBits, VkCommandPoolCreateFlags}, physical_device::{VkQueueFamilyProperties, VkQueueFlagBits}, Bitmask, VkVersion};
+use crate::{command_pool::CommandPool, device::create_device, DynError};
 use super::VulkanApp;
 
 
@@ -15,10 +15,18 @@ impl VulkanApp {
             return queue_family_props.queue_flags.contains(VkQueueFlagBits::VkQueueGraphicsBit)
         }])?;
 
+
+        let transient_command_pool = CommandPool::new(
+            *general_device.get_device(),
+            VkCommandPoolCreateFlags(VkCommandPoolCreateFlagBits::VkCommandPoolCreateTransientBit as _),
+            general_device.get_queue(0).family()
+        )?;
+
+
         return Ok(Self {
             instance,
             general_device,
-            transient_command_pool: 0,
+            transient_command_pool,
         });
     }
 }
