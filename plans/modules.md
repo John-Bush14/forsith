@@ -1,18 +1,16 @@
 ## VulkanApp [***required for everything***]
 ### data
  * vulkan instance
- * global device  
-    \+ graphics queue (family)  
+ * device  
+    \+ graphics queues (families)  
+    \+ presentation queues (families)
     \+ physical device
  * transient command pool
- * cached data for other modules (so Option<>'s)
-    * physical device with present queue  
-        \+ present queue (family)
 
 ### responsibilities
  * creating vulkan instance
- * choosing physical device with queue family with graphics queue
- * creating device from this physical device with queue
+ * choosing physical device with queue family with graphics queue + presentation queue for every renderer
+ * creating device from this physical device with queues
  * creating transient command pool
 
 ### interface
@@ -20,10 +18,10 @@
  * one time command buffers
  * device creation
  * getters(all)
- * setters(cached data)
+ * claim queue pair (for renderer)
 
 ##### pub
- * ::new()
+ * ::new(count renderers)
 
 
 ## Pipeline [***data needed to create VkPipeline***]
@@ -106,12 +104,10 @@
 ### data
  * drawables
  * pipelines
- * local device with both queues
  * command pool + buffers
  * render target
 
 ### responsibilies
- * find presentation queue (family) if not cached (VulkanApp)
  * record and enter command buffers with renderpass
 
 ### interface
