@@ -10,8 +10,6 @@ pub mod vulkan_app;
 
 pub mod render_target;
 
-pub(crate) mod device;
-
 pub(crate) mod command_pool;
 
 
