@@ -7,7 +7,8 @@ pub(crate) mod instance;
 
 
 pub struct VulkanAppLimits {
-    renderers: u8
+    renderers: u8,
+    processing_queues: u8
 }
 
 
@@ -16,7 +17,7 @@ impl VulkanApp {
     fn new(app_name: &str, app_version: VkVersion, limits: VulkanAppLimits) -> Result<Self, DynError> {
         let instance = instance::create_instance(app_name, app_version)?;
 
-        let general_device = create_device(instance, limits.renderers)?;
+        let general_device = create_device(instance, limits.renderers as usize)?;
 
 
         let transient_command_pool = CommandPool::new(
@@ -40,5 +41,8 @@ impl VulkanApp {
 fn vulkan_app_creation_test() {
     use bindings::vk_version;
 
-    VulkanApp::new("test", vk_version(0, 0, 0), 1).unwrap();
+    VulkanApp::new("test", vk_version(0, 0, 0), VulkanAppLimits {
+        renderers: 0,
+        processing_queues: 0,
+    }).unwrap();
 }
