@@ -55,14 +55,14 @@ impl CommandPool {
 mod command_pool_tests {
     use bindings::{command_pool::VkCommandPoolCreateFlags, instance::vk_destroy_instance, vk_version};
 
-    use crate::{vulkan_app::device::create_device, vulkan_app::creation::instance::create_instance, DynError};
+    use crate::{vulkan_app::{creation::{instance::create_instance, VulkanAppLimits}, device::create_device}, DynError};
     use super::CommandPool;
 
     #[test]
     pub fn create_command_pool_test() -> Result<(), DynError> {
         let instance = create_instance("command pool creation test", vk_version(0, 1, 0)).expect("failed because of instance creation");
 
-        let device = create_device(instance, vec![|_, _| return true]).expect("failed because of device creation");
+        let device = create_device(instance, &VulkanAppLimits::default()).expect("failed because of device creation");
 
 
         let command_pool = CommandPool::new(&device, VkCommandPoolCreateFlags(0), device.get_queue(0).family())?;

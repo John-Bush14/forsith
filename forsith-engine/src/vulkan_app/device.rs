@@ -4,6 +4,8 @@ use bindings::{device::{vk_create_device, vk_destroy_device, vk_get_device_queue
 
 use crate::DynError;
 
+use super::creation::VulkanAppLimits;
+
 
 #[allow(dead_code)]
 pub struct Queue {
@@ -55,8 +57,11 @@ fn rate_device_type(device_type: VkPhysicalDeviceType) -> u32 {
 
 pub(crate) fn create_device(
     instance: VkInstance,
-    needed_render_sets: usize
+    app_limits: &VulkanAppLimits
 ) -> Result<Device, DynError> {
+    let needed_render_sets = app_limits.get_renderers() as usize;
+
+
     let physical_devices: Vec<VkPhysicalDevice> = vk_enumerate_physical_devices(instance);
 
 
@@ -190,7 +195,7 @@ pub(crate) fn create_device(
 mod device_tests {
     use bindings::{instance::vk_destroy_instance, vk_version};
 
-    use crate::{vulkan_app::creation::instance::create_instance, DynError};
+    use crate::{vulkan_app::creation::{instance::create_instance, VulkanAppLimits}, DynError};
 
     use super::create_device;
 
@@ -198,7 +203,7 @@ mod device_tests {
     fn test_device_creation_and_destroyal() -> Result<(), DynError> {
         let instance = create_instance("device creation test", vk_version(0, 0, 0)).expect("device creation did not fail, instance creation did");
 
-        create_device(instance, 1)?.destroy()?;
+        create_device(instance, &VulkanAppLimits::default())?.destroy()?;
 
         vk_destroy_instance(instance, std::ptr::null());
 
