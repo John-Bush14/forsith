@@ -25,7 +25,7 @@ pub struct RenderQueueSet {
 pub struct Device {
     physical_device: VkPhysicalDevice,
     render_queue_sets: Vec<RenderQueueSet>,
-    general_graphics_queue: Queue,
+    processing_queues: Vec<Queue>,
     device: VkDevice
 }
 
@@ -62,6 +62,7 @@ pub(crate) fn create_device(
     app_limits: &VulkanAppLimits
 ) -> Result<Device, DynError> {
     let needed_render_sets = app_limits.get_renderers() as usize;
+    let needed_processing_queues = app_limits.get_processing_queues() as usize;
 
 
     let physical_devices: Vec<VkPhysicalDevice> = vk_enumerate_physical_devices(instance);
@@ -79,7 +80,10 @@ pub(crate) fn create_device(
                 let mut queue_count = queue_family_props.queue_count;
 
                 if queue_family_props.queue_flags.contains(VkQueueFlagBits::VkQueueGraphicsBit) {
-                    let graphics_queue_count = (needed_render_sets - graphics_queues.len()).min(0).max(queue_count as usize);
+                    let graphics_queue_count = {
+                        (needed_render_sets + needed_processing_queues - graphics_queues.len()).min(0).max(queue_count as usize)
+                    };
+
                     queue_count -= graphics_queue_count as u32;
 
                     for _ in 0..graphics_queue_count {graphics_queues.push(queue_family as VkQueueFamily);}
@@ -139,6 +143,8 @@ pub(crate) fn create_device(
 
     let mut queue_family_queue_indexes: HashMap<VkQueueFamily, u32> = HashMap::new();
 
+    let mut processing_queues: Vec<Queue> = vec!();
+
     for (render_queue_set_i, queue_family) in queues.0.iter().enumerate().chain(queues.1.iter().enumerate()) {
         let queue_index = {
             if let Some(queue_index) = queue_family_queue_indexes.get_mut(&queue_family) {
@@ -154,6 +160,13 @@ pub(crate) fn create_device(
         vk_get_device_queue(vk_device, *queue_family, queue_index, &mut queue);
 
         assert!(queue != 0);
+
+
+        if render_queue_set_i >= needed_render_sets {
+            processing_queues.push(Queue {family: *queue_family, queue});
+
+            continue;
+        }
 
 
         match render_queue_sets.get_mut(render_queue_set_i) {
@@ -179,8 +192,8 @@ pub(crate) fn create_device(
     return Ok(Device {
         physical_device,
         render_queue_sets,
-        general_graphics_queue: todo!(),
         device: vk_device,
+        processing_queues,
     });
 }
 
