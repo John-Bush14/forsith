@@ -39,9 +39,13 @@ impl Device {pub(crate) fn destroy(&self) -> Result<(), DynError> {
 }}
 
 #[allow(dead_code)]
-impl Device {pub(crate) fn get_render_queue_set(&self, i: usize) -> &RenderQueueSet {return &self.render_queue_sets[i];}}
-#[allow(dead_code)]
-impl Device {pub(crate) fn get_device(&self) -> &VkDevice {return &self.device;}}
+impl Device {
+    pub(crate) fn get_render_queue_set(&self, i: usize) -> &RenderQueueSet {return &self.render_queue_sets[i];}
+
+    pub(crate) fn get_device(&self) -> &VkDevice {return &self.device;}
+
+    pub(crate) fn get_processing_queue(&self, i: usize) -> &Queue {return &self.processing_queues[i];}
+}
 #[allow(dead_code)]
 impl Queue {pub(crate) fn family(&self) -> VkQueueFamily {return self.family;}}
 

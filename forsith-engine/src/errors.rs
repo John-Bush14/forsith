@@ -11,7 +11,7 @@ impl fmt::Display for ForsithError {
         use ForsithError::*;
 
         return write!(f, "{}", match self {
-            _ => unreachable!()
+            _ => "unreachable"
         });
     }
 }

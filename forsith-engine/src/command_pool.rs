@@ -65,7 +65,7 @@ mod command_pool_tests {
         let device = create_device(instance, &VulkanAppLimits::default()).expect("failed because of device creation");
 
 
-        let command_pool = CommandPool::new(&device, VkCommandPoolCreateFlags(0), device.get_queue(0).family())?;
+        let command_pool = CommandPool::new(&device, VkCommandPoolCreateFlags(0), device.get_processing_queue(0).family())?;
 
         command_pool.destroy();
 
