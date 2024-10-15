@@ -17,6 +17,8 @@ pub mod physical_device;
 
 pub mod command_pool;
 
+pub mod surface;
+
 
 /// vulkan 32 bit bool type
 pub type VkBool32 = u32;
@@ -43,9 +45,6 @@ pub trait Bitmask {
 
     fn contains(&self, bitflag: Self::Bitflag) -> bool;
 }
-
-/// type of vulkan KHR surfaces
-pub type VkSurfaceKHR = VkHandle;
 
 /// type of vulkan versions
 pub type VkVersion = u32;
