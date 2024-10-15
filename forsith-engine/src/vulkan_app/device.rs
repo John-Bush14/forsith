@@ -102,26 +102,16 @@ pub(crate) fn create_device(
 
     let priority = [1.0f32; 256];
 
-    let queue_create_infos = queues.0.iter().zip(queues.1.iter()).map(|queue_family| {
-        return (
-            VkDeviceQueueCreateInfo {
-                s_type: VkDeviceQueueCreateInfo::structure_type(),
-                p_next: std::ptr::null(),
-                flags: bindings::device::VkDeviceQueueCreateFlags(0),
-                queue_family_index: *queue_family.0,
-                queue_count: 1,
-                queue_priorities: priority.as_ptr(),
-            },
-            VkDeviceQueueCreateInfo {
-                s_type: VkDeviceQueueCreateInfo::structure_type(),
-                p_next: std::ptr::null(),
-                flags: bindings::device::VkDeviceQueueCreateFlags(0),
-                queue_family_index: *queue_family.1,
-                queue_count: 1,
-                queue_priorities: priority.as_ptr(),
-            },
-        );}
-    ).collect::<Vec<(VkDeviceQueueCreateInfo, VkDeviceQueueCreateInfo)>>();
+    let queue_create_infos = queues.0.iter().chain(queues.1.iter()).map(|queue_family| {
+        return VkDeviceQueueCreateInfo {
+            s_type: VkDeviceQueueCreateInfo::structure_type(),
+            p_next: std::ptr::null(),
+            flags: bindings::device::VkDeviceQueueCreateFlags(0),
+            queue_family_index: *queue_family,
+            queue_count: 1,
+            queue_priorities: priority.as_ptr(),
+        };}
+    ).collect::<Vec<VkDeviceQueueCreateInfo>>();
 
 
     let mut vk_device = 0;
@@ -131,7 +121,7 @@ pub(crate) fn create_device(
         p_next: std::ptr::null(),
         flags: bindings::device::VkDeviceCreateFlags(0),
         queue_create_info_count: queue_create_infos.len() as u32,
-        queue_create_infos: queue_create_infos.as_ptr() as *const VkDeviceQueueCreateInfo,
+        queue_create_infos: queue_create_infos.as_ptr(),
         enabled_layer_count: 0,
         enabled_layer_names: std::ptr::null(),
         enabled_extension_count: 0,
@@ -145,54 +135,44 @@ pub(crate) fn create_device(
     assert!(vk_device != 0);
 
 
-    let mut render_queue_sets = vec!();
+    let mut render_queue_sets: Vec<RenderQueueSet> = vec!();
 
     let mut queue_family_queue_indexes: HashMap<VkQueueFamily, u32> = HashMap::new();
 
-    for (&graphics_queue_family, &present_queue_family) in queues.0.iter().zip(queues.1.iter()) {
-        let graphics_queue_index = {
-            if let Some(graphics_queue_index) = queue_family_queue_indexes.get_mut(&graphics_queue_family) {
-                *graphics_queue_index += 1; *graphics_queue_index
+    for (render_queue_set_i, queue_family) in queues.0.iter().enumerate().chain(queues.1.iter().enumerate()) {
+        let queue_index = {
+            if let Some(queue_index) = queue_family_queue_indexes.get_mut(&queue_family) {
+                *queue_index += 1; *queue_index
             } else {
-                queue_family_queue_indexes.insert(graphics_queue_family, 0); 0
+                queue_family_queue_indexes.insert(*queue_family, 0); 0
             }
         };
 
-        let present_queue_index = {
-            if let Some(present_queue_index) = queue_family_queue_indexes.get_mut(&present_queue_family) {
-                *present_queue_index += 1; *present_queue_index
-            } else {
-                queue_family_queue_indexes.insert(present_queue_family, 0); 0
-            }
-        };
 
         let mut queue = 0;
 
-        vk_get_device_queue(vk_device, graphics_queue_family, graphics_queue_index, &mut queue);
+        vk_get_device_queue(vk_device, *queue_family, queue_index, &mut queue);
 
         assert!(queue != 0);
 
-        let graphics_queue = queue;
 
-        vk_get_device_queue(vk_device, present_queue_family, present_queue_index as u32, &mut queue);
-
-        assert!(queue != 0);
-
-        let present_queue = queue;
-
-
-        render_queue_sets.push(
-            RenderQueueSet {
-                graphics: Queue {
-                    family: graphics_queue_family,
-                    queue: graphics_queue,
-                },
-                presentation: Queue {
-                    family: present_queue_family,
-                    queue: present_queue,
-                }
+        match render_queue_sets.get_mut(render_queue_set_i) {
+            Some(render_queue_set) => {(*render_queue_set).presentation = Queue {family: *queue_family, queue}}
+            None => {
+                render_queue_sets.push(
+                    RenderQueueSet {
+                        graphics: Queue {
+                            family: *queue_family,
+                            queue,
+                        },
+                        presentation: Queue {
+                            family: 0,
+                            queue: 0,
+                        }
+                    }
+                );
             }
-        );
+        };
     }
 
 
