@@ -62,7 +62,10 @@ mod command_pool_tests {
     pub fn create_command_pool_test() -> Result<(), DynError> {
         let instance = create_instance("command pool creation test", vk_version(0, 1, 0)).expect("failed because of instance creation");
 
-        let device = create_device(instance, &VulkanAppLimits::default()).expect("failed because of device creation");
+        let device = create_device(instance, &VulkanAppLimits {
+            renderers: 0,
+            processing_queues: 1,
+        }).expect("failed because of device creation");
 
 
         let command_pool = CommandPool::new(&device, VkCommandPoolCreateFlags(0), device.get_processing_queue(0).family())?;

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use bindings::surface::{vk_create_headless_surface_e_x_t, vk_get_physical_device_surface_support_k_h_r, VkHeadlessSurfaceCreateFlagsEXT, VkHeadlessSurfaceCreateInfoEXT};
 use bindings::Bitmask;
 
 use bindings::{device::{vk_create_device, vk_destroy_device, vk_get_device_queue, VkDevice, VkDeviceCreateInfo, VkDeviceQueueCreateInfo}, instance::VkInstance, physical_device::{vk_enumerate_physical_devices, vk_get_physical_device_properties, vk_get_physical_device_queue_family_properties, VkPhysicalDevice, VkPhysicalDeviceProperties, VkPhysicalDeviceType, VkQueue, VkQueueFamily, VkQueueFlagBits}, vk_result::VkResult};
@@ -69,6 +70,19 @@ pub(crate) fn create_device(
     let needed_processing_queues = app_limits.get_processing_queues() as usize;
 
 
+    let create_info = VkHeadlessSurfaceCreateInfoEXT {
+        s_type: VkHeadlessSurfaceCreateInfoEXT::structure_type(),
+        p_next: std::ptr::null(),
+        flags: VkHeadlessSurfaceCreateFlagsEXT(0),
+    };
+    let mut headless_surface = 0; vk_create_headless_surface_e_x_t(
+        instance,
+        &create_info as *const VkHeadlessSurfaceCreateInfoEXT,
+        std::ptr::null(),
+        &mut headless_surface
+    );
+
+
     let physical_devices: Vec<VkPhysicalDevice> = vk_enumerate_physical_devices(instance);
 
 
@@ -88,13 +102,28 @@ pub(crate) fn create_device(
 
                 if queue_family_props.queue_flags.contains(VkQueueFlagBits::VkQueueGraphicsBit) {
                     let graphics_queue_count = {
-                        (needed_render_sets + needed_processing_queues - graphics_queues.len()).min(0).max(queue_count as usize)
+                        (needed_render_sets + needed_processing_queues - graphics_queues.len()).max(0).min(queue_count as usize)
                     };
 
                     queue_count -= graphics_queue_count as u32;
 
                     for _ in 0..graphics_queue_count {graphics_queues.push(queue_family as VkQueueFamily);}
                 };
+
+                let mut supports_present = 0; vk_get_physical_device_surface_support_k_h_r(
+                    physical_device,
+                    queue_family as VkQueueFamily,
+                    headless_surface,
+                    &mut supports_present
+                );
+
+                if supports_present != 0 {
+                    let present_queue_count = {
+                        (needed_render_sets - presentation_queues.len()).min(0).max(queue_count as usize)
+                    };
+
+                    for _ in 0..present_queue_count {presentation_queues.push(queue_family as VkQueueFamily);}
+                }
             }
 
             if graphics_queues.len() < needed_render_sets {return None;}

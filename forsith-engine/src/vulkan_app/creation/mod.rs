@@ -8,8 +8,8 @@ pub(crate) mod instance;
 
 #[derive(Default)]
 pub struct VulkanAppLimits {
-    renderers: u8,
-    processing_queues: u8
+    pub renderers: u8,
+    pub processing_queues: u8
 }
 
 impl VulkanAppLimits {
@@ -48,7 +48,7 @@ fn vulkan_app_creation_test() {
     use bindings::vk_version;
 
     VulkanApp::new("test", vk_version(0, 0, 0), VulkanAppLimits {
-        renderers: 0,
-        processing_queues: 0,
+        renderers: 1,
+        processing_queues: 1,
     }).unwrap();
 }
