@@ -1,6 +1,6 @@
 use bindings::{command_pool::{vk_create_command_pool, vk_destroy_command_pool, VkCommandBuffer, VkCommandPool, VkCommandPoolCreateFlags, VkCommandPoolCreateInfo}, device::VkDevice, physical_device::VkQueueFamily};
 
-use crate::{device::Device, DynError};
+use crate::{vulkan_app::device::Device, DynError};
 
 
 #[allow(dead_code)]
@@ -53,7 +53,7 @@ impl CommandPool {
 mod command_pool_tests {
     use bindings::{command_pool::VkCommandPoolCreateFlags, instance::vk_destroy_instance, vk_version};
 
-    use crate::{device::create_device, vulkan_app::creation::instance::create_instance, DynError};
+    use crate::{vulkan_app::device::create_device, vulkan_app::creation::instance::create_instance, DynError};
     use super::CommandPool;
 
     #[test]

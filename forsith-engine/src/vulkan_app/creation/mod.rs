@@ -1,5 +1,5 @@
 use bindings::{command_pool::{VkCommandPoolCreateFlagBits, VkCommandPoolCreateFlags}, VkVersion};
-use crate::{command_pool::CommandPool, device::create_device, DynError};
+use crate::{command_pool::CommandPool, vulkan_app::device::create_device, DynError};
 use super::VulkanApp;
 
 
