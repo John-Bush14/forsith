@@ -60,7 +60,7 @@ fn rate_device_type(device_type: VkPhysicalDeviceType) -> u32 {
     }
 }
 
-
+#[allow(unused_assignments)]
 pub(crate) fn create_device(
     instance: VkInstance,
     app_limits: &VulkanAppLimits
@@ -80,6 +80,7 @@ pub(crate) fn create_device(
 
             let mut graphics_queues: Vec<VkQueueFamily> = vec!();
 
+            #[allow(unused_mut)]
             let mut presentation_queues: Vec<VkQueueFamily> = vec!();
 
             for (queue_family, queue_family_props) in queue_families.iter().enumerate() {
@@ -153,7 +154,7 @@ pub(crate) fn create_device(
 
     for (render_queue_set_i, queue_family) in queues.0.iter().enumerate().chain(queues.1.iter().enumerate()) {
         let queue_index = {
-            if let Some(queue_index) = queue_family_queue_indexes.get_mut(&queue_family) {
+            if let Some(queue_index) = queue_family_queue_indexes.get_mut(queue_family) {
                 *queue_index += 1; *queue_index
             } else {
                 queue_family_queue_indexes.insert(*queue_family, 0); 0
@@ -176,7 +177,7 @@ pub(crate) fn create_device(
 
 
         match render_queue_sets.get_mut(render_queue_set_i) {
-            Some(render_queue_set) => {(*render_queue_set).presentation = Queue {family: *queue_family, queue}}
+            Some(render_queue_set) => {render_queue_set.presentation = Queue {family: *queue_family, queue}}
             None => {
                 render_queue_sets.push(
                     RenderQueueSet {
