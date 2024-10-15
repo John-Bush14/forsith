@@ -35,6 +35,8 @@ impl CommandPool {
 
         vk_create_command_pool(vk_device, &create_info as *const VkCommandPoolCreateInfo, std::ptr::null(), &mut vk_command_pool).result()?;
 
+        assert!(vk_command_pool != 0);
+
 
         let command_pool = CommandPool {
             command_pool: vk_command_pool,

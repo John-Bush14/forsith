@@ -132,7 +132,10 @@ pub(crate) fn create_device(
         enabled_features: std::ptr::null(),
     };
 
+
     vk_create_device(physical_device, &create_info as *const VkDeviceCreateInfo, std::ptr::null(), &mut vk_device).result()?;
+
+    assert!(vk_device != 0);
 
 
     let mut render_queue_sets = vec!();
@@ -148,11 +151,16 @@ pub(crate) fn create_device(
 
         vk_get_device_queue(vk_device, queue_families.0[graphics_cord.0].0, graphics_cord.1 as u32, &mut queue);
 
+        assert!(queue != 0);
+
         let graphics_queue = queue;
 
         vk_get_device_queue(vk_device, queue_families.1[present_cord.0].0, present_cord.1 as u32, &mut queue);
 
+        assert!(queue != 0);
+
         let present_queue = queue;
+
 
         render_queue_sets.push(
             RenderQueueSet {

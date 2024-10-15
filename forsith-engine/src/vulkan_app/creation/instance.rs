@@ -38,6 +38,8 @@ pub(crate) fn create_instance(app_name: &str, app_version: VkVersion) -> Result<
 
     vk_create_instance(&instance_info as *const VkInstanceCreateInfo, std::ptr::null(), &mut instance).result()?;
 
+    assert!(instance != 0);
+
 
     return Ok(instance);
 }
