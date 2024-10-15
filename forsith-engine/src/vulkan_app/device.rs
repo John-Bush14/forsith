@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use bindings::Bitmask;
 
 use bindings::{device::{vk_create_device, vk_destroy_device, vk_get_device_queue, VkDevice, VkDeviceCreateInfo, VkDeviceQueueCreateInfo}, instance::VkInstance, physical_device::{vk_enumerate_physical_devices, vk_get_physical_device_properties, vk_get_physical_device_queue_family_properties, VkPhysicalDevice, VkPhysicalDeviceProperties, VkPhysicalDeviceType, VkQueue, VkQueueFamily, VkQueueFlagBits}, vk_result::VkResult};
@@ -65,29 +67,29 @@ pub(crate) fn create_device(
     let physical_devices: Vec<VkPhysicalDevice> = vk_enumerate_physical_devices(instance);
 
 
-    let (physical_device, queue_families) = physical_devices.into_iter()
-        .filter_map(|physical_device| -> Option<(VkPhysicalDevice, (Vec<(VkQueueFamily, usize)>, Vec<(VkQueueFamily, usize)>))> {
+    let (physical_device, queues) = physical_devices.into_iter()
+        .filter_map(|physical_device| -> Option<(VkPhysicalDevice, (Vec<VkQueueFamily>, Vec<VkQueueFamily>))> {
             let queue_families = vk_get_physical_device_queue_family_properties(physical_device);
 
-            let mut graphics_queue_families: Vec<(VkQueueFamily, usize)> = vec!();
+            let mut graphics_queues: Vec<VkQueueFamily> = vec!();
 
-            let mut presentation_queue_families: Vec<(VkQueueFamily, usize)> = vec!();
+            let mut presentation_queues: Vec<VkQueueFamily> = vec!();
 
             for (queue_family, queue_family_props) in queue_families.iter().enumerate() {
                 let mut queue_count = queue_family_props.queue_count;
 
                 if queue_family_props.queue_flags.contains(VkQueueFlagBits::VkQueueGraphicsBit) {
-                    let graphics_queue_count = (needed_render_sets - graphics_queue_families.len()).min(0).max(queue_count as usize);
+                    let graphics_queue_count = (needed_render_sets - graphics_queues.len()).min(0).max(queue_count as usize);
                     queue_count -= graphics_queue_count as u32;
 
-                    graphics_queue_families.push((queue_family as VkQueueFamily, graphics_queue_count));
+                    for _ in 0..graphics_queue_count {graphics_queues.push(queue_family as VkQueueFamily);}
                 };
             }
 
-            if graphics_queue_families.len() < needed_render_sets {return None;}
-            if presentation_queue_families.len() < needed_render_sets {return None;}
+            if graphics_queues.len() < needed_render_sets {return None;}
+            if presentation_queues.len() < needed_render_sets {return None;}
 
-            return Some((physical_device, (graphics_queue_families, presentation_queue_families)));
+            return Some((physical_device, (graphics_queues, presentation_queues)));
         })
         .max_by_key(|(physical_device, _)| {
             let mut properties: VkPhysicalDeviceProperties = unsafe {std::mem::zeroed()};
@@ -100,22 +102,22 @@ pub(crate) fn create_device(
 
     let priority = [1.0f32; 256];
 
-    let queue_create_infos = queue_families.0.iter().zip(queue_families.1.iter()).map(|queue_family| {
+    let queue_create_infos = queues.0.iter().zip(queues.1.iter()).map(|queue_family| {
         return (
             VkDeviceQueueCreateInfo {
                 s_type: VkDeviceQueueCreateInfo::structure_type(),
                 p_next: std::ptr::null(),
                 flags: bindings::device::VkDeviceQueueCreateFlags(0),
-                queue_family_index: queue_family.0.0,
-                queue_count: queue_family.1.1 as u32,
+                queue_family_index: *queue_family.0,
+                queue_count: 1,
                 queue_priorities: priority.as_ptr(),
             },
             VkDeviceQueueCreateInfo {
                 s_type: VkDeviceQueueCreateInfo::structure_type(),
                 p_next: std::ptr::null(),
                 flags: bindings::device::VkDeviceQueueCreateFlags(0),
-                queue_family_index: queue_family.1.0,
-                queue_count: queue_family.1.1 as u32,
+                queue_family_index: *queue_family.1,
+                queue_count: 1,
                 queue_priorities: priority.as_ptr(),
             },
         );}
@@ -145,22 +147,34 @@ pub(crate) fn create_device(
 
     let mut render_queue_sets = vec!();
 
-    let mut graphics_cord = (0, 0); let mut present_cord = (0, 0);
+    let mut queue_family_queue_indexes: HashMap<VkQueueFamily, u32> = HashMap::new();
 
-    for _ in 0..needed_render_sets {
-        if queue_families.0.len() >= graphics_cord.1 {graphics_cord.1 = 0; graphics_cord.0 += 1;} else {graphics_cord.1 += 1;}
-        if queue_families.1.len() >= present_cord.1 {present_cord.1 = 0; present_cord.0 += 1;} else {present_cord.1 += 1;}
+    for (&graphics_queue_family, &present_queue_family) in queues.0.iter().zip(queues.1.iter()) {
+        let graphics_queue_index = {
+            if let Some(graphics_queue_index) = queue_family_queue_indexes.get_mut(&graphics_queue_family) {
+                *graphics_queue_index += 1; *graphics_queue_index
+            } else {
+                queue_family_queue_indexes.insert(graphics_queue_family, 0); 0
+            }
+        };
 
+        let present_queue_index = {
+            if let Some(present_queue_index) = queue_family_queue_indexes.get_mut(&present_queue_family) {
+                *present_queue_index += 1; *present_queue_index
+            } else {
+                queue_family_queue_indexes.insert(present_queue_family, 0); 0
+            }
+        };
 
         let mut queue = 0;
 
-        vk_get_device_queue(vk_device, queue_families.0[graphics_cord.0].0, graphics_cord.1 as u32, &mut queue);
+        vk_get_device_queue(vk_device, graphics_queue_family, graphics_queue_index, &mut queue);
 
         assert!(queue != 0);
 
         let graphics_queue = queue;
 
-        vk_get_device_queue(vk_device, queue_families.1[present_cord.0].0, present_cord.1 as u32, &mut queue);
+        vk_get_device_queue(vk_device, present_queue_family, present_queue_index as u32, &mut queue);
 
         assert!(queue != 0);
 
@@ -169,12 +183,12 @@ pub(crate) fn create_device(
 
         render_queue_sets.push(
             RenderQueueSet {
-                presentation: Queue {
-                    family: queue_families.0[graphics_cord.0].0,
+                graphics: Queue {
+                    family: graphics_queue_family,
                     queue: graphics_queue,
                 },
-                graphics: Queue {
-                    family: queue_families.1[present_cord.0].0,
+                presentation: Queue {
+                    family: present_queue_family,
                     queue: present_queue,
                 }
             }
