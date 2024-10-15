@@ -72,8 +72,10 @@ pub(crate) fn create_device(
     let physical_devices: Vec<VkPhysicalDevice> = vk_enumerate_physical_devices(instance);
 
 
+    type Queues = (Vec<VkQueueFamily>, Vec<VkQueueFamily>); // graphics queues + presentation queues
+
     let (physical_device, queues) = physical_devices.into_iter()
-        .filter_map(|physical_device| -> Option<(VkPhysicalDevice, (Vec<VkQueueFamily>, Vec<VkQueueFamily>))> {
+        .filter_map(|physical_device| -> Option<(VkPhysicalDevice, Queues)> {
             let queue_families = vk_get_physical_device_queue_family_properties(physical_device);
 
             let mut graphics_queues: Vec<VkQueueFamily> = vec!();
