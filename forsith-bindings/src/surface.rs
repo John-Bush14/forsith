@@ -26,5 +26,10 @@ define_extern_functions!(["vulkan"]("C")
         surface: *mut VkSurfaceKHR
     ) -> VkResult;
 
+    pub vkGetPhysicalDeviceSurfaceSupportKHR(
+        physical_device: VkPhysicalDevice,
+        queue_family_index: u32,
+        surface: VkSurfaceKHR,
+        supported: *mut VkBool32
     ) -> VkResult;
 );
