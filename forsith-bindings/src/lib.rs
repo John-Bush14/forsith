@@ -1,6 +1,8 @@
 #![allow(clippy::needless_return)]
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
+use std::ffi::c_char;
+
 
 pub mod vk_result;
 
@@ -60,5 +62,10 @@ define_vk_structs!(
         width: u32,
         height: u32,
         depth: u32
+    }
+
+    pub VkExtensionProperties {
+        extension_name: [c_char; 256],
+        spec_version: u32
     }
 );

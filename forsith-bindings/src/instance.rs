@@ -43,4 +43,8 @@ define_extern_functions!(["vulkan"]("C")
         instance: VkInstance,
         allocator: *const VkAllocationCallbacks
     );
+
+    pub (enumerate properties: super::VkExtensionProperties) vkEnumerateInstanceExtensionProperties(
+        layer_name: *const c_char
+    ) -> VkResult;
 );
