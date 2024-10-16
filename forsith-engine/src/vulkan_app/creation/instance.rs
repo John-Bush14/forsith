@@ -1,6 +1,6 @@
-use bindings::{instance::{vk_create_instance, VkApplicationInfo, VkInstance, VkInstanceCreateFlags, VkInstanceCreateInfo}, VkVersion};
+use bindings::{instance::{vk_create_instance, VkApplicationInfo, VkInstance, VkInstanceCreateFlags, VkInstanceCreateInfo, vk_enumerate_instance_extension_properties}, VkVersion};
 use std::ffi::{c_char, CString};
-use crate::{DynError, ENGINE_NAME, ENGINE_VERSION};
+use crate::{errors::ForsithError, DynError, ENGINE_NAME, ENGINE_VERSION};
 
 use crate::API_VERSION;
 
@@ -22,10 +22,20 @@ pub(crate) fn create_instance(app_name: &str, app_version: VkVersion) -> Result<
     };
 
 
+    let supported_extensions = vk_enumerate_instance_extension_properties(std::ptr::null()).iter().map(|props| {
+        CString::new(props.extension_name.iter().filter(|char| **char != 0).map(|c| *c as u8).collect::<Vec<u8>>()).unwrap()
+    }).collect::<Vec<CString>>();
+
     let extensions = [
         CString::new("VK_KHR_surface")?,
         CString::new("VK_EXT_headless_surface")?
     ];
+
+    for ext in extensions.iter() {
+        if !supported_extensions.contains(ext) {
+            return Err(Box::new(ForsithError::InstanceExtensionNotPresent(ext.clone())));
+        }
+    }
 
     let extension_ptrs = extensions.iter().map(|ext| return ext.as_ptr()).collect::<Vec<*const c_char>>();
 
