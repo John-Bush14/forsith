@@ -1,5 +1,5 @@
 use bindings::{instance::{vk_create_instance, VkApplicationInfo, VkInstance, VkInstanceCreateFlags, VkInstanceCreateInfo}, VkVersion};
-use std::ffi::CString;
+use std::ffi::{c_char, CString};
 use crate::{DynError, ENGINE_NAME, ENGINE_VERSION};
 
 use crate::API_VERSION;
@@ -22,6 +22,14 @@ pub(crate) fn create_instance(app_name: &str, app_version: VkVersion) -> Result<
     };
 
 
+    let extensions = [
+        CString::new("VK_KHR_surface")?,
+        CString::new("VK_EXT_headless_surface")?
+    ];
+
+    let extension_ptrs = extensions.iter().map(|ext| return ext.as_ptr()).collect::<Vec<*const c_char>>();
+
+
     let instance_info = VkInstanceCreateInfo {
         s_type: VkInstanceCreateInfo::structure_type(),
         p_next: std::ptr::null(),
@@ -29,8 +37,8 @@ pub(crate) fn create_instance(app_name: &str, app_version: VkVersion) -> Result<
         application_info: &app_info as *const VkApplicationInfo,
         enabled_layer_count: 0,
         enabled_layer_names: std::ptr::null(),
-        enabled_extension_count: 0,
-        enabled_extensions: std::ptr::null()
+        enabled_extension_count: extensions.len() as u32,
+        enabled_extensions: extension_ptrs.as_ptr()
     };
 
 
