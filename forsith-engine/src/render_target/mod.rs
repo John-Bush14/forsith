@@ -8,4 +8,6 @@ pub(crate) mod headless;
 
 pub trait RenderTarget {
     fn get_surface_khr(&mut self, instance: VkInstance) -> VkSurfaceKHR;
+
+    fn drop(&self) {}
 }
