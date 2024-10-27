@@ -1,6 +1,11 @@
+use bindings::{instance::{self, VkInstance}, surface::VkSurfaceKHR};
+
+
 pub mod windows;
+
+pub(crate) mod headless;
 
 
 pub trait RenderTarget {
-    fn create_surface_khr(&mut self);
+    fn get_surface_khr(&mut self, instance: VkInstance) -> VkSurfaceKHR;
 }
