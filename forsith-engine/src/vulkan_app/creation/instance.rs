@@ -28,7 +28,6 @@ pub(crate) fn create_instance(app_name: &str, app_version: VkVersion) -> Result<
 
     let extensions = [
         CString::new("VK_KHR_surface")?,
-        CString::new("VK_EXT_headless_surface")?
     ];
 
     for ext in extensions.iter() {

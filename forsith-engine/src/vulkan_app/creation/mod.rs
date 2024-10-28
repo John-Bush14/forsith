@@ -1,5 +1,5 @@
 use bindings::{command_pool::{VkCommandPoolCreateFlagBits, VkCommandPoolCreateFlags}, VkVersion};
-use crate::{command_pool::CommandPool, vulkan_app::device::create_device, DynError};
+use crate::{DynError};
 use super::VulkanApp;
 
 
@@ -23,20 +23,8 @@ impl VulkanApp {
     fn new(app_name: &str, app_version: VkVersion, limits: VulkanAppLimits) -> Result<Self, DynError> {
         let instance = instance::create_instance(app_name, app_version)?;
 
-        let general_device = create_device(instance, &limits)?;
-
-
-        let transient_command_pool = CommandPool::new(
-            &general_device,
-            VkCommandPoolCreateFlags(VkCommandPoolCreateFlagBits::VkCommandPoolCreateTransientBit as _),
-            general_device.get_processing_queue(0).family()
-        )?;
-
-
         return Ok(Self {
             instance,
-            general_device,
-            transient_command_pool,
         });
     }
 }

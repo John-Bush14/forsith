@@ -10,7 +10,7 @@ pub mod vulkan_app;
 
 pub mod render_target;
 
-pub(crate) mod command_pool;
+//pub(crate) mod command_pool;
 
 pub mod errors;
 

@@ -1,9 +1,10 @@
 ```rust
 fn main() {
-    let vulkan_app = forsith::VulkanApp::new("forsith-plan", forsith::vulkan_version(0, 1, 0), 1)
-
-
     let render_target = forsith::native_window();
+
+
+    let vulkan_app = forsith::VulkanApp::new("forsith-plan", forsith::vulkan_version(0, 1, 0), 1, [render_target])
+
 
     let renderer = forsith::renderer::new(&mut vulkan_app, render_target);
 
