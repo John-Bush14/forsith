@@ -4,5 +4,6 @@ resolver = "2"
 members = [
    "forsith-engine",
    "forsith-bindings",
-   "forsith-vulkan-backend"
+   "forsith-vulkan-backend",
+   "forsith-shared"
 ]

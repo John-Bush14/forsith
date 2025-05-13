@@ -16,4 +16,4 @@ pub mod errors;
 pub type DynError = Box<dyn std::error::Error>;
 
 
-pub const API_VERSION: fn() -> VkVersion = || vk_version(1, 0, 0);
+pub const API_VERSION: fn() -> VkVersion = || vk_version((1, 0, 0));

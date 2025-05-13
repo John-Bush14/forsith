@@ -35,7 +35,7 @@ impl VulkanApp {
 fn vulkan_app_creation_test() {
     use bindings::vk_version;
 
-    VulkanApp::new("test", vk_version(0, 0, 0), VulkanAppLimits {
+    VulkanApp::new("test", vk_version((0, 0, 0)), VulkanAppLimits {
         renderers: 1,
         processing_queues: 1,
     }).unwrap();

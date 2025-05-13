@@ -1,6 +1,7 @@
 use bindings::{instance::{vk_create_instance, VkApplicationInfo, VkInstance, VkInstanceCreateFlags, VkInstanceCreateInfo, vk_enumerate_instance_extension_properties}, VkVersion};
-use std::ffi::{c_char, CString};
-use crate::{errors::ForsithError, DynError, ENGINE_NAME, ENGINE_VERSION};
+use std::{ffi::{c_char, CString}, str::FromStr};
+use crate::{errors::ForsithError, DynError};
+use shared::{ENGINE_NAME, ENGINE_VERSION};
 
 use crate::API_VERSION;
 
@@ -8,7 +9,7 @@ use crate::API_VERSION;
 pub(crate) fn create_instance(app_name: &str, app_version: VkVersion) -> Result<VkInstance, DynError> {
     let c_app_name = CString::new(app_name)?;
 
-    let engine_name = ENGINE_NAME();
+    let engine_name = CString::from_str(ENGINE_NAME).unwrap();
 
 
     let app_info = VkApplicationInfo {
@@ -17,7 +18,7 @@ pub(crate) fn create_instance(app_name: &str, app_version: VkVersion) -> Result<
         application_name: c_app_name.as_ptr(),
         application_version: app_version,
         engine_name: engine_name.as_ptr(),
-        engine_version: ENGINE_VERSION(),
+        engine_version: bindings::vk_version(ENGINE_VERSION),
         api_version: API_VERSION(),
     };
 

@@ -50,8 +50,8 @@ pub trait Bitmask {
 
 /// type of vulkan versions
 pub type VkVersion = u32;
-/// create vulkan version from major, minor and patch
-pub fn vk_version(major: u32, minor: u32, patch: u32) -> VkVersion {(major << 22) | (minor << 12) | patch}
+/// create vulkan version from major, minor and patch tuple
+pub const fn vk_version(v: (u32, u32, u32)) -> VkVersion {(v.0 << 22) | (v.1 << 12) | v.2}
 
 /// information about memory management
 pub type VkAllocationCallbacks = std::ffi::c_void;
