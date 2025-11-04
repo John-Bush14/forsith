@@ -1,0 +1,8 @@
+[package]
+name = "forsith"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+vulkan = { path = "../forsith-vulkan", package = "forsith-vulkan" }
+shared = { path = "../forsith-shared", package = "forsith-shared" }

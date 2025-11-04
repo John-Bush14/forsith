@@ -1,7 +1,0 @@
-[package]
-name = "forsith"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-bindings = { path = "../forsith-vulkan-backend", package = "forsith-vulkan-backend" }
