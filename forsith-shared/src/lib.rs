@@ -1,3 +1,12 @@
-pub const ENGINE_NAME: &str = "forsith";
+use std::ffi::c_void;
 
-pub const ENGINE_VERSION: (u32, u32, u32) = (0, 1, 0);
+pub enum DisplayTarget {
+    Headless,
+    Xorg {display: *const c_void, visual_id: u64},
+    Wayland {wl_display: *const c_void}
+
+}
+
+pub trait GraphicsApi {
+    fn connect(engine_name: &str, engine_version: (u32,u32,u32), target: DisplayTarget) -> Self;
+}
