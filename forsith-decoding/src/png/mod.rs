@@ -50,32 +50,48 @@ impl<'a, R: Read> Decoder<R> for PngDecoder<'a, R> {
         };
 
         loop  {
-            let mut chunk = Chunk::open(&mut decoder.reader)?;
+            let chunk = Chunk::open(&mut decoder.reader)?;
 
-            if chunk.r#type() == ChunkType::UnkownAncillerary {continue;}
-            if chunk.r#type() == ChunkType::Idat {
-                decoder.current_idat = Some(chunk);
+            if chunk.r#type() == ChunkType::Iend {
+                return Err(DecodingError::NoIDAT);
+            }
+
+            decoder.update_with_chunk(chunk)?;
+
+            if decoder.current_idat.is_some() {
                 return Ok(decoder);
             }
-
-            let chunk_data = chunk.read_data(&mut decoder.reader)?;
-
-            if let Err(err) = chunk_data.validate() {
-                if chunk.r#type().is_critical() {
-                    return Err(err);
-                }
-                continue;
-            }
-
-            match chunk.r#type() {
-                ChunkType::UnkownAncillerary | ChunkType::Idat => unreachable!(),
-                ChunkType::Ihdr => return Err(DecodingError::MultipleChunks(chunk.r#type())),
-                _ => todo!()
-            };
         }
 
     }
 }
+impl<'a, R: Read> PngDecoder<'a, R> {
+    fn update_with_chunk(&mut self, mut chunk: Chunk) -> Result<(), DecodingError> {
+        match chunk.r#type() {
+            ChunkType::UnkownAncillerary | ChunkType::Iend => {return Ok(())},
+            ChunkType::Idat => {
+                self.current_idat = Some(chunk);
+                return Ok(());
+            }, _ => ()
+        }
+
+        let chunk_data = chunk.read_data(&mut self.reader)?;
+
+        if let Err(err) = chunk_data.validate() {
+            if chunk.r#type().is_critical() {
+                return Err(err);
+            }
+            return Ok(());
+        }
+
+        match chunk.r#type() {
+            ChunkType::UnkownAncillerary | ChunkType::Idat => unreachable!(),
+            ChunkType::Ihdr => Err(DecodingError::MultipleChunks(chunk.r#type())),
+            _ => todo!()
+        }
+    }
+}
+
 
 impl<'a, R: Read> Iterator for PngDecoder<'a, R> {
     type Item = Result<<Self as Decoder<R>>::Chunk, DecodingError>;

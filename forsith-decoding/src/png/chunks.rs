@@ -77,10 +77,27 @@ pub trait ChunkData: Any {
 
     fn read<R: Read>(data: &mut R) -> Result<Self, DecodingError>
     where Self: Sized;
+
+    fn update_decoder<'a, R: Read>(self, decoder: &mut PngDecoder<'a, R>) -> Result<(), DecodingError>
+    where Self: Sized;
 }
 pub fn downcast_chunkdata<T: ChunkData + Any>(b: Box<dyn ChunkData>) -> Result<Box<T>, Box<dyn Any>> {
     let b: Box<dyn Any> = b;
     b.downcast::<T>()
+}
+
+#[derive(Debug)]
+pub struct EmptyChunk();
+impl ChunkData for EmptyChunk {
+    fn chunk_type(&self) -> ChunkType {todo!()}
+
+    fn validate(&self) -> Result<(), DecodingError> {Ok(())}
+
+    fn read<R: Read>(data: &mut R) -> Result<Self, DecodingError>
+    where Self: Sized {Ok(Self())}
+
+    fn update_decoder<'a, R: Read>(self, decoder: &mut PngDecoder<'a, R>) -> Result<(), DecodingError>
+    where Self: Sized {Ok(())}
 }
 
 #[derive(Debug)]
@@ -128,4 +145,7 @@ impl ChunkData for IHDR {
             interlace_method: u8::read_be(data)?,
         })
     }
+
+    fn update_decoder<'a, R: Read>(self, _decoder: &mut PngDecoder<'a, R>) -> Result<(), DecodingError>
+    where Self: Sized {unreachable!()} // ihdr needs to have been read before the decoder is created, so this should never be called
 }

@@ -43,6 +43,8 @@ pub enum DecodingError {
     CRCMismatch(u32, u32), // calculated, store
     #[error("First chunk is not IHDR, instead ({0:?})")]
     NoIHDR(ChunkType),
+    #[error("No IDAT chunk found")]
+    NoIDAT,
     #[error("Multiple '{0}' chunks found")]
     MultipleChunks(ChunkType)
 }
