@@ -1,17 +1,19 @@
-use std::{any::Any, io::Read, ops::Deref};
-use crate::{AssetKind, Decoder, DecodingError, png::{chunks::{Chunk, IHDR, downcast_chunkdata}, crc::CRCReader}};
+use std::io::Read;
+use crate::{DecodingError, ImageDecoder, Num, PixelFormat, png::{chunks::{IHDR, downcast_chunkdata}}};
+use num_enum::TryFromPrimitive;
 
 mod chunks;
 pub use chunks::{ChunkType, ChunkData};
-use num_enum::TryFromPrimitive;
 
-mod crc;
+mod chunkreader;
+pub use chunkreader::ChunkReader;
+
+mod checksum;
 
 const PNG_HEADER: [u8; 8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
-const IHDR_HEADER: [u8; 4] = [0x49, 0x48, 0x44, 0x52];
 
 #[repr(u8)]
-#[derive(Debug, TryFromPrimitive)]
+#[derive(Debug, TryFromPrimitive, Clone, Copy)]
 enum ColorType {
     Grayscale = 0,
     Truecolor = 2,
@@ -19,85 +21,93 @@ enum ColorType {
     GrayscaleAlpha = 4,
     TruecolorAlpha = 6,
 }
-
-#[derive(Debug)]
-pub struct PngDecoder<'a, R: Read> {
-    reader: CRCReader<R>,
-    buffer: Vec<u8>,
-    phantom: std::marker::PhantomData<&'a ()>,
-    ihdr: IHDR,
-    current_idat: Option<Chunk>,
+#[allow(clippy::from_over_into)]
+impl Into<PixelFormat> for ColorType {
+    fn into(self) -> PixelFormat {
+        match self {
+            ColorType::Grayscale => PixelFormat::Grayscale,
+            ColorType::Truecolor => PixelFormat::Truecolor,
+            ColorType::Indexed => todo!(),
+            ColorType::GrayscaleAlpha => PixelFormat::GrayscaleAlpha,
+            ColorType::TruecolorAlpha => PixelFormat::TruecolorAlpha,
+        }
+    }
 }
 
-impl<'a, R: Read> Decoder<R> for PngDecoder<'a, R> {
-    type Chunk = &'a [u8];
+#[derive(Debug)]
+pub struct PngDecoder<'a, R: Read, C: Num, const F: u8> {
+    reader: ChunkReader<R>,
+    buffer: Vec<u8>,
+    phantom: std::marker::PhantomData<&'a C>,
+    ihdr: IHDR,
+}
 
-    const KIND: AssetKind = AssetKind::Image;
-
+impl<'a, R: Read, C: Num, const F: u8> ImageDecoder<'a, R, C, F> for PngDecoder<'a, R, C, F> {
     fn open(mut reader: R) -> Result<Self, DecodingError> {
         check_header(&mut reader)?;
 
-        let mut reader = CRCReader::new(reader);
+        let mut reader = ChunkReader::new(reader);
 
         let ihdr = read_ihdr(&mut reader)?;
 
         let mut decoder = Self {
             reader,
-            buffer: Vec::new(),
+            buffer: Vec::with_capacity(0),
             phantom: std::marker::PhantomData,
             ihdr,
-            current_idat: None,
         };
 
         loop  {
-            let chunk = Chunk::open(&mut decoder.reader)?;
+            decoder.reader.open_chunk()?;
 
-            if chunk.r#type() == ChunkType::Iend {
+            if decoder.reader.cur_type() == ChunkType::Iend {
                 return Err(DecodingError::NoIDAT);
             }
 
-            decoder.update_with_chunk(chunk)?;
+            decoder.update_with_chunk()?;
 
-            if decoder.current_idat.is_some() {
-                return Ok(decoder);
+            if decoder.reader.cur_type() == ChunkType::Idat {
+                break;
             }
         }
 
+
+
+        Ok(decoder)
     }
+
+    fn next(&mut self) -> Option<Result<&'a [u8], DecodingError>> {
+        todo!()
+    }
+
+    fn bit_depth(&self) -> u8 {self.ihdr.bit_depth}
+
+    fn pixel_format(&self) -> crate::PixelFormat {self.ihdr.color_type.into()}
 }
-impl<'a, R: Read> PngDecoder<'a, R> {
-    fn update_with_chunk(&mut self, mut chunk: Chunk) -> Result<(), DecodingError> {
-        match chunk.r#type() {
+
+impl<'a, R: Read, C: Num, const F: u8> PngDecoder<'a, R, C, F> {
+    fn update_with_chunk(&mut self) -> Result<(), DecodingError> {
+        match self.reader.cur_type() {
             ChunkType::UnkownAncillerary | ChunkType::Iend => {return Ok(())},
             ChunkType::Idat => {
-                self.current_idat = Some(chunk);
                 return Ok(());
             }, _ => ()
         }
 
-        let chunk_data = chunk.read_data(&mut self.reader)?;
+        let chunk_data = self.reader.read_data()?;
 
         if let Err(err) = chunk_data.validate() {
-            if chunk.r#type().is_critical() {
+            if self.reader.cur_type().is_critical() {
                 return Err(err);
             }
             return Ok(());
         }
 
-        match chunk.r#type() {
+        match self.reader.cur_type() {
             ChunkType::UnkownAncillerary | ChunkType::Idat => unreachable!(),
-            ChunkType::Ihdr => Err(DecodingError::MultipleChunks(chunk.r#type())),
+            ChunkType::Ihdr => Err(DecodingError::MultipleChunks(ChunkType::Ihdr)),
             _ => todo!()
         }
-    }
-}
-
-
-impl<'a, R: Read> Iterator for PngDecoder<'a, R> {
-    type Item = Result<<Self as Decoder<R>>::Chunk, DecodingError>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        todo!()
     }
 }
 
@@ -109,14 +119,14 @@ fn check_header<R: Read>(data: &mut R) -> Result<(), DecodingError> {
     Ok(())
 }
 
-fn read_ihdr<R: Read>(reader: &mut CRCReader<R>) -> Result<IHDR, DecodingError> {
-    let mut chunk = Chunk::open(reader)?;
+fn read_ihdr<R: Read>(reader: &mut ChunkReader<R>) -> Result<IHDR, DecodingError> {
+    reader.open_chunk()?;
 
-    if chunk.r#type() != ChunkType::Ihdr {
-        return Err(DecodingError::NoIHDR(chunk.r#type()));
+    if reader.cur_type() != ChunkType::Ihdr {
+        return Err(DecodingError::NoIHDR(reader.cur_type()));
     }
 
-    let ihdr = *downcast_chunkdata::<IHDR>(chunk.read_data(reader)?).unwrap();
+    let ihdr = *downcast_chunkdata::<IHDR>(reader.read_data()?).unwrap();
     ihdr.validate()?;
 
     Ok(ihdr)

@@ -1,5 +1,5 @@
 use std::{any::Any, fmt::Display, io::Read};
-use crate::{DecodingError, Num, PngDecoder, png::{ChunkType::UnkownAncillerary, ColorType, crc::CRCReader}, read_exact_array};
+use crate::{DecodingError, Num, PngDecoder, png::ColorType};
 use num_enum::{TryFromPrimitive, IntoPrimitive};
 
 #[repr(u32)]
@@ -25,49 +25,6 @@ pub fn is_chunk_type_critical(chunk_type_buffer: &[u8; 4]) -> bool {
     chunk_type_buffer[0] & 0x20 == 0
 }
 
-#[derive(Debug)]
-pub struct Chunk {
-    length: u32,
-    chunk_type: ChunkType,
-}
-impl Chunk {
-    pub fn open<R: Read>(reader: &mut CRCReader<R>) -> Result<Self, DecodingError> {
-        let length = u32::read_be(reader.normal_reader())?;
-
-        let chunk_type_buf = read_exact_array::<4, _>(reader)?;
-        let chunk_type: ChunkType = match u32::from_be_bytes(chunk_type_buf).try_into() {
-            Ok(t) => t,
-            Err(_) => {
-                reader.read_exact(&mut vec![0u8; length as usize])?;
-                reader.validate_crc()?;
-                if is_chunk_type_critical(&chunk_type_buf) {return Err(DecodingError::UnkownChunk(chunk_type_buf))}
-                ChunkType::UnkownAncillerary
-            }
-        };
-
-        Ok(Self {
-            length,
-            chunk_type,
-        })
-    }
-
-    pub fn r#type(&self) -> ChunkType {self.chunk_type}
-
-    pub fn read_data<R: Read>(&mut self, reader: &mut CRCReader<R>) -> Result<Box<dyn ChunkData>, DecodingError> {
-        let chunk_data: Box<dyn ChunkData> = match self.chunk_type {
-            ChunkType::UnkownAncillerary => unreachable!(),
-            ChunkType::Ihdr => Box::new(IHDR::read(reader)?),
-            _ => {
-                todo!()
-            }
-        };
-
-        reader.validate_crc()?;
-
-        Ok(chunk_data)
-    }
-}
-
 
 
 pub trait ChunkData: Any {
@@ -78,7 +35,7 @@ pub trait ChunkData: Any {
     fn read<R: Read>(data: &mut R) -> Result<Self, DecodingError>
     where Self: Sized;
 
-    fn update_decoder<'a, R: Read>(self, decoder: &mut PngDecoder<'a, R>) -> Result<(), DecodingError>
+    fn update_decoder<'a, R: Read, C: Num, const F: u8>(self, decoder: &mut PngDecoder<'a, R, C, F>) -> Result<(), DecodingError>
     where Self: Sized;
 }
 pub fn downcast_chunkdata<T: ChunkData + Any>(b: Box<dyn ChunkData>) -> Result<Box<T>, Box<dyn Any>> {
@@ -87,28 +44,14 @@ pub fn downcast_chunkdata<T: ChunkData + Any>(b: Box<dyn ChunkData>) -> Result<B
 }
 
 #[derive(Debug)]
-pub struct EmptyChunk();
-impl ChunkData for EmptyChunk {
-    fn chunk_type(&self) -> ChunkType {todo!()}
-
-    fn validate(&self) -> Result<(), DecodingError> {Ok(())}
-
-    fn read<R: Read>(data: &mut R) -> Result<Self, DecodingError>
-    where Self: Sized {Ok(Self())}
-
-    fn update_decoder<'a, R: Read>(self, decoder: &mut PngDecoder<'a, R>) -> Result<(), DecodingError>
-    where Self: Sized {Ok(())}
-}
-
-#[derive(Debug)]
 pub struct IHDR {
-    width: u32,
-    height: u32,
-    bit_depth: u8,
-    color_type: ColorType,
-    compression_method: u8,
-    filter_method: u8,
-    interlace_method: u8,
+    pub width: u32,
+    pub height: u32,
+    pub bit_depth: u8,
+    pub color_type: ColorType,
+    pub compression_method: u8,
+    pub filter_method: u8,
+    pub interlace_method: u8,
 }
 
 impl ChunkData for IHDR {
@@ -146,6 +89,6 @@ impl ChunkData for IHDR {
         })
     }
 
-    fn update_decoder<'a, R: Read>(self, _decoder: &mut PngDecoder<'a, R>) -> Result<(), DecodingError>
+    fn update_decoder<'a, R: Read, C: Num, const F: u8>(self, _decoder: &mut PngDecoder<'a, R, C, F>) -> Result<(), DecodingError>
     where Self: Sized {unreachable!()} // ihdr needs to have been read before the decoder is created, so this should never be called
 }

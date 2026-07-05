@@ -1,4 +1,5 @@
 use std::io::{self, Read};
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 use thiserror::Error;
 
 mod tests;
@@ -9,21 +10,29 @@ pub use png::PngDecoder;
 
 use crate::png::ChunkType;
 
-/// Rough category of asset, like image/video.
-pub enum AssetKind {
-    Image,
-    Audio,
-    Video,
-    Model,
+#[repr(u8)]
+#[derive(TryFromPrimitive, IntoPrimitive)]
+pub enum PixelFormat {
+    Grayscale = 1,
+    Truecolor = 3,
+    GrayscaleAlpha = 2,
+    TruecolorAlpha = 4
 }
 
-pub trait Decoder<R: Read>: Sized + Iterator<Item = Result<Self::Chunk, DecodingError>> {
-    type Chunk;
+pub trait ImageDecoder<'a, R: Read, C: Num, const F: u8> {
+    fn open(data: R) -> Result<Self, DecodingError> where Self: Sized;
 
-    const KIND: AssetKind;
+    fn next(&mut self) -> Option<Result<&'a [u8], DecodingError>>;
 
-    fn open(data: R) -> Result<Self, DecodingError>;
+    fn bit_depth(&self) -> u8;
+    fn pixel_format(&self) -> PixelFormat;
 }
+impl<'a, R: Read, C: Num, const F: u8> Iterator for dyn ImageDecoder<'a, R, C, F> {
+    type Item = Result<&'a [u8], DecodingError>;
+
+    fn next(&mut self) -> Option<Self::Item> {<Self as ImageDecoder<'a, R, C, F>>::next(self)}
+}
+
 
 #[derive(Error, Debug)]
 pub enum DecodingError {
@@ -46,7 +55,14 @@ pub enum DecodingError {
     #[error("No IDAT chunk found")]
     NoIDAT,
     #[error("Multiple '{0}' chunks found")]
-    MultipleChunks(ChunkType)
+    MultipleChunks(ChunkType),
+    #[error("Attempted to close chunk '{0}' before reading all data, {1} bytes remaining")]
+    EarlyClose(ChunkType, u32)
+}
+impl From<DecodingError> for io::Error {
+    fn from(err: DecodingError) -> Self {
+        io::Error::new(io::ErrorKind::Other, err)
+    }
 }
 
 fn read_exact_array<const N: usize, R: Read>(reader: &mut R) -> io::Result<[u8; N]> {
@@ -57,6 +73,8 @@ fn read_exact_array<const N: usize, R: Read>(reader: &mut R) -> io::Result<[u8; 
 pub trait Num {
     fn read_be<R: Read>(reader: &mut R) -> io::Result<Self> where Self: Sized;
     fn read_le<R: Read>(reader: &mut R) -> io::Result<Self> where Self: Sized;
+    const BIT_DEPTH: u8;
+    const MAX: Self;
 }
 impl Num for u32 {
     fn read_be<R: Read>(reader: &mut R) -> io::Result<Self> {
@@ -65,6 +83,8 @@ impl Num for u32 {
     fn read_le<R: Read>(reader: &mut R) -> io::Result<Self> {
         Ok(u32::from_le_bytes(read_exact_array::<4, _>(reader)?))
     }
+    const BIT_DEPTH: u8 = 32;
+    const MAX: Self = u32::MAX;
 }
 impl Num for u8 {
     fn read_be<R: Read>(reader: &mut R) -> io::Result<Self> {
@@ -73,4 +93,6 @@ impl Num for u8 {
     fn read_le<R: Read>(reader: &mut R) -> io::Result<Self> {
         Ok(u8::from_le_bytes(read_exact_array::<1, _>(reader)?))
     }
+    const BIT_DEPTH: u8 = 8;
+    const MAX: Self = u8::MAX;
 }
