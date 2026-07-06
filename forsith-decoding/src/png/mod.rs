@@ -5,8 +5,8 @@ use num_enum::TryFromPrimitive;
 mod chunks;
 pub use chunks::{ChunkType, ChunkData};
 
-mod chunkreader;
-pub use chunkreader::ChunkReader;
+mod readers;
+pub use readers::ChunkReader;
 
 mod checksum;
 

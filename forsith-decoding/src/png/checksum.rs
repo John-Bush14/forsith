@@ -1,7 +1,7 @@
 use std::io::{BufRead};
 
 use const_for::const_for;
-use crate::{DecodingError, png::chunkreader::ChunkReader, read_exact_array};
+use crate::{DecodingError, png::readers::ChunkReader, read_exact_array};
 
 
 pub const POLY: u32 = 0xedb88320;

@@ -121,3 +121,55 @@ impl<R: BufRead> BufRead for ChunkReader<R> {
         self.reader.consume(amt);
     }
 }
+
+
+pub struct BitReader<R: BufRead> {
+    reader: R,
+    buffer: usize,
+    bits_remaining: u8
+}
+
+impl<R: BufRead> BitReader<R> {
+    pub fn new(reader: R) -> Self {
+        Self {
+            reader,
+            buffer: 0,
+            bits_remaining: 0
+        }
+    }
+
+    fn fill_buffer(&mut self) -> std::io::Result<()> {
+        let buf = self.reader.fill_buf()?;
+        if buf.is_empty() {
+            return Err(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "Unexpected EOF while reading bits"));
+        }
+
+        let len = min(buf.len(), 8 - (self.bits_remaining/8) as usize);
+
+        for b in &buf[..len] {
+            self.buffer |= (*b as usize) << (self.bits_remaining as usize);
+            self.bits_remaining += 8;
+        }
+
+        Ok(())
+    }
+
+    fn peek_bit(&mut self, n: u8) -> std::io::Result<usize> {
+        if self.bits_remaining <= n {
+            self.fill_buffer()?;
+        }
+
+        Ok(self.buffer & ((1 << n) - 1))
+    }
+
+    fn consume_bits(&mut self, n: u8) {
+        self.buffer >>= n as usize;
+        self.bits_remaining -= n;
+    }
+
+    fn read_bits(&mut self, n: u8) -> std::io::Result<usize> {
+        let bits = self.peek_bit(n)?;
+        self.consume_bits(n);
+        Ok(bits)
+    }
+}
