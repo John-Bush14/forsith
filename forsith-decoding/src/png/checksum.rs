@@ -22,8 +22,21 @@ const CRC_TABLE: [u32; 256] = const {
 
     table
 };
-const INIT: u32 = 0xFFFF_FFFF;
+const CRC_INIT: u32 = 0xFFFF_FFFF;
 
+#[derive(Debug)]
+pub struct Adler32{
+    a: u32,
+    b: u32,
+    count: u8
+}
+impl Adler32 {
+    pub fn new() -> Self {
+        Adler32{ a: 1, b: 0, count: 0 }
+    }
+}
+const ADLER_MOD: u32 = 65521;
+const ADLER_CHUNK_SIZE: usize = 5552;
 
 impl<R: Read> ChunkReader<R> {
     pub fn validate_crc(&mut self) -> Result<(), DecodingError> {
@@ -45,6 +58,20 @@ impl<R: Read> ChunkReader<R> {
     }
 
     pub fn init_crc(&mut self) {
-        self.crc = INIT;
+        self.crc = CRC_INIT;
+    }
+
+    pub fn update_adler32(&mut self, buf: &[u8]) {
+        for b in buf {
+            self.adler.a += *b as u32;
+            self.adler.b += self.adler.a;
+            self.adler.count += 1;
+
+            if self.adler.count == ADLER_CHUNK_SIZE as u8 {
+                self.adler.a %= ADLER_MOD;
+                self.adler.b %= ADLER_MOD;
+                self.adler.count = 0;
+            }
+        }
     }
 }

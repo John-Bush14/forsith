@@ -1,12 +1,13 @@
 use std::{cmp::min, io::Read};
 
-use crate::{DecodingError, png::{ChunkData, ChunkType, chunks::{IHDR, is_chunk_type_critical}}, read_exact_array, Num};
+use crate::{DecodingError, Num, png::{ChunkData, ChunkType, checksum::Adler32, chunks::{IHDR, ZlibHeader, is_chunk_type_critical}}, read_exact_array};
 
 #[derive(Debug)]
 pub struct ChunkReader<R: Read> {
     pub reader: R,
     pub crc: u32,
-    alder32: u32,
+    pub adler: Adler32,
+    pub reading_data: bool,
     remaining_bytes: u32,
     cur_type: ChunkType
 }
@@ -16,7 +17,8 @@ impl<R: Read> ChunkReader<R> {
         Self {
             reader,
             crc: 0,
-            alder32: 0,
+            adler: Adler32::new(),
+            reading_data: false,
             remaining_bytes: 0,
             cur_type: ChunkType::UnkownAncillerary
         }
@@ -54,6 +56,7 @@ impl<R: Read> ChunkReader<R> {
     pub fn read_data(&mut self) -> Result<Box<dyn ChunkData>, DecodingError> {
         let chunk_data: Box<dyn ChunkData> = match self.cur_type {
             ChunkType::UnkownAncillerary => unreachable!(),
+            ChunkType::Idat => return Ok(Box::new(ZlibHeader::read(self)?)),
             ChunkType::Ihdr => Box::new(IHDR::read(self)?),
             _ => {
                 todo!()
@@ -68,7 +71,7 @@ impl<R: Read> ChunkReader<R> {
 
 impl<R: Read> Read for ChunkReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        let len = min(buf.len(), self.remaining_bytes as usize);
+        let mut len = min(buf.len(), self.remaining_bytes as usize);
 
         self.remaining_bytes -= len as u32;
         self.reader.read_exact(&mut buf[..len])?;
@@ -83,7 +86,11 @@ impl<R: Read> Read for ChunkReader<R> {
                 return Err(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "Zlib stream ended undexpectedly"));
             }
 
-            return self.read(&mut buf[len..]).map(|n| n + len);
+            len = self.read(&mut buf[len..])? + len;
+        }
+
+        if self.reading_data {
+            self.update_adler32(&buf[..len]);
         }
 
         Ok(len)

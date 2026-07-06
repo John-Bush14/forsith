@@ -1,5 +1,5 @@
 use std::io::Read;
-use crate::{DecodingError, ImageDecoder, Num, PixelFormat, png::{chunks::{IHDR, downcast_chunkdata}}};
+use crate::{DecodingError, ImageDecoder, Num, PixelFormat, png::chunks::{IHDR, ZlibHeader, downcast_chunkdata}};
 use num_enum::TryFromPrimitive;
 
 mod chunks;
@@ -67,7 +67,7 @@ impl<'a, R: Read, C: Num, const F: u8> ImageDecoder<'a, R, C, F> for PngDecoder<
             decoder.update_with_chunk()?;
 
             if decoder.reader.cur_type() == ChunkType::Idat {
-                break;
+                break; // update_with_chunk has called prepare_for_decompression here.
             }
         }
 
@@ -85,6 +85,10 @@ impl<'a, R: Read, C: Num, const F: u8> ImageDecoder<'a, R, C, F> for PngDecoder<
 
 impl<'a, R: Read, C: Num, const F: u8> PngDecoder<'a, R, C, F> {
     fn update_with_chunk(&mut self) -> Result<(), DecodingError> {
+        if matches!(self.reader.cur_type(), ChunkType::UnkownAncillerary | ChunkType::Iend) {
+            return Ok(());
+        }
+
         let chunk_data = self.reader.read_data()?;
 
         if let Err(err) = chunk_data.validate() {
@@ -97,8 +101,17 @@ impl<'a, R: Read, C: Num, const F: u8> PngDecoder<'a, R, C, F> {
         match self.reader.cur_type() {
             ChunkType::UnkownAncillerary | ChunkType::Iend => unreachable!(),
             ChunkType::Ihdr => Err(DecodingError::MultipleChunks(ChunkType::Ihdr)),
+            ChunkType::Idat => downcast_chunkdata::<ZlibHeader>(chunk_data).unwrap().update_decoder(self),
             _ => todo!()
         }
+    }
+
+    pub fn prepare_for_decompression(&mut self, zlib_header: ZlibHeader) -> Result<(), DecodingError> {
+        self.reader.reading_data = true;
+
+        self.buffer.reserve(todo!());
+
+        todo!()
     }
 }
 
