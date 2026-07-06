@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod decoding_tests {
-    use std::{fs::File, path::PathBuf};
+    use std::{fs::File, io::BufReader, path::PathBuf};
 
     use crate::{DecodingError, ImageDecoder, PixelFormat, PngDecoder};
 
@@ -13,7 +13,7 @@ mod decoding_tests {
 
         let test_file = File::open(assets_path.clone().join("test.png")).unwrap();
 
-        let _decoder = PngDecoder::<_, u8, {PixelFormat::TruecolorAlpha as u8}>::open(test_file)?;
+        let _decoder = PngDecoder::<_, u8, {PixelFormat::TruecolorAlpha as u8}>::open(BufReader::new(test_file))?;
 
         Ok(())
     }

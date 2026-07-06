@@ -1,5 +1,5 @@
-use std::{any::Any, fmt::Display, io::Read};
-use crate::{DecodingError, Num, PngDecoder, png::ColorType};
+use std::{any::Any, fmt::Display, io::BufRead};
+use crate::{DecodingError, Num, PngDecoder, png::{ChunkReader, ColorType}};
 use num_enum::{TryFromPrimitive, IntoPrimitive};
 
 #[repr(u32)]
@@ -32,10 +32,10 @@ pub trait ChunkData: Any {
 
     fn validate(&self) -> Result<(), DecodingError>;
 
-    fn read<R: Read>(data: &mut R) -> Result<Self, DecodingError>
+    fn read<R: BufRead>(reader: &mut ChunkReader<R>) -> Result<Self, DecodingError>
     where Self: Sized;
 
-    fn update_decoder<'a, R: Read, C: Num, const F: u8>(self, decoder: &mut PngDecoder<'a, R, C, F>) -> Result<(), DecodingError>
+    fn update_decoder<'a, R: BufRead, C: Num, const F: u8>(self, decoder: &mut PngDecoder<'a, R, C, F>) -> Result<(), DecodingError>
     where Self: Sized;
 }
 pub fn downcast_chunkdata<T: ChunkData + Any>(b: Box<dyn ChunkData>) -> Result<Box<T>, Box<dyn Any>> {
@@ -76,20 +76,20 @@ impl ChunkData for IHDR {
         }
     }
 
-    fn read<R: Read>(data: &mut R) -> Result<Self, DecodingError>
+    fn read<R: BufRead>(reader: &mut ChunkReader<R>) -> Result<Self, DecodingError>
     where Self: Sized {
         Ok(Self {
-            width: u32::read_be(data)?,
-            height: u32::read_be(data)?,
-            bit_depth: u8::read_be(data)?,
-            color_type: ColorType::try_from(u8::read_be(data)?).map_err(|_| DecodingError::InvalidChunk(ChunkType::Ihdr))?,
-            compression_method: u8::read_be(data)?,
-            filter_method:  u8::read_be(data)?,
-            interlace_method: u8::read_be(data)?,
+            width: u32::read_be(reader)?,
+            height: u32::read_be(reader)?,
+            bit_depth: u8::read_be(reader)?,
+            color_type: ColorType::try_from(u8::read_be(reader)?).map_err(|_| DecodingError::InvalidChunk(ChunkType::Ihdr))?,
+            compression_method: u8::read_be(reader)?,
+            filter_method:  u8::read_be(reader)?,
+            interlace_method: u8::read_be(reader)?,
         })
     }
 
-    fn update_decoder<'a, R: Read, C: Num, const F: u8>(self, _decoder: &mut PngDecoder<'a, R, C, F>) -> Result<(), DecodingError>
+    fn update_decoder<'a, R: BufRead, C: Num, const F: u8>(self, _decoder: &mut PngDecoder<'a, R, C, F>) -> Result<(), DecodingError>
     where Self: Sized {unreachable!()} // ihdr needs to have been read before the decoder is created, so this should never be called
 }
 
@@ -117,7 +117,7 @@ impl ChunkData for ZlibHeader {
         Ok(())
     }
 
-    fn read<R: Read>(reader: &mut R) -> Result<Self, DecodingError>
+    fn read<R: BufRead>(reader: &mut ChunkReader<R>) -> Result<Self, DecodingError>
     where Self: Sized {
         let cmf = u8::read_be(reader)?;
         let flg = u8::read_be(reader)?;
@@ -131,7 +131,7 @@ impl ChunkData for ZlibHeader {
         })
     }
 
-    fn update_decoder<'a, R: Read, C: Num, const F: u8>(self, decoder: &mut PngDecoder<'a, R, C, F>) -> Result<(), DecodingError>
+    fn update_decoder<'a, R: BufRead, C: Num, const F: u8>(self, decoder: &mut PngDecoder<'a, R, C, F>) -> Result<(), DecodingError>
     where Self: Sized {
         decoder.prepare_for_decompression(self)
     }

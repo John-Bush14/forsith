@@ -1,9 +1,9 @@
-use std::{cmp::min, io::Read};
+use std::{cmp::min, io::{BufRead, Read}};
 
 use crate::{DecodingError, Num, png::{ChunkData, ChunkType, checksum::Adler32, chunks::{IHDR, ZlibHeader, is_chunk_type_critical}}, read_exact_array};
 
 #[derive(Debug)]
-pub struct ChunkReader<R: Read> {
+pub struct ChunkReader<R: BufRead> {
     pub reader: R,
     pub crc: u32,
     pub adler: Adler32,
@@ -12,7 +12,7 @@ pub struct ChunkReader<R: Read> {
     cur_type: ChunkType
 }
 
-impl<R: Read> ChunkReader<R> {
+impl<R: BufRead> ChunkReader<R> {
     pub fn new(reader: R) -> Self {
         Self {
             reader,
@@ -69,7 +69,7 @@ impl<R: Read> ChunkReader<R> {
     }
 }
 
-impl<R: Read> Read for ChunkReader<R> {
+impl<R: BufRead> Read for ChunkReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         let mut len = min(buf.len(), self.remaining_bytes as usize);
 

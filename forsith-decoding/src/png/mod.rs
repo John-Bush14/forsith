@@ -1,4 +1,4 @@
-use std::io::Read;
+use std::io::{BufRead, Read};
 use crate::{DecodingError, ImageDecoder, Num, PixelFormat, png::chunks::{IHDR, ZlibHeader, downcast_chunkdata}};
 use num_enum::TryFromPrimitive;
 
@@ -9,6 +9,7 @@ mod chunkreader;
 pub use chunkreader::ChunkReader;
 
 mod checksum;
+
 
 const PNG_HEADER: [u8; 8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
 
@@ -35,14 +36,14 @@ impl Into<PixelFormat> for ColorType {
 }
 
 #[derive(Debug)]
-pub struct PngDecoder<'a, R: Read, C: Num, const F: u8> {
+pub struct PngDecoder<'a, R: BufRead, C: Num, const F: u8> {
     reader: ChunkReader<R>,
     buffer: Vec<u8>,
     phantom: std::marker::PhantomData<&'a C>,
     ihdr: IHDR,
 }
 
-impl<'a, R: Read, C: Num, const F: u8> ImageDecoder<'a, R, C, F> for PngDecoder<'a, R, C, F> {
+impl<'a, R: BufRead, C: Num, const F: u8> ImageDecoder<'a, R, C, F> for PngDecoder<'a, R, C, F> {
     fn open(mut reader: R) -> Result<Self, DecodingError> {
         check_header(&mut reader)?;
 
@@ -83,7 +84,7 @@ impl<'a, R: Read, C: Num, const F: u8> ImageDecoder<'a, R, C, F> for PngDecoder<
     fn pixel_format(&self) -> crate::PixelFormat {self.ihdr.color_type.into()}
 }
 
-impl<'a, R: Read, C: Num, const F: u8> PngDecoder<'a, R, C, F> {
+impl<'a, R: BufRead, C: Num, const F: u8> PngDecoder<'a, R, C, F> {
     fn update_with_chunk(&mut self) -> Result<(), DecodingError> {
         if matches!(self.reader.cur_type(), ChunkType::UnkownAncillerary | ChunkType::Iend) {
             return Ok(());
@@ -123,7 +124,7 @@ fn check_header<R: Read>(data: &mut R) -> Result<(), DecodingError> {
     Ok(())
 }
 
-fn read_ihdr<R: Read>(reader: &mut ChunkReader<R>) -> Result<IHDR, DecodingError> {
+fn read_ihdr<R: BufRead>(reader: &mut ChunkReader<R>) -> Result<IHDR, DecodingError> {
     reader.open_chunk()?;
 
     if reader.cur_type() != ChunkType::Ihdr {

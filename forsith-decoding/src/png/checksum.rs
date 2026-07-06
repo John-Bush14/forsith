@@ -1,4 +1,4 @@
-use std::io::Read;
+use std::io::{BufRead};
 
 use const_for::const_for;
 use crate::{DecodingError, png::chunkreader::ChunkReader, read_exact_array};
@@ -38,7 +38,7 @@ impl Adler32 {
 const ADLER_MOD: u32 = 65521;
 const ADLER_CHUNK_SIZE: usize = 5552;
 
-impl<R: Read> ChunkReader<R> {
+impl<R: BufRead> ChunkReader<R> {
     pub fn validate_crc(&mut self) -> Result<(), DecodingError> {
         let stored_crc = u32::from_be_bytes(read_exact_array::<4,_>(self.normal_reader())?);
 
