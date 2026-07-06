@@ -79,6 +79,10 @@ impl<R: Read> Read for ChunkReader<R> {
             self.close_chunk()?;
             self.open_chunk()?;
 
+            if self.cur_type != ChunkType::Idat {
+                return Err(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "Zlib stream ended undexpectedly"));
+            }
+
             return self.read(&mut buf[len..]).map(|n| n + len);
         }
 
