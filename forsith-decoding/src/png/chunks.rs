@@ -92,3 +92,47 @@ impl ChunkData for IHDR {
     fn update_decoder<'a, R: Read, C: Num, const F: u8>(self, _decoder: &mut PngDecoder<'a, R, C, F>) -> Result<(), DecodingError>
     where Self: Sized {unreachable!()} // ihdr needs to have been read before the decoder is created, so this should never be called
 }
+
+// Will be read as IDAT chunk data
+pub struct ZlibHeader {
+    pub compression_method: u8,
+    pub compression_info: u8,
+    pub fcheck: u8,
+    pub dict: bool,
+    pub flevel: u8
+}
+
+impl ChunkData for ZlibHeader {
+    fn chunk_type(&self) -> ChunkType {ChunkType::Idat}
+
+    fn validate(&self) -> Result<(), DecodingError> {
+        if self.compression_method != 8
+            || self.compression_info > 7
+            || self.dict
+            || !(self.compression_method as u16 * 256 + self.compression_info as u16).is_multiple_of(31)
+        {
+            return Err(DecodingError::InvalidChunk(ChunkType::Idat));
+        }
+
+        Ok(())
+    }
+
+    fn read<R: Read>(data: &mut R) -> Result<Self, DecodingError>
+    where Self: Sized {
+        let cmf = u8::read_be(data)?;
+        let flg = u8::read_be(data)?;
+
+        Ok(Self {
+            compression_method: cmf & 0b00001111,
+            compression_info: (cmf & 0b11110000) >> 4,
+            fcheck: flg & 0b00011111,
+            dict: flg & 0b00100000 == 0b00100000,
+            flevel: (flg & 0b11000000) >> 6
+        })
+    }
+
+    fn update_decoder<'a, R: Read, C: Num, const F: u8>(self, _decoder: &mut PngDecoder<'a, R, C, F>) -> Result<(), DecodingError>
+    where Self: Sized {
+        todo!()
+    }
+}

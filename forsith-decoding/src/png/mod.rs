@@ -71,8 +71,6 @@ impl<'a, R: Read, C: Num, const F: u8> ImageDecoder<'a, R, C, F> for PngDecoder<
             }
         }
 
-
-
         Ok(decoder)
     }
 
@@ -87,13 +85,6 @@ impl<'a, R: Read, C: Num, const F: u8> ImageDecoder<'a, R, C, F> for PngDecoder<
 
 impl<'a, R: Read, C: Num, const F: u8> PngDecoder<'a, R, C, F> {
     fn update_with_chunk(&mut self) -> Result<(), DecodingError> {
-        match self.reader.cur_type() {
-            ChunkType::UnkownAncillerary | ChunkType::Iend => {return Ok(())},
-            ChunkType::Idat => {
-                return Ok(());
-            }, _ => ()
-        }
-
         let chunk_data = self.reader.read_data()?;
 
         if let Err(err) = chunk_data.validate() {
@@ -104,7 +95,7 @@ impl<'a, R: Read, C: Num, const F: u8> PngDecoder<'a, R, C, F> {
         }
 
         match self.reader.cur_type() {
-            ChunkType::UnkownAncillerary | ChunkType::Idat => unreachable!(),
+            ChunkType::UnkownAncillerary | ChunkType::Iend => unreachable!(),
             ChunkType::Ihdr => Err(DecodingError::MultipleChunks(ChunkType::Ihdr)),
             _ => todo!()
         }
