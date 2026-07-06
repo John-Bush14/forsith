@@ -67,6 +67,18 @@ impl<R: BufRead> ChunkReader<R> {
 
         Ok(chunk_data)
     }
+
+    fn skip_idat_boundrary(&mut self) -> std::io::Result<()> {
+        self.close_chunk()?;
+        self.open_chunk()?;
+
+        if self.cur_type != ChunkType::Idat {
+            return Err(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "Zlib stream ended undexpectedly"));
+        }
+
+        Ok(())
+
+    }
 }
 
 impl<R: BufRead> Read for ChunkReader<R> {
@@ -79,12 +91,7 @@ impl<R: BufRead> Read for ChunkReader<R> {
         self.update_crc(&buf[..len]);
 
         if len != buf.len() && self.cur_type == ChunkType::Idat {
-            self.close_chunk()?;
-            self.open_chunk()?;
-
-            if self.cur_type != ChunkType::Idat {
-                return Err(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "Zlib stream ended undexpectedly"));
-            }
+            self.skip_idat_boundrary()?;
 
             len = self.read(&mut buf[len..])? + len;
         }
@@ -94,5 +101,23 @@ impl<R: BufRead> Read for ChunkReader<R> {
         }
 
         Ok(len)
+    }
+}
+
+impl<R: BufRead> BufRead for ChunkReader<R> {
+    fn fill_buf(&mut self) -> std::io::Result<&[u8]> {
+        if self.remaining_bytes == 0 && self.cur_type == ChunkType::Idat {
+            self.skip_idat_boundrary()?;
+        }
+
+        let buf = self.reader.fill_buf()?;
+        let len = min(buf.len(), self.remaining_bytes as usize);
+
+        Ok(&buf[..len])
+    }
+
+    fn consume(&mut self, amt: usize) {
+        self.remaining_bytes -= amt as u32;
+        self.reader.consume(amt);
     }
 }
