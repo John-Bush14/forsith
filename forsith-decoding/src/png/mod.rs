@@ -1,5 +1,5 @@
 use std::io::{BufRead, Read};
-use crate::{DecodingError, ImageDecoder, Num, PixelFormat, png::chunks::{IHDR, ZlibHeader, downcast_chunkdata}};
+use crate::{DecodingError, HistoryBuffer, ImageDecoder, Num, PixelFormat, png::chunks::{IHDR, ZlibHeader, downcast_chunkdata}};
 use num_enum::TryFromPrimitive;
 
 mod chunks;
@@ -12,6 +12,7 @@ mod checksum;
 
 
 const PNG_HEADER: [u8; 8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+const BUFFER_SIZE: usize = 32 * 1024; // 32 KiB
 
 #[repr(u8)]
 #[derive(Debug, TryFromPrimitive, Clone, Copy)]
@@ -38,7 +39,8 @@ impl Into<PixelFormat> for ColorType {
 #[derive(Debug)]
 pub struct PngDecoder<'a, R: BufRead, C: Num, const F: u8> {
     reader: ChunkReader<R>,
-    buffer: Vec<u8>,
+    image_buffer: HistoryBuffer<u8>,
+    deflate_buffer: HistoryBuffer<u8>,
     phantom: std::marker::PhantomData<&'a C>,
     ihdr: IHDR,
 }
@@ -53,7 +55,8 @@ impl<'a, R: BufRead, C: Num, const F: u8> ImageDecoder<'a, R, C, F> for PngDecod
 
         let mut decoder = Self {
             reader,
-            buffer: Vec::with_capacity(0),
+            image_buffer: HistoryBuffer::new(BUFFER_SIZE),
+            deflate_buffer: HistoryBuffer::new(BUFFER_SIZE),
             phantom: std::marker::PhantomData,
             ihdr,
         };
@@ -109,8 +112,6 @@ impl<'a, R: BufRead, C: Num, const F: u8> PngDecoder<'a, R, C, F> {
 
     pub fn prepare_for_decompression(&mut self, zlib_header: ZlibHeader) -> Result<(), DecodingError> {
         self.reader.reading_data = true;
-
-        self.buffer.reserve(todo!());
 
         todo!()
     }

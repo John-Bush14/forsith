@@ -1,4 +1,4 @@
-use std::io::{self, Read};
+use std::{io::{self, Read}, ops::Index};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use thiserror::Error;
 
@@ -95,4 +95,44 @@ impl Num for u8 {
     }
     const BIT_DEPTH: u8 = 8;
     const MAX: Self = u8::MAX;
+}
+
+/// Constant size buffer where the oldest element is overwritten when the buffer is full.
+/// Index 0 is here the most recent element and Index len-1 is the oldest element.
+///
+/// Size is rounded to nearest power of 2 for performance reasons.
+#[derive(Debug)]
+pub struct HistoryBuffer<T: Default> {
+    buffer: Vec<T>,
+    base_index: usize,
+}
+impl<T: Default> HistoryBuffer<T> {
+    pub fn new(size: usize) -> Self {
+        let size = size.next_power_of_two();
+
+        let mut buffer = Vec::with_capacity(size);
+        buffer.resize_with(size, || T::default());
+
+        Self {
+            buffer,
+            base_index: 0,
+        }
+    }
+
+    pub fn push(&mut self, value: T) {
+        self.base_index = self.wrap(self.base_index + 1);
+        self.buffer[self.base_index] = value;
+    }
+
+    // Len is power of two, so we can use bitwise AND to wrap the index instead of modulo for
+    // performance reasons.
+    fn wrap(&self, index: usize) -> usize {index & (self.buffer.len()-1)}
+}
+
+impl<T: Default> Index<usize> for HistoryBuffer<T> {
+    type Output = T;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.buffer[self.wrap(self.base_index + self.buffer.len() - index)]
+    }
 }
