@@ -80,23 +80,6 @@ impl<R: BufRead> ChunkReader<R> {
 
         Ok(())
     }
-
-    pub fn peek_bits(&mut self, n: u8) -> std::io::Result<usize> {
-        if self.bit_buf.bits_remaining <= n {
-            self.fill_bitbuf()?;
-        }
-
-        Ok(self.bit_buf.peek(n))
-    }
-
-    fn fill_bitbuf(&mut self) -> std::io::Result<()> {self.bit_buf.fill(&mut self.reader)}
-    pub fn consume_bits(&mut self, n: u8) {self.bit_buf.consume(n);}
-
-    pub fn read_bits(&mut self, n: u8) -> std::io::Result<usize> {
-        let bits = self.peek_bits(n)?;
-        self.consume_bits(n);
-        Ok(bits)
-    }
 }
 
 impl<R: BufRead> Read for ChunkReader<R> {
@@ -137,6 +120,30 @@ impl<R: BufRead> BufRead for ChunkReader<R> {
     fn consume(&mut self, amt: usize) {
         self.remaining_bytes -= amt as u32;
         self.reader.consume(amt);
+    }
+}
+
+impl<R: BufRead> BitReader for ChunkReader<R> {
+    fn peek_bits(&mut self, n: u8) -> std::io::Result<usize> {
+        if self.bit_buf.bits_remaining <= n {
+            self.fill_bitbuf()?;
+        }
+
+        Ok(self.bit_buf.peek(n))
+    }
+
+    fn fill_bitbuf(&mut self) -> std::io::Result<()> {self.bit_buf.fill(&mut self.reader)}
+    fn consume_bits(&mut self, n: u8) {self.bit_buf.consume(n);}
+}
+
+pub trait BitReader: BufRead {
+    fn fill_bitbuf(&mut self) -> std::io::Result<()>;
+    fn peek_bits(&mut self, n: u8) -> std::io::Result<usize>;
+    fn consume_bits(&mut self, n: u8);
+    fn read_bits(&mut self, n: u8) -> std::io::Result<usize> {
+        let bits = self.peek_bits(n)?;
+        self.consume_bits(n);
+        Ok(bits)
     }
 }
 
