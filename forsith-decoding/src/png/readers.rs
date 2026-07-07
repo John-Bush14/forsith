@@ -145,6 +145,24 @@ pub trait BitReader: BufRead {
         self.consume_bits(n);
         Ok(bits)
     }
+    fn iterate_bits(&mut self, n: u8) -> BitIterator<'_, Self> where Self: Sized {
+        BitIterator {
+            reader: self,
+            bits: n
+        }
+    }
+}
+
+struct BitIterator<'a, R: BitReader> {
+    reader: &'a mut R,
+    bits: u8
+}
+impl<R: BitReader> Iterator for BitIterator<'_, R> {
+    type Item = Result<usize, std::io::Error>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        return Some(self.reader.read_bits(self.bits))
+    }
 }
 
 #[derive(Debug)]
