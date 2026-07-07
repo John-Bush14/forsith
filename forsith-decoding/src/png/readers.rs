@@ -1,4 +1,4 @@
-use std::{cmp::min, io::{BufRead, Read}};
+use std::{cmp::min, io::{BufRead, Read}, usize};
 
 use crate::{DecodingError, Num, png::{ChunkData, ChunkType, checksum::Adler32, chunks::{IHDR, ZlibHeader, is_chunk_type_critical}}, read_exact_array};
 
@@ -9,7 +9,8 @@ pub struct ChunkReader<R: BufRead> {
     pub adler: Adler32,
     pub reading_data: bool,
     remaining_bytes: u32,
-    cur_type: ChunkType
+    cur_type: ChunkType,
+    bit_buf: BitBuffer
 }
 
 impl<R: BufRead> ChunkReader<R> {
@@ -20,7 +21,8 @@ impl<R: BufRead> ChunkReader<R> {
             adler: Adler32::new(),
             reading_data: false,
             remaining_bytes: 0,
-            cur_type: ChunkType::UnkownAncillerary
+            cur_type: ChunkType::UnkownAncillerary,
+            bit_buf: BitBuffer::new()
         }
     }
     pub fn normal_reader(&mut self) -> &mut R {&mut self.reader}
@@ -77,7 +79,23 @@ impl<R: BufRead> ChunkReader<R> {
         }
 
         Ok(())
+    }
 
+    pub fn peek_bits(&mut self, n: u8) -> std::io::Result<usize> {
+        if self.bit_buf.bits_remaining <= n {
+            self.fill_bitbuf()?;
+        }
+
+        Ok(self.bit_buf.peek(n))
+    }
+
+    fn fill_bitbuf(&mut self) -> std::io::Result<()> {self.bit_buf.fill(&mut self.reader)}
+    pub fn consume_bits(&mut self, n: u8) {self.bit_buf.consume(n);}
+
+    pub fn read_bits(&mut self, n: u8) -> std::io::Result<usize> {
+        let bits = self.peek_bits(n)?;
+        self.consume_bits(n);
+        Ok(bits)
     }
 }
 
@@ -122,54 +140,43 @@ impl<R: BufRead> BufRead for ChunkReader<R> {
     }
 }
 
-
-pub struct BitReader<R: BufRead> {
-    reader: R,
-    buffer: usize,
+#[derive(Debug)]
+struct BitBuffer {
+    buf: usize,
     bits_remaining: u8
 }
-
-impl<R: BufRead> BitReader<R> {
-    pub fn new(reader: R) -> Self {
+impl BitBuffer {
+    fn new() -> Self {
         Self {
-            reader,
-            buffer: 0,
+            buf: 0,
             bits_remaining: 0
         }
     }
 
-    fn fill_buffer(&mut self) -> std::io::Result<()> {
-        let buf = self.reader.fill_buf()?;
+    fn fill<R: BufRead>(&mut self, reader: &mut R) -> std::io::Result<()> {
+        let buf = reader.fill_buf()?;
         if buf.is_empty() {
             return Err(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "Unexpected EOF while reading bits"));
         }
 
-        let len = min(buf.len(), 8 - (self.bits_remaining/8) as usize);
+        let len = min(buf.len(), std::mem::size_of::<usize>() - (self.bits_remaining/8) as usize);
 
-        for b in &buf[..len] {
-            self.buffer |= (*b as usize) << (self.bits_remaining as usize);
-            self.bits_remaining += 8;
-        }
+        for b in &buf[..len] {self.push(*b);}
 
         Ok(())
     }
 
-    fn peek_bit(&mut self, n: u8) -> std::io::Result<usize> {
-        if self.bits_remaining <= n {
-            self.fill_buffer()?;
-        }
-
-        Ok(self.buffer & ((1 << n) - 1))
+    fn peek(&self, n: u8) -> usize {
+        self.buf & ((1 << n) - 1)
     }
 
-    fn consume_bits(&mut self, n: u8) {
-        self.buffer >>= n as usize;
+    fn consume(&mut self, n: u8) {
+        self.buf >>= n as usize;
         self.bits_remaining -= n;
     }
 
-    fn read_bits(&mut self, n: u8) -> std::io::Result<usize> {
-        let bits = self.peek_bit(n)?;
-        self.consume_bits(n);
-        Ok(bits)
+    fn push(&mut self, byte: u8) {
+        self.buf |= (byte as usize) << (self.bits_remaining as usize);
+        self.bits_remaining += 8;
     }
 }
