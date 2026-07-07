@@ -10,6 +10,7 @@ pub use readers::ChunkReader;
 
 mod checksum;
 
+mod deflate;
 
 const PNG_HEADER: [u8; 8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
 const BUFFER_SIZE: usize = 32 * 1024; // 32 KiB
@@ -43,6 +44,8 @@ pub struct PngDecoder<'a, R: BufRead, C: Num, const F: u8> {
     deflate_buffer: HistoryBuffer<u8>,
     phantom: std::marker::PhantomData<&'a C>,
     ihdr: IHDR,
+    lz77_buffer_size: usize,
+    cur_block: Option<deflate::Block>,
 }
 
 impl<'a, R: BufRead, C: Num, const F: u8> ImageDecoder<'a, R, C, F> for PngDecoder<'a, R, C, F> {
@@ -59,6 +62,8 @@ impl<'a, R: BufRead, C: Num, const F: u8> ImageDecoder<'a, R, C, F> for PngDecod
             deflate_buffer: HistoryBuffer::new(BUFFER_SIZE),
             phantom: std::marker::PhantomData,
             ihdr,
+            lz77_buffer_size: 0,
+            cur_block: None,
         };
 
         loop  {
@@ -108,12 +113,6 @@ impl<'a, R: BufRead, C: Num, const F: u8> PngDecoder<'a, R, C, F> {
             ChunkType::Idat => downcast_chunkdata::<ZlibHeader>(chunk_data).unwrap().update_decoder(self),
             _ => todo!()
         }
-    }
-
-    pub fn prepare_for_decompression(&mut self, zlib_header: ZlibHeader) -> Result<(), DecodingError> {
-        self.reader.reading_data = true;
-
-        todo!()
     }
 }
 

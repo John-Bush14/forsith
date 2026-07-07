@@ -133,6 +133,10 @@ impl ChunkData for ZlibHeader {
 
     fn update_decoder<'a, R: BufRead, C: Num, const F: u8>(self, decoder: &mut PngDecoder<'a, R, C, F>) -> Result<(), DecodingError>
     where Self: Sized {
-        decoder.prepare_for_decompression(self)
+        decoder.reader.reading_data = true;
+
+        decoder.lz77_buffer_size = 1 << (self.compression_info + 8);
+
+        Ok(())
     }
 }
