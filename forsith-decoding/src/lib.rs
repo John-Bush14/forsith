@@ -64,6 +64,8 @@ pub enum DecodingError {
     InvalidCodeLength(u8),
     #[error("Tried to register huffman symbol with value larger than {0} bytes can hold.")]
     InvalidSymbol(usize),
+    #[error("Undefined huffman code ({0:#010X}) found in deflate stream.")]
+    UndefinedHuffmanCode(u32),
 }
 impl From<DecodingError> for io::Error {
     fn from(err: DecodingError) -> Self {

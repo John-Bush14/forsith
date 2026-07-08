@@ -161,7 +161,7 @@ impl<R: BitReader> Iterator for BitIterator<'_, R> {
     type Item = Result<usize, std::io::Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        return Some(self.reader.read_bits(self.bits))
+        Some(self.reader.read_bits(self.bits))
     }
 }
 

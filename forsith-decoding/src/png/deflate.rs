@@ -11,13 +11,13 @@ const CODE_LENGTH_ORDER: [u8; 19] = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12
 pub struct HuffmanTree<S: Num> {
     table: Vec<Entry<S>>, // (symbol, code length)
     max_colen: u8,
-    nested_tree: Option<Box<HuffmanTree<S>>>,
+    //nested_tree: Option<Box<HuffmanTree<S>>>,
 }
 #[derive(Debug, Clone, Copy)]
 enum Entry<S: Num> {
     Empty,
     Symbol(S, u8), // (symbol, code length)
-    NestedTree
+    //NestedTree
 }
 impl<S: Num> HuffmanTree<S> {
     pub fn load(&mut self, code_lengths: &[u8]) -> Result<(), DecodingError> {
@@ -62,6 +62,38 @@ impl<S: Num> HuffmanTree<S> {
         }
 
         Ok(())
+    }
+
+    fn decode_symbol<R: BitReader>(&self, reader: &mut R) -> Result<S, DecodingError> {
+        let code = reader.peek_bits(self.max_colen)?;
+
+        let (symbol, colen) = match self.table[code] {
+            Entry::Symbol(s, c) => (s, c),
+            Entry::Empty => return Err(DecodingError::UndefinedHuffmanCode(code as u32)),
+        };
+
+        reader.consume_bits(colen);
+
+        Ok(symbol)
+    }
+
+    fn iter_decode<'a, R: BitReader>(&'a self, reader: &'a mut R) -> HuffmanDecoder<'a, S, R> {
+        HuffmanDecoder {
+            tree: self,
+            reader,
+        }
+    }
+}
+
+pub struct HuffmanDecoder<'a, S: Num, R: BitReader> {
+    tree: &'a HuffmanTree<S>,
+    reader: &'a mut R,
+}
+impl<'a, S: Num, R: BitReader> Iterator for HuffmanDecoder<'a, S, R> {
+    type Item = Result<S, DecodingError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        Some(self.tree.decode_symbol(self.reader))
     }
 }
 
