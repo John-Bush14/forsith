@@ -1,5 +1,5 @@
 use std::{io::{self, Read}, ops::Index};
-use num_enum::{IntoPrimitive, TryFromPrimitive};
+use num_enum::{FromPrimitive, IntoPrimitive, TryFromPrimitive};
 use thiserror::Error;
 
 mod tests;
@@ -57,11 +57,17 @@ pub enum DecodingError {
     #[error("Multiple '{0}' chunks found")]
     MultipleChunks(ChunkType),
     #[error("Attempted to close chunk '{0}' before reading all data, {1} bytes remaining")]
-    EarlyClose(ChunkType, u32)
+    EarlyClose(ChunkType, u32),
+    #[error("Block length ({0}) and its one's complement ({1}) did not match")]
+    BlockLengthMismatch(u16, u16),
+    #[error("Code length ({0}) is too large")]
+    InvalidCodeLength(u8),
+    #[error("Tried to register huffman symbol with value larger than {0} bytes can hold.")]
+    InvalidSymbol(usize),
 }
 impl From<DecodingError> for io::Error {
     fn from(err: DecodingError) -> Self {
-        io::Error::new(io::ErrorKind::Other, err)
+        io::Error::other(err)
     }
 }
 
@@ -70,7 +76,7 @@ fn read_exact_array<const N: usize, R: Read>(reader: &mut R) -> io::Result<[u8; 
     reader.read_exact(&mut buf)?;
     Ok(buf)
 }
-pub trait Num {
+pub trait Num: Sized + Copy + Default + PartialEq + Eq + std::fmt::Debug + TryFrom<u32> + From<u8> + TryFrom<u16> + TryFrom<usize> {
     fn read_be<R: Read>(reader: &mut R) -> io::Result<Self> where Self: Sized;
     fn read_le<R: Read>(reader: &mut R) -> io::Result<Self> where Self: Sized;
     const BIT_DEPTH: u8;
@@ -84,7 +90,17 @@ impl Num for u32 {
         Ok(u32::from_le_bytes(read_exact_array::<4, _>(reader)?))
     }
     const BIT_DEPTH: u8 = 32;
-    const MAX: Self = u32::MAX;
+    const MAX: Self = Self::MAX;
+}
+impl Num for u16 {
+    fn read_be<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(u16::from_be_bytes(read_exact_array::<2, _>(reader)?))
+    }
+    fn read_le<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(u16::from_le_bytes(read_exact_array::<2, _>(reader)?))
+    }
+    const BIT_DEPTH: u8 = 8;
+    const MAX: Self = Self::MAX;
 }
 impl Num for u8 {
     fn read_be<R: Read>(reader: &mut R) -> io::Result<Self> {
@@ -94,7 +110,7 @@ impl Num for u8 {
         Ok(u8::from_le_bytes(read_exact_array::<1, _>(reader)?))
     }
     const BIT_DEPTH: u8 = 8;
-    const MAX: Self = u8::MAX;
+    const MAX: Self = Self::MAX;
 }
 
 /// Constant size buffer where the oldest element is overwritten when the buffer is full.

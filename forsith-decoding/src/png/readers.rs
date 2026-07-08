@@ -153,7 +153,7 @@ pub trait BitReader: BufRead {
     }
 }
 
-struct BitIterator<'a, R: BitReader> {
+pub struct BitIterator<'a, R: BitReader> {
     reader: &'a mut R,
     bits: u8
 }

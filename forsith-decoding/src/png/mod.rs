@@ -45,7 +45,7 @@ pub struct PngDecoder<'a, R: BufRead, C: Num, const F: u8> {
     phantom: std::marker::PhantomData<&'a C>,
     ihdr: IHDR,
     lz77_buffer_size: usize,
-    cur_block: Option<deflate::Block>,
+    cur_block: deflate::Block,
 }
 
 impl<'a, R: BufRead, C: Num, const F: u8> ImageDecoder<'a, R, C, F> for PngDecoder<'a, R, C, F> {
@@ -63,7 +63,7 @@ impl<'a, R: BufRead, C: Num, const F: u8> ImageDecoder<'a, R, C, F> for PngDecod
             phantom: std::marker::PhantomData,
             ihdr,
             lz77_buffer_size: 0,
-            cur_block: None,
+            cur_block: deflate::Block::default(),
         };
 
         loop  {
@@ -79,6 +79,9 @@ impl<'a, R: BufRead, C: Num, const F: u8> ImageDecoder<'a, R, C, F> for PngDecod
                 break; // update_with_chunk has called prepare_for_decompression here.
             }
         }
+
+        decoder.reader.reading_data = true;
+        decoder.cur_block.load_block(&mut decoder.reader)?;
 
         Ok(decoder)
     }
