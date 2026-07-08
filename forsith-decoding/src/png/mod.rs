@@ -1,5 +1,5 @@
 use std::io::{BufRead, Read};
-use crate::{DecodingError, HistoryBuffer, ImageDecoder, Num, PixelFormat, png::chunks::{IHDR, ZlibHeader, downcast_chunkdata}};
+use crate::{DecodingError, HistoryBuffer, ImageDecoder, Num, PixelFormat, png::{chunks::{IHDR, ZlibHeader, downcast_chunkdata}, deflate::CompressionType}};
 use num_enum::TryFromPrimitive;
 
 mod chunks;
@@ -40,8 +40,7 @@ impl Into<PixelFormat> for ColorType {
 #[derive(Debug)]
 pub struct PngDecoder<'a, R: BufRead, C: Num, const F: u8> {
     reader: ChunkReader<R>,
-    image_buffer: HistoryBuffer<u8>,
-    deflate_buffer: HistoryBuffer<u8>,
+    buffer: HistoryBuffer<u8>,
     phantom: std::marker::PhantomData<&'a C>,
     ihdr: IHDR,
     lz77_buffer_size: usize,
@@ -58,8 +57,7 @@ impl<'a, R: BufRead, C: Num, const F: u8> ImageDecoder<'a, R, C, F> for PngDecod
 
         let mut decoder = Self {
             reader,
-            image_buffer: HistoryBuffer::new(BUFFER_SIZE),
-            deflate_buffer: HistoryBuffer::new(BUFFER_SIZE),
+            buffer: HistoryBuffer::new(BUFFER_SIZE),
             phantom: std::marker::PhantomData,
             ihdr,
             lz77_buffer_size: 0,
@@ -86,8 +84,26 @@ impl<'a, R: BufRead, C: Num, const F: u8> ImageDecoder<'a, R, C, F> for PngDecod
         Ok(decoder)
     }
 
-    fn next(&mut self) -> Option<Result<&'a [u8], DecodingError>> {
-        todo!()
+    fn fill_buf(&mut self) -> Result<&[u8], DecodingError> {
+        match self.cur_block.compression_type {
+            CompressionType::Uncompressed(len) => {
+                todo!()
+            }
+            CompressionType::CompressedFixed | CompressionType::CompressedDynamic => {
+                let (litlen_tree, distance_tree) = match self.cur_block.compression_type {
+                    CompressionType::CompressedFixed => todo!(),
+                    CompressionType::CompressedDynamic => (&self.cur_block.litlen_tree, &self.cur_block.distance_tree),
+                    _ => unreachable!()
+                };
+
+
+            }
+            CompressionType::Reserved => {
+                return Err(DecodingError::InvalidChunk(self.reader.cur_type()));
+            }
+        }
+
+        Ok(self.buffer.get_first_slice())
     }
 
     fn bit_depth(&self) -> u8 {self.ihdr.bit_depth}

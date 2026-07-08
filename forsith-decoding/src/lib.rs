@@ -1,4 +1,4 @@
-use std::{io::{self, Read}, ops::Index};
+use std::{io::{self, BufRead, Read}, ops::Index};
 use num_enum::{FromPrimitive, IntoPrimitive, TryFromPrimitive};
 use thiserror::Error;
 
@@ -22,15 +22,24 @@ pub enum PixelFormat {
 pub trait ImageDecoder<'a, R: Read, C: Num, const F: u8> {
     fn open(data: R) -> Result<Self, DecodingError> where Self: Sized;
 
-    fn next(&mut self) -> Option<Result<&'a [u8], DecodingError>>;
+    fn fill_buf(&mut self) -> Result<&[u8], DecodingError>;
+    fn consume(&mut self, amt: usize);
 
     fn bit_depth(&self) -> u8;
     fn pixel_format(&self) -> PixelFormat;
 }
-impl<'a, R: Read, C: Num, const F: u8> Iterator for dyn ImageDecoder<'a, R, C, F> {
-    type Item = Result<&'a [u8], DecodingError>;
-
-    fn next(&mut self) -> Option<Self::Item> {<Self as ImageDecoder<'a, R, C, F>>::next(self)}
+impl<R: Read, C: Num, const F: u8> Read for dyn ImageDecoder<'_, R, C, F> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let data = Self::fill_buf(self)?;
+        let amt = std::cmp::min(data.len(), buf.len());
+        buf[..amt].copy_from_slice(&data[..amt]);
+        Self::consume(self, amt);
+        Ok(amt)
+    }
+}
+impl<R: Read, C: Num, const F: u8> BufRead for dyn ImageDecoder<'_, R, C, F> {
+    fn fill_buf(&mut self) -> io::Result<&[u8]> {Ok(<Self as ImageDecoder<'_, R, C, F>>::fill_buf(self)?)}
+    fn consume(&mut self, amt: usize) {<Self as ImageDecoder<'_, R, C, F>>::consume(self, amt)}
 }
 
 
@@ -122,7 +131,8 @@ impl Num for u8 {
 #[derive(Debug)]
 pub struct HistoryBuffer<T: Default> {
     buffer: Vec<T>,
-    base_index: usize,
+    head: usize,
+    tail: usize
 }
 impl<T: Default> HistoryBuffer<T> {
     pub fn new(size: usize) -> Self {
@@ -133,13 +143,38 @@ impl<T: Default> HistoryBuffer<T> {
 
         Self {
             buffer,
-            base_index: 0,
+            head: 0,
+            tail: 0
         }
     }
 
     pub fn push(&mut self, value: T) {
-        self.base_index = self.wrap(self.base_index + 1);
-        self.buffer[self.base_index] = value;
+        self.head = self.wrap(self.head + 1);
+        self.buffer[self.head] = value;
+    }
+
+    fn get_first_slice(&self) -> &[T] {
+        if self.tail > self.head {
+            &self.buffer[self.head..self.buffer.len()]
+        } else {
+            &self.buffer[self.tail..self.head]
+        }
+    }
+
+    fn consume(&mut self, amt: usize) {
+        self.tail = self.wrap(self.tail + amt);
+    }
+
+    fn len(&self) -> usize {
+        if self.tail > self.head {
+            self.buffer.len() - (self.tail - self.head)
+        } else {
+            self.head - self.tail
+        }
+    }
+
+    fn remaining_space(&self) -> usize {
+        self.buffer.len() - self.len()
     }
 
     // Len is power of two, so we can use bitwise AND to wrap the index instead of modulo for
@@ -151,6 +186,6 @@ impl<T: Default> Index<usize> for HistoryBuffer<T> {
     type Output = T;
 
     fn index(&self, index: usize) -> &Self::Output {
-        &self.buffer[self.wrap(self.base_index + self.buffer.len() - index)]
+        &self.buffer[self.wrap(self.head + self.buffer.len() - index)]
     }
 }
