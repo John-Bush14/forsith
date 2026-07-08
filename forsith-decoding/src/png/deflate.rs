@@ -149,6 +149,12 @@ impl Block {
         }
         self.codlen_tree.load(&codlen_codelengths)?;
 
+        let litlen_codelengths = self.codlen_tree.iter_decode(reader).take(hlit as usize).collect::<Result<Vec<u8>, DecodingError>>()?;
+        self.litlen_tree.load(&litlen_codelengths)?;
+
+        let distance_codelengths = self.codlen_tree.iter_decode(reader).take(hdist as usize).collect::<Result<Vec<u8>, DecodingError>>()?;
+        self.distance_tree.load(&distance_codelengths)?;
+
         Ok(())
     }
 
