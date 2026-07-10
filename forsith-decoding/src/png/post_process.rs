@@ -72,20 +72,17 @@ impl<R: BufRead, const D: u8, const F: u8> PngDecoder<'_, R, D, F> {
     }
 }
 
+#[inline]
 fn paeth_predictor(a: u8, b: u8, c: u8) -> u8 {
     let (a, b, c) = (a as i16, b as i16, c as i16);
 
-    let p: i16 = a + b - c;
+    let pa = (b - c).unsigned_abs();
+    let pb = (a - c).unsigned_abs();
+    let pc = (a + b - 2 * c).unsigned_abs();
 
-    let pa = (p - a).unsigned_abs();
-    let pb = (p - b).unsigned_abs();
-    let pc = (p - c).unsigned_abs();
-
-    let minp = pa.min(pb).min(pc);
-
-    (if minp == pa {
+    (if pa <= pb && pa <= pc {
         a
-    } else if minp == pb {
+    } else if pb <= pc {
         b
     } else {
         c
