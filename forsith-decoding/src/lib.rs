@@ -26,26 +26,14 @@ pub trait ImageDecoder<'a, R: Read, const D: u8, const F: u8> {
 
     fn open(data: R) -> Result<Self, DecodingError> where Self: Sized;
 
-    fn fill_buf(&mut self) -> Result<&[u8], DecodingError>;
-    fn consume(&mut self, amt: usize);
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, DecodingError>;
 
     fn bit_depth(&self) -> u8;
     fn pixel_format(&self) -> PixelFormat;
 }
 impl<R: Read, const D: u8, const F: u8> Read for dyn ImageDecoder<'_, R, D, F> {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let data = Self::fill_buf(self)?;
-        let amt = std::cmp::min(data.len(), buf.len());
-        buf[..amt].copy_from_slice(&data[..amt]);
-        Self::consume(self, amt);
-        Ok(amt)
-    }
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {self.read(buf).map_err(|e| io::Error::new(io::ErrorKind::Other, e))}
 }
-impl<R: Read, const D: u8, const F: u8> BufRead for dyn ImageDecoder<'_, R, D, F> {
-    fn fill_buf(&mut self) -> io::Result<&[u8]> {Ok(<Self as ImageDecoder<'_, R, D, F>>::fill_buf(self)?)}
-    fn consume(&mut self, amt: usize) {<Self as ImageDecoder<'_, R, D, F>>::consume(self, amt)}
-}
-
 
 #[derive(Error, Debug)]
 pub enum DecodingError {
