@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod decoding_tests {
-    use std::{fs::File, io::{BufReader, Read}, path::PathBuf};
+    use core::panic;
+use std::{fs::File, io::{BufReader, Read}, path::PathBuf};
 
     use crate::{DecodingError, ImageDecoder, PixelFormat, PngDecoder};
 
@@ -31,7 +32,7 @@ mod decoding_tests {
             if !decoded.iter().eq(solution.iter()) {
                 for i in 0..len {
                     if decoded[i] != solution[i] {
-                        println!("Mismatch at byte {}: decoded = {}, solution = {}", i, decoded[i], solution[i]);
+                        panic!("Mismatch at byte {}: decoded = {}, solution = {}", i, decoded[i], solution[i]);
                     }
                 }
 

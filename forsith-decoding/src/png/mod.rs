@@ -58,7 +58,6 @@ pub struct PngDecoder<'a, R: BufRead, const D: u8, const F: u8> {
     phantom: std::marker::PhantomData<&'a ()>,
     ihdr: IHDR,
     cur_block: deflate::Block,
-    cur_scanline: (PngFilter, usize), // (filter, bytes remaining)
     source_bitspp: u8,
     source_bytespp: u8,
     inflate_capacity: usize,
@@ -81,7 +80,6 @@ impl<'a, R: BufRead, const D: u8, const F: u8> ImageDecoder<'a, R, D, F> for Png
             phantom: std::marker::PhantomData,
             ihdr,
             cur_block: deflate::Block::default(),
-            cur_scanline: (PngFilter::None, 0),
             source_bitspp,
             source_bytespp: source_bitspp / 8,
             inflate_capacity: 0,
@@ -133,9 +131,7 @@ impl<'a, R: BufRead, const D: u8, const F: u8> ImageDecoder<'a, R, D, F> for Png
                 self.update_inflate_capacity(-(self.deflate_buffer().remaining_space() as isize));
 
                 while self.inflate_capacity() > 0 && self.deflate_buffer().len() > 0 {
-                    let b = self.deflate_buffer()[self.deflate_buffer().len() - 1];
-                    self.push_inflated_byte(b, dest)?;
-                    self.deflate_buffer_mut().consume(1);
+                    self.consume_inflated_scanline(dest)?;
                 }
 
                 self.update_inflate_capacity(-(self.scanline_buffer.remaining_space() as isize));
@@ -207,9 +203,7 @@ impl<'a, R: BufRead, const D: u8, const F: u8> PngDecoder<'a, R, D, F> {
         self.reader.update_adler32(b);
 
         if self.deflate_buffer().remaining_space() == 0 {
-            let b = self.deflate_buffer()[self.deflate_buffer().buffer.len() - 1];
-            self.push_inflated_byte(b, dest)?;
-            self.deflate_buffer_mut().consume(1);
+            self.consume_inflated_scanline(dest)?;
         } else {
             self.update_inflate_capacity(-1);
         }
@@ -225,22 +219,6 @@ impl<'a, R: BufRead, const D: u8, const F: u8> PngDecoder<'a, R, D, F> {
 
     fn deflate_buffer_mut(&mut self) -> &mut HistoryBuffer<u8> {
         self.deflate_buffer.as_mut().unwrap_or_else(|| panic!("responsibility of caller to ensure this is only called after start of data reading."))
-    }
-
-    fn push_inflated_byte(&mut self, b: u8, dest: &mut [u8]) -> Result<(), DecodingError> {
-        if let Some(corrected) = self.filter(b)? {
-            if self.scanline_buffer.remaining_space() == 0 {
-                let b = self.scanline_buffer[self.scanline_buffer.buffer.len() - 1];
-                self.push_filtered_byte(b, dest)?;
-                self.scanline_buffer.consume(1);
-            } else {
-                self.update_inflate_capacity(-1);
-            }
-
-            self.scanline_buffer.push(corrected);
-        }
-
-        Ok(())
     }
 
     fn push_filtered_byte(&mut self, b: u8, dest: &mut [u8]) -> Result<(), DecodingError> {
@@ -279,7 +257,7 @@ impl<'a, R: BufRead, const D: u8, const F: u8> PngDecoder<'a, R, D, F> {
 
     fn fill_buf_compressed<const S: bool>(&mut self, dest: &mut [u8]) -> Result<(), DecodingError> {
         loop  {
-            if self.inflate_capacity() < 512 {
+            if self.inflate_capacity() < 258 || (self.scanline_buffer.remaining_space() != 0 && self.inflate_capacity() < self.scanline_bytes()-1) {
                 break;
             }
 

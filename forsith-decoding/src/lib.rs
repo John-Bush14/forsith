@@ -189,6 +189,13 @@ impl<T: Default + Clone> HistoryBuffer<T> {
         self.buffer.len() - self.len()
     }
 
+    fn pop_last(&mut self) -> Option<T> {
+        let value = self.buffer[self.tail].clone();
+        self.consume(1);
+
+        Some(value)
+    }
+
     // Len is power of two, so we can use bitwise AND to wrap the index instead of modulo for
     // performance reasons.
     fn wrap(&self, index: usize) -> usize {index & (self.buffer.len()-1)}
