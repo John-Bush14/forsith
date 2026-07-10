@@ -7,6 +7,45 @@ use crate::{DecodingError, Num, png::readers::BitReader};
 const MAX_COLEN: u8 = 18;
 const CODE_LENGTH_ORDER: [u8; 19] = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15];
 
+// (base, extra_bits) for length symbols 257..=285
+const LENGTH_TABLE: [(u16, u8); 29] = [
+    (3,0),(4,0),(5,0),(6,0),(7,0),(8,0),(9,0),(10,0),
+    (11,1),(13,1),(15,1),(17,1),
+    (19,2),(23,2),(27,2),(31,2),
+    (35,3),(43,3),(51,3),(59,3),
+    (67,4),(83,4),(99,4),(115,4),
+    (131,5),(163,5),(195,5),(227,5),
+    (258,0),
+];
+
+// (base, extra_bits) for distance codes 0..=29
+const DISTANCE_TABLE: [(u16, u8); 30] = [
+    (1,0),(2,0),(3,0),(4,0),
+    (5,1),(7,1),
+    (9,2),(13,2),
+    (17,3),(25,3),
+    (33,4),(49,4),
+    (65,5),(97,5),
+    (129,6),(193,6),
+    (257,7),(385,7),
+    (513,8),(769,8),
+    (1025,9),(1537,9),
+    (2049,10),(3073,10),
+    (4097,11),(6145,11),
+    (8193,12),(12289,12),
+    (16385,13),(24577,13),
+];
+
+pub fn decode_length<R: BitReader>(symbol: u16, reader: &mut R) -> std::io::Result<u16> {
+    let (base, extra) = LENGTH_TABLE[(symbol - 257) as usize];
+    Ok(base + reader.read_bits(extra)? as u16)
+}
+
+pub fn decode_distance<R: BitReader>(code: u16, reader: &mut R) -> std::io::Result<u16> {
+    let (base, extra) = DISTANCE_TABLE[code as usize];
+    Ok(base + reader.read_bits(extra)? as u16)
+}
+
 #[derive(Debug, Default)]
 pub struct HuffmanTree<S: Num> {
     table: Vec<Entry<S>>, // (symbol, code length)
@@ -21,27 +60,18 @@ enum Entry<S: Num> {
 }
 impl<S: Num> HuffmanTree<S> {
     pub fn load(&mut self, code_lengths: &[u8]) -> Result<(), DecodingError> {
-        let mut colen_count = [0u8; MAX_COLEN as usize + 1];
-        self.max_colen = 0;
-
-        for &colen in code_lengths {
-            if colen > MAX_COLEN {
-                return Err(DecodingError::InvalidCodeLength(colen));
-            }
-
-            colen_count[colen as usize] += 1;
-            self.max_colen = self.max_colen.max(colen);
-        };
-        colen_count[0] = 0;
-
-        if colen_count[2] == 0 && colen_count[1] == 1 {
-            colen_count[0] = 1; // make single symbol have code 1
+        self.max_colen = code_lengths.iter().copied().max().unwrap_or(0);
+        if self.max_colen > MAX_COLEN {
+            return Err(DecodingError::InvalidCodeLength(self.max_colen));
         }
 
-        let mut first_codes = [0u32; MAX_COLEN as usize + 1];
-        for i in 1..=self.max_colen as usize {
-            first_codes[i] = (first_codes[i - 1] + colen_count[i - 1] as u32) << 1;
+        let mut colen_counts = Self::get_colen_counts(code_lengths)?;
+
+        if colen_counts[2] == 0 && colen_counts[1] == 1 {
+            colen_counts[0] = 1; // make single symbol have code 1
         }
+
+        let mut next_code = self.generate_first_codes(&colen_counts);
 
         Vec::resize(&mut self.table, 1 << self.max_colen, Entry::Empty);
 
@@ -49,8 +79,8 @@ impl<S: Num> HuffmanTree<S> {
             if colen == 0 {continue;}
             let Ok(symbol) = symbol else {return Err(DecodingError::InvalidSymbol(std::mem::size_of::<S>()))};
 
-            let code = first_codes[colen as usize];
-            first_codes[colen as usize] += 1;
+            let code = next_code[colen as usize];
+            next_code[colen as usize] += 1;
 
             let code = reverse_bits(code, colen as _);
 
@@ -64,7 +94,32 @@ impl<S: Num> HuffmanTree<S> {
         Ok(())
     }
 
-    fn decode_symbol<R: BitReader>(&self, reader: &mut R) -> Result<S, DecodingError> {
+    fn get_colen_counts(colens: &[u8]) -> Result<[u16; MAX_COLEN as usize + 1], DecodingError> {
+        let mut colen_count = [0u16; MAX_COLEN as usize + 1];
+
+        for &colen in colens {
+            if colen > MAX_COLEN {
+                return Err(DecodingError::InvalidCodeLength(colen));
+            }
+
+            colen_count[colen as usize] += 1;
+        }
+        colen_count[0] = 0;
+
+        Ok(colen_count)
+    }
+
+    fn generate_first_codes(&self, colen_counts: &[u16; MAX_COLEN as usize + 1]) -> [u32; MAX_COLEN as usize + 1] {
+        let mut first_codes = [0u32; MAX_COLEN as usize + 1];
+
+        for i in 1..=self.max_colen as usize {
+            first_codes[i] = (first_codes[i - 1] + colen_counts[i - 1] as u32) << 1;
+        }
+
+        first_codes
+    }
+
+    pub fn decode_symbol<R: BitReader>(&self, reader: &mut R) -> Result<S, DecodingError> {
         let code = reader.peek_bits(self.max_colen)?;
 
         let (symbol, colen) = match self.table[code] {
@@ -77,7 +132,7 @@ impl<S: Num> HuffmanTree<S> {
         Ok(symbol)
     }
 
-    fn iter_decode<'a, R: BitReader>(&'a self, reader: &'a mut R) -> HuffmanDecoder<'a, S, R> {
+    pub fn iter_decode<'a, R: BitReader>(&'a self, reader: &'a mut R) -> HuffmanDecoder<'a, S, R> {
         HuffmanDecoder {
             tree: self,
             reader,
@@ -110,17 +165,17 @@ fn reverse_bits(mut value: u32, bits: usize) -> u32 {
 }
 
 #[derive(Debug, Default, PartialEq, Eq)]
-enum CompressionType {
+pub enum BlockType {
     Uncompressed(u16),
     CompressedFixed,
     CompressedDynamic,
     #[default]
-    Reserved,
+    Finished,
 }
 #[derive(Debug, Default)]
 pub struct Block {
     pub last: bool,
-    pub compression_type: CompressionType,
+    pub r#type: BlockType,
     pub litlen_tree: HuffmanTree<u16>,
     pub distance_tree: HuffmanTree<u16>,
     pub codlen_tree: HuffmanTree<u8>,
@@ -130,7 +185,7 @@ impl Block {
         self.last = reader.read_bits(1)? == 1;
         self.load_compression_type(reader)?;
 
-        if self.compression_type == CompressionType::CompressedDynamic {
+        if self.r#type == BlockType::CompressedDynamic {
             self.load_trees(reader)?;
         }
 
@@ -149,11 +204,32 @@ impl Block {
         }
         self.codlen_tree.load(&codlen_codelengths)?;
 
-        let litlen_codelengths = self.codlen_tree.iter_decode(reader).take(hlit as usize).collect::<Result<Vec<u8>, DecodingError>>()?;
-        self.litlen_tree.load(&litlen_codelengths)?;
+        // Decode hlit + hdist code lengths, expanding RLE symbols 16/17/18
+        let total = hlit as usize + hdist as usize;
+        let mut all_codelengths = Vec::with_capacity(total);
+        while all_codelengths.len() < total {
+            let symbol = self.codlen_tree.decode_symbol(reader)?;
+            match symbol {
+                0..=15 => all_codelengths.push(symbol as u8),
+                16 => {
+                    let repeat = reader.read_bits(2)? as u8 + 3;
+                    let prev = *all_codelengths.last().unwrap_or(&0);
+                    for _ in 0..repeat { all_codelengths.push(prev); }
+                }
+                17 => {
+                    let repeat = reader.read_bits(3)? as u8 + 3;
+                    for _ in 0..repeat { all_codelengths.push(0); }
+                }
+                18 => {
+                    let repeat = reader.read_bits(7)? as u8 + 11;
+                    for _ in 0..repeat { all_codelengths.push(0); }
+                }
+                _ => unreachable!(),
+            }
+        }
 
-        let distance_codelengths = self.codlen_tree.iter_decode(reader).take(hdist as usize).collect::<Result<Vec<u8>, DecodingError>>()?;
-        self.distance_tree.load(&distance_codelengths)?;
+        self.litlen_tree.load(&all_codelengths[..hlit as usize])?;
+        self.distance_tree.load(&all_codelengths[hlit as usize..])?;
 
         Ok(())
     }
@@ -168,11 +244,11 @@ impl Block {
                     return Err(DecodingError::BlockLengthMismatch(len, nlen));
                 }
 
-                self.compression_type = CompressionType::Uncompressed(len)
+                self.r#type = BlockType::Uncompressed(len)
             },
-            1 => self.compression_type = CompressionType::CompressedFixed,
-            2 => self.compression_type = CompressionType::CompressedDynamic,
-            _ => self.compression_type = CompressionType::Reserved,
+            1 => self.r#type = BlockType::CompressedFixed,
+            2 => self.r#type = BlockType::CompressedDynamic,
+            _ => return Err(DecodingError::ReservedCompressionMethod),
         }
 
         Ok(())

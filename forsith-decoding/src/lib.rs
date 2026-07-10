@@ -1,4 +1,4 @@
-use std::{io::{self, BufRead, Read}, ops::Index};
+use std::{io::{self, BufRead, Read}, ops::{BitAnd, BitOr, BitXor, Index, Shl, Shr}};
 use num_enum::{FromPrimitive, IntoPrimitive, TryFromPrimitive};
 use thiserror::Error;
 
@@ -6,6 +6,7 @@ mod tests;
 
 mod png;
 pub use png::PngDecoder;
+use png::{CRC32, Adler32};
 
 
 use crate::png::ChunkType;
@@ -19,7 +20,10 @@ pub enum PixelFormat {
     TruecolorAlpha = 4
 }
 
-pub trait ImageDecoder<'a, R: Read, C: Num, const F: u8> {
+pub trait ImageDecoder<'a, R: Read, const D: u8, const F: u8> {
+    fn dest_bitspp(&self) -> u8 {D * F}
+    fn dest_bytespp(&self) -> u8 {D*F / 8}
+
     fn open(data: R) -> Result<Self, DecodingError> where Self: Sized;
 
     fn fill_buf(&mut self) -> Result<&[u8], DecodingError>;
@@ -28,7 +32,7 @@ pub trait ImageDecoder<'a, R: Read, C: Num, const F: u8> {
     fn bit_depth(&self) -> u8;
     fn pixel_format(&self) -> PixelFormat;
 }
-impl<R: Read, C: Num, const F: u8> Read for dyn ImageDecoder<'_, R, C, F> {
+impl<R: Read, const D: u8, const F: u8> Read for dyn ImageDecoder<'_, R, D, F> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let data = Self::fill_buf(self)?;
         let amt = std::cmp::min(data.len(), buf.len());
@@ -37,9 +41,9 @@ impl<R: Read, C: Num, const F: u8> Read for dyn ImageDecoder<'_, R, C, F> {
         Ok(amt)
     }
 }
-impl<R: Read, C: Num, const F: u8> BufRead for dyn ImageDecoder<'_, R, C, F> {
-    fn fill_buf(&mut self) -> io::Result<&[u8]> {Ok(<Self as ImageDecoder<'_, R, C, F>>::fill_buf(self)?)}
-    fn consume(&mut self, amt: usize) {<Self as ImageDecoder<'_, R, C, F>>::consume(self, amt)}
+impl<R: Read, const D: u8, const F: u8> BufRead for dyn ImageDecoder<'_, R, D, F> {
+    fn fill_buf(&mut self) -> io::Result<&[u8]> {Ok(<Self as ImageDecoder<'_, R, D, F>>::fill_buf(self)?)}
+    fn consume(&mut self, amt: usize) {<Self as ImageDecoder<'_, R, D, F>>::consume(self, amt)}
 }
 
 
@@ -57,16 +61,18 @@ pub enum DecodingError {
     InteralacingNotSupported,
     #[error("Unknown critical chunk type '{0:?}'")]
     UnkownChunk([u8; 4]),
-    #[error("Stored ({1:#010X}) and calculated ({0:#010X}) CRC did not match, indication data corruption.")]
-    CRCMismatch(u32, u32), // calculated, store
+    #[error("Stored ({0:?}) and calculated ({1:?}) CRC did not match, indicating data corruption.")]
+    CRCMismatch(CRC32, CRC32), // calculated, store
+    #[error("Stored ({1:#010X}) and calculated ({0:#010X}) Adler32 checksum did not match, indicating incorrect (de)compression.")]
+    Adler32Mismatch(u32, u32), // calculated, store
     #[error("First chunk is not IHDR, instead ({0:?})")]
     NoIHDR(ChunkType),
     #[error("No IDAT chunk found")]
     NoIDAT,
     #[error("Multiple '{0}' chunks found")]
     MultipleChunks(ChunkType),
-    #[error("Attempted to close chunk '{0}' before reading all data, {1} bytes remaining")]
-    EarlyClose(ChunkType, u32),
+    #[error("Attempted to close chunk '{0}' with incorrect amount of bytes ({1}) remaining")]
+    IncorrectClose(ChunkType, u32),
     #[error("Block length ({0}) and its one's complement ({1}) did not match")]
     BlockLengthMismatch(u16, u16),
     #[error("Code length ({0}) is too large")]
@@ -75,6 +81,12 @@ pub enum DecodingError {
     InvalidSymbol(usize),
     #[error("Undefined huffman code ({0:#010X}) found in deflate stream.")]
     UndefinedHuffmanCode(u32),
+    #[error("Reserved compression method found in deflate stream.")]
+    ReservedCompressionMethod,
+    #[error("Invalid filter ({0}) written at start of scanline.")]
+    InvalidFilter(u8),
+    #[error("Invalid backreference with distance 0 found in deflate stream.")]
+    ZeroDistance
 }
 impl From<DecodingError> for io::Error {
     fn from(err: DecodingError) -> Self {
@@ -87,7 +99,11 @@ fn read_exact_array<const N: usize, R: Read>(reader: &mut R) -> io::Result<[u8; 
     reader.read_exact(&mut buf)?;
     Ok(buf)
 }
-pub trait Num: Sized + Copy + Default + PartialEq + Eq + std::fmt::Debug + TryFrom<u32> + From<u8> + TryFrom<u16> + TryFrom<usize> {
+pub trait Num: Sized + Copy + Default + PartialEq
++ Eq + std::fmt::Debug + TryFrom<u32> + From<u8> + TryFrom<u16> + TryFrom<usize>
++ BitAnd<Output=Self> + BitOr<Output=Self> + BitXor<Output=Self> + Shl<usize, Output=Self>
++ Shr<usize, Output=Self> + std::ops::Add<Output=Self> + std::ops::Sub<Output=Self>
++ std::ops::Div<Output=Self> + std::ops::Mul<Output=Self> {
     fn read_be<R: Read>(reader: &mut R) -> io::Result<Self> where Self: Sized;
     fn read_le<R: Read>(reader: &mut R) -> io::Result<Self> where Self: Sized;
     const BIT_DEPTH: u8;
@@ -100,7 +116,7 @@ impl Num for u32 {
     fn read_le<R: Read>(reader: &mut R) -> io::Result<Self> {
         Ok(u32::from_le_bytes(read_exact_array::<4, _>(reader)?))
     }
-    const BIT_DEPTH: u8 = 32;
+    const BIT_DEPTH: u8 = std::mem::size_of::<Self>() as u8 * 8;
     const MAX: Self = Self::MAX;
 }
 impl Num for u16 {
@@ -110,7 +126,7 @@ impl Num for u16 {
     fn read_le<R: Read>(reader: &mut R) -> io::Result<Self> {
         Ok(u16::from_le_bytes(read_exact_array::<2, _>(reader)?))
     }
-    const BIT_DEPTH: u8 = 8;
+    const BIT_DEPTH: u8 = std::mem::size_of::<Self>() as u8 * 8;
     const MAX: Self = Self::MAX;
 }
 impl Num for u8 {
@@ -120,7 +136,17 @@ impl Num for u8 {
     fn read_le<R: Read>(reader: &mut R) -> io::Result<Self> {
         Ok(u8::from_le_bytes(read_exact_array::<1, _>(reader)?))
     }
-    const BIT_DEPTH: u8 = 8;
+    const BIT_DEPTH: u8 = std::mem::size_of::<Self>() as u8 * 8;
+    const MAX: Self = Self::MAX;
+}
+impl Num for usize {
+    fn read_be<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(usize::from_be_bytes(read_exact_array::<{std::mem::size_of::<Self>()}, R>(reader)?))
+    }
+    fn read_le<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(usize::from_le_bytes(read_exact_array::<{std::mem::size_of::<Self>()}, R>(reader)?))
+    }
+    const BIT_DEPTH: u8 = std::mem::size_of::<Self>() as u8 * 8;
     const MAX: Self = Self::MAX;
 }
 
@@ -129,48 +155,63 @@ impl Num for u8 {
 ///
 /// Size is rounded to nearest power of 2 for performance reasons.
 #[derive(Debug)]
-pub struct HistoryBuffer<T: Default> {
+pub struct HistoryBuffer<T: Default + Clone> {
     buffer: Vec<T>,
     head: usize,
-    tail: usize
+    tail: usize,
+    first_element: bool
 }
-impl<T: Default> HistoryBuffer<T> {
+impl<T: Default + Clone> HistoryBuffer<T> {
     pub fn new(size: usize) -> Self {
         let size = size.next_power_of_two();
 
-        let mut buffer = Vec::with_capacity(size);
-        buffer.resize_with(size, || T::default());
+        let buffer = vec![T::default(); size];
 
         Self {
             buffer,
             head: 0,
-            tail: 0
+            tail: 0,
+            first_element: false
         }
     }
 
     pub fn push(&mut self, value: T) {
-        self.head = self.wrap(self.head + 1);
+        if self.first_element {
+            self.head = self.wrap(self.head + 1)
+        } else {
+            self.first_element = true;
+        }
+
         self.buffer[self.head] = value;
     }
 
     fn get_first_slice(&self) -> &[T] {
         if self.tail > self.head {
-            &self.buffer[self.head..self.buffer.len()]
-        } else {
-            &self.buffer[self.tail..self.head]
-        }
+            &self.buffer[self.tail..self.buffer.len()]
+        } else if self.first_element_exists() {
+            &self.buffer[self.tail..=self.head]
+        } else {&[]}
     }
 
-    fn consume(&mut self, amt: usize) {
+    fn first_element_exists(&self) -> bool {
+        self.first_element || self.tail != self.head
+    }
+
+    fn consume(&mut self, mut amt: usize) {
+        if amt == self.len() && (self.first_element || self.tail != self.head) {
+            self.first_element = false;
+            amt -= 1;
+        }
+
         self.tail = self.wrap(self.tail + amt);
     }
 
     fn len(&self) -> usize {
-        if self.tail > self.head {
+        (if self.tail > self.head {
             self.buffer.len() - (self.tail - self.head)
         } else {
             self.head - self.tail
-        }
+        }) + (self.first_element || self.tail != self.head) as usize
     }
 
     fn remaining_space(&self) -> usize {
@@ -182,10 +223,50 @@ impl<T: Default> HistoryBuffer<T> {
     fn wrap(&self, index: usize) -> usize {index & (self.buffer.len()-1)}
 }
 
-impl<T: Default> Index<usize> for HistoryBuffer<T> {
+impl<T: Default + Clone> Index<usize> for HistoryBuffer<T> {
     type Output = T;
 
     fn index(&self, index: usize) -> &Self::Output {
         &self.buffer[self.wrap(self.head + self.buffer.len() - index)]
+    }
+}
+
+#[derive(Debug)]
+pub struct BitBuffer<I: Num> {
+    buf: I,
+    bits_remaining: u8
+}
+impl<I: Num> BitBuffer<I> {
+    fn new() -> Self {
+        Self {
+            buf: I::default(),
+            bits_remaining: 0
+        }
+    }
+
+    pub fn bits_remaining(&self) -> u8 {
+        self.bits_remaining
+    }
+
+    fn peek(&self, n: u8) -> I {
+        if n > I::BIT_DEPTH {
+            panic!("Cannot peek more than {} bits from this BitBuffer", I::BIT_DEPTH);
+        }
+
+        self.buf & ((I::from(1u8) << n as usize) - I::from(1u8))
+    }
+
+    fn consume(&mut self, n: u8) {
+        self.buf = self.buf >> n as usize;
+        self.bits_remaining -= n;
+    }
+
+    fn push(&mut self, byte: u8) {
+        self.buf = self.buf | (I::from(byte) << self.bits_remaining as usize);
+        self.bits_remaining += 8;
+
+        if self.bits_remaining > I::BIT_DEPTH {
+            panic!("BitBuffer overflow: bits_remaining = {}, I::BIT_DEPTH = {}", self.bits_remaining, I::BIT_DEPTH);
+        }
     }
 }

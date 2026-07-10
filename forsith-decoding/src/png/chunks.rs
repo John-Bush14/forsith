@@ -1,5 +1,5 @@
 use std::{any::Any, fmt::Display, io::BufRead};
-use crate::{DecodingError, Num, PngDecoder, png::{ChunkReader, ColorType}};
+use crate::{DecodingError, HistoryBuffer, Num, PngDecoder, png::{ChunkReader, ColorType}};
 use num_enum::{TryFromPrimitive, IntoPrimitive};
 
 #[repr(u32)]
@@ -35,7 +35,7 @@ pub trait ChunkData: Any {
     fn read<R: BufRead>(reader: &mut ChunkReader<R>) -> Result<Self, DecodingError>
     where Self: Sized;
 
-    fn update_decoder<'a, R: BufRead, C: Num, const F: u8>(self, decoder: &mut PngDecoder<'a, R, C, F>) -> Result<(), DecodingError>
+    fn update_decoder<'a, R: BufRead, const D: u8, const F: u8>(self, decoder: &mut PngDecoder<'a, R, D, F>) -> Result<(), DecodingError>
     where Self: Sized;
 }
 pub fn downcast_chunkdata<T: ChunkData + Any>(b: Box<dyn ChunkData>) -> Result<Box<T>, Box<dyn Any>> {
@@ -89,7 +89,7 @@ impl ChunkData for IHDR {
         })
     }
 
-    fn update_decoder<'a, R: BufRead, C: Num, const F: u8>(self, _decoder: &mut PngDecoder<'a, R, C, F>) -> Result<(), DecodingError>
+    fn update_decoder<'a, R: BufRead, const D: u8, const F: u8>(self, _decoder: &mut PngDecoder<'a, R, D, F>) -> Result<(), DecodingError>
     where Self: Sized {unreachable!()} // ihdr needs to have been read before the decoder is created, so this should never be called
 }
 
@@ -125,15 +125,18 @@ impl ChunkData for ZlibHeader {
         Ok(Self {
             compression_method: cmf & 0b00001111,
             compression_info: (cmf & 0b11110000) >> 4,
-            check: (cmf as u16 * 256 + flg as u16) % 31 == 0,
+            check: (cmf as u16 * 256 + flg as u16).is_multiple_of(31),
             dict: flg & 0b00100000 == 0b00100000,
             flevel: (flg & 0b11000000) >> 6
         })
     }
 
-    fn update_decoder<'a, R: BufRead, C: Num, const F: u8>(self, decoder: &mut PngDecoder<'a, R, C, F>) -> Result<(), DecodingError>
+    fn update_decoder<'a, R: BufRead, const D: u8, const F: u8>(self, decoder: &mut PngDecoder<'a, R, D, F>) -> Result<(), DecodingError>
     where Self: Sized {
-        decoder.lz77_buffer_size = 1 << (self.compression_info + 8);
+        let lz77_buffer_size = 1 << (self.compression_info + 8);
+
+        decoder.deflate_buffer = Some(HistoryBuffer::new(lz77_buffer_size));
+
         Ok(())
     }
 }

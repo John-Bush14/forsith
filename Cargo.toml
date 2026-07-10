@@ -4,3 +4,7 @@ resolver = "2"
 members = ["forsith-decoding",
     "forsith-shared",
 ]
+
+[profile.profiling]
+inherits = "release"
+debug = true

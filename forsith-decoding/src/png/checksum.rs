@@ -1,7 +1,7 @@
-use std::io::{BufRead};
+use std::{io::BufRead, ops::Not};
 
 use const_for::const_for;
-use crate::{DecodingError, png::readers::ChunkReader, read_exact_array};
+use crate::{DecodingError, Num, png::readers::{BitReader, ChunkReader}, read_exact_array};
 
 
 pub const POLY: u32 = 0xedb88320;
@@ -24,23 +24,51 @@ const CRC_TABLE: [u32; 256] = const {
 };
 const CRC_INIT: u32 = 0xFFFF_FFFF;
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub struct CRC32(u32);
+impl Default for CRC32 {
+    fn default() -> Self {
+        CRC32(CRC_INIT)
+    }
+}
+
+impl Not for CRC32 {
+    type Output = Self;
+
+    fn not(self) -> Self::Output {
+        CRC32(!self.0)
+    }
+}
+
+impl CRC32 {
+    pub fn update(&mut self, buf: &[u8]) {
+        for b in buf {
+            self.0 = CRC_TABLE[((self.0 ^ *b as u32) & 0xff) as usize] ^ (self.0 >> 8);
+        }
+    }
+
+    pub fn finalize(&mut self) -> u32 {
+        !self.0
+    }
+}
+
 #[derive(Debug)]
 pub struct Adler32{
     a: u32,
     b: u32,
-    count: u8
+    count: u16
 }
-impl Adler32 {
-    pub fn new() -> Self {
+impl Default for Adler32 {
+    fn default() -> Self {
         Adler32{ a: 1, b: 0, count: 0 }
     }
 }
 const ADLER_MOD: u32 = 65521;
-const ADLER_CHUNK_SIZE: usize = 5552;
+const ADLER_CHUNK_SIZE: u16 = 5552;
 
 impl<R: BufRead> ChunkReader<R> {
     pub fn validate_crc(&mut self) -> Result<(), DecodingError> {
-        let stored_crc = u32::from_be_bytes(read_exact_array::<4,_>(self.normal_reader())?);
+        let stored_crc = CRC32(u32::from_be_bytes(read_exact_array::<4,_>(self.normal_reader())?));
 
         self.crc = !self.crc;
 
@@ -51,27 +79,39 @@ impl<R: BufRead> ChunkReader<R> {
         Ok(())
     }
 
-    pub fn update_crc(&mut self, buf: &[u8]) {
-        for b in buf {
-            self.crc = CRC_TABLE[((self.crc ^ *b as u32) & 0xff) as usize] ^ (self.crc >> 8);
+    pub fn update_crc(&mut self, buf: &[u8]) {self.crc.update(buf)}
+
+    pub fn reset_crc(&mut self) {self.crc = CRC32::default()}
+
+    pub fn update_adler32(&mut self, b: u8) {
+        self.adler.a += b as u32;
+        self.adler.b += self.adler.a;
+        self.adler.count += 1;
+
+        if self.adler.count == ADLER_CHUNK_SIZE {
+            self.adler.a %= ADLER_MOD;
+            self.adler.b %= ADLER_MOD;
+            self.adler.count = 0;
         }
     }
 
-    pub fn init_crc(&mut self) {
-        self.crc = CRC_INIT;
-    }
-
-    pub fn update_adler32(&mut self, buf: &[u8]) {
-        for b in buf {
-            self.adler.a += *b as u32;
-            self.adler.b += self.adler.a;
-            self.adler.count += 1;
-
-            if self.adler.count == ADLER_CHUNK_SIZE as u8 {
-                self.adler.a %= ADLER_MOD;
-                self.adler.b %= ADLER_MOD;
-                self.adler.count = 0;
-            }
+    pub fn validate_adler32(&mut self) -> Result<(), DecodingError> {
+        if self.remaining_bytes > 4 {
+            return Err(DecodingError::IncorrectClose(self.cur_type(), self.remaining_bytes));
         }
+
+        self.consume_bits(self.bit_buf.bits_remaining() % 8);
+        let stored_adler = ((self.read_bits(8)? as u32) << 24)
+            | ((self.read_bits(8)? as u32) << 16)
+            | ((self.read_bits(8)? as u32) << 8)
+            | (self.read_bits(8)? as u32);
+
+        let computed_adler = ((self.adler.b % ADLER_MOD) << 16) | (self.adler.a % ADLER_MOD);
+
+        if computed_adler != stored_adler {
+            return Err(DecodingError::Adler32Mismatch(computed_adler, stored_adler));
+        }
+
+        Ok(())
     }
 }
