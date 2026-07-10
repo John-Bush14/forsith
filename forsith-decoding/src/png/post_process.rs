@@ -26,7 +26,7 @@ impl<R: BufRead, const D: u8, const F: u8> PngDecoder<'_, R, D, F> {
             let filtered_byte = self.filter::<FILTER>(raw_byte, i)?;
             self.scanline_buffer.push(filtered_byte);
 
-            if self.scanline_buffer.remaining_space() == 0 {
+            if self.scanline_buffer.is_full() {
                 let b = self.scanline_buffer.pop_last().unwrap();
                 self.push_filtered_byte(b, dest)?;
             }

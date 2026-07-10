@@ -202,7 +202,7 @@ impl<'a, R: BufRead, const D: u8, const F: u8> PngDecoder<'a, R, D, F> {
     fn emit_inflated_byte(&mut self, b: u8, dest: &mut [u8]) -> Result<(), DecodingError> {
         self.reader.update_adler32(b);
 
-        if self.deflate_buffer().remaining_space() == 0 {
+        if self.deflate_buffer().is_full() {
             self.consume_inflated_scanline(dest)?;
         } else {
             self.update_inflate_capacity(-1);
@@ -257,7 +257,7 @@ impl<'a, R: BufRead, const D: u8, const F: u8> PngDecoder<'a, R, D, F> {
 
     fn fill_buf_compressed<const S: bool>(&mut self, dest: &mut [u8]) -> Result<(), DecodingError> {
         loop  {
-            if self.inflate_capacity() < 258 || (self.scanline_buffer.remaining_space() != 0 && self.inflate_capacity() < self.scanline_bytes()-1) {
+            if self.inflate_capacity() < 258 || (!self.scanline_buffer.is_full() && self.inflate_capacity() < self.scanline_bytes()-1) {
                 break;
             }
 

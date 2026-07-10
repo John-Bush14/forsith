@@ -173,6 +173,8 @@ impl<T: Default + Clone> HistoryBuffer<T> {
         self.buffer[self.head] = value;
     }
 
+    pub fn is_full(&self) -> bool {self.length == self.buffer.len()}
+
     fn consume(&mut self, mut amt: usize) {
         self.length -= amt;
 
