@@ -147,7 +147,7 @@ pub struct HistoryBuffer<T: Default + Clone> {
     buffer: Vec<T>,
     head: usize,
     tail: usize,
-    first_element: bool
+    length: usize
 }
 impl<T: Default + Clone> HistoryBuffer<T> {
     pub fn new(size: usize) -> Self {
@@ -159,48 +159,31 @@ impl<T: Default + Clone> HistoryBuffer<T> {
             buffer,
             head: 0,
             tail: 0,
-            first_element: false
+            length: 0
         }
     }
 
     pub fn push(&mut self, value: T) {
-        if self.first_element {
+        if self.length != 0 {
             self.head = self.wrap(self.head + 1)
-        } else {
-            self.first_element = true;
         }
+
+        self.length += 1;
 
         self.buffer[self.head] = value;
     }
 
-    fn get_first_slice(&self) -> &[T] {
-        if self.tail > self.head {
-            &self.buffer[self.tail..self.buffer.len()]
-        } else if self.first_element_exists() {
-            &self.buffer[self.tail..=self.head]
-        } else {&[]}
-    }
-
-    fn first_element_exists(&self) -> bool {
-        self.first_element || self.tail != self.head
-    }
-
     fn consume(&mut self, mut amt: usize) {
-        if amt == self.len() && (self.first_element || self.tail != self.head) {
-            self.first_element = false;
+        self.length -= amt;
+
+        if self.length == 0 {
             amt -= 1;
         }
 
         self.tail = self.wrap(self.tail + amt);
     }
 
-    fn len(&self) -> usize {
-        (if self.tail > self.head {
-            self.buffer.len() - (self.tail - self.head)
-        } else {
-            self.head - self.tail
-        }) + (self.first_element || self.tail != self.head) as usize
-    }
+    fn len(&self) -> usize {self.length}
 
     fn remaining_space(&self) -> usize {
         self.buffer.len() - self.len()
