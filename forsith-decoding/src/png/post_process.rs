@@ -21,60 +21,62 @@ impl<R: BufRead, const D: u8, const F: u8> PngDecoder<'_, R, D, F> {
     }
 
     fn filter_and_push_scanline<const FILTER: u8>(&mut self, dest: &mut [u8]) -> Result<(), DecodingError> {
-        for i in 0..self.scanline_bytes()-1 {
-            let raw_byte = self.deflate_buffer_mut().pop_last().unwrap();
-            let filtered_byte = self.filter::<FILTER>(raw_byte, i)?;
-            self.scanline_buffer.push(filtered_byte);
+        let skipped_bytes = self.handle_border_pixels::<FILTER>(dest)?; // for branch reasons
 
-            if self.scanline_buffer.is_full() {
-                let b = self.scanline_buffer.pop_last().unwrap();
-                self.push_filtered_byte(b, dest)?;
+        for _ in skipped_bytes..self.scanline_bytes()-1 {
+            let raw_byte = self.deflate_buffer_mut().pop_last().unwrap();
+            let filtered_byte = self.filter::<FILTER>(raw_byte)?;
+            self.emit_filtered_byte(filtered_byte, dest)?;
+        }
+
+        Ok(())
+    }
+
+    fn handle_border_pixels<const FILTER: u8>(&mut self, dest: &mut [u8]) -> Result<usize, DecodingError> {
+        if matches!(FILTER, 1 | 3 | 4) {
+            for _ in 0..self.source_bytespp as usize {
+                let raw_byte = self.deflate_buffer_mut().pop_last().unwrap();
+
+                let filtered_byte = match FILTER {
+                    1 => raw_byte,
+                    3 => raw_byte.wrapping_add(self.upper_pixel()/2),
+                    4 => raw_byte.wrapping_add(paeth_predictor(0, self.upper_pixel(), 0)),
+                    _ => unreachable!()
+                };
+
+                self.emit_filtered_byte(filtered_byte, dest)?;
             }
+
+            return Ok(self.source_bytespp as usize);
+        }
+
+        Ok(0)
+    }
+
+    fn emit_filtered_byte(&mut self, b: u8, dest: &mut [u8]) -> Result<(), DecodingError> {
+        self.scanline_buffer.push(b);
+
+        if self.scanline_buffer.is_full() {
+            let b = self.scanline_buffer.pop_last().unwrap();
+            self.push_filtered_byte(b, dest)?;
         }
 
         Ok(())
     }
 
     #[inline]
-    fn filter<const FILTER: u8>(&mut self, b: u8, i: usize) -> Result<u8, DecodingError> {
+    fn filter<const FILTER: u8>(&mut self, b: u8) -> Result<u8, DecodingError> {
         Ok(match FILTER {
             0 => b,
-            1 => b.wrapping_add(self.left_pixel(i)),
+            1 => b.wrapping_add(self.left_pixel()),
             2 => b.wrapping_add(self.upper_pixel()),
-            3 => b.wrapping_add(((self.left_pixel(i) as u16 + self.upper_pixel() as u16) / 2) as u8),
-            4 => {
-                let A = self.left_pixel(i) as i16;
-                let B = self.upper_pixel() as i16;
-                let C = self.left_upper_pixel(i) as i16;
-
-
-                let p: i16 = A + B - C;
-
-                let pa = (p - A).unsigned_abs();
-                let pb = (p - B).unsigned_abs();
-                let pc = (p - C).unsigned_abs();
-
-                let minp = pa.min(pb).min(pc);
-
-                let min = if minp == pa {
-                    A
-                } else if minp == pb {
-                    B
-                } else {
-                    C
-                };
-
-                b.wrapping_add(min as u8)
-            },
+            3 => b.wrapping_add(((self.left_pixel() as u16 + self.upper_pixel() as u16) / 2) as u8),
+            4 => b.wrapping_add(paeth_predictor(self.left_pixel(), self.upper_pixel(), self.left_upper_pixel())),
             _ => return Err(DecodingError::InvalidFilter(F)),
         })
     }
 
-    pub fn left_pixel(&self, i: usize) -> u8 {
-        if i < self.source_bytespp as usize {
-            return 0;
-        }
-
+    pub fn left_pixel(&self) -> u8 {
         self.scanline_buffer[self.source_bytespp as usize - 1]
     }
 
@@ -82,15 +84,31 @@ impl<R: BufRead, const D: u8, const F: u8> PngDecoder<'_, R, D, F> {
         self.scanline_buffer[self.scanline_bytes() - 2]
     }
 
-    pub fn left_upper_pixel(&self, i: usize) -> u8 {
-        if i < self.source_bytespp as usize {
-            return 0;
-        }
-
+    pub fn left_upper_pixel(&self) -> u8 {
         self.scanline_buffer[self.source_bytespp as usize + self.scanline_bytes() - 2]
     }
 
     pub fn scanline_bytes(&self) -> usize {
         (self.ihdr.width as usize * self.source_bitspp as usize) / 8 + 1
     }
+}
+
+fn paeth_predictor(a: u8, b: u8, c: u8) -> u8 {
+    let (a, b, c) = (a as i16, b as i16, c as i16);
+
+    let p: i16 = a + b - c;
+
+    let pa = (p - a).unsigned_abs();
+    let pb = (p - b).unsigned_abs();
+    let pc = (p - c).unsigned_abs();
+
+    let minp = pa.min(pb).min(pc);
+
+    (if minp == pa {
+        a
+    } else if minp == pb {
+        b
+    } else {
+        c
+    }) as u8
 }
