@@ -1,6 +1,6 @@
 use core::panic;
 use std::io::{BufRead, Read};
-use crate::{DecodingError, HistoryBuffer, ImageDecoder, Num, PixelFormat, png::{chunks::{IHDR, ZlibHeader, downcast_chunkdata}, deflate::{BlockType, decode_length, decode_distance}}};
+use crate::{DecodingError, HistoryBuffer, ImageDecoder, Num, PixelFormat, png::{chunks::{IHDR, ZlibHeader, downcast_chunkdata}, deflate::{BlockType, decode_distance, decode_length}, post_process::scanline_bytes}};
 use num_enum::{FromPrimitive, TryFromPrimitive};
 
 mod chunks;
@@ -54,7 +54,8 @@ enum PngFilter {
 pub struct PngDecoder<'a, R: BufRead, const D: u8, const F: u8> {
     reader: ChunkReader<R>,
     deflate_buffer: Option<HistoryBuffer<u8>>,
-    scanline_buffer: HistoryBuffer<u8>,
+    scanline_buffers: [Vec<u8>; 2],
+    cur_scanline_buffer: usize,
     phantom: std::marker::PhantomData<&'a ()>,
     ihdr: IHDR,
     cur_block: deflate::Block,
@@ -73,11 +74,13 @@ impl<'a, R: BufRead, const D: u8, const F: u8> ImageDecoder<'a, R, D, F> for Png
         let ihdr = read_ihdr(&mut reader)?;
 
         let source_bitspp = PixelFormat::from(ihdr.color_type.into()) as u8 * ihdr.bit_depth;
+        let scanline_buffer_size = scanline_bytes(ihdr.width, source_bitspp) - 1;
         let mut decoder = Self {
             reader,
             deflate_buffer: None,
-            scanline_buffer: HistoryBuffer::new(((ihdr.width as usize + 2) * source_bitspp as usize) / 8), // + 2 for upperleft
             phantom: std::marker::PhantomData,
+            scanline_buffers: [Vec::with_capacity(scanline_buffer_size), Vec::with_capacity(scanline_buffer_size)],
+            cur_scanline_buffer: 0,
             ihdr,
             cur_block: deflate::Block::default(),
             source_bitspp,
@@ -130,16 +133,18 @@ impl<'a, R: BufRead, const D: u8, const F: u8> ImageDecoder<'a, R, D, F> for Png
             BlockType::Finished => {
                 self.update_inflate_capacity(-(self.deflate_buffer().remaining_space() as isize));
 
-                while self.inflate_capacity() > 0 && self.deflate_buffer().len() > 0 {
+                while self.inflate_capacity() >= self.scanline_bytes() - 1 && self.deflate_buffer().len() > 0 {
                     self.consume_inflated_scanline(dest)?;
+
+                    self.update_inflate_capacity(-(self.scanline_bytes() as isize - 1));
                 }
 
-                self.update_inflate_capacity(-(self.scanline_buffer.remaining_space() as isize));
+                self.update_inflate_capacity(-(self.remaining_scanline_buffers_bytes() as isize));
 
-                while self.inflate_capacity() > 0 && self.scanline_buffer.len() > 0 {
-                    let b = self.scanline_buffer[self.scanline_buffer.len() - 1];
-                    self.push_filtered_byte(b, dest)?;
-                    self.scanline_buffer.consume(1);
+                while self.inflate_capacity() >= self.prev_scanline_buffer().len() && !self.prev_scanline_buffer().is_empty(){
+                    self.push_previous_scanline(dest)?;
+
+                    self.switch_scanline_buffers();
                 }
             }
         }
@@ -163,7 +168,7 @@ impl<'a, R: BufRead, const D: u8, const F: u8> PngDecoder<'a, R, D, F> {
         // let correct_dest_capacity = (dest.len() * 8 / dest_bitspp as usize) * self.source_bitspp as usize;
         let correct_dest_capacity = dest.len() - self.dest_index;
 
-        correct_dest_capacity + self.deflate_buffer().remaining_space() + self.scanline_buffer.remaining_space()
+        correct_dest_capacity + self.deflate_buffer().remaining_space() + self.remaining_scanline_buffers_bytes()
     }
 
     fn update_inflate_capacity(&mut self, change: isize) {
@@ -203,10 +208,11 @@ impl<'a, R: BufRead, const D: u8, const F: u8> PngDecoder<'a, R, D, F> {
         self.reader.update_adler32(b);
 
         if self.deflate_buffer().is_full() {
+            println!("consume scanline inflate_capacity: {}, prev_scanline_buffer.len(): {}", self.inflate_capacity(), self.prev_scanline_buffer().len());
             self.consume_inflated_scanline(dest)?;
-        } else {
-            self.update_inflate_capacity(-1);
         }
+
+        self.update_inflate_capacity(-1);
 
         self.deflate_buffer_mut().push(b);
 
@@ -221,11 +227,18 @@ impl<'a, R: BufRead, const D: u8, const F: u8> PngDecoder<'a, R, D, F> {
         self.deflate_buffer.as_mut().unwrap_or_else(|| panic!("responsibility of caller to ensure this is only called after start of data reading."))
     }
 
-    fn push_filtered_byte(&mut self, b: u8, dest: &mut [u8]) -> Result<(), DecodingError> {
-        self.update_inflate_capacity(-1);
+    fn push_previous_scanline(&mut self, dest: &mut [u8]) -> Result<(), DecodingError> {
+        if self.inflate_capacity() < self.prev_scanline_buffer().len() {
+            panic!("responsibility of caller to ensure this is only called when there is enough space in the destination buffer.")
+        }
 
-        dest[self.dest_index] = b;
-        self.dest_index += 1;
+        for i in 0..self.prev_scanline_buffer().len() {
+            let b = self.prev_scanline_buffer()[i];
+            dest[self.dest_index] = b;
+            self.dest_index += 1;
+        }
+
+        self.prev_scanline_buffer_mut().clear();
 
         Ok(())
     }
@@ -257,7 +270,7 @@ impl<'a, R: BufRead, const D: u8, const F: u8> PngDecoder<'a, R, D, F> {
 
     fn fill_buf_compressed<const S: bool>(&mut self, dest: &mut [u8]) -> Result<(), DecodingError> {
         loop  {
-            if self.inflate_capacity() < 258 || (!self.scanline_buffer.is_full() && self.inflate_capacity() < self.scanline_bytes()-1) {
+            if self.inflate_capacity() < self.scanline_bytes() - 1 + 257 + 1000 {
                 break;
             }
 

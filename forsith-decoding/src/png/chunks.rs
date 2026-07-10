@@ -135,7 +135,7 @@ impl ChunkData for ZlibHeader {
     where Self: Sized {
         let lz77_buffer_size = 1 << (self.compression_info + 8);
 
-        decoder.deflate_buffer = Some(HistoryBuffer::new(lz77_buffer_size.max(decoder.scanline_buffer.len())));
+        decoder.deflate_buffer = Some(HistoryBuffer::new(lz77_buffer_size.max(decoder.scanline_bytes() as usize - 1)));
 
         Ok(())
     }
