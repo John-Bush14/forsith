@@ -48,9 +48,7 @@ impl Filterer {
     }
 
     pub fn drain_previous_scanline<const D: u8, const F: u8>(&mut self, dest: &mut DestinationBuffer<'_, D, F>) -> Result<(), DecodingError> {
-        for &b in self.prev_buffer() {
-            dest.push_byte(b);
-        }
+        dest.push_slice(self.prev_buffer());
 
         self.prev_buffer_mut().clear();
 

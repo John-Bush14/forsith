@@ -192,10 +192,22 @@ impl<'a, const D: u8, const F: u8> DestinationBuffer<'a, D, F> {
     }
 
     pub fn push_byte(&mut self, b: u8) {
-        self.buffer[self.index] = b;
+        unsafe {*self.buffer.get_unchecked_mut(self.index) = b};
         self.index += 1;
     }
 
+    fn push_slice(&mut self, slice: &[u8]) {
+        let len = slice.len();
+        unsafe {self.buffer.get_unchecked_mut(self.index..self.index + len).copy_from_slice(slice)};
+        self.index += len;
+    }
+
     pub fn len(&self) -> usize {self.index}
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn capacity(&self) -> usize {self.buffer.len()}
 }
