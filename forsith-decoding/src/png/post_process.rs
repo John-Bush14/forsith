@@ -1,6 +1,6 @@
 use std::io::BufRead;
 
-use crate::{DecodingError, DestinationBuffer, PngDecoder};
+use crate::{CursorVec, DecodingError, DestinationBuffer, PngDecoder};
 
 impl<R: BufRead, const D: u8, const F: u8> PngDecoder<'_, R, D, F> {
 
@@ -14,7 +14,7 @@ pub fn scanline_bytes(width: u32, bitspp: u8) -> usize {
 
 #[derive(Debug)]
 pub struct Filterer {
-    scanline_buffers: [Vec<u8>; 2],
+    scanline_buffers: [CursorVec<u8>; 2],
     cur_buffer: usize,
     stride: usize
 }
@@ -22,7 +22,7 @@ pub struct Filterer {
 impl Filterer {
     pub fn new(scanline_bytes: usize, stride: usize) -> Self {
         Self {
-            scanline_buffers: [Vec::with_capacity(scanline_bytes-1), Vec::with_capacity(scanline_bytes-1)],
+            scanline_buffers: [CursorVec::new(scanline_bytes-1), CursorVec::new(scanline_bytes-1)],
             cur_buffer: 0,
             stride
         }
@@ -86,11 +86,11 @@ impl Filterer {
     pub fn scanline_bytes(&self) -> usize {self.scanline_buffers[0].capacity() + 1}
     pub fn scanline_pixel_bytes(&self) -> usize {self.scanline_buffers[0].capacity()}
 
-    pub fn cur_buffer(&self) -> &[u8] {&self.scanline_buffers[self.cur_buffer]}
-    pub fn prev_buffer(&self) -> &[u8] {&self.scanline_buffers[1 - self.cur_buffer]}
+    pub fn cur_buffer(&self) -> &[u8] {self.scanline_buffers[self.cur_buffer].as_slice()}
+    pub fn prev_buffer(&self) -> &[u8] {self.scanline_buffers[1 - self.cur_buffer].as_slice()}
 
-    pub fn cur_buffer_mut(&mut self) -> &mut Vec<u8> {&mut self.scanline_buffers[self.cur_buffer]}
-    pub fn prev_buffer_mut(&mut self) -> &mut Vec<u8> {&mut self.scanline_buffers[1 - self.cur_buffer]}
+    pub fn cur_buffer_mut(&mut self) -> &mut CursorVec<u8> {&mut self.scanline_buffers[self.cur_buffer]}
+    pub fn prev_buffer_mut(&mut self) -> &mut CursorVec<u8> {&mut self.scanline_buffers[1 - self.cur_buffer]}
 
     pub fn switch_buffers(&mut self) {self.cur_buffer = 1 - self.cur_buffer;}
 

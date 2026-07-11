@@ -1,4 +1,4 @@
-use std::{io::{self, Read}, ops::{BitAnd, BitOr, BitXor, Shl, Shr}};
+use std::{io::{self, Read}, ops::{BitAnd, BitOr, BitXor, Index, IndexMut, Range, Shl, Shr}, slice};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use thiserror::Error;
 
@@ -211,3 +211,62 @@ impl<'a, const D: u8, const F: u8> DestinationBuffer<'a, D, F> {
 
     pub fn capacity(&self) -> usize {self.buffer.len()}
 }
+
+#[derive(Debug)]
+pub struct CursorVec<T> {
+    buffer: Vec<T>,
+    cursor: usize,
+}
+
+impl<T> Index<usize> for CursorVec<T> {
+    type Output = T;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        unsafe {self.buffer.get_unchecked(index)}
+    }
+}
+impl<T> IndexMut<usize> for CursorVec<T> {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        unsafe {self.buffer.get_unchecked_mut(index)}
+    }
+}
+
+impl<T> CursorVec<T> {
+    pub fn new(size: usize) -> Self where T: Default + Copy {
+        Self {
+            buffer: vec![T::default(); size],
+            cursor: 0
+        }
+    }
+
+    pub fn push(&mut self, b: T) {
+        unsafe {*self.buffer.get_unchecked_mut(self.cursor) = b};
+        self.cursor += 1;
+    }
+
+    pub fn push_slice(&mut self, slice: &[T]) where T: Copy {
+        let len = slice.len();
+        unsafe {self.buffer.get_unchecked_mut(self.cursor..self.cursor + len).copy_from_slice(slice)};
+        self.cursor += len;
+    }
+
+    pub fn slice(&self, range: Range<usize>) -> &[T] {
+        unsafe {self.buffer.get_unchecked(range)}
+    }
+
+    pub fn clear(&mut self) {
+        self.cursor = 0;
+    }
+
+    pub fn as_slice(&self) -> &[T] {
+        unsafe {self.buffer.get_unchecked(..self.cursor)}
+    }
+
+    pub fn len(&self) -> usize {self.cursor}
+    pub fn capacity(&self) -> usize {self.buffer.len()}
+    pub fn remaining(&self) -> usize {self.capacity() - self.len()}
+
+    #[must_use]
+    fn is_empty(&self) -> bool {self.len() == 0}
+}
+
