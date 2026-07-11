@@ -1,5 +1,5 @@
 use std::io::{BufRead, Read};
-use crate::{DecodingError, DestinationBuffer, ImageDecoder, PixelFormat, png::{chunks::{IHDR, ZlibHeader, downcast_chunkdata}, deflate::{BlockType, LZ77Buffer, decode_distance, decode_length}, post_process::{Filterer, scanline_bytes}}};
+use crate::{DecodingError, DestinationBuffer, ImageDecoder, PixelFormat, png::{chunks::{IHDR, ZlibHeader, downcast_chunkdata}, deflate::{BlockType, LZ77Buffer, decode_distance, decode_length}, filtering::{Filterer, scanline_bytes}}};
 use num_enum::TryFromPrimitive;
 
 mod chunks;
@@ -13,7 +13,7 @@ pub use checksum::{CRC32, Adler32};
 
 mod deflate;
 
-mod post_process;
+mod filtering;
 
 const PNG_HEADER: [u8; 8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
 

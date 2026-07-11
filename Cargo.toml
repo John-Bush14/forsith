@@ -1,7 +1,8 @@
 [workspace]
 resolver = "2"
 
-members = ["forsith-decoding",
+members = [
+    "forsith-decoding",
     "forsith-shared",
 ]
 

@@ -1,3 +1,5 @@
+#![feature(portable_simd)]
+
 use std::{io::{self, Read}, ops::{BitAnd, BitOr, BitXor, Index, IndexMut, Range, Shl, Shr}, slice};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use thiserror::Error;
@@ -74,7 +76,9 @@ pub enum DecodingError {
     #[error("Invalid filter ({0}) written at start of scanline.")]
     InvalidFilter(u8),
     #[error("Invalid backreference with distance 0 found in deflate stream.")]
-    ZeroDistance
+    ZeroDistance,
+    #[error("Invalid bytes per pixel ({0}) calculated for image.")]
+    InvalidStride(usize),
 }
 impl From<DecodingError> for io::Error {
     fn from(err: DecodingError) -> Self {
@@ -252,6 +256,14 @@ impl<T> CursorVec<T> {
 
     pub fn slice(&self, range: Range<usize>) -> &[T] {
         unsafe {self.buffer.get_unchecked(range)}
+    }
+
+    pub fn mut_slice(&mut self, range: Range<usize>) -> &mut [T] {
+        unsafe {self.buffer.get_unchecked_mut(range)}
+    }
+
+    pub fn advance(&mut self, n: usize) {
+        self.cursor += n;
     }
 
     pub fn clear(&mut self) {
