@@ -185,13 +185,15 @@ impl<I: Num> BitBuffer<I> {
 pub struct DestinationBuffer<'a, const D: u8, const F: u8> {
     buffer: &'a mut [u8],
     index: usize,
+    full: bool
 }
 
 impl<'a, const D: u8, const F: u8> DestinationBuffer<'a, D, F> {
     pub fn new(buffer: &'a mut [u8]) -> Self {
         Self {
             buffer,
-            index: 0
+            index: 0,
+            full: false
         }
     }
 
@@ -207,6 +209,9 @@ impl<'a, const D: u8, const F: u8> DestinationBuffer<'a, D, F> {
     }
 
     pub fn len(&self) -> usize {self.index}
+
+    pub fn is_full(&self) -> bool {self.full}
+    pub fn set_full(&mut self) {self.full = true;}
 
     #[must_use]
     pub fn is_empty(&self) -> bool {

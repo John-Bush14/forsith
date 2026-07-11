@@ -124,6 +124,7 @@ impl<'a, R: BufRead, const D: u8, const F: u8> ImageDecoder<'a, R, D, F> for Png
                     self.next_block()?;
                 } else {
                     self.cur_block.r#type = BlockType::Uncompressed(len - fill_len as u16);
+                    dest.set_full();
                 }
             }
             BlockType::CompressedFixed => {self.fill_buf_compressed::<true>(&mut dest)?;},
@@ -149,9 +150,10 @@ impl<'a, R: BufRead, const D: u8, const F: u8> ImageDecoder<'a, R, D, F> for Png
             }
         }
 
-        // if self.cur_block.r#type != BlockType::Finished && dest.len() == 0 {
-        //     return self.read(dest.buffer);
-        // }
+        if !dest.is_full() && self.cur_block.r#type != BlockType::Finished {
+            let filled_len = dest.len();
+            return Ok(filled_len + self.read(&mut dest.buffer[filled_len..])?)
+        }
 
         Ok(dest.len())
     }
@@ -252,6 +254,7 @@ impl<'a, R: BufRead, const D: u8, const F: u8> PngDecoder<'a, R, D, F> {
     fn fill_buf_compressed<const S: bool>(&mut self, dest: &mut DestinationBuffer<'_, D, F>) -> Result<(), DecodingError> {
         loop  {
             if self.inflate_capacity() < self.scanline_pixel_bytes() + 258 {
+                dest.set_full();
                 break;
             }
 
