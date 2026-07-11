@@ -251,7 +251,7 @@ impl<'a, R: BufRead, const D: u8, const F: u8> PngDecoder<'a, R, D, F> {
 
     fn fill_buf_compressed<const S: bool>(&mut self, dest: &mut DestinationBuffer<'_, D, F>) -> Result<(), DecodingError> {
         loop  {
-            if self.inflate_capacity() < self.scanline_bytes() - 1 + 257 + 1000 {
+            if self.inflate_capacity() < self.scanline_pixel_bytes() + 258 {
                 break;
             }
 
