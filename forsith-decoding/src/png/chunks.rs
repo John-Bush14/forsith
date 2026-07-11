@@ -1,5 +1,5 @@
 use std::{any::Any, fmt::Display, io::BufRead};
-use crate::{DecodingError, HistoryBuffer, Num, PngDecoder, png::{ChunkReader, ColorType}};
+use crate::{DecodingError, Num, PngDecoder, png::{ChunkReader, ColorType, deflate::LZ77Buffer}};
 use num_enum::{TryFromPrimitive, IntoPrimitive};
 
 #[repr(u32)]
@@ -133,9 +133,11 @@ impl ChunkData for ZlibHeader {
 
     fn update_decoder<'a, R: BufRead, const D: u8, const F: u8>(self, decoder: &mut PngDecoder<'a, R, D, F>) -> Result<(), DecodingError>
     where Self: Sized {
-        let lz77_buffer_size = 1 << (self.compression_info + 8);
+        let lz77_buffer_size: usize = 1 << (self.compression_info + 8);
 
-        decoder.deflate_buffer = Some(HistoryBuffer::new(lz77_buffer_size.max(decoder.scanline_bytes() as usize - 1)));
+        decoder.deflate_buffer = LZ77Buffer::new(lz77_buffer_size + lz77_buffer_size.next_multiple_of(decoder.scanline_bytes()), lz77_buffer_size);
+
+        decoder.scanline_multiples = (decoder.deflate_buffer.capacity()-lz77_buffer_size) / decoder.scanline_bytes();
 
         Ok(())
     }

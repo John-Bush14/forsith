@@ -1,4 +1,4 @@
-use std::{cmp::min, io::{BufRead, Read}, usize};
+use std::{cmp::min, io::{BufRead, Read}};
 
 use crate::{BitBuffer, DecodingError, Num, png::{ChunkData, ChunkType, checksum::{Adler32, CRC32}, chunks::{IHDR, ZlibHeader, is_chunk_type_critical}}, read_exact_array};
 

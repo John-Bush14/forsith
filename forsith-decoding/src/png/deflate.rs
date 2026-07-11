@@ -1,6 +1,4 @@
-use core::panic;
-
-use num_enum::FromPrimitive;
+use std::ops::{Index, Range};
 
 use crate::{DecodingError, Num, png::readers::BitReader};
 
@@ -252,5 +250,54 @@ impl Block {
         }
 
         Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct LZ77Buffer {
+    pub buffer: Vec<u8>,
+    pub lz77_buffer_size: usize,
+    pub index: usize,
+}
+impl LZ77Buffer {
+    pub fn new(size: usize, lz77_buffer_size: usize) -> Self {
+        Self {
+            buffer: vec![0; size],
+            index: 0,
+            lz77_buffer_size
+        }
+    }
+
+    pub fn push_literal(&mut self, b: u8) {
+        unsafe {
+            *self.buffer.get_unchecked_mut(self.index) = b;
+        }
+        self.index += 1;
+    }
+
+    pub fn backreference(&mut self, distance: usize) -> u8 {
+        let start = self.index - distance;
+        unsafe {*self.buffer.get_unchecked(start)}
+    }
+
+    pub fn slice(&self, range: Range<usize>) -> &[u8] {
+        unsafe {&self.buffer.get_unchecked(range)}
+    }
+
+    pub fn shift(&mut self, new_start: usize) {
+        self.buffer.copy_within(new_start..self.index, 0);
+        self.index -= new_start;
+    }
+
+    pub fn capacity(&self) -> usize {self.buffer.len()}
+    pub fn len(&self) -> usize {self.index}
+    pub fn remaining(&self) -> usize {self.capacity() - self.len()}
+}
+
+impl Index<usize> for LZ77Buffer {
+    type Output = u8;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        unsafe {self.buffer.get_unchecked(index)}
     }
 }

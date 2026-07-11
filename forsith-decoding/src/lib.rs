@@ -1,12 +1,12 @@
-use std::{io::{self, BufRead, Read}, ops::{BitAnd, BitOr, BitXor, Index, Shl, Shr}};
-use num_enum::{FromPrimitive, IntoPrimitive, TryFromPrimitive};
+use std::{io::{self, Read}, ops::{BitAnd, BitOr, BitXor, Shl, Shr}};
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 use thiserror::Error;
 
 mod tests;
 
 mod png;
 pub use png::PngDecoder;
-use png::{CRC32, Adler32};
+use png::CRC32;
 
 
 use crate::png::ChunkType;
@@ -138,79 +138,6 @@ impl Num for usize {
     const MAX: Self = Self::MAX;
 }
 
-/// Constant size buffer where the oldest element is overwritten when the buffer is full.
-/// Index 0 is here the most recent element and Index len-1 is the oldest element.
-///
-/// Size is rounded to nearest power of 2 for performance reasons.
-#[derive(Debug)]
-pub struct HistoryBuffer<T: Default + Clone> {
-    buffer: Vec<T>,
-    head: usize,
-    tail: usize,
-    length: usize
-}
-impl<T: Default + Clone> HistoryBuffer<T> {
-    pub fn new(size: usize) -> Self {
-        let size = size.next_power_of_two();
-
-        let buffer = vec![T::default(); size];
-
-        Self {
-            buffer,
-            head: 0,
-            tail: 0,
-            length: 0
-        }
-    }
-
-    pub fn push(&mut self, value: T) {
-        if self.length != 0 {
-            self.head = self.wrap(self.head + 1)
-        }
-
-        self.length += 1;
-
-        self.buffer[self.head] = value;
-    }
-
-    pub fn is_full(&self) -> bool {self.length == self.buffer.len()}
-
-    fn consume(&mut self, mut amt: usize) {
-        self.length -= amt;
-
-        if self.length == 0 {
-            amt -= 1;
-        }
-
-        self.tail = self.wrap(self.tail + amt);
-    }
-
-    fn len(&self) -> usize {self.length}
-
-    fn remaining_space(&self) -> usize {
-        self.buffer.len() - self.len()
-    }
-
-    fn pop_last(&mut self) -> Option<T> {
-        let value = self.buffer[self.tail].clone();
-        self.consume(1);
-
-        Some(value)
-    }
-
-    // Len is power of two, so we can use bitwise AND to wrap the index instead of modulo for
-    // performance reasons.
-    fn wrap(&self, index: usize) -> usize {index & (self.buffer.len()-1)}
-}
-
-impl<T: Default + Clone> Index<usize> for HistoryBuffer<T> {
-    type Output = T;
-
-    fn index(&self, index: usize) -> &Self::Output {
-        &self.buffer[self.wrap(self.head + self.buffer.len() - index)]
-    }
-}
-
 #[derive(Debug)]
 pub struct BitBuffer<I: Num> {
     buf: I,
@@ -249,4 +176,26 @@ impl<I: Num> BitBuffer<I> {
             panic!("BitBuffer overflow: bits_remaining = {}, I::BIT_DEPTH = {}", self.bits_remaining, I::BIT_DEPTH);
         }
     }
+}
+
+pub struct DestinationBuffer<'a, const D: u8, const F: u8> {
+    buffer: &'a mut [u8],
+    index: usize,
+}
+
+impl<'a, const D: u8, const F: u8> DestinationBuffer<'a, D, F> {
+    pub fn new(buffer: &'a mut [u8]) -> Self {
+        Self {
+            buffer,
+            index: 0
+        }
+    }
+
+    pub fn push_byte(&mut self, b: u8) {
+        self.buffer[self.index] = b;
+        self.index += 1;
+    }
+
+    pub fn len(&self) -> usize {self.index}
+    pub fn capacity(&self) -> usize {self.buffer.len()}
 }
