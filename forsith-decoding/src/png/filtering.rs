@@ -148,19 +148,17 @@ impl Filterer {
 
 #[inline]
 fn paeth_predictor(a: u8, b: u8, c: u8) -> u8 {
-    let (a, b, c) = (a as i32, b as i32, c as i32);
+    let (a, b, c) = (a as i16, b as i16, c as i16);
 
-    let pa = (b - c).abs();
-    let pb = (a - c).abs();
-    let pc = (a + b - 2 * c).abs();
+    let pa = (b - c).unsigned_abs();
+    let pb = (a - c).unsigned_abs();
+    let pc = (a + b - 2 * c).unsigned_abs();
 
-    let b_lt_a = ((pb - pa) as u32 >> 31) as i8; // wraps if negative
-    let c_lt_a = ((pc - pa) as u32 >> 31) as i8;
-    let c_lt_b = ((pc - pb) as u32 >> 31) as i8; // -1 makes it strict inequality
-
-    let a_mask = ((b_lt_a^1) & (c_lt_a^1)).wrapping_neg() as u8;
-    let b_mask = (b_lt_a & (c_lt_b^1)).wrapping_neg() as u8;
-    let c_mask = !(a_mask | b_mask);
-
-    (a_mask & a as u8) | (b_mask & b as u8) | (c_mask & c as u8)
+    (if pa <= pb && pa <= pc {
+        a
+    } else if pb <= pc {
+        b
+    } else {
+        c
+    }) as u8
 }
