@@ -64,7 +64,7 @@ impl Filterer {
     }
 
     pub fn drain_previous_scanline<const D: u8, const F: u8>(&mut self, dest: &mut DestinationBuffer<'_, D, F>) -> Result<(), DecodingError> {
-        dest.push_slice(self.prev_buffer());
+        dest.push_slice(self.prev_buffer().as_slice());
 
         self.prev_buffer_mut().clear();
 
@@ -92,7 +92,7 @@ impl Filterer {
         };
 
         for i in (alignment_bytes..scanline.len()).step_by(SIMD_WIDTH) {
-            let filtered_bytes = self.filter_simd::<FILTER>(scanline, i)?;
+            let filtered_bytes = self.filter_simd::<FILTER, STRIDE>(scanline, i)?;
 
             filtered_bytes.copy_to_slice(self.cur_buffer_mut().mut_slice(i..i + SIMD_WIDTH));
             self.cur_buffer_mut().advance(SIMD_WIDTH);
@@ -104,10 +104,10 @@ impl Filterer {
     #[inline]
     fn filter<const FILTER: u8>(&self, b: u8, i: usize) -> Result<u8, DecodingError> {
         Ok(match FILTER {
-            1 => b.wrapping_add(self.left_pixel(i)),
-            2 => b.wrapping_add(self.upper_pixel(i)),
-            3 => b.wrapping_add(((self.left_pixel(i) as u16 + self.upper_pixel(i) as u16) / 2) as u8),
-            4 => b.wrapping_add(paeth_predictor(self.left_pixel(i), self.upper_pixel(i), self.left_upper_pixel(i))),
+            1 => b.wrapping_add(self.left_byte(i)),
+            2 => b.wrapping_add(self.upper_byte(i)),
+            3 => b.wrapping_add(((self.left_byte(i) as u16 + self.upper_byte(i) as u16) / 2) as u8),
+            4 => b.wrapping_add(paeth_predictor(self.left_byte(i), self.upper_byte(i), self.left_upper_byte(i))),
             _ => return Err(DecodingError::InvalidFilter(FILTER)),
         })
     }
@@ -121,36 +121,36 @@ impl Filterer {
     pub fn scanline_bytes(&self) -> usize {self.scanline_buffers[0].capacity() + 1}
     pub fn scanline_pixel_bytes(&self) -> usize {self.scanline_buffers[0].capacity()}
 
-    pub fn cur_buffer(&self) -> &[u8] {self.scanline_buffers[self.cur_buffer].as_slice()}
-    pub fn prev_buffer(&self) -> &[u8] {self.scanline_buffers[1 - self.cur_buffer].as_slice()}
+    pub fn cur_buffer(&self) -> &CursorVec<u8> {&self.scanline_buffers[self.cur_buffer]}
+    pub fn prev_buffer(&self) -> &CursorVec<u8> {&self.scanline_buffers[1 - self.cur_buffer]}
 
     pub fn cur_buffer_mut(&mut self) -> &mut CursorVec<u8> {&mut self.scanline_buffers[self.cur_buffer]}
     pub fn prev_buffer_mut(&mut self) -> &mut CursorVec<u8> {&mut self.scanline_buffers[1 - self.cur_buffer]}
 
     pub fn switch_buffers(&mut self) {self.cur_buffer = 1 - self.cur_buffer;}
 
-    pub fn left_pixel(&self, i: usize) -> u8 {
+    pub fn left_byte(&self, i: usize) -> u8 {
         if i < self.stride {
             return 0;
         }
 
-        unsafe {*self.cur_buffer().get_unchecked(i - self.stride)}
+        self.cur_buffer()[i - self.stride]
     }
 
-    pub fn upper_pixel(&self, i: usize) -> u8 {
+    pub fn upper_byte(&self, i: usize) -> u8 {
         if self.prev_buffer().is_empty() {
             return 0;
         }
 
-        unsafe {*self.prev_buffer().get_unchecked(i)}
+        self.prev_buffer()[i]
     }
 
-    pub fn left_upper_pixel(&self, i: usize) -> u8 {
+    pub fn left_upper_byte(&self, i: usize) -> u8 {
         if i < self.stride || self.prev_buffer().is_empty() {
             return 0;
         }
 
-        unsafe {*self.prev_buffer().get_unchecked(i - self.stride)}
+        self.prev_buffer()[i - self.stride]
     }
 }
 
