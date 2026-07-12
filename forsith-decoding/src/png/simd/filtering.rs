@@ -1,14 +1,9 @@
 use crate::{DecodingError, png::filtering::Filterer};
 use core::simd::prelude::*;
-use std::os::raw;
 
-pub(super) const SIMD_WIDTH: usize = 16;
+pub use super::SIMD_WIDTH;
 
-fn open_simd(buf: &[u8], i: usize) -> Simd::<u8, {SIMD_WIDTH}> {
-    unsafe {
-      Simd::<u8, SIMD_WIDTH>::from_slice(buf.get_unchecked(i..i + SIMD_WIDTH))
-    }
-}
+use super::open_simd;
 
 impl Filterer {
     pub fn filter_simd<const FILTER: u8>(&self, scanline: &[u8], i: usize) -> Result<Simd<u8, SIMD_WIDTH>, DecodingError> {

@@ -15,6 +15,8 @@ mod deflate;
 
 mod filtering;
 
+mod simd;
+
 const PNG_HEADER: [u8; 8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
 
 #[repr(u8)]
@@ -133,7 +135,9 @@ impl<'a, R: BufRead, const D: u8, const F: u8> ImageDecoder<'a, R, D, F> for Png
                 self.update_inflate_capacity(-((self.deflate_buffer.capacity() - self.deflate_buffer.len()) as isize));
 
                 while self.inflate_capacity() >= self.scanline_bytes() - 1 && self.deflate_buffer.index - self.dest_tail >= self.scanline_bytes() {
-                    self.filterer.consume_inflated_scanline(self.deflate_buffer.slice(self.dest_tail..self.dest_tail + self.scanline_bytes()), &mut dest)?;
+                    let scanline = self.deflate_buffer.slice(self.dest_tail..self.dest_tail + self.scanline_bytes());
+
+                    self.filterer.consume_inflated_scanline(scanline, &mut dest)?;
 
                     self.dest_tail += self.scanline_bytes();
 
@@ -192,6 +196,8 @@ impl<'a, R: BufRead, const D: u8, const F: u8> PngDecoder<'a, R, D, F> {
     }
 
     fn finish_decoding(&mut self) -> Result<(), DecodingError> {
+        self.reader.update_adler32(self.deflate_buffer.slice(0..self.deflate_buffer.len()));
+
         self.reader.validate_adler32()?;
 
         self.reader.close_chunk()?;
@@ -207,14 +213,14 @@ impl<'a, R: BufRead, const D: u8, const F: u8> PngDecoder<'a, R, D, F> {
     }
 
     fn emit_inflated_byte(&mut self, b: u8, dest: &mut DestinationBuffer<'_, D, F>) -> Result<(), DecodingError> {
-        self.reader.update_adler32(b);
-
         if self.deflate_buffer.len() == self.deflate_buffer.capacity() {
             let mut start = 0;
             for _ in 0..self.scanline_multiples.min(self.inflate_capacity() / self.scanline_bytes()) {
                 self.filterer.consume_inflated_scanline(self.deflate_buffer.slice(start..start+self.scanline_bytes()), dest)?;
                 start += self.scanline_bytes();
             }
+
+            self.reader.update_adler32(self.deflate_buffer.slice(0..start));
 
             self.deflate_buffer.shift(start);
         }

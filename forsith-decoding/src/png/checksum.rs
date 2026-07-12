@@ -1,8 +1,7 @@
 use std::{io::BufRead, ops::Not};
-
+use core::simd::prelude::*;
 use const_for::const_for;
-use crate::{DecodingError, png::readers::{BitReader, ChunkReader}, read_exact_array};
-
+use crate::{DecodingError, png::{readers::{BitReader, ChunkReader}, simd::{SIMD_WIDTH, checksum::compute_alder32_chunk_simd}}, read_exact_array};
 
 pub const POLY: u32 = 0xedb88320;
 const CRC_TABLE: [u32; 256] = const {
@@ -56,15 +55,14 @@ impl CRC32 {
 pub struct Adler32{
     a: u32,
     b: u32,
-    count: u16
 }
 impl Default for Adler32 {
     fn default() -> Self {
-        Adler32{ a: 1, b: 0, count: 0 }
+        Adler32{ a: 1, b: 0}
     }
 }
 const ADLER_MOD: u32 = 65521;
-const ADLER_CHUNK_SIZE: u16 = 5552;
+const ADLER_CHUNK_SIZE: u16 = 5552 - (5552 % SIMD_WIDTH as u16);
 
 impl<R: BufRead> ChunkReader<R> {
     pub fn validate_crc(&mut self) -> Result<(), DecodingError> {
@@ -83,15 +81,31 @@ impl<R: BufRead> ChunkReader<R> {
 
     pub fn reset_crc(&mut self) {self.crc = CRC32::default()}
 
-    pub fn update_adler32(&mut self, b: u8) {
-        self.adler.a += b as u32;
-        self.adler.b += self.adler.a;
-        self.adler.count += 1;
+    pub fn update_adler32(&mut self, data: &[u8]) {
+        let (chunks, remainder) = data.as_chunks::<{ADLER_CHUNK_SIZE as usize}>();
 
-        if self.adler.count == ADLER_CHUNK_SIZE {
+        for chunk in chunks {self.compute_alder32_chunk::<true>(chunk)}
+
+        let unaligned_bytes = remainder.len() % SIMD_WIDTH;
+        self.compute_alder32_chunk::<false>(&remainder[..remainder.len()-unaligned_bytes]);
+
+        for b in remainder[remainder.len()-unaligned_bytes..].iter() {
+            self.adler.a += *b as u32;
+            self.adler.b += self.adler.a;
+        }
+
+        self.adler.a %= ADLER_MOD;
+        self.adler.b %= ADLER_MOD;
+    }
+
+    pub fn compute_alder32_chunk<const FULL_CHUNK: bool>(&mut self, chunk: &[u8]) {
+        let (a, delta_b) = compute_alder32_chunk_simd(chunk, self.adler.a);
+        self.adler.a = a;
+        self.adler.b += delta_b;
+
+        if FULL_CHUNK {
             self.adler.a %= ADLER_MOD;
             self.adler.b %= ADLER_MOD;
-            self.adler.count = 0;
         }
     }
 

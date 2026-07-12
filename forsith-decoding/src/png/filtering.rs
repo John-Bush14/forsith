@@ -2,8 +2,7 @@ use std::{io::BufRead};
 
 use crate::{CursorVec, DecodingError, DestinationBuffer, PngDecoder};
 
-mod simd_filtering;
-use simd_filtering::SIMD_WIDTH;
+use super::simd::filtering::SIMD_WIDTH;
 
 impl<R: BufRead, const D: u8, const F: u8> PngDecoder<'_, R, D, F> {
     pub fn scanline_bytes(&self) -> usize {self.filterer.scanline_bytes()}
@@ -18,7 +17,7 @@ pub fn scanline_bytes(width: u32, bitspp: u8) -> usize {
 pub struct Filterer {
     scanline_buffers: [CursorVec<u8>; 2],
     cur_buffer: usize,
-    stride: usize,
+    pub stride: usize,
 }
 
 impl Filterer {
