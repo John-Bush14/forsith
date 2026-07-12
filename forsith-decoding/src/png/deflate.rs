@@ -4,6 +4,7 @@ use crate::{DecodingError, Num, png::readers::BitReader};
 
 const MAX_COLEN: u8 = 18;
 const CODE_LENGTH_ORDER: [u8; 19] = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15];
+const MAX_SINGLE_TABLE_COLEN: u8 = 9; // maximum code length for a single table (fixed or dynamic)
 
 // (base, extra_bits) for length symbols 257..=285
 const LENGTH_TABLE: [(u16, u8); 29] = [
@@ -48,13 +49,13 @@ pub fn decode_distance<R: BitReader>(code: u16, reader: &mut R) -> std::io::Resu
 pub struct HuffmanTree<S: Num> {
     table: Vec<Entry<S>>, // (symbol, code length)
     max_colen: u8,
-    //nested_tree: Option<Box<HuffmanTree<S>>>,
+    // subtables: Vec<S>,
 }
 #[derive(Debug, Clone, Copy)]
 enum Entry<S: Num> {
     Empty,
     Symbol(S, u8), // (symbol, code length)
-    //NestedTree
+    // Sub
 }
 impl<S: Num> HuffmanTree<S> {
     pub fn load(&mut self, code_lengths: &[u8]) -> Result<(), DecodingError> {
@@ -69,8 +70,14 @@ impl<S: Num> HuffmanTree<S> {
             colen_counts[0] = 1; // make single symbol have code 1
         }
 
-        let mut next_code = self.generate_first_codes(&colen_counts);
+        let first_codes = self.generate_first_codes(&colen_counts);
 
+        self.generate_table(code_lengths, first_codes)?;
+
+        Ok(())
+    }
+
+    fn generate_table(&mut self, code_lengths: &[u8], mut next_code: [u32; MAX_COLEN as usize + 1]) -> Result<(), DecodingError> {
         Vec::resize(&mut self.table, 1 << self.max_colen, Entry::Empty);
 
         for (symbol, &colen) in code_lengths.iter().enumerate().map(|(s, l)| (S::try_from(s), l)) {
@@ -150,16 +157,8 @@ impl<'a, S: Num, R: BitReader> Iterator for HuffmanDecoder<'a, S, R> {
     }
 }
 
-fn reverse_bits(mut value: u32, bits: usize) -> u32 {
-    let mut result = 0;
-
-    for _ in 0..bits {
-        result <<= 1;
-        result |= value & 1;
-        value >>= 1;
-    }
-
-    result
+fn reverse_bits(value: u32, bits: usize) -> u32 {
+    value.reverse_bits() >> (32 - bits)
 }
 
 #[derive(Debug, Default, PartialEq, Eq)]
