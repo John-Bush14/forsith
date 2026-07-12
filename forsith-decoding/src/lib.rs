@@ -1,6 +1,6 @@
 #![feature(portable_simd)]
 
-use std::{io::{self, Read}, ops::{BitAnd, BitOr, BitXor, Index, IndexMut, Range, Shl, Shr}, slice};
+use std::{io::{self, Read}, ops::{BitAnd, BitOr, BitXor, Index, IndexMut, Range, Shl, Shr}};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use thiserror::Error;
 
@@ -8,7 +8,6 @@ mod tests;
 
 mod png;
 pub use png::PngDecoder;
-use png::CRC32;
 
 
 use crate::png::ChunkType;
@@ -34,7 +33,7 @@ pub trait ImageDecoder<'a, R: Read, const D: u8, const F: u8> {
     fn pixel_format(&self) -> PixelFormat;
 }
 impl<R: Read, const D: u8, const F: u8> Read for dyn ImageDecoder<'_, R, D, F> {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {self.read(buf).map_err(|e| io::Error::new(io::ErrorKind::Other, e))}
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {self.read(buf).map_err(io::Error::other)}
 }
 
 #[derive(Error, Debug)]
@@ -52,7 +51,7 @@ pub enum DecodingError {
     #[error("Unknown critical chunk type '{0:?}'")]
     UnkownChunk([u8; 4]),
     #[error("Stored ({0:?}) and calculated ({1:?}) CRC did not match, indicating data corruption.")]
-    CRCMismatch(CRC32, CRC32), // calculated, store
+    CRCMismatch(png::CRC32, png::CRC32), // calculated, store
     #[error("Stored ({1:#010X}) and calculated ({0:#010X}) Adler32 checksum did not match, indicating incorrect (de)compression.")]
     Adler32Mismatch(u32, u32), // calculated, store
     #[error("First chunk is not IHDR, instead ({0:?})")]
@@ -271,6 +270,12 @@ impl<T> CursorVec<T> {
         self.cursor += n;
     }
 
+    pub fn shift(&mut self, new_start: usize) where T: Copy {
+        self.buffer.copy_within(new_start..self.cursor, 0);
+
+        self.cursor -= new_start;
+    }
+
     pub fn clear(&mut self) {
         self.cursor = 0;
     }
@@ -284,6 +289,6 @@ impl<T> CursorVec<T> {
     pub fn remaining(&self) -> usize {self.capacity() - self.len()}
 
     #[must_use]
-    fn is_empty(&self) -> bool {self.len() == 0}
+    pub fn is_empty(&self) -> bool {self.len() == 0}
 }
 

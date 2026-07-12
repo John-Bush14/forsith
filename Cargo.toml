@@ -9,3 +9,4 @@ members = ["forsith-benchmarking",
 [profile.profiling]
 inherits = "release"
 debug = true
+debug-assertions = false

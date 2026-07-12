@@ -1,5 +1,4 @@
 use forsith_decoding::{ImageDecoder, PngDecoder};
-use std::path::PathBuf;
 
 const REPETITION_COUNT: usize = 100;
 

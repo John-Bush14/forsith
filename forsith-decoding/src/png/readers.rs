@@ -131,10 +131,6 @@ impl<R: BufRead> BitReader for ChunkReader<R> {
     }
 
     fn fill_bitbuf(&mut self, n: u8) -> std::io::Result<()> {
-        if self.bit_buf.bits_remaining >= n {
-            return Ok(());
-        }
-
         let needed_bytes = (n - self.bit_buf.bits_remaining) / 8 + if !(n - self.bit_buf.bits_remaining).is_multiple_of(8) {1} else {0};
 
         for _ in 0..needed_bytes {

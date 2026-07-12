@@ -1,5 +1,5 @@
 use std::io::{BufRead, Read};
-use crate::{DecodingError, DestinationBuffer, ImageDecoder, PixelFormat, png::{chunks::{IHDR, ZlibHeader, downcast_chunkdata}, deflate::{BlockType, LZ77Buffer, decode_distance, decode_length}, filtering::{Filterer, scanline_bytes}}};
+use crate::{CursorVec, DecodingError, DestinationBuffer, ImageDecoder, PixelFormat, png::{chunks::{IHDR, ZlibHeader, downcast_chunkdata}, deflate::{BlockType, decode_distance, decode_length}, filtering::{Filterer, calculate_scanline_bytes}}};
 use num_enum::TryFromPrimitive;
 
 mod chunks;
@@ -9,7 +9,7 @@ mod readers;
 pub use readers::ChunkReader;
 
 mod checksum;
-pub use checksum::{CRC32, Adler32};
+pub use checksum::CRC32;
 
 mod deflate;
 
@@ -29,9 +29,9 @@ enum ColorType {
     TruecolorAlpha = 6,
 }
 #[allow(clippy::from_over_into)]
-impl Into<PixelFormat> for ColorType {
-    fn into(self) -> PixelFormat {
-        match self {
+impl From<ColorType> for PixelFormat {
+    fn from(f: ColorType) -> Self {
+        match f {
             ColorType::Grayscale => PixelFormat::Grayscale,
             ColorType::Truecolor => PixelFormat::Truecolor,
             ColorType::Indexed => todo!(),
@@ -41,29 +41,19 @@ impl Into<PixelFormat> for ColorType {
     }
 }
 
-#[derive(Debug, TryFromPrimitive, Clone, Copy, PartialEq, Eq)]
-#[repr(u8)]
-enum PngFilter {
-    None = 0,
-    Sub = 1,
-    Up = 2,
-    Average = 3,
-    Paeth = 4
-}
-
 #[derive(Debug)]
 pub struct PngDecoder<'a, R: BufRead, const D: u8, const F: u8> {
     reader: ChunkReader<R>,
-    deflate_buffer: LZ77Buffer,
+    deflate_buffer: CursorVec<u8>,
     scanline_multiples: usize,
     filterer: Filterer,
     phantom: std::marker::PhantomData<&'a ()>,
     ihdr: IHDR,
     cur_block: deflate::Block,
-    source_bitspp: u8,
-    source_bytespp: u8,
+    _source_bitspp: u8,
+    _source_bytespp: u8,
     inflate_capacity: usize,
-    dest_tail: usize,
+    deflate_buffer_tail: usize,
 }
 
 impl<'a, R: BufRead, const D: u8, const F: u8> ImageDecoder<'a, R, D, F> for PngDecoder<'a, R, D, F> {
@@ -74,19 +64,19 @@ impl<'a, R: BufRead, const D: u8, const F: u8> ImageDecoder<'a, R, D, F> for Png
 
         let ihdr = read_ihdr(&mut reader)?;
 
-        let source_bitspp = PixelFormat::from(ihdr.color_type.into()) as u8 * ihdr.bit_depth;
+        let source_bitspp = PixelFormat::from(ihdr.color_type) as u8 * ihdr.bit_depth;
         let mut decoder = Self {
             reader,
-            deflate_buffer: LZ77Buffer::new(0, 0),
+            deflate_buffer: CursorVec::new(0),
             scanline_multiples: 0,
             phantom: std::marker::PhantomData,
-            filterer: Filterer::new(scanline_bytes(ihdr.width, source_bitspp), source_bitspp as usize / 8),
+            filterer: Filterer::new(calculate_scanline_bytes(ihdr.width, source_bitspp), source_bitspp as usize / 8),
             ihdr,
             cur_block: deflate::Block::default(),
-            source_bitspp,
-            source_bytespp: source_bitspp / 8,
+            _source_bitspp: source_bitspp,
+            _source_bytespp: source_bitspp / 8,
             inflate_capacity: 0,
-            dest_tail: 0,
+            deflate_buffer_tail: 0,
         };
 
         loop  {
@@ -129,17 +119,17 @@ impl<'a, R: BufRead, const D: u8, const F: u8> ImageDecoder<'a, R, D, F> for Png
                     dest.set_full();
                 }
             }
-            BlockType::CompressedFixed => {self.fill_buf_compressed::<true>(&mut dest)?;},
-            BlockType::CompressedDynamic => {self.fill_buf_compressed::<false>(&mut dest)?;},
+            BlockType::CompressedFixed => {self.read_compressed_chunk::<true>(&mut dest)?;},
+            BlockType::CompressedDynamic => {self.read_compressed_chunk::<false>(&mut dest)?;},
             BlockType::Finished => {
                 self.update_inflate_capacity(-((self.deflate_buffer.capacity() - self.deflate_buffer.len()) as isize));
 
-                while self.inflate_capacity() >= self.scanline_bytes() - 1 && self.deflate_buffer.index - self.dest_tail >= self.scanline_bytes() {
-                    let scanline = self.deflate_buffer.slice(self.dest_tail..self.dest_tail + self.scanline_bytes());
+                while self.inflate_capacity() >= self.scanline_bytes() - 1 && self.deflate_buffer.len() - self.deflate_buffer_tail >= self.scanline_bytes() {
+                    let scanline = self.deflate_buffer.slice(self.deflate_buffer_tail..self.deflate_buffer_tail + self.scanline_bytes());
 
                     self.filterer.consume_inflated_scanline(scanline, &mut dest)?;
 
-                    self.dest_tail += self.scanline_bytes();
+                    self.deflate_buffer_tail += self.scanline_bytes();
 
                     self.update_inflate_capacity(-(self.scanline_pixel_bytes() as isize));
                 }
@@ -227,7 +217,7 @@ impl<'a, R: BufRead, const D: u8, const F: u8> PngDecoder<'a, R, D, F> {
 
         self.update_inflate_capacity(-1);
 
-        self.deflate_buffer.push_literal(b);
+        self.deflate_buffer.push(b);
 
         Ok(())
     }
@@ -257,14 +247,14 @@ impl<'a, R: BufRead, const D: u8, const F: u8> PngDecoder<'a, R, D, F> {
         }
     }
 
-    fn fill_buf_compressed<const S: bool>(&mut self, dest: &mut DestinationBuffer<'_, D, F>) -> Result<(), DecodingError> {
+    fn read_compressed_chunk<const STATIC: bool>(&mut self, dest: &mut DestinationBuffer<'_, D, F>) -> Result<(), DecodingError> {
         loop  {
             if self.inflate_capacity() < self.scanline_pixel_bytes() + 258 {
                 dest.set_full();
                 break;
             }
 
-            let (litlen_tree, distance_tree) = if S {
+            let (litlen_tree, distance_tree) = if STATIC {
                 todo!()
             } else {
                 (&self.cur_block.litlen_tree, &self.cur_block.distance_tree)

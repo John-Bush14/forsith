@@ -1,10 +1,7 @@
-use std::ops::{Index, Range};
-
 use crate::{DecodingError, Num, png::readers::BitReader};
 
 const MAX_COLEN: u8 = 18;
 const CODE_LENGTH_ORDER: [u8; 19] = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15];
-const MAX_SINGLE_TABLE_COLEN: u8 = 9; // maximum code length for a single table (fixed or dynamic)
 
 // (base, extra_bits) for length symbols 257..=285
 const LENGTH_TABLE: [(u16, u8); 29] = [
@@ -136,25 +133,6 @@ impl<S: Num> HuffmanTree<S> {
 
         Ok(symbol)
     }
-
-    pub fn iter_decode<'a, R: BitReader>(&'a self, reader: &'a mut R) -> HuffmanDecoder<'a, S, R> {
-        HuffmanDecoder {
-            tree: self,
-            reader,
-        }
-    }
-}
-
-pub struct HuffmanDecoder<'a, S: Num, R: BitReader> {
-    tree: &'a HuffmanTree<S>,
-    reader: &'a mut R,
-}
-impl<'a, S: Num, R: BitReader> Iterator for HuffmanDecoder<'a, S, R> {
-    type Item = Result<S, DecodingError>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        Some(self.tree.decode_symbol(self.reader))
-    }
 }
 
 fn reverse_bits(value: u32, bits: usize) -> u32 {
@@ -207,7 +185,7 @@ impl Block {
         while all_codelengths.len() < total {
             let symbol = self.codlen_tree.decode_symbol(reader)?;
             match symbol {
-                0..=15 => all_codelengths.push(symbol as u8),
+                0..=15 => all_codelengths.push(symbol),
                 16 => {
                     let repeat = reader.read_bits(2)? as u8 + 3;
                     let prev = *all_codelengths.last().unwrap_or(&0);
@@ -215,11 +193,11 @@ impl Block {
                 }
                 17 => {
                     let repeat = reader.read_bits(3)? as u8 + 3;
-                    for _ in 0..repeat { all_codelengths.push(0); }
+                    all_codelengths.resize(all_codelengths.len() + repeat as usize, 0);
                 }
                 18 => {
                     let repeat = reader.read_bits(7)? as u8 + 11;
-                    for _ in 0..repeat { all_codelengths.push(0); }
+                    all_codelengths.resize(all_codelengths.len() + repeat as usize, 0);
                 }
                 _ => unreachable!(),
             }
@@ -249,54 +227,5 @@ impl Block {
         }
 
         Ok(())
-    }
-}
-
-#[derive(Debug)]
-pub struct LZ77Buffer {
-    pub buffer: Vec<u8>,
-    pub lz77_buffer_size: usize,
-    pub index: usize,
-}
-impl LZ77Buffer {
-    pub fn new(size: usize, lz77_buffer_size: usize) -> Self {
-        Self {
-            buffer: vec![0; size],
-            index: 0,
-            lz77_buffer_size
-        }
-    }
-
-    pub fn push_literal(&mut self, b: u8) {
-        unsafe {
-            *self.buffer.get_unchecked_mut(self.index) = b;
-        }
-        self.index += 1;
-    }
-
-    pub fn backreference(&mut self, distance: usize) -> u8 {
-        let start = self.index - distance;
-        unsafe {*self.buffer.get_unchecked(start)}
-    }
-
-    pub fn slice(&self, range: Range<usize>) -> &[u8] {
-        unsafe {&self.buffer.get_unchecked(range)}
-    }
-
-    pub fn shift(&mut self, new_start: usize) {
-        self.buffer.copy_within(new_start..self.index, 0);
-        self.index -= new_start;
-    }
-
-    pub fn capacity(&self) -> usize {self.buffer.len()}
-    pub fn len(&self) -> usize {self.index}
-    pub fn remaining(&self) -> usize {self.capacity() - self.len()}
-}
-
-impl Index<usize> for LZ77Buffer {
-    type Output = u8;
-
-    fn index(&self, index: usize) -> &Self::Output {
-        unsafe {self.buffer.get_unchecked(index)}
     }
 }

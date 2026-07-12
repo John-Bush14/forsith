@@ -1,5 +1,4 @@
 use std::{io::BufRead, ops::Not};
-use core::simd::prelude::*;
 use const_for::const_for;
 use crate::{DecodingError, png::{readers::{BitReader, ChunkReader}, simd::{SIMD_WIDTH, checksum::compute_alder32_chunk_simd}}, read_exact_array};
 

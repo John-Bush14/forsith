@@ -5,6 +5,14 @@ pub use super::SIMD_WIDTH;
 
 use super::open_simd;
 
+pub const fn should_use_simd<const STRIDE: usize, const FILTER: u8>() -> bool {
+    if FILTER == 2 {return true}
+
+    if FILTER == 1 && matches!(STRIDE, 4 | 8) {return true}
+
+    return false
+}
+
 impl Filterer {
     pub fn filter_simd<const FILTER: u8>(&self, scanline: &[u8], i: usize) -> Result<Simd<u8, SIMD_WIDTH>, DecodingError> {
         let raw_bytes = open_simd(scanline, i);
@@ -25,9 +33,8 @@ impl Filterer {
     }
 
     /// only first {self.stride} pixels correct, others will be garbage
-    fn left_pixels(&self, i: usize) -> Simd<u8, SIMD_WIDTH> {open_simd(self.cur_buffer(), i - self.stride)}
     fn upper_pixels(&self, i: usize) -> Simd<u8, SIMD_WIDTH> {open_simd(self.prev_buffer(), i)}
-    fn left_upper_pixels(&self, i: usize) -> Simd<u8, SIMD_WIDTH> {open_simd(self.prev_buffer(), i - self.stride)}
+    fn _left_upper_pixels(&self, i: usize) -> Simd<u8, SIMD_WIDTH> {open_simd(self.prev_buffer(), i - self.stride)}
 }
 
 fn sub_filter<const STRIDE: usize>(mut raw_bytes: Simd<u8, SIMD_WIDTH>, left_pixel: [u8; STRIDE]) -> Simd<u8, SIMD_WIDTH> {

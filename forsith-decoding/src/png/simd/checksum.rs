@@ -1,4 +1,4 @@
-use crate::png::simd::{SIMD_WIDTH, open_simd};
+use crate::png::simd::SIMD_WIDTH;
 use core::simd::prelude::*;
 
 

@@ -1,6 +1,6 @@
 use std::{io::BufRead};
 
-use crate::{CursorVec, DecodingError, DestinationBuffer, PngDecoder};
+use crate::{CursorVec, DecodingError, DestinationBuffer, PngDecoder, png::simd::filtering::should_use_simd};
 
 use super::simd::filtering::SIMD_WIDTH;
 
@@ -9,7 +9,7 @@ impl<R: BufRead, const D: u8, const F: u8> PngDecoder<'_, R, D, F> {
     pub fn scanline_pixel_bytes(&self) -> usize {self.filterer.scanline_pixel_bytes()}
 }
 
-pub fn scanline_bytes(width: u32, bitspp: u8) -> usize {
+pub fn calculate_scanline_bytes(width: u32, bitspp: u8) -> usize {
     (width as usize * bitspp as usize) / 8 + 1
 }
 
@@ -73,10 +73,18 @@ impl Filterer {
 
     #[inline]
     fn filter_and_push_scanline<const FILTER: u8, const STRIDE: usize>(&mut self, scanline: &[u8]) -> Result<(), DecodingError> {
+        if !should_use_simd::<STRIDE, FILTER>() {
+            for (i, &b) in scanline.iter().enumerate() {
+                let filtered_byte = self.filter::<FILTER>(b, i)?;
+                self.cur_buffer_mut().push(filtered_byte);
+            };
+
+            return Ok(());
+        }
+
         let mut alignment_bytes = scanline.len() % SIMD_WIDTH;
 
         if alignment_bytes < STRIDE && matches!(FILTER, 1 | 3 | 4) {alignment_bytes += SIMD_WIDTH;}
-        if matches!(STRIDE, 1 | 2 | 3 | 6) && matches!(FILTER, 1 | 3 | 4) {alignment_bytes = scanline.len();}
 
         for (i, &b) in scanline.iter().enumerate().take(alignment_bytes) {
             let filtered_byte = self.filter::<FILTER>(b, i)?;

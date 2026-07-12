@@ -1,5 +1,5 @@
 use std::{any::Any, fmt::Display, io::BufRead};
-use crate::{DecodingError, Num, PngDecoder, png::{ChunkReader, ColorType, deflate::LZ77Buffer}};
+use crate::{CursorVec, DecodingError, Num, PngDecoder, png::{ChunkReader, ColorType}};
 use num_enum::{TryFromPrimitive, IntoPrimitive};
 
 #[repr(u32)]
@@ -46,7 +46,7 @@ pub fn downcast_chunkdata<T: ChunkData + Any>(b: Box<dyn ChunkData>) -> Result<B
 #[derive(Debug)]
 pub struct IHDR {
     pub width: u32,
-    pub height: u32,
+    pub _height: u32,
     pub bit_depth: u8,
     pub color_type: ColorType,
     pub compression_method: u8,
@@ -80,7 +80,7 @@ impl ChunkData for IHDR {
     where Self: Sized {
         Ok(Self {
             width: u32::read_be(reader)?,
-            height: u32::read_be(reader)?,
+            _height: u32::read_be(reader)?,
             bit_depth: u8::read_be(reader)?,
             color_type: ColorType::try_from(u8::read_be(reader)?).map_err(|_| DecodingError::InvalidChunk(ChunkType::Ihdr))?,
             compression_method: u8::read_be(reader)?,
@@ -99,7 +99,7 @@ pub struct ZlibHeader {
     pub compression_info: u8,
     pub check: bool, // (CMF * 256 + FLG) % 31 == 0
     pub dict: bool,
-    pub flevel: u8,
+    pub _flevel: u8,
 }
 
 impl ChunkData for ZlibHeader {
@@ -127,7 +127,7 @@ impl ChunkData for ZlibHeader {
             compression_info: (cmf & 0b11110000) >> 4,
             check: (cmf as u16 * 256 + flg as u16).is_multiple_of(31),
             dict: flg & 0b00100000 == 0b00100000,
-            flevel: (flg & 0b11000000) >> 6
+            _flevel: (flg & 0b11000000) >> 6
         })
     }
 
@@ -135,7 +135,7 @@ impl ChunkData for ZlibHeader {
     where Self: Sized {
         let lz77_buffer_size: usize = 1 << (self.compression_info + 8);
 
-        decoder.deflate_buffer = LZ77Buffer::new(lz77_buffer_size + lz77_buffer_size.next_multiple_of(decoder.scanline_bytes()), lz77_buffer_size);
+        decoder.deflate_buffer = CursorVec::new(lz77_buffer_size + lz77_buffer_size.next_multiple_of(decoder.scanline_bytes()));
 
         decoder.scanline_multiples = (decoder.deflate_buffer.capacity()-lz77_buffer_size) / decoder.scanline_bytes();
 
