@@ -43,12 +43,12 @@ pub fn decode_distance<R: BitReader>(code: u16, reader: &mut R) -> std::io::Resu
 }
 
 #[derive(Debug)]
-pub struct HuffmanTree<S: Num> {
-    table: CursorVec<Entry<S>>, // (symbol, code length)
+pub struct HuffmanTree {
+    table: CursorVec<Entry>, // (symbol, code length)
     max_colen: u8,
     // subtables: Vec<S>,
 }
-impl<S: Num> Default for HuffmanTree<S> {
+impl Default for HuffmanTree {
     fn default() -> Self {
         Self {
             table: CursorVec::new(1 << MAX_COLEN),
@@ -58,13 +58,27 @@ impl<S: Num> Default for HuffmanTree<S> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-enum Entry<S: Num> {
-    #[default]
-    Empty,
-    Symbol(S, u8), // (symbol, code length)
-    // Sub
+struct Entry(u32); // (symbol, code length)
+
+impl Entry {
+    fn new_symbol(symbol: u16, colen: u8) -> Self {
+        Self(symbol as u32 | ((colen as u32) << 24) | (1 << 16) as u32)
+    }
+
+    fn symbol(&self) -> u16 {
+        unsafe {(self.0 & u16::MAX as u32).unchecked_cast()}
+    }
+
+    fn colen(&self) -> u8 {
+        unsafe {(self.0 >> 24).unchecked_cast()}
+    }
+
+    fn is_empty(&self) -> bool {
+        (self.0 >> 16) & 1 == 0
+    }
 }
-impl<S: Num> HuffmanTree<S> {
+
+impl HuffmanTree {
     pub fn load(&mut self, code_lengths: &[u8]) -> Result<(), DecodingError> {
         self.max_colen = code_lengths.iter().copied().max().unwrap_or(0);
         if self.max_colen > MAX_COLEN {
@@ -87,9 +101,8 @@ impl<S: Num> HuffmanTree<S> {
     fn generate_table(&mut self, code_lengths: &[u8], mut next_code: [u32; MAX_COLEN as usize + 1]) -> Result<(), DecodingError> {
         self.table.clear();
 
-        for (symbol, &colen) in code_lengths.iter().enumerate().map(|(s, l)| (S::try_from(s), l)) {
+        for (symbol, &colen) in code_lengths.iter().enumerate().map(|(s, l)| (s as u16, l)) {
             if colen == 0 {continue;}
-            let Ok(symbol) = symbol else {return Err(DecodingError::InvalidSymbol(std::mem::size_of::<S>()))};
 
             let code = next_code[colen as usize];
             next_code[colen as usize] += 1;
@@ -99,7 +112,7 @@ impl<S: Num> HuffmanTree<S> {
             let filler = 1 << (self.max_colen - colen);
 
             for i in 0..filler {
-                self.table[(code as usize) | (i << colen)] = Entry::Symbol(symbol, colen);
+                self.table[(code as usize) | (i << colen)] = Entry::new_symbol(symbol, colen);
             }
         }
 
@@ -131,17 +144,14 @@ impl<S: Num> HuffmanTree<S> {
         first_codes
     }
 
-    pub fn decode_symbol<R: BitReader>(&self, reader: &mut R) -> Result<S, DecodingError> {
+    pub fn decode_symbol<R: BitReader>(&self, reader: &mut R) -> Result<u16, DecodingError> {
         let code = reader.peek_bits(self.max_colen)?;
 
-        let (symbol, colen) = match self.table[code] {
-            Entry::Symbol(s, c) => (s, c),
-            Entry::Empty => return Err(DecodingError::UndefinedHuffmanCode(code as u32)),
-        };
+        let entry = self.table[code];
 
-        reader.consume_bits(colen);
+        reader.consume_bits(entry.colen());
 
-        Ok(symbol)
+        Ok(entry.symbol())
     }
 }
 
@@ -161,9 +171,9 @@ pub enum BlockType {
 pub struct Block {
     pub last: bool,
     pub r#type: BlockType,
-    pub litlen_tree: HuffmanTree<u16>,
-    pub distance_tree: HuffmanTree<u16>,
-    pub codlen_tree: HuffmanTree<u8>,
+    pub litlen_tree: HuffmanTree,
+    pub distance_tree: HuffmanTree,
+    pub codlen_tree: HuffmanTree,
 }
 impl Block {
     pub fn load_block<R: BitReader>(&mut self, reader: &mut R) -> Result<(), DecodingError> {
@@ -193,7 +203,7 @@ impl Block {
         let total = hlit as usize + hdist as usize;
         let mut all_codelengths = Vec::with_capacity(total);
         while all_codelengths.len() < total {
-            let symbol = self.codlen_tree.decode_symbol(reader)?;
+            let symbol = self.codlen_tree.decode_symbol(reader)? as u8;
             match symbol {
                 0..=15 => all_codelengths.push(symbol),
                 16 => {
