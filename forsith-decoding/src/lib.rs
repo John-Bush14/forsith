@@ -62,7 +62,7 @@ pub enum DecodingError {
     #[error("Multiple '{0}' chunks found")]
     MultipleChunks(ChunkType),
     #[error("Attempted to close chunk '{0}' with incorrect amount of bytes ({1}) remaining")]
-    IncorrectClose(ChunkType, u32),
+    IncorrectClose(ChunkType, usize),
     #[error("Block length ({0}) and its one's complement ({1}) did not match")]
     BlockLengthMismatch(u16, u16),
     #[error("Code length ({0}) is too large")]
@@ -175,11 +175,12 @@ impl<I: Num> BitBuffer<I> {
     fn push(&mut self, byte: u8) {
         self.buf = self.buf | (I::from(byte) << self.bits_remaining as usize);
         self.bits_remaining += 8;
-
-        if self.bits_remaining > I::BIT_DEPTH {
-            panic!("BitBuffer overflow: bits_remaining = {}, I::BIT_DEPTH = {}", self.bits_remaining, I::BIT_DEPTH);
-        }
     }
+
+    fn push_u32(&mut self, value: u32) { unsafe {
+        self.buf = self.buf | (I::try_from(value).unwrap_unchecked() << self.bits_remaining as usize);
+        self.bits_remaining += 32;
+    }}
 }
 
 pub struct DestinationBuffer<'a, const D: u8, const F: u8> {
@@ -299,3 +300,67 @@ impl<T> CursorVec<T> {
     pub fn is_empty(&self) -> bool {self.len() == 0}
 }
 
+#[derive(Debug)]
+pub struct BufferReader {
+    buffer: Vec<u8>,
+    index: usize
+}
+
+impl BufferReader {
+    pub fn new(len: usize) -> Self {
+        Self {
+            buffer: vec![0u8; len],
+            index: 0
+        }
+    }
+
+    pub fn capacity(&self) -> usize {
+        self.buffer.len()
+    }
+
+    pub fn slice(&self, len: usize) -> &[u8] {
+        unsafe {self.buffer.get_unchecked(self.index..self.index + len)}
+    }
+
+    pub fn mut_slice(&mut self, len: usize) -> &mut [u8] {
+        unsafe {self.buffer.get_unchecked_mut(self.index..self.index + len)}
+    }
+
+    pub fn raw_slice(&self, range: Range<usize>) -> &[u8] {
+        unsafe {self.buffer.get_unchecked(range)}
+    }
+    pub fn raw_mut_slice(&mut self, range: Range<usize>) -> &mut [u8] {
+        unsafe {self.buffer.get_unchecked_mut(range)}
+    }
+
+    pub fn consume(&mut self, n: usize) {
+        self.index += n;
+    }
+
+    pub fn read_be<N: Num>(&mut self) -> N {
+        let value = N::read_be(&mut &self.buffer[self.index..]).unwrap();
+        self.index += std::mem::size_of::<N>();
+        value
+    }
+
+    pub fn read_le<N: Num>(&mut self) -> N {
+        let value = N::read_le(&mut &self.buffer[self.index..]).unwrap();
+        self.index += std::mem::size_of::<N>();
+        value
+    }
+
+    pub fn read_array<const N: usize>(&mut self) -> [u8; N] {
+        let value = self.slice(N).try_into().unwrap();
+        self.index += N;
+        value
+    }
+
+    pub fn empty(&mut self) {
+        self.buffer.copy_within(self.index.., 0);
+        self.index = 0;
+    }
+
+    pub fn remaining(&self) -> usize {
+        self.buffer.len() - self.index
+    }
+}

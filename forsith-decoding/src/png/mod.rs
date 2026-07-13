@@ -6,7 +6,7 @@ mod chunks;
 pub use chunks::{ChunkType, ChunkData};
 
 mod reader;
-pub use reader::Reader;
+pub use reader::PngReader;
 
 mod checksum;
 pub use checksum::CRC32;
@@ -43,7 +43,7 @@ impl From<ColorType> for PixelFormat {
 
 #[derive(Debug)]
 pub struct PngDecoder<'a, R: BufRead, const D: u8, const F: u8> {
-    reader: Reader<R>,
+    reader: PngReader<R>,
     deflate_buffer: CursorVec<u8>,
     scanline_multiples: usize,
     filterer: Filterer,
@@ -60,7 +60,7 @@ impl<'a, R: BufRead, const D: u8, const F: u8> ImageDecoder<'a, R, D, F> for Png
     fn open(mut reader: R) -> Result<Self, DecodingError> {
         check_header(&mut reader)?;
 
-        let mut reader = Reader::new(reader);
+        let mut reader = PngReader::new(reader);
 
         let ihdr = read_ihdr(&mut reader)?;
 
@@ -107,8 +107,7 @@ impl<'a, R: BufRead, const D: u8, const F: u8> ImageDecoder<'a, R, D, F> for Png
                 let fill_len = (len as usize).min(self.inflate_capacity());
 
                 for _ in 0..fill_len {
-                    let b = self.reader.fill_buf()?[0];
-                    self.reader.consume(1);
+                    let b = self.reader.buffer.read_be::<u8>();
                     self.emit_inflated_byte(b, &mut dest)?;
                 }
 
@@ -190,8 +189,6 @@ impl<'a, R: BufRead, const D: u8, const F: u8> PngDecoder<'a, R, D, F> {
 
         self.reader.validate_adler32()?;
 
-        self.reader.close_chunk()?;
-
         while self.reader.cur_type() != ChunkType::Iend {
             self.reader.open_chunk()?;
             self.update_with_chunk()?;
@@ -230,7 +227,7 @@ impl<'a, R: BufRead, const D: u8, const F: u8> PngDecoder<'a, R, D, F> {
             return Ok(());
         }
 
-        let chunk_data = self.reader.read_data()?;
+        let chunk_data = self.reader.read_chunkdata()?;
 
         if let Err(err) = chunk_data.validate() {
             if self.reader.cur_type().is_critical() {
@@ -281,22 +278,22 @@ impl<'a, R: BufRead, const D: u8, const F: u8> PngDecoder<'a, R, D, F> {
     }
 }
 
-fn check_header<R: Read>(data: &mut R) -> Result<(), DecodingError> {
-    let header = crate::read_exact_array::<8,_>(data)?;
+fn check_header<R: Read>(reader: &mut R) -> Result<(), DecodingError> {
+    let header = crate::read_exact_array::<8,_>(reader)?;
     if header != PNG_HEADER {
         return Err(DecodingError::InccorectHeader(header.to_vec()))
     }
     Ok(())
 }
 
-fn read_ihdr<R: BufRead>(reader: &mut Reader<R>) -> Result<IHDR, DecodingError> {
+fn read_ihdr<R: BufRead>(reader: &mut PngReader<R>) -> Result<IHDR, DecodingError> {
     reader.open_chunk()?;
 
     if reader.cur_type() != ChunkType::Ihdr {
         return Err(DecodingError::NoIHDR(reader.cur_type()));
     }
 
-    let ihdr = *downcast_chunkdata::<IHDR>(reader.read_data()?).unwrap();
+    let ihdr = *downcast_chunkdata::<IHDR>(reader.read_chunkdata()?).unwrap();
     ihdr.validate()?;
 
     Ok(ihdr)

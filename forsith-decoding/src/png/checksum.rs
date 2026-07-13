@@ -1,6 +1,6 @@
 use std::{io::BufRead, ops::Not};
 use const_for::const_for;
-use crate::{DecodingError, png::{reader::{BitReader, Reader}, simd::{SIMD_WIDTH, checksum::compute_alder32_chunk_simd}}, read_exact_array};
+use crate::{DecodingError, png::{reader::{BitReader, PngReader}, simd::{SIMD_WIDTH, checksum::compute_alder32_chunk_simd}}, read_exact_array};
 
 pub const POLY: u32 = 0xedb88320;
 const CRC_TABLE: [u32; 256] = const {
@@ -63,9 +63,9 @@ impl Default for Adler32 {
 const ADLER_MOD: u32 = 65521;
 const ADLER_CHUNK_SIZE: u16 = 5552 - (5552 % SIMD_WIDTH as u16);
 
-impl<R: BufRead> Reader<R> {
-    pub fn validate_crc(&mut self) -> Result<(), DecodingError> {
-        let stored_crc = CRC32(u32::from_be_bytes(read_exact_array::<4,_>(self.normal_reader())?));
+impl<R: BufRead> PngReader<R> {
+    pub fn validate_crc(&mut self, stored_crc: u32) -> Result<(), DecodingError> {
+        let stored_crc = CRC32(stored_crc);
 
         self.crc = !self.crc;
 
@@ -109,15 +109,20 @@ impl<R: BufRead> Reader<R> {
     }
 
     pub fn validate_adler32(&mut self) -> Result<(), DecodingError> {
-        if self.remaining_bytes > 4 {
-            return Err(DecodingError::IncorrectClose(self.cur_type(), self.remaining_bytes));
+        if self.bit_buf.bits_remaining() < 32 {
+            self.fill_bitbuf()?;
         }
 
         self.consume_bits(self.bit_buf.bits_remaining() % 8);
-        let stored_adler = ((self.read_bits(8)? as u32) << 24)
-            | ((self.read_bits(8)? as u32) << 16)
-            | ((self.read_bits(8)? as u32) << 8)
-            | (self.read_bits(8)? as u32);
+        let stored_adler = (self.bit_buf.peek(32) as u32).to_be();
+        self.bit_buf.consume(32);
+
+
+        let stolen_bytes = self.bit_buf.bits_remaining() as usize / 8;
+
+        self.buffer.index -= stolen_bytes;
+        self.buffer.mut_slice(stolen_bytes).copy_from_slice(&self.bit_buf.peek(stolen_bytes as u8*8).to_be_bytes()[..stolen_bytes]);
+        self.bit_buf.consume(8);
 
         let computed_adler = ((self.adler.b % ADLER_MOD) << 16) | (self.adler.a % ADLER_MOD);
 
