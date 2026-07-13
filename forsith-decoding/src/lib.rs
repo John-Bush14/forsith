@@ -226,6 +226,12 @@ pub struct CursorVec<T> {
     cursor: usize,
 }
 
+impl<T> Default for CursorVec<T> where T: Default + Copy {
+    fn default() -> Self {
+        Self::new(0)
+    }
+}
+
 impl<T> Index<usize> for CursorVec<T> {
     type Output = T;
 

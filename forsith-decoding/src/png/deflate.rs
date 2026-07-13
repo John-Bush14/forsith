@@ -1,4 +1,4 @@
-use crate::{DecodingError, Num, png::readers::BitReader};
+use crate::{CursorVec, DecodingError, Num, png::readers::BitReader};
 
 const MAX_COLEN: u8 = 18;
 const CODE_LENGTH_ORDER: [u8; 19] = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15];
@@ -42,14 +42,24 @@ pub fn decode_distance<R: BitReader>(code: u16, reader: &mut R) -> std::io::Resu
     Ok(base + reader.read_bits(extra)? as u16)
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct HuffmanTree<S: Num> {
-    table: Vec<Entry<S>>, // (symbol, code length)
+    table: CursorVec<Entry<S>>, // (symbol, code length)
     max_colen: u8,
     // subtables: Vec<S>,
 }
-#[derive(Debug, Clone, Copy)]
+impl<S: Num> Default for HuffmanTree<S> {
+    fn default() -> Self {
+        Self {
+            table: CursorVec::new(1 << MAX_COLEN),
+            max_colen: 0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 enum Entry<S: Num> {
+    #[default]
     Empty,
     Symbol(S, u8), // (symbol, code length)
     // Sub
@@ -75,7 +85,7 @@ impl<S: Num> HuffmanTree<S> {
     }
 
     fn generate_table(&mut self, code_lengths: &[u8], mut next_code: [u32; MAX_COLEN as usize + 1]) -> Result<(), DecodingError> {
-        Vec::resize(&mut self.table, 1 << self.max_colen, Entry::Empty);
+        self.table.clear();
 
         for (symbol, &colen) in code_lengths.iter().enumerate().map(|(s, l)| (S::try_from(s), l)) {
             if colen == 0 {continue;}
