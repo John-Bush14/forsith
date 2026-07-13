@@ -3,8 +3,8 @@ use const_for::const_for;
 use crate::{DecodingError, png::{reader::{BitReader, PngReader}, simd::{SIMD_WIDTH, checksum::compute_alder32_chunk_simd}}, read_exact_array};
 
 pub const POLY: u32 = 0xedb88320;
-const CRC_TABLE: [u32; 256] = const {
-    let mut table = [0u32; 256];
+const CRC_TABLES: [[u32; 256]; 8] = const {
+    let mut tables = [[0u32; 256]; 8];
 
     const_for!(n in 0..255+1 => {
         let mut c = n as u32;
@@ -15,10 +15,17 @@ const CRC_TABLE: [u32; 256] = const {
             }
             c >>= 1;
         });
-        table[n as usize] = c
+        tables[0][n as usize] = c
     });
 
-    table
+    const_for!(n in 1..8 => {
+        const_for!(k in 0..255+1 => {
+            let crc = tables[n-1][k];
+            tables[n][k] = tables[0][(crc & 0xff) as usize] ^ (crc >> 8);
+        });
+    });
+
+    tables
 };
 const CRC_INIT: u32 = 0xFFFF_FFFF;
 
@@ -40,8 +47,25 @@ impl Not for CRC32 {
 
 impl CRC32 {
     pub fn update(&mut self, buf: &[u8]) {
-        for b in buf {
-            self.0 = CRC_TABLE[((self.0 ^ *b as u32) & 0xff) as usize] ^ (self.0 >> 8);
+        let (chunks, remainder) = buf.as_chunks::<8>();
+
+        for chunk in chunks {
+            let chunk: u64 = u64::from_le_bytes(*chunk);
+
+            let x = self.0 as u64 ^ chunk;
+
+            self.0 = CRC_TABLES[7][(x & 0xff) as usize]
+                ^ CRC_TABLES[6][((x >> 8) & 0xff) as usize]
+                ^ CRC_TABLES[5][((x >> 16) & 0xff) as usize]
+                ^ CRC_TABLES[4][((x >> 24) & 0xff) as usize]
+                ^ CRC_TABLES[3][((x >> 32) & 0xff) as usize]
+                ^ CRC_TABLES[2][((x >> 40) & 0xff) as usize]
+                ^ CRC_TABLES[1][((x >> 48) & 0xff) as usize]
+                ^ CRC_TABLES[0][((x >> 56) & 0xff) as usize];
+        }
+
+        for b in remainder {
+            self.0 = CRC_TABLES[0][((self.0 ^ *b as u32) & 0xff) as usize] ^ (self.0 >> 8);
         }
     }
 
