@@ -274,6 +274,10 @@ impl<T> CursorVec<T> {
         unsafe {self.buffer.get_unchecked_mut(range)}
     }
 
+    pub fn copy_within(&mut self, src: Range<usize>, dest: usize) where T: Copy {
+        self.buffer.copy_within(src, dest);
+    }
+
     pub fn advance(&mut self, n: usize) {
         self.cursor += n;
     }
@@ -298,6 +302,9 @@ impl<T> CursorVec<T> {
 
     #[must_use]
     pub fn is_empty(&self) -> bool {self.len() == 0}
+
+    #[must_use]
+    pub fn is_full(&self) -> bool {self.len() == self.capacity()}
 }
 
 #[derive(Debug)]

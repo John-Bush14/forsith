@@ -1,4 +1,4 @@
-use std::io::{BufRead, Read};
+use std::{io::{BufRead, Read}, ops::Range};
 use crate::{CursorVec, DecodingError, DestinationBuffer, ImageDecoder, PixelFormat, png::{chunks::{IHDR, ZlibHeader, downcast_chunkdata}, deflate::{BlockType, decode_distance, decode_length}, filtering::{Filterer, calculate_scanline_bytes}}};
 use num_enum::TryFromPrimitive;
 
@@ -199,17 +199,45 @@ impl<'a, R: BufRead, const D: u8, const F: u8> PngDecoder<'a, R, D, F> {
         Ok(())
     }
 
+    fn emit_backreferenced_inflated_bytes(&mut self, length: usize, distance: usize, dest: &mut DestinationBuffer<'_, D, F>) -> Result<(), DecodingError> {
+        let mut remaining = length;
+        let start = self.deflate_buffer.len() - distance;
+
+        while remaining > 0 {
+            let len = remaining.min(self.deflate_buffer.remaining());
+
+            let cur_start = length - remaining + start;
+            self.deflate_buffer.copy_within(cur_start..cur_start+len, self.deflate_buffer.len());
+            self.deflate_buffer.advance(len);
+
+            self.update_inflate_capacity(-(len as isize));
+            remaining -= len;
+
+            if self.deflate_buffer.is_full() {
+                self.drain_deflate_buffer(dest)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn drain_deflate_buffer(&mut self, dest: &mut DestinationBuffer<'_, D, F>) -> Result<(), DecodingError> {
+        let mut start = 0;
+        for _ in 0..self.scanline_multiples.min(self.inflate_capacity() / self.scanline_bytes()) {
+            self.filterer.consume_inflated_scanline(self.deflate_buffer.slice(start..start+self.scanline_bytes()), dest)?;
+            start += self.scanline_bytes();
+        }
+
+        self.reader.update_adler32(self.deflate_buffer.slice(0..start));
+
+        self.deflate_buffer.shift(start);
+
+        Ok(())
+    }
+
     fn emit_inflated_byte(&mut self, b: u8, dest: &mut DestinationBuffer<'_, D, F>) -> Result<(), DecodingError> {
         if self.deflate_buffer.len() == self.deflate_buffer.capacity() {
-            let mut start = 0;
-            for _ in 0..self.scanline_multiples.min(self.inflate_capacity() / self.scanline_bytes()) {
-                self.filterer.consume_inflated_scanline(self.deflate_buffer.slice(start..start+self.scanline_bytes()), dest)?;
-                start += self.scanline_bytes();
-            }
-
-            self.reader.update_adler32(self.deflate_buffer.slice(0..start));
-
-            self.deflate_buffer.shift(start);
+            self.drain_deflate_buffer(dest)?;
         }
 
         self.update_inflate_capacity(-1);
@@ -269,9 +297,13 @@ impl<'a, R: BufRead, const D: u8, const F: u8> PngDecoder<'a, R, D, F> {
                 let dist_code = distance_tree.decode_symbol(&mut self.reader)?;
                 let distance = decode_distance(dist_code, &mut self.reader)?;
 
-                for _ in 0..length {
-                    let byte = self.deflate_buffer[self.deflate_buffer.len() - distance as usize];
-                    self.emit_inflated_byte(byte, dest)?;
+                if distance as usize > self.deflate_buffer.len() {
+                    self.emit_backreferenced_inflated_bytes(length as usize, distance as usize, dest)?;
+                } else {
+                    for _ in 0..length {
+                        let byte = self.deflate_buffer[self.deflate_buffer.len() - distance as usize];
+                        self.emit_inflated_byte(byte, dest)?;
+                    }
                 }
             }
         } Ok(())
