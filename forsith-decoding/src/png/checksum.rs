@@ -1,6 +1,6 @@
 use std::{io::BufRead, ops::Not};
 use const_for::const_for;
-use crate::{DecodingError, png::{readers::{BitReader, ChunkReader}, simd::{SIMD_WIDTH, checksum::compute_alder32_chunk_simd}}, read_exact_array};
+use crate::{DecodingError, png::{reader::{BitReader, Reader}, simd::{SIMD_WIDTH, checksum::compute_alder32_chunk_simd}}, read_exact_array};
 
 pub const POLY: u32 = 0xedb88320;
 const CRC_TABLE: [u32; 256] = const {
@@ -63,7 +63,7 @@ impl Default for Adler32 {
 const ADLER_MOD: u32 = 65521;
 const ADLER_CHUNK_SIZE: u16 = 5552 - (5552 % SIMD_WIDTH as u16);
 
-impl<R: BufRead> ChunkReader<R> {
+impl<R: BufRead> Reader<R> {
     pub fn validate_crc(&mut self) -> Result<(), DecodingError> {
         let stored_crc = CRC32(u32::from_be_bytes(read_exact_array::<4,_>(self.normal_reader())?));
 

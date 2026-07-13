@@ -1,5 +1,5 @@
 use std::{any::Any, fmt::Display, io::BufRead};
-use crate::{CursorVec, DecodingError, Num, PngDecoder, png::{ChunkReader, ColorType}};
+use crate::{CursorVec, DecodingError, Num, PngDecoder, png::{Reader, ColorType}};
 use num_enum::{TryFromPrimitive, IntoPrimitive};
 
 #[repr(u32)]
@@ -32,7 +32,7 @@ pub trait ChunkData: Any {
 
     fn validate(&self) -> Result<(), DecodingError>;
 
-    fn read<R: BufRead>(reader: &mut ChunkReader<R>) -> Result<Self, DecodingError>
+    fn read<R: BufRead>(reader: &mut Reader<R>) -> Result<Self, DecodingError>
     where Self: Sized;
 
     fn update_decoder<'a, R: BufRead, const D: u8, const F: u8>(self, decoder: &mut PngDecoder<'a, R, D, F>) -> Result<(), DecodingError>
@@ -76,7 +76,7 @@ impl ChunkData for IHDR {
         }
     }
 
-    fn read<R: BufRead>(reader: &mut ChunkReader<R>) -> Result<Self, DecodingError>
+    fn read<R: BufRead>(reader: &mut Reader<R>) -> Result<Self, DecodingError>
     where Self: Sized {
         Ok(Self {
             width: u32::read_be(reader)?,
@@ -117,7 +117,7 @@ impl ChunkData for ZlibHeader {
         Ok(())
     }
 
-    fn read<R: BufRead>(reader: &mut ChunkReader<R>) -> Result<Self, DecodingError>
+    fn read<R: BufRead>(reader: &mut Reader<R>) -> Result<Self, DecodingError>
     where Self: Sized {
         let cmf = u8::read_be(reader)?;
         let flg = u8::read_be(reader)?;

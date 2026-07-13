@@ -3,7 +3,7 @@ use std::{cmp::min, io::{BufRead, Read}};
 use crate::{BitBuffer, DecodingError, Num, png::{ChunkData, ChunkType, checksum::{Adler32, CRC32}, chunks::{IHDR, ZlibHeader, is_chunk_type_critical}}, read_exact_array};
 
 #[derive(Debug)]
-pub struct ChunkReader<R: BufRead> {
+pub struct Reader<R: BufRead> {
     pub reader: R,
     pub crc: CRC32,
     pub adler: Adler32,
@@ -12,7 +12,7 @@ pub struct ChunkReader<R: BufRead> {
     pub bit_buf: BitBuffer<usize>
 }
 
-impl<R: BufRead> ChunkReader<R> {
+impl<R: BufRead> Reader<R> {
     pub fn new(reader: R) -> Self {
         Self {
             reader,
@@ -82,7 +82,7 @@ impl<R: BufRead> ChunkReader<R> {
     }
 }
 
-impl<R: BufRead> Read for ChunkReader<R> {
+impl<R: BufRead> Read for Reader<R> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         let mut len = min(buf.len(), self.remaining_bytes as usize);
 
@@ -101,7 +101,7 @@ impl<R: BufRead> Read for ChunkReader<R> {
     }
 }
 
-impl<R: BufRead> BufRead for ChunkReader<R> {
+impl<R: BufRead> BufRead for Reader<R> {
     fn fill_buf(&mut self) -> std::io::Result<&[u8]> {
         if self.remaining_bytes == 0 && self.cur_type == ChunkType::Idat {
             self.skip_idat_boundrary()?;
@@ -121,7 +121,7 @@ impl<R: BufRead> BufRead for ChunkReader<R> {
     }
 }
 
-impl<R: BufRead> BitReader for ChunkReader<R> {
+impl<R: BufRead> BitReader for Reader<R> {
     fn peek_bits(&mut self, n: u8) -> std::io::Result<usize> {
         if self.bit_buf.bits_remaining <= n {
             self.fill_bitbuf(n)?;

@@ -5,8 +5,8 @@ use num_enum::TryFromPrimitive;
 mod chunks;
 pub use chunks::{ChunkType, ChunkData};
 
-mod readers;
-pub use readers::ChunkReader;
+mod reader;
+pub use reader::Reader;
 
 mod checksum;
 pub use checksum::CRC32;
@@ -43,7 +43,7 @@ impl From<ColorType> for PixelFormat {
 
 #[derive(Debug)]
 pub struct PngDecoder<'a, R: BufRead, const D: u8, const F: u8> {
-    reader: ChunkReader<R>,
+    reader: Reader<R>,
     deflate_buffer: CursorVec<u8>,
     scanline_multiples: usize,
     filterer: Filterer,
@@ -60,7 +60,7 @@ impl<'a, R: BufRead, const D: u8, const F: u8> ImageDecoder<'a, R, D, F> for Png
     fn open(mut reader: R) -> Result<Self, DecodingError> {
         check_header(&mut reader)?;
 
-        let mut reader = ChunkReader::new(reader);
+        let mut reader = Reader::new(reader);
 
         let ihdr = read_ihdr(&mut reader)?;
 
@@ -289,7 +289,7 @@ fn check_header<R: Read>(data: &mut R) -> Result<(), DecodingError> {
     Ok(())
 }
 
-fn read_ihdr<R: BufRead>(reader: &mut ChunkReader<R>) -> Result<IHDR, DecodingError> {
+fn read_ihdr<R: BufRead>(reader: &mut Reader<R>) -> Result<IHDR, DecodingError> {
     reader.open_chunk()?;
 
     if reader.cur_type() != ChunkType::Ihdr {
