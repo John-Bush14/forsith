@@ -121,7 +121,7 @@ impl<'a, R: BufRead, const D: u8, const F: u8> ImageDecoder<'a, R, D, F> for Png
             BlockType::CompressedFixed => {self.read_compressed_chunk::<true>(&mut dest)?;},
             BlockType::CompressedDynamic => {self.read_compressed_chunk::<false>(&mut dest)?;},
             BlockType::Finished => {
-                self.update_inflate_capacity(-((self.deflate_buffer.capacity() - self.deflate_buffer.len()) as isize));
+                self.decrease_inflate_capacity(self.deflate_buffer.capacity() - self.deflate_buffer.len());
 
                 while self.inflate_capacity() >= self.scanline_bytes() - 1 && self.deflate_buffer.len() - self.deflate_buffer_tail >= self.scanline_bytes() {
                     let scanline = self.deflate_buffer.slice(self.deflate_buffer_tail..self.deflate_buffer_tail + self.scanline_bytes());
@@ -130,10 +130,10 @@ impl<'a, R: BufRead, const D: u8, const F: u8> ImageDecoder<'a, R, D, F> for Png
 
                     self.deflate_buffer_tail += self.scanline_bytes();
 
-                    self.update_inflate_capacity(-(self.scanline_pixel_bytes() as isize));
+                    self.decrease_inflate_capacity(self.scanline_pixel_bytes());
                 }
 
-                self.update_inflate_capacity(-(self.filterer.remaining_bytes() as isize));
+                self.decrease_inflate_capacity(self.filterer.remaining_bytes());
 
                 while self.inflate_capacity() >= self.filterer.prev_buffer().len() && !self.filterer.prev_buffer().is_empty(){
                     self.filterer.drain_previous_scanline(&mut dest)?;
@@ -166,9 +166,9 @@ impl<'a, R: BufRead, const D: u8, const F: u8> PngDecoder<'a, R, D, F> {
         correct_dest_capacity + self.deflate_buffer.remaining() + self.filterer.remaining_bytes()
     }
 
-    fn update_inflate_capacity(&mut self, change: isize) {
-        self.inflate_capacity = (self.inflate_capacity as isize + change) as usize;
-    }
+    fn decrease_inflate_capacity(&mut self, change: usize) {unsafe {
+        self.inflate_capacity = self.inflate_capacity.unchecked_sub(change);
+    }}
 
     fn next_block(&mut self) -> Result<(), DecodingError> {
         if self.reader.cur_type() != ChunkType::Idat {
@@ -210,7 +210,7 @@ impl<'a, R: BufRead, const D: u8, const F: u8> PngDecoder<'a, R, D, F> {
             self.deflate_buffer.copy_within(cur_start..cur_start+len, self.deflate_buffer.len());
             self.deflate_buffer.advance(len);
 
-            self.update_inflate_capacity(-(len as isize));
+            self.decrease_inflate_capacity(len);
             remaining -= len;
 
             if self.deflate_buffer.is_full() {
@@ -240,7 +240,7 @@ impl<'a, R: BufRead, const D: u8, const F: u8> PngDecoder<'a, R, D, F> {
             self.drain_deflate_buffer(dest)?;
         }
 
-        self.update_inflate_capacity(-1);
+        self.decrease_inflate_capacity(1);
 
         self.deflate_buffer.push(b);
 
