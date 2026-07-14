@@ -121,11 +121,11 @@ impl Filterer {
     pub fn scanline_bytes(&self) -> usize {self.scanline_buffers[0].capacity() + 1}
     pub fn scanline_pixel_bytes(&self) -> usize {self.scanline_buffers[0].capacity()}
 
-    pub fn cur_buffer(&self) -> &CursorVec<u8> {&self.scanline_buffers[self.cur_buffer]}
-    pub fn prev_buffer(&self) -> &CursorVec<u8> {&self.scanline_buffers[1 - self.cur_buffer]}
+    pub fn cur_buffer(&self) -> &CursorVec<u8> {unsafe {self.scanline_buffers.get_unchecked(self.cur_buffer)}}
+    pub fn prev_buffer(&self) -> &CursorVec<u8> {unsafe {self.scanline_buffers.get_unchecked(1usize.unchecked_sub(self.cur_buffer))}}
 
-    pub fn cur_buffer_mut(&mut self) -> &mut CursorVec<u8> {&mut self.scanline_buffers[self.cur_buffer]}
-    pub fn prev_buffer_mut(&mut self) -> &mut CursorVec<u8> {&mut self.scanline_buffers[1 - self.cur_buffer]}
+    pub fn cur_buffer_mut(&mut self) -> &mut CursorVec<u8> {unsafe {self.scanline_buffers.get_unchecked_mut(self.cur_buffer)}}
+    pub fn prev_buffer_mut(&mut self) -> &mut CursorVec<u8> {unsafe {self.scanline_buffers.get_unchecked_mut(1usize.unchecked_sub(self.cur_buffer))}}
 
     pub fn switch_buffers(&mut self) {self.cur_buffer = 1 - self.cur_buffer;}
 
