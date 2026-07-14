@@ -1,5 +1,7 @@
+#![allow(incomplete_features)]
 #![feature(portable_simd)]
 #![feature(integer_casts)]
+#![feature(generic_const_exprs)]
 
 use std::{io::{self, Read}, ops::{BitAnd, BitOr, BitXor, Index, IndexMut, Range, Shl, Shr}};
 use num_enum::{IntoPrimitive, TryFromPrimitive};

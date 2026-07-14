@@ -1,7 +1,11 @@
-use crate::{CursorVec, DecodingError, Num, png::reader::BitReader};
+use crate::{CursorVec, DecodingError, png::reader::BitReader};
 
-const MAX_COLEN: u8 = 18;
+const MAX_COLEN: u8 = 15;
 const CODE_LENGTH_ORDER: [u8; 19] = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15];
+const MAX_ROOT_TABLE_COLEN: u8 = 9;
+
+const MAX_LITLEN_SUBTABLE_ENTIES: usize = 340;
+const MAX_DISTANCE_SUBTABLE_ENTRIES: usize = 80;
 
 // (base, extra_bits) for length symbols 257..=285
 const LENGTH_TABLE: [(u16, u8); 29] = [
@@ -43,16 +47,25 @@ pub fn decode_distance<R: BitReader>(code: u16, reader: &mut R) -> std::io::Resu
 }
 
 #[derive(Debug)]
-pub struct HuffmanTree {
-    table: CursorVec<Entry>, // (symbol, code length)
-    max_colen: u8,
-    // subtables: Vec<S>,
+pub struct HuffmanTree<const MAX_ROOT_BITS: u8, const MAX_SUBTABLE_ENTRIES: usize>
+where [(); (1 << MAX_ROOT_BITS as usize) + MAX_SUBTABLE_ENTRIES]:
+{
+    table: [Entry; (1 << MAX_ROOT_BITS as usize) + MAX_SUBTABLE_ENTRIES],
+    root_bits: u8,
+    sub_bits: u8,
+    next_subtable: usize,
+    generation: usize
 }
-impl Default for HuffmanTree {
+impl<const MAX_ROOT_BITS: u8, const MAX_SUBTABLE_ENTRIES: usize> Default for HuffmanTree<MAX_ROOT_BITS, MAX_SUBTABLE_ENTRIES>
+where [(); (1 << MAX_ROOT_BITS as usize) + MAX_SUBTABLE_ENTRIES]:
+{
     fn default() -> Self {
         Self {
-            table: CursorVec::new(1 << MAX_COLEN),
-            max_colen: 0,
+            table: [Entry::default(); (1 << MAX_ROOT_BITS as usize) + MAX_SUBTABLE_ENTRIES],
+            root_bits: 0,
+            sub_bits: 0,
+            next_subtable: 0,
+            generation: 0,
         }
     }
 }
@@ -62,27 +75,52 @@ struct Entry(u32); // (symbol, code length)
 
 impl Entry {
     fn new_symbol(symbol: u16, colen: u8) -> Self {
-        Self(symbol as u32 | ((colen as u32) << 24) | (1 << 16) as u32)
+        Self(symbol as u32 | ((colen as u32) << 24) | (0b01 << 16) as u32)
+    }
+
+    /// offset from root table end
+    fn new_subtable(index: usize, bits: u8) -> Self {
+        Self(index as u32 | ((bits as u32) << 24) | (0b10 << 16) as u32)
+    }
+
+    /// not to be used in decoding as can't be differentiated
+    fn new_longcode(symbol: u16, code: u16) -> Self {
+        Self(symbol as u32 | (code as u32) << 16)
     }
 
     fn symbol(&self) -> u16 {
         unsafe {(self.0 & u16::MAX as u32).unchecked_cast()}
     }
+    fn subtable_index(&self) -> usize {self.symbol() as usize}
 
     fn colen(&self) -> u8 {
         unsafe {(self.0 >> 24).unchecked_cast()}
+    } fn subtable_bits(&self) -> u8 {self.colen()}
+
+    fn code(&self) -> u16 {
+        unsafe {(self.0 >> 16).unchecked_cast()}
     }
 
+    fn is_symbol(&self) -> bool {self.0 >> 16 & 0b11 == 1}
+    fn is_subtable(&self) -> bool {self.0 >> 16 & 0b11 == 2}
+
     fn is_empty(&self) -> bool {
-        (self.0 >> 16) & 1 == 0
+        self.0 == 0
     }
 }
 
-impl HuffmanTree {
+impl<const MAX_ROOT_BITS: u8, const MAX_SUBTABLE_ENTRIES: usize> HuffmanTree<MAX_ROOT_BITS, MAX_SUBTABLE_ENTRIES>
+where [(); (1 << MAX_ROOT_BITS as usize) + MAX_SUBTABLE_ENTRIES]:
+{
     pub fn load(&mut self, code_lengths: &[u8]) -> Result<(), DecodingError> {
-        self.max_colen = code_lengths.iter().copied().max().unwrap_or(0);
-        if self.max_colen > MAX_COLEN {
-            return Err(DecodingError::InvalidCodeLength(self.max_colen));
+        self.generation = (self.generation + 1) & (1 << MAX_ROOT_BITS);
+
+        let max_colen = code_lengths.iter().copied().max().unwrap_or(0);
+
+        self.root_bits = max_colen.min(MAX_ROOT_BITS);
+
+        if MAX_SUBTABLE_ENTRIES > 0 {
+            self.sub_bits = max_colen.saturating_sub(MAX_ROOT_BITS);
         }
 
         let mut colen_counts = Self::get_colen_counts(code_lengths)?;
@@ -99,7 +137,8 @@ impl HuffmanTree {
     }
 
     fn generate_table(&mut self, code_lengths: &[u8], mut next_code: [u32; MAX_COLEN as usize + 1]) -> Result<(), DecodingError> {
-        self.table.clear();
+        let mut longcodes = [Entry::default(); MAX_SUBTABLE_ENTRIES];
+        self.next_subtable = 0;
 
         for (symbol, &colen) in code_lengths.iter().enumerate().map(|(s, l)| (s as u16, l)) {
             if colen == 0 {continue;}
@@ -109,10 +148,58 @@ impl HuffmanTree {
 
             let code = reverse_bits(code, colen as _);
 
-            let filler = 1 << (self.max_colen - colen);
+            if MAX_SUBTABLE_ENTRIES == 0 || colen <= MAX_ROOT_TABLE_COLEN {
+                let filler = 1 << (self.root_bits - colen);
+
+                for i in 0..filler {
+                    self.table[(code as usize) | (i << colen)]  = Entry::new_symbol(symbol, colen);
+                }
+
+                continue;
+            }
+
+            let subcolen = colen - MAX_ROOT_TABLE_COLEN;
+            let root = (code & ((1 << MAX_ROOT_BITS) - 1)) as usize;
+
+            if self.table[root].subtable_index() != self.generation {
+                self.table[root] = Entry::new_subtable(self.generation, subcolen);
+            } else {
+                self.table[root] = Entry::new_subtable(self.generation, self.table[root].subtable_bits().max(subcolen));
+            }
+
+            longcodes[self.next_subtable] = Entry::new_longcode(symbol, code as u16);
+            self.next_subtable += 1;
+        }
+
+        if MAX_SUBTABLE_ENTRIES == 0 {return Ok(());}
+
+        let longcodes_len = self.next_subtable;
+        self.next_subtable = 1 << MAX_ROOT_BITS;
+
+        for entry in longcodes.iter().take(longcodes_len) {
+            let (symbol, code) = (entry.symbol(), entry.code());
+            let colen = code_lengths[symbol as usize];
+
+            let root = code & ((1 << MAX_ROOT_BITS) - 1);
+            let subcode = code >> MAX_ROOT_BITS;
+
+            let root_entry = &mut self.table[root as usize];
+
+            if root_entry.subtable_index() == 0 {
+                *root_entry = Entry::new_subtable(self.next_subtable, root_entry.subtable_bits());
+                self.next_subtable += 1 << root_entry.subtable_bits();
+            }
+
+            let subcolen = colen - MAX_ROOT_BITS;
+
+            let i = root_entry.subtable_index(); let len = 1 << root_entry.subtable_bits();
+
+            let subtable = &mut self.table[i..i+len];
+
+            let filler = len >> subcolen;
 
             for i in 0..filler {
-                self.table[(code as usize) | (i << colen)] = Entry::new_symbol(symbol, colen);
+                subtable[(subcode as usize) | (i << subcolen)] = Entry::new_symbol(symbol, colen);
             }
         }
 
@@ -137,7 +224,7 @@ impl HuffmanTree {
     fn generate_first_codes(&self, colen_counts: &[u16; MAX_COLEN as usize + 1]) -> [u32; MAX_COLEN as usize + 1] {
         let mut first_codes = [0u32; MAX_COLEN as usize + 1];
 
-        for i in 1..=self.max_colen as usize {
+        for i in 1..=(self.root_bits + self.sub_bits) as usize {
             first_codes[i] = (first_codes[i - 1] + colen_counts[i - 1] as u32) << 1;
         }
 
@@ -145,12 +232,16 @@ impl HuffmanTree {
     }
 
     pub fn decode_symbol<R: BitReader>(&self, reader: &mut R) -> Result<u16, DecodingError> {
-        let code = reader.peek_bits(self.max_colen)?;
+        let code = reader.peek_bits(self.root_bits)?;
 
-        let entry = self.table[code];
+        let mut entry = self.table[code];
+
+        if MAX_SUBTABLE_ENTRIES != 0 && entry.is_subtable() {
+            let subtable_bits = reader.peek_bits(entry.subtable_bits() + MAX_ROOT_BITS)? >> MAX_ROOT_BITS;
+            entry = self.table[entry.subtable_index() + subtable_bits]
+        }
 
         reader.consume_bits(entry.colen());
-
         Ok(entry.symbol())
     }
 }
@@ -171,9 +262,9 @@ pub enum BlockType {
 pub struct Block {
     pub last: bool,
     pub r#type: BlockType,
-    pub litlen_tree: HuffmanTree,
-    pub distance_tree: HuffmanTree,
-    pub codlen_tree: HuffmanTree,
+    pub litlen_tree: HuffmanTree<MAX_ROOT_TABLE_COLEN, MAX_LITLEN_SUBTABLE_ENTIES>,
+    pub distance_tree: HuffmanTree<MAX_ROOT_TABLE_COLEN, MAX_DISTANCE_SUBTABLE_ENTRIES>,
+    pub codlen_tree: HuffmanTree<7, 0>,
 }
 impl Block {
     pub fn load_block<R: BitReader>(&mut self, reader: &mut R) -> Result<(), DecodingError> {
@@ -204,6 +295,7 @@ impl Block {
         let mut all_codelengths = Vec::with_capacity(total);
         while all_codelengths.len() < total {
             let symbol = self.codlen_tree.decode_symbol(reader)? as u8;
+
             match symbol {
                 0..=15 => all_codelengths.push(symbol),
                 16 => {
