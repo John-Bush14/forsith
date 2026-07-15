@@ -1,6 +1,6 @@
 use std::{io::BufRead, ops::Not};
 use const_for::const_for;
-use crate::{DecodingError, png::{reader::{BitReader, PngReader}, simd::{SIMD_WIDTH, checksum::compute_alder32_chunk_simd}}, read_exact_array};
+use crate::{DecodingError, png::{reader::{BitReader, PngReader}, simd::{SIMD_WIDTH, checksum::compute_alder32_chunk_simd}}};
 
 pub const POLY: u32 = 0xedb88320;
 const CRC_TABLES: [[u32; 256]; 8] = const {

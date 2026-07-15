@@ -1,4 +1,4 @@
-use crate::{CursorVec, DecodingError, png::reader::BitReader};
+use crate::{DecodingError, png::reader::BitReader};
 
 const MAX_COLEN: u8 = 15;
 const CODE_LENGTH_ORDER: [u8; 19] = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15];
@@ -101,10 +101,10 @@ impl Entry {
         unsafe {(self.0 >> 16).unchecked_cast()}
     }
 
-    fn is_symbol(&self) -> bool {self.0 >> 16 & 0b11 == 1}
+    fn _is_symbol(&self) -> bool {self.0 >> 16 & 0b11 == 1}
     fn is_subtable(&self) -> bool {self.0 >> 16 & 0b11 == 2}
 
-    fn is_empty(&self) -> bool {
+    fn _is_empty(&self) -> bool {
         self.0 == 0
     }
 }

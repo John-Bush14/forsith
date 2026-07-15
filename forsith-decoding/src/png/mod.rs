@@ -1,4 +1,4 @@
-use std::{io::{BufRead, Read}, ops::Range};
+use std::io::{BufRead, Read};
 use crate::{CursorVec, DecodingError, DestinationBuffer, ImageDecoder, PixelFormat, png::{chunks::{IHDR, ZlibHeader, downcast_chunkdata}, deflate::{BlockType, decode_distance, decode_length}, filtering::{Filterer, calculate_scanline_bytes}}};
 use num_enum::TryFromPrimitive;
 

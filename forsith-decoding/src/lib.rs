@@ -174,11 +174,6 @@ impl<I: Num> BitBuffer<I> {
         self.bits_remaining -= n;
     }
 
-    fn push(&mut self, byte: u8) {
-        self.buf = self.buf | (I::from(byte) << self.bits_remaining as usize);
-        self.bits_remaining += 8;
-    }
-
     fn push_u32(&mut self, value: u32) { unsafe {
         self.buf = self.buf | (I::try_from(value).unwrap_unchecked() << self.bits_remaining as usize);
         self.bits_remaining += 32;

@@ -1,9 +1,9 @@
-use std::{cmp::min, io::{BufRead, Read}};
+use std::io::{BufRead, Read};
 
-use crate::{BitBuffer, BufferReader, DecodingError, Num, png::{ChunkData, ChunkType::{self, Idat}, checksum::{Adler32, CRC32}, chunks::{IHDR, ZlibHeader, is_chunk_type_critical}}, read_exact_array};
+use crate::{BitBuffer, BufferReader, DecodingError, Num, png::{ChunkData, ChunkType::{self}, checksum::{Adler32, CRC32}, chunks::{IHDR, ZlibHeader, is_chunk_type_critical}}};
 
 
-const BUFFER_SIZE: usize = 1024 * 4;
+const BUFFER_SIZE: usize = 1 << 12;
 
 
 #[derive(Debug)]
@@ -82,12 +82,12 @@ impl<R: BufRead> PngReader<R> {
 
     fn fill_buffer<const IDAT: bool>(&mut self, mut index: usize) -> Result<(), DecodingError> {
         loop {
-            if self.buffer.capacity() - index <= self.remaining_chunk_bytes {
-                self.reader.read_exact(self.buffer.raw_mut_slice(index..self.buffer.capacity()))?;
+            if BUFFER_SIZE - index <= self.remaining_chunk_bytes {
+                self.reader.read_exact(self.buffer.raw_mut_slice(index..BUFFER_SIZE))?;
 
-                self.remaining_chunk_bytes -= self.buffer.capacity() - index;
+                self.remaining_chunk_bytes -= BUFFER_SIZE - index;
 
-                self.crc.update(self.buffer.raw_slice(index..self.buffer.capacity()));
+                self.crc.update(self.buffer.raw_slice(index..BUFFER_SIZE));
 
                 break;
             }
