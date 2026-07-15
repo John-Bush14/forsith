@@ -1,4 +1,4 @@
-use std::ops::{BitAnd, BitOr, BitXor, Shl, Shr};
+use std::ops::{BitAnd, BitOr, BitXor, Shl, Shr, Mul, Sub, Div, Add};
 
 fn read_exact_array<const N: usize, R: Read>(reader: &mut R) -> io::Result<[u8; N]> {
     let mut buf = [0u8; N];
@@ -6,53 +6,35 @@ fn read_exact_array<const N: usize, R: Read>(reader: &mut R) -> io::Result<[u8; 
     Ok(buf)
 }
 
-pub trait Num: Sized + Copy + Default + PartialEq
-+ Eq + std::fmt::Debug + TryFrom<u32> + From<u8> + TryFrom<u16> + TryFrom<usize>
-+ BitAnd<Output=Self> + BitOr<Output=Self> + BitXor<Output=Self> + Shl<usize, Output=Self>
-+ Shr<usize, Output=Self> + std::ops::Add<Output=Self> + std::ops::Sub<Output=Self>
-+ std::ops::Div<Output=Self> + std::ops::Mul<Output=Self> {
-    fn read_be<R: Read>(reader: &mut R) -> io::Result<Self> where Self: Sized;
-    fn read_le<R: Read>(reader: &mut R) -> io::Result<Self> where Self: Sized;
-    const BIT_DEPTH: u8;
-    const MAX: Self;
+macro_rules! num_types {
+    ($($num:ty),+) => {
+        pub trait Num: Sized + Copy + Default + PartialEq + Eq + std::fmt::Debug + From<u8> + From<bool> $( + TryFrom<$num> ) +
+        + BitAnd<Output=Self> + BitOr<Output=Self> + BitXor<Output=Self> + Shl<usize, Output=Self>
+        + Shr<usize, Output=Self> + Add<Output=Self> + Sub<Output=Self> + Div<Output=Self> + Mul<Output=Self> {
+            fn read_be<R: Read>(reader: &mut R) -> io::Result<Self> where Self: Sized;
+            fn read_le<R: Read>(reader: &mut R) -> io::Result<Self> where Self: Sized;
+            const BYTE_DEPTH: u8;
+            const BIT_DEPTH: u8;
+            const MAX: Self;
+        }
+
+        $(
+        impl Num for $num {
+            const BYTE_DEPTH: u8 = std::mem::size_of::<Self>() as u8;
+            const BIT_DEPTH: u8 = Self::BYTE_DEPTH * 8;
+            const MAX: Self = Self::MAX;
+            fn read_be<R: Read>(reader: &mut R) -> io::Result<Self> {
+                Ok(Self::from_be_bytes(read_exact_array::<{Self::BYTE_DEPTH as usize}, _>(reader)?))
+            }
+            fn read_le<R: Read>(reader: &mut R) -> io::Result<Self> {
+                Ok(Self::from_le_bytes(read_exact_array::<{Self::BYTE_DEPTH as usize}, _>(reader)?))
+            }
+        }
+
+
+
+        )+
+    };
 }
-impl Num for u32 {
-    fn read_be<R: Read>(reader: &mut R) -> io::Result<Self> {
-        Ok(u32::from_be_bytes(read_exact_array::<4, _>(reader)?))
-    }
-    fn read_le<R: Read>(reader: &mut R) -> io::Result<Self> {
-        Ok(u32::from_le_bytes(read_exact_array::<4, _>(reader)?))
-    }
-    const BIT_DEPTH: u8 = std::mem::size_of::<Self>() as u8 * 8;
-    const MAX: Self = Self::MAX;
-}
-impl Num for u16 {
-    fn read_be<R: Read>(reader: &mut R) -> io::Result<Self> {
-        Ok(u16::from_be_bytes(read_exact_array::<2, _>(reader)?))
-    }
-    fn read_le<R: Read>(reader: &mut R) -> io::Result<Self> {
-        Ok(u16::from_le_bytes(read_exact_array::<2, _>(reader)?))
-    }
-    const BIT_DEPTH: u8 = std::mem::size_of::<Self>() as u8 * 8;
-    const MAX: Self = Self::MAX;
-}
-impl Num for u8 {
-    fn read_be<R: Read>(reader: &mut R) -> io::Result<Self> {
-        Ok(u8::from_be_bytes(read_exact_array::<1, _>(reader)?))
-    }
-    fn read_le<R: Read>(reader: &mut R) -> io::Result<Self> {
-        Ok(u8::from_le_bytes(read_exact_array::<1, _>(reader)?))
-    }
-    const BIT_DEPTH: u8 = std::mem::size_of::<Self>() as u8 * 8;
-    const MAX: Self = Self::MAX;
-}
-impl Num for usize {
-    fn read_be<R: Read>(reader: &mut R) -> io::Result<Self> {
-        Ok(usize::from_be_bytes(read_exact_array::<{std::mem::size_of::<Self>()}, R>(reader)?))
-    }
-    fn read_le<R: Read>(reader: &mut R) -> io::Result<Self> {
-        Ok(usize::from_le_bytes(read_exact_array::<{std::mem::size_of::<Self>()}, R>(reader)?))
-    }
-    const BIT_DEPTH: u8 = std::mem::size_of::<Self>() as u8 * 8;
-    const MAX: Self = Self::MAX;
-}
+
+num_types!(usize, u64, u32, u16, u8);
