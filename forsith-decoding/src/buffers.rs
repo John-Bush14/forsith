@@ -112,9 +112,12 @@ impl<T> CursorVec<T> {
         }
     }
 
+    #[inline(always)]
     pub fn push(&mut self, b: T) {
-        unsafe {*self.buffer.get_unchecked_mut(self.cursor) = b};
-        self.cursor += 1;
+        unsafe {
+            *self.buffer.as_mut_ptr().wrapping_add(self.cursor) = b;
+            self.cursor = self.cursor.unchecked_add(1);
+        }
     }
 
     pub fn push_slice(&mut self, slice: &[T]) where T: Copy {
@@ -165,22 +168,17 @@ impl<T> CursorVec<T> {
 }
 
 #[derive(Debug)]
-pub struct BufferReader {
-    buffer: Vec<u8>,
+pub struct BufferReader<const LEN: usize> {
+    buffer: [u8; LEN],
     index: usize
 }
 
-impl BufferReader {
-    pub fn new(len: usize) -> Self {
+impl<const LEN: usize> BufferReader<LEN> {
+    pub fn new() -> Self {
         Self {
-            buffer: vec![0u8; len],
+            buffer: [0u8; LEN],
             index: 0
         }
-    }
-
-    #[allow(unused)]
-    pub fn capacity(&self) -> usize {
-        self.buffer.len()
     }
 
     pub fn slice(&self, len: usize) -> &[u8] {
@@ -230,6 +228,6 @@ impl BufferReader {
     }
 
     pub fn remaining(&self) -> usize {
-        self.buffer.len() - self.index
+        LEN - self.index
     }
 }

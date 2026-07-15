@@ -9,7 +9,7 @@ const BUFFER_SIZE: usize = 1 << 12;
 #[derive(Debug)]
 pub struct PngReader<R: BufRead> {
     pub reader: R,
-    pub buffer: BufferReader,
+    pub buffer: BufferReader<BUFFER_SIZE>,
     pub crc: CRC32,
     pub adler: Adler32,
     pub(crate) remaining_chunk_bytes: usize,
@@ -21,7 +21,7 @@ impl<R: BufRead> PngReader<R> {
     pub fn new(reader: R) -> Self {
         let mut reader = Self {
             reader,
-            buffer: BufferReader::new(BUFFER_SIZE),
+            buffer: BufferReader::<BUFFER_SIZE>::new(),
             crc: CRC32::default(),
             adler: Adler32::default(),
             remaining_chunk_bytes: 0,
