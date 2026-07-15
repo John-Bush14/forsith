@@ -160,7 +160,7 @@ impl<R: BufRead> Read for PngReader<R> {
         }
 
         buf.copy_from_slice(self.buffer.slice(buf.len()));
-        self.buffer.index += buf.len();
+        self.buffer.consume(buf.len());
 
         Ok(buf.len())
     }
@@ -168,7 +168,7 @@ impl<R: BufRead> Read for PngReader<R> {
 
 impl<R: BufRead> BitReader for PngReader<R> {
     fn peek_bits(&mut self, n: u8) -> std::io::Result<usize> {
-        if self.bit_buf.bits_remaining <= 32 {
+        if self.bit_buf.bits_remaining() <= 32 {
             self.fill_bitbuf()?;
         }
 

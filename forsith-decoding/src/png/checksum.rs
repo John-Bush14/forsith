@@ -144,7 +144,7 @@ impl<R: BufRead> PngReader<R> {
 
         let stolen_bytes = self.bit_buf.bits_remaining() as usize / 8;
 
-        self.buffer.index -= stolen_bytes;
+        self.buffer.unconsume(stolen_bytes);
         self.buffer.mut_slice(stolen_bytes).copy_from_slice(&self.bit_buf.peek(stolen_bytes as u8*8).to_be_bytes()[..stolen_bytes]);
         self.bit_buf.consume(8);
 

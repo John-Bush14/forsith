@@ -145,7 +145,7 @@ impl<'a, R: BufRead, const D: u8, const F: u8> ImageDecoder<'a, R, D, F> for Png
 
         if !dest.is_full() && self.cur_block.r#type != BlockType::Finished {
             let filled_len = dest.len();
-            return Ok(filled_len + self.read(&mut dest.buffer[filled_len..])?)
+            return Ok(filled_len + self.read(dest.remaining_mut_slice())?)
         }
 
         Ok(dest.len())
