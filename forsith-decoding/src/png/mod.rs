@@ -311,7 +311,8 @@ impl<'a, R: BufRead, const D: u8, const F: u8> PngDecoder<'a, R, D, F> {
 }
 
 fn check_header<R: Read>(reader: &mut R) -> Result<(), DecodingError> {
-    let header = crate::read_exact_array::<8,_>(reader)?;
+    let mut header = [0u8; 8];
+    reader.read_exact(&mut header)?;
     if header != PNG_HEADER {
         return Err(DecodingError::InccorectHeader(header.to_vec()))
     }
