@@ -6,8 +6,6 @@
 use std::{io::{self, Read}};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
-mod tests;
-
 mod png;
 pub use png::PngDecoder;
 
