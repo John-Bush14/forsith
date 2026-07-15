@@ -1,6 +1,6 @@
 use std::io::{BufRead, Read};
 
-use crate::{BitBuffer, BufferReader, DecodingError, Num, png::{ChunkData, ChunkType::{self}, checksum::{Adler32, CRC32}, chunks::{IHDR, ZlibHeader, is_chunk_type_critical}}};
+use crate::{BitBuffer, BufferReader, DecodingError, Num, png::{ChunkData, ChunkType::{self, Idat}, checksum::{Adler32, CRC32}, chunks::{IHDR, ZlibHeader, is_chunk_type_critical}}};
 
 
 const BUFFER_SIZE: usize = 1 << 12;
@@ -108,23 +108,25 @@ impl<R: BufRead> PngReader<R> {
             let type_buf: [u8; 4] = self.buffer.raw_slice(index+8..index+12).try_into().unwrap();
             self.update_crc(&type_buf);
 
-            if let Ok(t) = ChunkType::try_from(u32::from_be_bytes(type_buf)) {
-                if !IDAT && t == ChunkType::Idat {
+            let chunk_type: Result<ChunkType, <ChunkType as TryFrom<u32>>::Error> = ChunkType::try_from(u32::from_be_bytes(type_buf));
+
+            if let Ok(ChunkType::Iend) = chunk_type {
+                self.buffer.raw_mut_slice(index..index + 4).copy_from_slice(&len_buf);
+                self.buffer.raw_mut_slice(index+4..index + 8).copy_from_slice(&type_buf);
+
+                let mut crc_buf: [u8; 4] = [0u8; 4];
+                self.reader.read_exact(&mut crc_buf)?;
+                self.validate_crc(u32::from_be_bytes(crc_buf))?;
+
+                return Ok(())
+            }
+
+            if let Ok(ChunkType::Idat) = chunk_type {
+                if !IDAT {
                     self.buffer.raw_mut_slice(index..index + 4).copy_from_slice(&len_buf);
                     self.buffer.raw_mut_slice(index+4..index + 8).copy_from_slice(&type_buf);
 
                     return self.fill_buffer::<true>(index + 8)
-                }
-
-                if !IDAT && t == ChunkType::Iend {
-                    self.buffer.raw_mut_slice(index..index + 4).copy_from_slice(&len_buf);
-                    self.buffer.raw_mut_slice(index+4..index + 8).copy_from_slice(&type_buf);
-
-                    let mut crc_buf: [u8; 4] = [0u8; 4];
-                    self.reader.read_exact(&mut crc_buf)?;
-                    self.validate_crc(u32::from_be_bytes(crc_buf))?;
-
-                    return Ok(())
                 }
             } else if IDAT {
                 self.buffer.raw_mut_slice(index..index + 4).copy_from_slice(&len_buf);
