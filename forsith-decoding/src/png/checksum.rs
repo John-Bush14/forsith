@@ -146,7 +146,7 @@ impl<R: BufRead> PngReader<R> {
 
         self.buffer.unconsume(stolen_bytes);
         self.buffer.mut_slice(stolen_bytes).copy_from_slice(&self.bit_buf.peek(stolen_bytes as u8*8).to_be_bytes()[..stolen_bytes]);
-        self.bit_buf.consume(8);
+        self.bit_buf.consume(stolen_bytes as u8);
 
         let computed_adler = ((self.adler.b % ADLER_MOD) << 16) | (self.adler.a % ADLER_MOD);
 
