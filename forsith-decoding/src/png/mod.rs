@@ -1,5 +1,5 @@
 use std::io::{BufRead, Read};
-use crate::{CursorVec, DecodingError, DestinationBuffer, ImageDecoder, PixelFormat, png::{chunks::{ColorPalette, IHDR, ZlibHeader, downcast_chunkdata}, deflate::{BlockType, decode_distance, decode_length}, filtering::{Filterer, calculate_scanline_bytes}}};
+use crate::{CursorVec, DecodingError, DestinationBuffer, ImageDecoder, PixelFormat, png::{chunks::{ColorPalette, IHDR, ZlibHeader, downcast_chunkdata}, deflate::{BlockType, STATIC_DISTANCE_TREE, STATIC_LITLEN_TREE, decode_distance, decode_length}, filtering::{Filterer, calculate_scanline_bytes}}};
 use num_enum::TryFromPrimitive;
 
 mod chunks;
@@ -289,7 +289,7 @@ impl<'a, R: BufRead, const D: u8, const F: u8> PngDecoder<'a, R, D, F> {
             }
 
             let (litlen_tree, distance_tree) = if STATIC {
-                todo!()
+                (&STATIC_LITLEN_TREE, &STATIC_DISTANCE_TREE)
             } else {
                 (&self.cur_block.litlen_tree, &self.cur_block.distance_tree)
             };

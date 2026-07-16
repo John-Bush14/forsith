@@ -2,6 +2,10 @@
 #![feature(portable_simd)]
 #![feature(integer_casts)]
 #![feature(generic_const_exprs)]
+#![feature(const_trait_impl)]
+#![feature(const_cmp)]
+#![feature(const_precise_live_drops)]
+#![feature(const_try)]
 
 use std::{io::{self, Read}};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
