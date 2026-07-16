@@ -9,8 +9,10 @@ impl<R: BufRead, const D: u8, const F: u8> PngDecoder<'_, R, D, F> {
     pub fn scanline_pixel_bytes(&self) -> usize {self.postprocessor.scanline_pixel_bytes()}
 }
 
-pub fn calculate_scanline_bytes(width: u32, bitspp: u8) -> usize {
-    (width as usize * bitspp as usize).div_ceil(8) + 1
+pub fn calculate_scanline_bytes(width: u32, bitspp: u8) -> (usize, u8) {
+    let scanline_bits = (width as usize * bitspp as usize);
+
+    (scanline_bits.div_ceil(8) + 1, (scanline_bits % 8) as u8)
 }
 
 #[derive(Debug)]
@@ -20,14 +22,15 @@ pub struct PostProcessor<const F: u8> {
     pub stride: usize,
     palette: Option<ColorPalette>,
     color_type: ColorType,
-    bitspp: u8
+    bitspp: u8,
+    scanline_remainder: u8,
 }
 
 impl<const F: u8> PostProcessor<F> {
     pub fn new(width: u32, color_type: ColorType, channel_depth: u8) -> Self {
         let bitspp = PixelFormat::from(color_type) as u8 * channel_depth;
 
-        let scanline_bytes = calculate_scanline_bytes(width, if color_type != ColorType::Indexed {bitspp} else {channel_depth});
+        let (scanline_bytes, scanline_remainder) = calculate_scanline_bytes(width, if color_type != ColorType::Indexed {bitspp} else {channel_depth});
 
         let stride = bitspp as usize / 8;
 
@@ -37,7 +40,8 @@ impl<const F: u8> PostProcessor<F> {
             stride,
             palette: None,
             color_type,
-            bitspp
+            bitspp,
+            scanline_remainder
         }
     }
 
@@ -96,13 +100,19 @@ impl<const F: u8> PostProcessor<F> {
     pub fn drain_previous_scanline_indexed<const D: u8, const INDEX_BITS: u8>(&mut self, dest: &mut DestinationBuffer<'_, D, F>) -> Result<(), DecodingError> {
         let palette = unsafe {self.palette.as_ref().unwrap_unchecked()};
 
-        for i in 0.. self.prev_buffer().len() {
+        for i in 0..self.prev_buffer().len() {
             let mut byte = self.prev_buffer()[i];
 
-            for _ in 0..8/INDEX_BITS {
+            let mut iterations = 8/INDEX_BITS;
+
+            if i == self.prev_buffer().len() - 1 {iterations -= self.scanline_remainder / INDEX_BITS}
+
+            for _ in 0..iterations {
                 let index = if INDEX_BITS == 8 {byte} else {byte & ((1 << INDEX_BITS) - 1)};
 
                 let pixel = palette[index as usize].to_le_bytes();
+
+                println!("{index} = {pixel:?}");
 
                 let pixel = if has_alpha(F) {&pixel} else {&pixel[..3]};
 
@@ -206,13 +216,8 @@ impl<const F: u8> PostProcessor<F> {
         self.palette = Some(palette);
     }
 
-    pub fn palette_is_none(&self) -> bool {self.palette.is_none()}
-
-    pub fn set_palette_alpha(&mut self, i: usize, a: u8) {
-        let pixel = &mut self.palette.as_mut().unwrap()[i];
-
-        *pixel = (*pixel & 0x00FF_FFFF) | ((a as u32) << 24);
-    }
+    pub fn palette(&self) -> Option<&ColorPalette> {self.palette.as_ref()}
+    pub fn palette_mut(&mut self) -> Option<&mut ColorPalette> {self.palette.as_mut()}
 }
 
 #[inline]

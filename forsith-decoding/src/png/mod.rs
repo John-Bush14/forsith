@@ -93,7 +93,7 @@ impl<'a, R: BufRead, const D: u8, const F: u8> ImageDecoder<'a, R, D, F> for Png
             }
         }
 
-        if decoder.postprocessor.palette_is_none() && decoder.ihdr.color_type == ColorType::Indexed {
+        if decoder.postprocessor.palette().is_none() && decoder.ihdr.color_type == ColorType::Indexed {
             return Err(DecodingError::NoPallete);
         }
 

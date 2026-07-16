@@ -119,7 +119,7 @@ impl ChunkData for ZlibHeader {
 #[derive(Debug)]
 pub struct ColorPalette {
     palette: [u32; 256],
-    len: u8
+    len: u8,
 }
 
 impl IndexMut<usize> for ColorPalette {
@@ -130,6 +130,14 @@ impl Index<usize> for ColorPalette {
     type Output = u32;
 
     fn index(&self, index: usize) -> &Self::Output {&self.palette[index]}
+}
+
+impl ColorPalette {
+    fn set_pixel_alpha(&mut self, i: usize, a: u8) {
+        let pixel = &mut self[i];
+
+        *pixel = (*pixel & 0x00FF_FFFF) | ((a as u32) << 24);
+    }
 }
 
 impl ChunkData for ColorPalette {
@@ -162,16 +170,16 @@ impl ChunkData for tRNS {
 
     fn update_decoder<'a, R: BufRead, const D: u8, const F: u8>(decoder: &mut PngDecoder<'a, R, D, F>) -> Result<(), DecodingError>
     where Self: Sized {
-        if decoder.color_type() != ColorType::Indexed {todo!()}
-
         let reader = &mut decoder.reader; let len = reader.cur_chunk_len();
 
-        if len == 0 || len > 256 {return Err(InvalidChunk(ChunkType::tRNS))}
+        if decoder.postprocessor.color_type() != ColorType::Indexed {todo!()}
+        if decoder.postprocessor.palette().is_none() || len == 0 || len > 256 {return Err(InvalidChunk(ChunkType::tRNS))}
 
+        let palette = decoder.postprocessor.palette_mut().unwrap();
         for i in 0..len {
             let a = u8::read_le(reader)?;
 
-            decoder.postprocessor.set_palette_alpha(i, a);
+            palette.set_pixel_alpha(i, a);
         }
 
         Ok(())
