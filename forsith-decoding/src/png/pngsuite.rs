@@ -23,10 +23,12 @@ fn pngsuite_png_decoding_tests() -> Result<(), Box<dyn Error>> {
         let filename = entry.file_name();
         let test_file = File::open(pngsuite_dir.clone().join("png").join(filename.clone())).unwrap();
 
-        let mut solution_filename = PathBuf::from(filename);
+        let mut solution_filename = PathBuf::from(filename.clone());
         solution_filename.set_extension("json");
         let solution_file = File::open(pngsuite_dir.join("json").join(solution_filename)).unwrap();
         let solution: Vec<u8> = serde_json::from_reader(&solution_file)?;
+
+        println!("decoding {filename:?}!");
 
         let mut decoder = PngDecoder::<_, 8, {PixelFormat::TruecolorAlpha as u8}>::open(BufReader::new(test_file))?;
 
@@ -57,6 +59,8 @@ fn pngsuite_png_decoding_tests() -> Result<(), Box<dyn Error>> {
         if decoded_bytes != solution.len() {
             panic!("Solution file has more data than decoded data");
         }
+
+        println!("decoded {filename:?} correctly!");
     }
 
     Ok(())
