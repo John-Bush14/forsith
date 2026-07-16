@@ -62,20 +62,7 @@ impl<R: BufRead> PngReader<R> {
     }
 
     pub fn cur_chunk_type(&self) -> ChunkType {self.cur_chunk.r#type}
-
-    pub fn read_chunkdata(&mut self) -> Result<Box<dyn ChunkData>, DecodingError> {
-        let chunk_data: Box<dyn ChunkData> = match self.cur_chunk.r#type {
-            ChunkType::UnkownAncillerary => unreachable!(),
-            ChunkType::Idat => return Ok(Box::new(ZlibHeader::read(self, self.cur_chunk.len)?)),
-            ChunkType::Ihdr => Box::new(IHDR::read(self, self.cur_chunk.len)?),
-            ChunkType::Plte => Box::new(ColorPalette::read(self, self.cur_chunk.len)?),
-            _ => {
-                todo!()
-            }
-        };
-
-        Ok(chunk_data)
-    }
+    pub fn cur_chunk_len(&self) -> usize {self.cur_chunk.len}
 
     fn refill_buffer<const IDAT: bool>(&mut self) -> Result<(), DecodingError> {
         let remaining = self.buffer.remaining();

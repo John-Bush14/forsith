@@ -26,23 +26,6 @@ pub fn is_chunk_type_critical(chunk_type_buffer: &[u8; 4]) -> bool {
 }
 
 
-
-pub trait ChunkData: Any {
-    fn chunk_type(&self) -> ChunkType; // &self needed for Box
-
-    fn validate(&self) -> Result<(), DecodingError>;
-
-    fn read<R: BufRead>(reader: &mut PngReader<R>, len: usize) -> Result<Self, DecodingError>
-    where Self: Sized;
-
-    fn update_decoder<'a, R: BufRead, const D: u8, const F: u8>(self, decoder: &mut PngDecoder<'a, R, D, F>) -> Result<(), DecodingError>
-    where Self: Sized;
-}
-pub fn downcast_chunkdata<T: ChunkData + Any>(b: Box<dyn ChunkData>) -> Result<Box<T>, Box<dyn Any>> {
-    let b: Box<dyn Any> = b;
-    b.downcast::<T>()
-}
-
 #[derive(Debug)]
 pub struct IHDR {
     pub width: u32,
@@ -54,12 +37,10 @@ pub struct IHDR {
     pub interlace_method: u8,
 }
 
-impl ChunkData for IHDR {
-    fn chunk_type(&self) -> ChunkType {ChunkType::Ihdr}
-
-    fn validate(&self) -> Result<(), DecodingError> {
+impl IHDR {
+    pub fn validate(&self) -> Result<(), DecodingError> {
         if !matches!((self.compression_method, self.filter_method, self.interlace_method), (0, 0, 0 | 1)) {
-            return Err(DecodingError::InvalidChunk(self.chunk_type()));
+            return Err(DecodingError::InvalidChunk(ChunkType::Ihdr));
         }
 
         if self.interlace_method == 1 {
@@ -72,11 +53,11 @@ impl ChunkData for IHDR {
             | (1 | 2 | 4 | 8, ColorType::Indexed)
             | (8 | 16, ColorType::GrayscaleAlpha)
             | (8 | 16, ColorType::TruecolorAlpha) => Ok(()),
-            _ => Err(DecodingError::InvalidChunk(self.chunk_type())),
+            _ => Err(DecodingError::InvalidChunk(ChunkType::Ihdr)),
         }
     }
 
-    fn read<R: BufRead>(reader: &mut PngReader<R>, len: usize) -> Result<Self, DecodingError>
+    pub fn read<R: BufRead>(reader: &mut PngReader<R>, len: usize) -> Result<Self, DecodingError>
     where Self: Sized {
         if len != 13 {return Err(InvalidChunk(ChunkType::Idat))}
 
@@ -90,52 +71,45 @@ impl ChunkData for IHDR {
             interlace_method: u8::read_be(reader)?,
         })
     }
+}
 
-    fn update_decoder<'a, R: BufRead, const D: u8, const F: u8>(self, _decoder: &mut PngDecoder<'a, R, D, F>) -> Result<(), DecodingError>
-    where Self: Sized {unreachable!()} // ihdr needs to have been read before the decoder is created, so this should never be called
+
+pub trait ChunkData: Any {
+    fn chunk_type(&self) -> ChunkType; // &self needed for Box
+
+    fn update_decoder<'a, R: BufRead, const D: u8, const F: u8>(decoder: &mut PngDecoder<'a, R, D, F>) -> Result<(), DecodingError>
+    where Self: Sized;
+}
+pub fn downcast_chunkdata<T: ChunkData + Any>(b: Box<dyn ChunkData>) -> Result<Box<T>, Box<dyn Any>> {
+    let b: Box<dyn Any> = b;
+    b.downcast::<T>()
 }
 
 // Will be read as IDAT chunk data
-pub struct ZlibHeader {
-    pub compression_method: u8,
-    pub compression_info: u8,
-    pub check: bool, // (CMF * 256 + FLG) % 31 == 0
-    pub dict: bool,
-    pub _flevel: u8,
-}
+pub struct ZlibHeader {}
 
 impl ChunkData for ZlibHeader {
     fn chunk_type(&self) -> ChunkType {ChunkType::Idat}
 
-    fn validate(&self) -> Result<(), DecodingError> {
-        if self.compression_method != 8
-            || self.compression_info > 7
-            || self.dict
-            || !self.check
+    fn update_decoder<'a, R: BufRead, const D: u8, const F: u8>(decoder: &mut PngDecoder<'a, R, D, F>) -> Result<(), DecodingError>
+    where Self: Sized {
+        let reader = &mut decoder.reader;
+        let cmf = reader.read_idat::<u8>()?;
+        let flg = reader.read_idat::<u8>()?;
+
+        let compression_method = cmf & 0b00001111;
+        let compression_info = (cmf & 0b11110000) >> 4;
+        let dict = flg & 0b00100000 == 0b00100000;
+
+        if compression_method != 8
+            || compression_info > 7
+            || dict
+            || !(cmf as u16 * 256 + flg as u16).is_multiple_of(31)
         {
             return Err(DecodingError::InvalidChunk(ChunkType::Idat));
         }
 
-        Ok(())
-    }
-
-    fn read<R: BufRead>(reader: &mut PngReader<R>, _len: usize) -> Result<Self, DecodingError>
-    where Self: Sized {
-        let cmf = reader.read_idat::<u8>()?;
-        let flg = reader.read_idat::<u8>()?;
-
-        Ok(Self {
-            compression_method: cmf & 0b00001111,
-            compression_info: (cmf & 0b11110000) >> 4,
-            check: (cmf as u16 * 256 + flg as u16).is_multiple_of(31),
-            dict: flg & 0b00100000 == 0b00100000,
-            _flevel: (flg & 0b11000000) >> 6
-        })
-    }
-
-    fn update_decoder<'a, R: BufRead, const D: u8, const F: u8>(self, decoder: &mut PngDecoder<'a, R, D, F>) -> Result<(), DecodingError>
-    where Self: Sized {
-        let lz77_buffer_size: usize = 1 << (self.compression_info + 8);
+        let lz77_buffer_size: usize = 1 << (compression_info + 8);
 
         decoder.deflate_buffer = CursorVec::new(lz77_buffer_size + lz77_buffer_size.next_multiple_of(decoder.scanline_bytes()));
 
@@ -160,10 +134,10 @@ impl Index<usize> for ColorPalette {
 impl ChunkData for ColorPalette {
     fn chunk_type(&self) -> ChunkType {ChunkType::Plte}
 
-    fn validate(&self) -> Result<(), DecodingError> {Ok(())}
-
-    fn read<R: BufRead>(reader: &mut PngReader<R>, len: usize) -> Result<Self, DecodingError>
+    fn update_decoder<'a, R: BufRead, const D: u8, const F: u8>(decoder: &mut PngDecoder<'a, R, D, F>) -> Result<(), DecodingError>
     where Self: Sized {
+        let reader = &mut decoder.reader; let len = reader.cur_chunk_len();
+
         if len == 0 || len > 256*3 || !len.is_multiple_of(3) {return Err(InvalidChunk(ChunkType::Plte))}
 
         let mut palette = ColorPalette {palette: [0u32; 256], len: (len / 3) as u8};
@@ -175,11 +149,6 @@ impl ChunkData for ColorPalette {
             palette.palette[i] = u32::from_ne_bytes(rgb0);
         }
 
-        Ok(palette)
-    }
-
-    fn update_decoder<'a, R: BufRead, const D: u8, const F: u8>(self, decoder: &mut PngDecoder<'a, R, D, F>) -> Result<(), DecodingError>
-    where Self: Sized {
-        decoder.postprocessor.set_palette(self); Ok(())
+        decoder.postprocessor.set_palette(palette); Ok(())
     }
 }

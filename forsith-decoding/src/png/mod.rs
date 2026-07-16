@@ -259,25 +259,20 @@ impl<'a, R: BufRead, const D: u8, const F: u8> PngDecoder<'a, R, D, F> {
     fn inflate_capacity(&self) -> usize {self.inflate_capacity}
 
     fn update_with_chunk(&mut self) -> Result<(), DecodingError> {
-        if matches!(self.reader.cur_chunk_type(), ChunkType::UnkownAncillerary | ChunkType::Iend) {
-            return Ok(());
-        }
-
-        let chunk_data = self.reader.read_chunkdata()?;
-
-        if let Err(err) = chunk_data.validate() {
-            if self.reader.cur_chunk_type().is_critical() {
-                return Err(err);
-            }
-            return Ok(());
-        }
-
-        match self.reader.cur_chunk_type() {
-            ChunkType::UnkownAncillerary | ChunkType::Iend => unreachable!(),
+        let result = match self.reader.cur_chunk_type() {
+            ChunkType::UnkownAncillerary | ChunkType::Iend => return Ok(()),
             ChunkType::Ihdr => Err(DecodingError::MultipleChunks(ChunkType::Ihdr)),
-            ChunkType::Idat => downcast_chunkdata::<ZlibHeader>(chunk_data).unwrap().update_decoder(self),
-            ChunkType::Plte => downcast_chunkdata::<ColorPalette>(chunk_data).unwrap().update_decoder(self),
+            ChunkType::Idat => ZlibHeader::update_decoder(self),
+            ChunkType::Plte => ColorPalette::update_decoder(self)
+        };
+
+        if let Err(err) = result
+            && (self.reader.cur_chunk_type().is_critical() || match err {DecodingError::IOError(_) => true, _ => false})
+        {
+            return Err(err);
         }
+
+        return Ok(());
     }
 
     fn read_compressed_chunk<const STATIC: bool>(&mut self, dest: &mut DestinationBuffer<'_, D, F>) -> Result<(), DecodingError> {
@@ -334,7 +329,7 @@ fn read_ihdr<R: BufRead>(reader: &mut PngReader<R>) -> Result<IHDR, DecodingErro
         return Err(DecodingError::NoIHDR(reader.cur_chunk_type()));
     }
 
-    let ihdr = *downcast_chunkdata::<IHDR>(reader.read_chunkdata()?).unwrap();
+    let ihdr = IHDR::read(reader, reader.cur_chunk_len())?;
     ihdr.validate()?;
 
     Ok(ihdr)
