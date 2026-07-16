@@ -141,7 +141,6 @@ impl<R: BufRead> PngReader<R> {
         let stored_adler = (self.bit_buf.peek(32) as u32).to_be();
         self.bit_buf.consume(32);
 
-
         let stolen_bytes = self.bit_buf.bits_remaining() as usize / 8;
 
         self.buffer.unconsume(stolen_bytes);

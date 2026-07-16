@@ -21,7 +21,11 @@ pub struct Filterer {
 }
 
 impl Filterer {
-    pub fn new(scanline_bytes: usize, stride: usize) -> Self {
+    pub fn new(width: u32, bitspp: u8) -> Self {
+        let scanline_bytes = calculate_scanline_bytes(width, bitspp);
+
+        let stride = bitspp as usize / 8;
+
         Self {
             scanline_buffers: [CursorVec::new(scanline_bytes-1), CursorVec::new(scanline_bytes-1)],
             cur_buffer: 0,
@@ -115,6 +119,9 @@ impl Filterer {
     pub fn remaining_bytes(&self) -> usize {
         self.capacity() - self.scanline_buffers[0].len() - self.scanline_buffers[1].len()
     }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {self.prev_buffer().is_empty() && self.cur_buffer().is_empty()}
 
     pub fn capacity(&self) -> usize {self.scanline_buffers[0].capacity() * 2}
 

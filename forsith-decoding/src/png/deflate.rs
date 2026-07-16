@@ -281,11 +281,7 @@ where [(); (1 << MAX_ROOT_BITS as usize) + MAX_SUBTABLE_ENTRIES]:
     pub fn decode_symbol<R: BitReader>(&self, reader: &mut R) -> Result<u16, DecodingError> {
         let code = reader.peek_bits(self.root_bits)?;
 
-        println!("code: {code:b}, self.root_bits: {}", self.root_bits);
-
         let mut entry = self.table[code];
-
-        println!("entry.symbol = {}, entry.colen = {}", entry.symbol(), entry.colen());
 
         if MAX_SUBTABLE_ENTRIES != 0 && entry.is_subtable() {
             let subtable_bits = reader.peek_bits(entry.subtable_bits() + MAX_ROOT_BITS)? >> MAX_ROOT_BITS;

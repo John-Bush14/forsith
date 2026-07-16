@@ -57,7 +57,8 @@ pub struct PngDecoder<'a, R: BufRead, const D: u8, const F: u8> {
     _source_bytespp: u8,
     inflate_capacity: usize,
     deflate_buffer_tail: usize,
-    pallete: Option<ColorPalette>
+    pallete: Option<ColorPalette>,
+    done: bool
 }
 
 impl<'a, R: BufRead, const D: u8, const F: u8> ImageDecoder<'a, R, D, F> for PngDecoder<'a, R, D, F> {
@@ -74,14 +75,15 @@ impl<'a, R: BufRead, const D: u8, const F: u8> ImageDecoder<'a, R, D, F> for Png
             deflate_buffer: CursorVec::new(0),
             scanline_multiples: 0,
             phantom: std::marker::PhantomData,
-            filterer: Filterer::new(calculate_scanline_bytes(ihdr.width, source_bitspp), match ihdr.color_type {ColorType::Indexed => 1, _ => (source_bitspp / 8) as usize}),
+            filterer: Filterer::new(ihdr.width, match ihdr.color_type {ColorType::Indexed => 8, _ => source_bitspp}),
             ihdr,
             cur_block: deflate::Block::default(),
             _source_bitspp: source_bitspp,
             _source_bytespp: source_bitspp / 8,
             inflate_capacity: 0,
             deflate_buffer_tail: 0,
-            pallete: None
+            pallete: None,
+            done: false
         };
 
         loop  {
@@ -149,10 +151,14 @@ impl<'a, R: BufRead, const D: u8, const F: u8> ImageDecoder<'a, R, D, F> for Png
 
                     self.filterer.switch_buffers();
                 }
+
+                self.done = self.deflate_buffer.is_empty() && self.filterer.is_empty();
+
+                if !self.done {dest.set_full();}
             }
         }
 
-        if !dest.is_full() && self.cur_block.r#type != BlockType::Finished {
+        if !dest.is_full() && !self.done {
             let filled_len = dest.len();
             return Ok(filled_len + self.read(dest.remaining_mut_slice())?)
         }
