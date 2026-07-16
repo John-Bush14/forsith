@@ -46,6 +46,8 @@ pub enum DecodingError {
     ZeroDistance,
     #[error("Invalid bytes per pixel ({0}) calculated for image.")]
     InvalidStride(usize),
+    #[error("No Plte chunk found for an index color type image")]
+    NoPallete
 }
 impl From<DecodingError> for io::Error {
     fn from(err: DecodingError) -> Self {

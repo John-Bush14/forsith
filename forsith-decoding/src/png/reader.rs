@@ -1,10 +1,16 @@
 use std::io::{BufRead, Read};
 
-use crate::{BitBuffer, BufferReader, DecodingError, Num, png::{ChunkData, ChunkType::{self, Idat}, checksum::{Adler32, CRC32}, chunks::{IHDR, ZlibHeader, is_chunk_type_critical}}};
+use crate::{BitBuffer, BufferReader, DecodingError, Num, png::{ChunkData, ChunkType::{self, Idat, Plte}, checksum::{Adler32, CRC32}, chunks::{ColorPalette, IHDR, ZlibHeader, is_chunk_type_critical}}};
 
 
 const BUFFER_SIZE: usize = 1 << 12;
 
+
+#[derive(Debug)]
+struct Chunk {
+    len: usize,
+    r#type: ChunkType
+}
 
 #[derive(Debug)]
 pub struct PngReader<R: BufRead> {
@@ -13,7 +19,7 @@ pub struct PngReader<R: BufRead> {
     pub crc: CRC32,
     pub adler: Adler32,
     pub(crate) remaining_chunk_bytes: usize,
-    cur_type: ChunkType,
+    cur_chunk: Chunk,
     pub bit_buf: BitBuffer<usize>
 }
 
@@ -25,7 +31,7 @@ impl<R: BufRead> PngReader<R> {
             crc: CRC32::default(),
             adler: Adler32::default(),
             remaining_chunk_bytes: 0,
-            cur_type: ChunkType::UnkownAncillerary,
+            cur_chunk: Chunk {len: 0, r#type: ChunkType::UnkownAncillerary},
             bit_buf: BitBuffer::<usize>::new()
         };
 
@@ -40,14 +46,14 @@ impl<R: BufRead> PngReader<R> {
     }
 
     pub fn open_chunk(&mut self) -> Result<(), DecodingError> {
-        let length = self.buffer.read_be::<u32>();
+        self.cur_chunk.len = self.buffer.read_be::<u32>() as usize;
 
         let chunk_type_buf = self.buffer.read_array::<4>();
-        self.cur_type = match u32::from_be_bytes(chunk_type_buf).try_into() {
+        self.cur_chunk.r#type = match u32::from_be_bytes(chunk_type_buf).try_into() {
             Ok(t) => t,
             Err(_) => {
                 if is_chunk_type_critical(&chunk_type_buf) {return Err(DecodingError::UnkownChunk(chunk_type_buf))}
-                self.read_exact(&mut vec![0u8; length as usize])?;
+                self.read_exact(&mut vec![0u8; self.cur_chunk.len])?;
                 return self.open_chunk();
             }
         };
@@ -55,13 +61,14 @@ impl<R: BufRead> PngReader<R> {
         Ok(())
     }
 
-    pub fn cur_type(&self) -> ChunkType {self.cur_type}
+    pub fn cur_chunk_type(&self) -> ChunkType {self.cur_chunk.r#type}
 
     pub fn read_chunkdata(&mut self) -> Result<Box<dyn ChunkData>, DecodingError> {
-        let chunk_data: Box<dyn ChunkData> = match self.cur_type {
+        let chunk_data: Box<dyn ChunkData> = match self.cur_chunk.r#type {
             ChunkType::UnkownAncillerary => unreachable!(),
-            ChunkType::Idat => return Ok(Box::new(ZlibHeader::read(self)?)),
-            ChunkType::Ihdr => Box::new(IHDR::read(self)?),
+            ChunkType::Idat => return Ok(Box::new(ZlibHeader::read(self, self.cur_chunk.len)?)),
+            ChunkType::Ihdr => Box::new(IHDR::read(self, self.cur_chunk.len)?),
+            ChunkType::Plte => Box::new(ColorPalette::read(self, self.cur_chunk.len)?),
             _ => {
                 todo!()
             }

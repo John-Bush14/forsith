@@ -1,5 +1,5 @@
 use std::io::{BufRead, Read};
-use crate::{CursorVec, DecodingError, DestinationBuffer, ImageDecoder, PixelFormat, png::{chunks::{IHDR, ZlibHeader, downcast_chunkdata}, deflate::{BlockType, decode_distance, decode_length}, filtering::{Filterer, calculate_scanline_bytes}}};
+use crate::{CursorVec, DecodingError, DestinationBuffer, ImageDecoder, PixelFormat, png::{chunks::{ColorPalette, IHDR, ZlibHeader, downcast_chunkdata}, deflate::{BlockType, decode_distance, decode_length}, filtering::{Filterer, calculate_scanline_bytes}}};
 use num_enum::TryFromPrimitive;
 
 mod chunks;
@@ -23,7 +23,7 @@ mod pngsuite;
 const PNG_HEADER: [u8; 8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
 
 #[repr(u8)]
-#[derive(Debug, TryFromPrimitive, Clone, Copy)]
+#[derive(Debug, TryFromPrimitive, Clone, Copy, PartialEq, Eq)]
 enum ColorType {
     Grayscale = 0,
     Truecolor = 2,
@@ -37,7 +37,7 @@ impl From<ColorType> for PixelFormat {
         match f {
             ColorType::Grayscale => PixelFormat::Grayscale,
             ColorType::Truecolor => PixelFormat::Truecolor,
-            ColorType::Indexed => todo!(),
+            ColorType::Indexed => PixelFormat::Truecolor,
             ColorType::GrayscaleAlpha => PixelFormat::GrayscaleAlpha,
             ColorType::TruecolorAlpha => PixelFormat::TruecolorAlpha,
         }
@@ -57,6 +57,7 @@ pub struct PngDecoder<'a, R: BufRead, const D: u8, const F: u8> {
     _source_bytespp: u8,
     inflate_capacity: usize,
     deflate_buffer_tail: usize,
+    pallete: Option<ColorPalette>
 }
 
 impl<'a, R: BufRead, const D: u8, const F: u8> ImageDecoder<'a, R, D, F> for PngDecoder<'a, R, D, F> {
@@ -73,27 +74,32 @@ impl<'a, R: BufRead, const D: u8, const F: u8> ImageDecoder<'a, R, D, F> for Png
             deflate_buffer: CursorVec::new(0),
             scanline_multiples: 0,
             phantom: std::marker::PhantomData,
-            filterer: Filterer::new(calculate_scanline_bytes(ihdr.width, source_bitspp), source_bitspp as usize / 8),
+            filterer: Filterer::new(calculate_scanline_bytes(ihdr.width, source_bitspp), match ihdr.color_type {ColorType::Indexed => 1, _ => (source_bitspp / 8) as usize}),
             ihdr,
             cur_block: deflate::Block::default(),
             _source_bitspp: source_bitspp,
             _source_bytespp: source_bitspp / 8,
             inflate_capacity: 0,
             deflate_buffer_tail: 0,
+            pallete: None
         };
 
         loop  {
             decoder.reader.open_chunk()?;
 
-            if decoder.reader.cur_type() == ChunkType::Iend {
+            if decoder.reader.cur_chunk_type() == ChunkType::Iend {
                 return Err(DecodingError::NoIDAT);
             }
 
             decoder.update_with_chunk()?;
 
-            if decoder.reader.cur_type() == ChunkType::Idat {
+            if decoder.reader.cur_chunk_type() == ChunkType::Idat {
                 break; // update_with_chunk has called prepare_for_decompression here.
             }
+        }
+
+        if decoder.pallete.is_none() && decoder.ihdr.color_type == ColorType::Indexed {
+            return Err(DecodingError::NoPallete);
         }
 
         decoder.cur_block.load_block(&mut decoder.reader)?;
@@ -174,8 +180,8 @@ impl<'a, R: BufRead, const D: u8, const F: u8> PngDecoder<'a, R, D, F> {
     }}
 
     fn next_block(&mut self) -> Result<(), DecodingError> {
-        if self.reader.cur_type() != ChunkType::Idat {
-            return Err(DecodingError::InvalidChunk(self.reader.cur_type()));
+        if self.reader.cur_chunk_type() != ChunkType::Idat {
+            return Err(DecodingError::InvalidChunk(self.reader.cur_chunk_type()));
         }
 
         if self.cur_block.last {
@@ -192,7 +198,7 @@ impl<'a, R: BufRead, const D: u8, const F: u8> PngDecoder<'a, R, D, F> {
 
         self.reader.validate_adler32()?;
 
-        while self.reader.cur_type() != ChunkType::Iend {
+        while self.reader.cur_chunk_type() != ChunkType::Iend {
             self.reader.open_chunk()?;
             self.update_with_chunk()?;
         }
@@ -254,24 +260,24 @@ impl<'a, R: BufRead, const D: u8, const F: u8> PngDecoder<'a, R, D, F> {
     fn inflate_capacity(&self) -> usize {self.inflate_capacity}
 
     fn update_with_chunk(&mut self) -> Result<(), DecodingError> {
-        if matches!(self.reader.cur_type(), ChunkType::UnkownAncillerary | ChunkType::Iend) {
+        if matches!(self.reader.cur_chunk_type(), ChunkType::UnkownAncillerary | ChunkType::Iend) {
             return Ok(());
         }
 
         let chunk_data = self.reader.read_chunkdata()?;
 
         if let Err(err) = chunk_data.validate() {
-            if self.reader.cur_type().is_critical() {
+            if self.reader.cur_chunk_type().is_critical() {
                 return Err(err);
             }
             return Ok(());
         }
 
-        match self.reader.cur_type() {
+        match self.reader.cur_chunk_type() {
             ChunkType::UnkownAncillerary | ChunkType::Iend => unreachable!(),
             ChunkType::Ihdr => Err(DecodingError::MultipleChunks(ChunkType::Ihdr)),
             ChunkType::Idat => downcast_chunkdata::<ZlibHeader>(chunk_data).unwrap().update_decoder(self),
-            _ => todo!()
+            ChunkType::Plte => downcast_chunkdata::<ColorPalette>(chunk_data).unwrap().update_decoder(self),
         }
     }
 
@@ -325,8 +331,8 @@ fn check_header<R: Read>(reader: &mut R) -> Result<(), DecodingError> {
 fn read_ihdr<R: BufRead>(reader: &mut PngReader<R>) -> Result<IHDR, DecodingError> {
     reader.open_chunk()?;
 
-    if reader.cur_type() != ChunkType::Ihdr {
-        return Err(DecodingError::NoIHDR(reader.cur_type()));
+    if reader.cur_chunk_type() != ChunkType::Ihdr {
+        return Err(DecodingError::NoIHDR(reader.cur_chunk_type()));
     }
 
     let ihdr = *downcast_chunkdata::<IHDR>(reader.read_chunkdata()?).unwrap();

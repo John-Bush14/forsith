@@ -1,5 +1,5 @@
-use std::{any::Any, fmt::Display, io::BufRead};
-use crate::{CursorVec, DecodingError, Num, PngDecoder, png::{PngReader, ColorType}};
+use std::{any::Any, fmt::Display, io::{BufRead, Read}};
+use crate::{CursorVec, DecodingError::{self, InvalidChunk}, Num, PngDecoder, png::{ColorType, PngReader}};
 use num_enum::{TryFromPrimitive, IntoPrimitive};
 
 #[repr(u32)]
@@ -32,7 +32,7 @@ pub trait ChunkData: Any {
 
     fn validate(&self) -> Result<(), DecodingError>;
 
-    fn read<R: BufRead>(reader: &mut PngReader<R>) -> Result<Self, DecodingError>
+    fn read<R: BufRead>(reader: &mut PngReader<R>, len: usize) -> Result<Self, DecodingError>
     where Self: Sized;
 
     fn update_decoder<'a, R: BufRead, const D: u8, const F: u8>(self, decoder: &mut PngDecoder<'a, R, D, F>) -> Result<(), DecodingError>
@@ -76,8 +76,10 @@ impl ChunkData for IHDR {
         }
     }
 
-    fn read<R: BufRead>(reader: &mut PngReader<R>) -> Result<Self, DecodingError>
+    fn read<R: BufRead>(reader: &mut PngReader<R>, len: usize) -> Result<Self, DecodingError>
     where Self: Sized {
+        if len != 13 {return Err(InvalidChunk(ChunkType::Idat))}
+
         Ok(Self {
             width: u32::read_be(reader)?,
             _height: u32::read_be(reader)?,
@@ -117,7 +119,7 @@ impl ChunkData for ZlibHeader {
         Ok(())
     }
 
-    fn read<R: BufRead>(reader: &mut PngReader<R>) -> Result<Self, DecodingError>
+    fn read<R: BufRead>(reader: &mut PngReader<R>, _len: usize) -> Result<Self, DecodingError>
     where Self: Sized {
         let cmf = reader.read_idat::<u8>()?;
         let flg = reader.read_idat::<u8>()?;
@@ -140,5 +142,38 @@ impl ChunkData for ZlibHeader {
         decoder.scanline_multiples = (decoder.deflate_buffer.capacity()-lz77_buffer_size) / decoder.scanline_bytes();
 
         Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct ColorPalette {
+    palette: [u32; 256],
+    len: u8
+}
+
+impl ChunkData for ColorPalette {
+    fn chunk_type(&self) -> ChunkType {ChunkType::Plte}
+
+    fn validate(&self) -> Result<(), DecodingError> {Ok(())}
+
+    fn read<R: BufRead>(reader: &mut PngReader<R>, len: usize) -> Result<Self, DecodingError>
+    where Self: Sized {
+        if len == 0 || len > 256*3 || !len.is_multiple_of(3) {return Err(InvalidChunk(ChunkType::Plte))}
+
+        let mut palette = ColorPalette {palette: [0u32; 256], len: (len / 3) as u8};
+
+        let mut rgb0 = [0u8; 4];
+        for i in 0..palette.len as usize {
+            reader.read_exact(&mut rgb0[..3])?;
+
+            palette.palette[i] = u32::from_le_bytes(rgb0);
+        }
+
+        Ok(palette)
+    }
+
+    fn update_decoder<'a, R: BufRead, const D: u8, const F: u8>(self, decoder: &mut PngDecoder<'a, R, D, F>) -> Result<(), DecodingError>
+    where Self: Sized {
+        decoder.pallete = Some(self); Ok(())
     }
 }
