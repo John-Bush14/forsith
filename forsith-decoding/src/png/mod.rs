@@ -1,5 +1,5 @@
 use std::io::{BufRead, Read};
-use crate::{CursorVec, DecodingError, DestinationBuffer, ImageDecoder, PixelFormat, png::{chunks::{ColorPalette, IHDR, ZlibHeader, downcast_chunkdata}, deflate::{BlockType, STATIC_DISTANCE_TREE, STATIC_LITLEN_TREE, decode_distance, decode_length}, postprocessing::{PostProcessor, calculate_scanline_bytes}}};
+use crate::{CursorVec, DecodingError, DestinationBuffer, ImageDecoder, PixelFormat, png::{chunks::{ColorPalette, IHDR, ZlibHeader, tRNS}, deflate::{BlockType, STATIC_DISTANCE_TREE, STATIC_LITLEN_TREE, decode_distance, decode_length}, postprocessing::PostProcessor}};
 use num_enum::TryFromPrimitive;
 
 mod chunks;
@@ -49,7 +49,7 @@ pub struct PngDecoder<'a, R: BufRead, const D: u8, const F: u8> {
     reader: PngReader<R>,
     deflate_buffer: CursorVec<u8>,
     scanline_multiples: usize,
-    postprocessor: PostProcessor,
+    postprocessor: PostProcessor<F>,
     phantom: std::marker::PhantomData<&'a ()>,
     ihdr: IHDR,
     cur_block: deflate::Block,
@@ -165,6 +165,8 @@ impl<'a, R: BufRead, const D: u8, const F: u8> ImageDecoder<'a, R, D, F> for Png
 }
 
 impl<'a, R: BufRead, const D: u8, const F: u8> PngDecoder<'a, R, D, F> {
+    fn color_type(&self) -> ColorType {self.postprocessor.color_type()}
+
     fn calculate_inflate_capacity(&mut self, dest: &mut DestinationBuffer<'_, D, F>) -> usize {
         // let dest_bitspp = self.dest_bitspp();
 
@@ -263,7 +265,8 @@ impl<'a, R: BufRead, const D: u8, const F: u8> PngDecoder<'a, R, D, F> {
             ChunkType::UnkownAncillerary | ChunkType::Iend => return Ok(()),
             ChunkType::Ihdr => Err(DecodingError::MultipleChunks(ChunkType::Ihdr)),
             ChunkType::Idat => ZlibHeader::update_decoder(self),
-            ChunkType::Plte => ColorPalette::update_decoder(self)
+            ChunkType::Plte => ColorPalette::update_decoder(self),
+            ChunkType::tRNS => tRNS::update_decoder(self)
         };
 
         if let Err(err) = result

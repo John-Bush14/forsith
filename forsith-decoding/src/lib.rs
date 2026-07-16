@@ -32,6 +32,8 @@ pub enum PixelFormat {
     TruecolorAlpha = 4
 }
 
+const fn has_alpha(format: u8) -> bool {matches!(format, 2 | 4)}
+
 pub trait ImageDecoder<'a, R: Read, const D: u8, const F: u8> {
     fn dest_bitspp(&self) -> u8 {D * F}
     fn dest_bytespp(&self) -> u8 {D*F / 8}

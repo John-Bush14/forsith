@@ -1,14 +1,16 @@
-use std::{any::Any, fmt::Display, io::{BufRead, Read}, ops::Index};
+use std::{any::Any, fmt::Display, io::{BufRead, Read}, ops::{Index, IndexMut}};
 use crate::{CursorVec, DecodingError::{self, InvalidChunk}, Num, PngDecoder, png::{ColorType, PngReader}};
 use num_enum::{TryFromPrimitive, IntoPrimitive};
 
 #[repr(u32)]
+#[allow(non_camel_case_types)]
 #[derive(TryFromPrimitive, IntoPrimitive, Clone, Copy, Debug, PartialEq)]
 pub enum ChunkType {
     Ihdr = 0x49484452,
     Plte = 0x504C5445,
     Idat = 0x49444154,
     Iend = 0x49454E44,
+    tRNS = 0x74524E53,
     UnkownAncillerary
 }
 impl Display for ChunkType {
@@ -80,14 +82,9 @@ pub trait ChunkData: Any {
     fn update_decoder<'a, R: BufRead, const D: u8, const F: u8>(decoder: &mut PngDecoder<'a, R, D, F>) -> Result<(), DecodingError>
     where Self: Sized;
 }
-pub fn downcast_chunkdata<T: ChunkData + Any>(b: Box<dyn ChunkData>) -> Result<Box<T>, Box<dyn Any>> {
-    let b: Box<dyn Any> = b;
-    b.downcast::<T>()
-}
 
 // Will be read as IDAT chunk data
 pub struct ZlibHeader {}
-
 impl ChunkData for ZlibHeader {
     fn chunk_type(&self) -> ChunkType {ChunkType::Idat}
 
@@ -125,6 +122,10 @@ pub struct ColorPalette {
     len: u8
 }
 
+impl IndexMut<usize> for ColorPalette {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {&mut self.palette[index]}
+}
+
 impl Index<usize> for ColorPalette {
     type Output = u32;
 
@@ -142,13 +143,37 @@ impl ChunkData for ColorPalette {
 
         let mut palette = ColorPalette {palette: [0u32; 256], len: (len / 3) as u8};
 
-        let mut rgb0 = [0u8; 4];
+        // default alpha value should be 255
+        let mut rgba = [255u8; 4];
         for i in 0..palette.len as usize {
-            reader.read_exact(&mut rgb0[..3])?;
+            reader.read_exact(&mut rgba[..3])?;
 
-            palette.palette[i] = u32::from_ne_bytes(rgb0);
+            palette.palette[i] = u32::from_le_bytes(rgba);
         }
 
         decoder.postprocessor.set_palette(palette); Ok(())
+    }
+}
+
+#[allow(non_camel_case_types)]
+pub struct tRNS {}
+impl ChunkData for tRNS {
+    fn chunk_type(&self) -> ChunkType {ChunkType::tRNS}
+
+    fn update_decoder<'a, R: BufRead, const D: u8, const F: u8>(decoder: &mut PngDecoder<'a, R, D, F>) -> Result<(), DecodingError>
+    where Self: Sized {
+        if decoder.color_type() != ColorType::Indexed {todo!()}
+
+        let reader = &mut decoder.reader; let len = reader.cur_chunk_len();
+
+        if len == 0 || len > 256 {return Err(InvalidChunk(ChunkType::tRNS))}
+
+        for i in 0..len {
+            let a = u8::read_le(reader)?;
+
+            decoder.postprocessor.set_palette_alpha(i, a);
+        }
+
+        Ok(())
     }
 }

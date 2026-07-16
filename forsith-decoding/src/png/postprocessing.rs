@@ -1,6 +1,6 @@
 use std::{io::BufRead};
 
-use crate::{CursorVec, DecodingError, DestinationBuffer, PixelFormat, PngDecoder, png::{ColorType, chunks::ColorPalette, simd::filtering::should_use_simd}};
+use crate::{CursorVec, DecodingError, DestinationBuffer, PixelFormat, PngDecoder, has_alpha, png::{ColorType, chunks::ColorPalette, simd::filtering::should_use_simd}};
 
 use super::simd::filtering::SIMD_WIDTH;
 
@@ -14,7 +14,7 @@ pub fn calculate_scanline_bytes(width: u32, bitspp: u8) -> usize {
 }
 
 #[derive(Debug)]
-pub struct PostProcessor {
+pub struct PostProcessor<const F: u8> {
     scanline_buffers: [CursorVec<u8>; 2],
     cur_buffer: usize,
     pub stride: usize,
@@ -23,7 +23,7 @@ pub struct PostProcessor {
     bitspp: u8
 }
 
-impl PostProcessor {
+impl<const F: u8> PostProcessor<F> {
     pub fn new(width: u32, color_type: ColorType, channel_depth: u8) -> Self {
         let bitspp = PixelFormat::from(color_type) as u8 * channel_depth;
 
@@ -41,17 +41,17 @@ impl PostProcessor {
         }
     }
 
-    pub fn consume_inflated_scanline<const D: u8, const F: u8>(&mut self, scanline: &[u8], dest: &mut DestinationBuffer<'_, D, F>) -> Result<(), DecodingError> {
+    pub fn consume_inflated_scanline<const D: u8>(&mut self, scanline: &[u8], dest: &mut DestinationBuffer<'_, D, F>) -> Result<(), DecodingError> {
         match self.stride {
-            1 => self.consume_inflated_scanline_const_stride::<D, F, 1>(scanline, dest),
-            2 => self.consume_inflated_scanline_const_stride::<D, F, 2>(scanline, dest),
-            3 => self.consume_inflated_scanline_const_stride::<D, F, 3>(scanline, dest),
-            4 => self.consume_inflated_scanline_const_stride::<D, F, 4>(scanline, dest),
-            6 => self.consume_inflated_scanline_const_stride::<D, F, 6>(scanline, dest),
+            1 => self.consume_inflated_scanline_const_stride::<D, 1>(scanline, dest),
+            2 => self.consume_inflated_scanline_const_stride::<D, 2>(scanline, dest),
+            3 => self.consume_inflated_scanline_const_stride::<D, 3>(scanline, dest),
+            4 => self.consume_inflated_scanline_const_stride::<D, 4>(scanline, dest),
+            6 => self.consume_inflated_scanline_const_stride::<D, 6>(scanline, dest),
             _ => Err(DecodingError::InvalidStride(self.stride)),
         }
     }
-    fn consume_inflated_scanline_const_stride<const D: u8, const F: u8, const STRIDE: usize>(&mut self, scanline: &[u8], dest: &mut DestinationBuffer<'_, D, F>) -> Result<(), DecodingError> {
+    fn consume_inflated_scanline_const_stride<const D: u8, const STRIDE: usize>(&mut self, scanline: &[u8], dest: &mut DestinationBuffer<'_, D, F>) -> Result<(), DecodingError> {
         self.drain_previous_scanline(dest)?;
 
         self.switch_buffers();
@@ -75,15 +75,15 @@ impl PostProcessor {
         Ok(())
     }
 
-    pub fn drain_previous_scanline<const D: u8, const F: u8>(&mut self, dest: &mut DestinationBuffer<'_, D, F>) -> Result<(), DecodingError> {
+    pub fn drain_previous_scanline<const D: u8>(&mut self, dest: &mut DestinationBuffer<'_, D, F>) -> Result<(), DecodingError> {
         if self.color_type != ColorType::Indexed {
             dest.push_slice(self.prev_buffer().as_slice());
         } else {
             match self.bitspp {
-                3 => self.drain_previous_scanline_indexed::<D, F, 1>(dest),
-                6 => self.drain_previous_scanline_indexed::<D, F, 2>(dest),
-                12 => self.drain_previous_scanline_indexed::<D, F, 4>(dest),
-                24 => self.drain_previous_scanline_indexed::<D, F, 8>(dest),
+                3 => self.drain_previous_scanline_indexed::<D, 1>(dest),
+                6 => self.drain_previous_scanline_indexed::<D, 2>(dest),
+                12 => self.drain_previous_scanline_indexed::<D, 4>(dest),
+                24 => self.drain_previous_scanline_indexed::<D, 8>(dest),
                 _ => unreachable!()
             }?
         }
@@ -93,7 +93,7 @@ impl PostProcessor {
         Ok(())
     }
 
-    pub fn drain_previous_scanline_indexed<const D: u8, const F: u8, const INDEX_BITS: u8>(&mut self, dest: &mut DestinationBuffer<'_, D, F>) -> Result<(), DecodingError> {
+    pub fn drain_previous_scanline_indexed<const D: u8, const INDEX_BITS: u8>(&mut self, dest: &mut DestinationBuffer<'_, D, F>) -> Result<(), DecodingError> {
         let palette = unsafe {self.palette.as_ref().unwrap_unchecked()};
 
         for i in 0.. self.prev_buffer().len()*8/INDEX_BITS as usize {
@@ -102,7 +102,11 @@ impl PostProcessor {
             for _ in 0..8/INDEX_BITS {
                 let index = if INDEX_BITS == 8 {byte} else {byte & ((1 << INDEX_BITS) - 1)};
 
-                dest.push_slice(&palette[index as usize].to_ne_bytes()[..3]);
+                let pixel = palette[index as usize].to_le_bytes();
+
+                let pixel = if has_alpha(F) {&pixel} else {&pixel[..3]};
+
+                dest.push_slice(pixel);
 
                 if INDEX_BITS < 8 {byte <<= INDEX_BITS};
             }
@@ -172,6 +176,8 @@ impl PostProcessor {
 
     pub fn switch_buffers(&mut self) {self.cur_buffer = 1 - self.cur_buffer;}
 
+    pub fn color_type(&self) -> ColorType {self.color_type}
+
     pub fn left_byte(&self, i: usize) -> u8 {
         if i < self.stride {
             return 0;
@@ -201,6 +207,12 @@ impl PostProcessor {
     }
 
     pub fn palette_is_none(&self) -> bool {self.palette.is_none()}
+
+    pub fn set_palette_alpha(&mut self, i: usize, a: u8) {
+        let pixel = &mut self.palette.as_mut().unwrap()[i];
+
+        *pixel = (*pixel & 0x00FF_FFFF) | ((a as u32) << 24);
+    }
 }
 
 #[inline]
