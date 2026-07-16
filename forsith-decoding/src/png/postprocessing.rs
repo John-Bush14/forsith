@@ -14,13 +14,13 @@ pub fn calculate_scanline_bytes(width: u32, bitspp: u8) -> usize {
 }
 
 #[derive(Debug)]
-pub struct Filterer {
+pub struct PostProcessor {
     scanline_buffers: [CursorVec<u8>; 2],
     cur_buffer: usize,
     pub stride: usize,
 }
 
-impl Filterer {
+impl PostProcessor {
     pub fn new(width: u32, bitspp: u8) -> Self {
         let scanline_bytes = calculate_scanline_bytes(width, bitspp);
 

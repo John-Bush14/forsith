@@ -1,5 +1,5 @@
 use std::io::{BufRead, Read};
-use crate::{CursorVec, DecodingError, DestinationBuffer, ImageDecoder, PixelFormat, png::{chunks::{ColorPalette, IHDR, ZlibHeader, downcast_chunkdata}, deflate::{BlockType, STATIC_DISTANCE_TREE, STATIC_LITLEN_TREE, decode_distance, decode_length}, filtering::{Filterer, calculate_scanline_bytes}}};
+use crate::{CursorVec, DecodingError, DestinationBuffer, ImageDecoder, PixelFormat, png::{chunks::{ColorPalette, IHDR, ZlibHeader, downcast_chunkdata}, deflate::{BlockType, STATIC_DISTANCE_TREE, STATIC_LITLEN_TREE, decode_distance, decode_length}, postprocessing::{PostProcessor, calculate_scanline_bytes}}};
 use num_enum::TryFromPrimitive;
 
 mod chunks;
@@ -13,7 +13,7 @@ pub use checksum::CRC32;
 
 mod deflate;
 
-mod filtering;
+mod postprocessing;
 
 mod simd;
 
@@ -49,7 +49,7 @@ pub struct PngDecoder<'a, R: BufRead, const D: u8, const F: u8> {
     reader: PngReader<R>,
     deflate_buffer: CursorVec<u8>,
     scanline_multiples: usize,
-    filterer: Filterer,
+    filterer: PostProcessor,
     phantom: std::marker::PhantomData<&'a ()>,
     ihdr: IHDR,
     cur_block: deflate::Block,
@@ -75,7 +75,7 @@ impl<'a, R: BufRead, const D: u8, const F: u8> ImageDecoder<'a, R, D, F> for Png
             deflate_buffer: CursorVec::new(0),
             scanline_multiples: 0,
             phantom: std::marker::PhantomData,
-            filterer: Filterer::new(ihdr.width, match ihdr.color_type {ColorType::Indexed => 8, _ => source_bitspp}),
+            filterer: PostProcessor::new(ihdr.width, match ihdr.color_type {ColorType::Indexed => 8, _ => source_bitspp}),
             ihdr,
             cur_block: deflate::Block::default(),
             _source_bitspp: source_bitspp,

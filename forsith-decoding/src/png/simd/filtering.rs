@@ -1,4 +1,4 @@
-use crate::{DecodingError, png::filtering::Filterer};
+use crate::{DecodingError, png::postprocessing::PostProcessor};
 use core::simd::prelude::*;
 
 pub use super::SIMD_WIDTH;
@@ -15,7 +15,7 @@ pub const fn should_use_simd<const STRIDE: usize, const FILTER: u8>() -> bool {
     false
 }
 
-impl Filterer {
+impl PostProcessor {
     #[inline(always)]
     pub fn filter_simd<const FILTER: u8, const STRIDE: usize>(&self, scanline: &[u8], i: usize) -> Result<Simd<u8, SIMD_WIDTH>, DecodingError> {
         let raw_bytes = open_simd(scanline, i);
