@@ -39,6 +39,11 @@ fn pngsuite_png_decoding_tests() -> Result<(), Box<dyn Error>> {
             len = decoder.read(&mut decoded_buf)?;
 
             let decoded = &decoded_buf[..len];
+
+            if decoded_bytes+len > solution.len() {
+                panic!("decoded image contained more data than solution?");
+            }
+
             let solution = &solution[decoded_bytes..decoded_bytes+len];
 
             if !decoded.iter().eq(solution.iter()) {
