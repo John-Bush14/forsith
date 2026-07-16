@@ -10,7 +10,7 @@ impl<R: BufRead, const D: u8, const F: u8> PngDecoder<'_, R, D, F> {
 }
 
 pub fn calculate_scanline_bytes(width: u32, bitspp: u8) -> usize {
-    (width as usize * bitspp as usize) / 8 + 1
+    (width as usize * bitspp as usize).div_ceil(8) + 1
 }
 
 #[derive(Debug)]
@@ -27,7 +27,7 @@ impl<const F: u8> PostProcessor<F> {
     pub fn new(width: u32, color_type: ColorType, channel_depth: u8) -> Self {
         let bitspp = PixelFormat::from(color_type) as u8 * channel_depth;
 
-        let scanline_bytes = calculate_scanline_bytes(width, if color_type != ColorType::Indexed {bitspp} else {8});
+        let scanline_bytes = calculate_scanline_bytes(width, if color_type != ColorType::Indexed {bitspp} else {channel_depth});
 
         let stride = bitspp as usize / 8;
 
@@ -96,7 +96,7 @@ impl<const F: u8> PostProcessor<F> {
     pub fn drain_previous_scanline_indexed<const D: u8, const INDEX_BITS: u8>(&mut self, dest: &mut DestinationBuffer<'_, D, F>) -> Result<(), DecodingError> {
         let palette = unsafe {self.palette.as_ref().unwrap_unchecked()};
 
-        for i in 0.. self.prev_buffer().len()*8/INDEX_BITS as usize {
+        for i in 0.. self.prev_buffer().len() {
             let mut byte = self.prev_buffer()[i];
 
             for _ in 0..8/INDEX_BITS {
