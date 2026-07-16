@@ -1,12 +1,12 @@
 use std::{io::BufRead};
 
-use crate::{CursorVec, DecodingError, DestinationBuffer, PngDecoder, png::simd::filtering::should_use_simd};
+use crate::{CursorVec, DecodingError, DestinationBuffer, PixelFormat, PngDecoder, png::{ColorType, chunks::ColorPalette, simd::filtering::should_use_simd}};
 
 use super::simd::filtering::SIMD_WIDTH;
 
 impl<R: BufRead, const D: u8, const F: u8> PngDecoder<'_, R, D, F> {
-    pub fn scanline_bytes(&self) -> usize {self.filterer.scanline_bytes()}
-    pub fn scanline_pixel_bytes(&self) -> usize {self.filterer.scanline_pixel_bytes()}
+    pub fn scanline_bytes(&self) -> usize {self.postprocessor.scanline_bytes()}
+    pub fn scanline_pixel_bytes(&self) -> usize {self.postprocessor.scanline_pixel_bytes()}
 }
 
 pub fn calculate_scanline_bytes(width: u32, bitspp: u8) -> usize {
@@ -18,18 +18,26 @@ pub struct PostProcessor {
     scanline_buffers: [CursorVec<u8>; 2],
     cur_buffer: usize,
     pub stride: usize,
+    palette: Option<ColorPalette>,
+    color_type: ColorType,
+    bitspp: u8
 }
 
 impl PostProcessor {
-    pub fn new(width: u32, bitspp: u8) -> Self {
-        let scanline_bytes = calculate_scanline_bytes(width, bitspp);
+    pub fn new(width: u32, color_type: ColorType, channel_depth: u8) -> Self {
+        let bitspp = PixelFormat::from(color_type) as u8 * channel_depth;
+
+        let scanline_bytes = calculate_scanline_bytes(width, if color_type != ColorType::Indexed {bitspp} else {8});
 
         let stride = bitspp as usize / 8;
 
         Self {
             scanline_buffers: [CursorVec::new(scanline_bytes-1), CursorVec::new(scanline_bytes-1)],
             cur_buffer: 0,
-            stride
+            stride,
+            palette: None,
+            color_type,
+            bitspp
         }
     }
 
@@ -68,9 +76,37 @@ impl PostProcessor {
     }
 
     pub fn drain_previous_scanline<const D: u8, const F: u8>(&mut self, dest: &mut DestinationBuffer<'_, D, F>) -> Result<(), DecodingError> {
-        dest.push_slice(self.prev_buffer().as_slice());
+        if self.color_type != ColorType::Indexed {
+            dest.push_slice(self.prev_buffer().as_slice());
+        } else {
+            match self.bitspp {
+                3 => self.drain_previous_scanline_indexed::<D, F, 1>(dest),
+                6 => self.drain_previous_scanline_indexed::<D, F, 2>(dest),
+                12 => self.drain_previous_scanline_indexed::<D, F, 4>(dest),
+                24 => self.drain_previous_scanline_indexed::<D, F, 8>(dest),
+                _ => unreachable!()
+            }?
+        }
 
         self.prev_buffer_mut().clear();
+
+        Ok(())
+    }
+
+    pub fn drain_previous_scanline_indexed<const D: u8, const F: u8, const INDEX_BITS: u8>(&mut self, dest: &mut DestinationBuffer<'_, D, F>) -> Result<(), DecodingError> {
+        let palette = unsafe {self.palette.as_ref().unwrap_unchecked()};
+
+        for i in 0.. self.prev_buffer().len()*8/INDEX_BITS as usize {
+            let mut byte = self.prev_buffer()[i];
+
+            for _ in 0..8/INDEX_BITS {
+                let index = if INDEX_BITS == 8 {byte} else {byte & ((1 << INDEX_BITS) - 1)};
+
+                dest.push_slice(&palette[index as usize].to_ne_bytes()[..3]);
+
+                if INDEX_BITS < 8 {byte <<= INDEX_BITS};
+            }
+        }
 
         Ok(())
     }
@@ -159,6 +195,12 @@ impl PostProcessor {
 
         self.prev_buffer()[i - self.stride]
     }
+
+    pub fn set_palette(&mut self, palette: ColorPalette) {
+        self.palette = Some(palette);
+    }
+
+    pub fn palette_is_none(&self) -> bool {self.palette.is_none()}
 }
 
 #[inline]

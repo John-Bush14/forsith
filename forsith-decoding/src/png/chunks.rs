@@ -1,4 +1,4 @@
-use std::{any::Any, fmt::Display, io::{BufRead, Read}};
+use std::{any::Any, fmt::Display, io::{BufRead, Read}, ops::Index};
 use crate::{CursorVec, DecodingError::{self, InvalidChunk}, Num, PngDecoder, png::{ColorType, PngReader}};
 use num_enum::{TryFromPrimitive, IntoPrimitive};
 
@@ -47,7 +47,7 @@ pub fn downcast_chunkdata<T: ChunkData + Any>(b: Box<dyn ChunkData>) -> Result<B
 pub struct IHDR {
     pub width: u32,
     pub _height: u32,
-    pub bit_depth: u8,
+    pub channel_depth: u8,
     pub color_type: ColorType,
     pub compression_method: u8,
     pub filter_method: u8,
@@ -66,7 +66,7 @@ impl ChunkData for IHDR {
             return Err(DecodingError::InteralacingNotSupported);
         }
 
-        match (&self.bit_depth, &self.color_type) {
+        match (&self.channel_depth, &self.color_type) {
             (1 | 2 | 4 | 8 | 16, ColorType::Grayscale)
             | (8 | 16, ColorType::Truecolor)
             | (1 | 2 | 4 | 8, ColorType::Indexed)
@@ -83,7 +83,7 @@ impl ChunkData for IHDR {
         Ok(Self {
             width: u32::read_be(reader)?,
             _height: u32::read_be(reader)?,
-            bit_depth: u8::read_be(reader)?,
+            channel_depth: u8::read_be(reader)?,
             color_type: ColorType::try_from(u8::read_be(reader)?).map_err(|_| DecodingError::InvalidChunk(ChunkType::Ihdr))?,
             compression_method: u8::read_be(reader)?,
             filter_method:  u8::read_be(reader)?,
@@ -151,6 +151,12 @@ pub struct ColorPalette {
     len: u8
 }
 
+impl Index<usize> for ColorPalette {
+    type Output = u32;
+
+    fn index(&self, index: usize) -> &Self::Output {&self.palette[index]}
+}
+
 impl ChunkData for ColorPalette {
     fn chunk_type(&self) -> ChunkType {ChunkType::Plte}
 
@@ -166,7 +172,7 @@ impl ChunkData for ColorPalette {
         for i in 0..palette.len as usize {
             reader.read_exact(&mut rgb0[..3])?;
 
-            palette.palette[i] = u32::from_le_bytes(rgb0);
+            palette.palette[i] = u32::from_ne_bytes(rgb0);
         }
 
         Ok(palette)
@@ -174,6 +180,6 @@ impl ChunkData for ColorPalette {
 
     fn update_decoder<'a, R: BufRead, const D: u8, const F: u8>(self, decoder: &mut PngDecoder<'a, R, D, F>) -> Result<(), DecodingError>
     where Self: Sized {
-        decoder.pallete = Some(self); Ok(())
+        decoder.postprocessor.set_palette(self); Ok(())
     }
 }
