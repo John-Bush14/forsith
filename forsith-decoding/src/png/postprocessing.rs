@@ -23,7 +23,7 @@ pub struct PostProcessor<const F: u8> {
     palette: Option<ColorPalette>,
     color_type: ColorType,
     bitspp: u8,
-    scanline_remainder: u8,
+    scanline_padding: u8, // in bits
     channel_depth: u8
 }
 
@@ -31,7 +31,7 @@ impl<const F: u8> PostProcessor<F> {
     pub fn new(width: u32, color_type: ColorType, channel_depth: u8) -> Self {
         let bitspp = PixelFormat::from(color_type) as u8 * channel_depth;
 
-        let (scanline_bytes, scanline_remainder) = calculate_scanline_bytes(width, if color_type != ColorType::Indexed {bitspp} else {channel_depth});
+        let (scanline_bytes, scanline_padding) = calculate_scanline_bytes(width, if color_type != ColorType::Indexed {bitspp} else {channel_depth});
 
         let stride = bitspp as usize / 8;
 
@@ -42,7 +42,7 @@ impl<const F: u8> PostProcessor<F> {
             palette: None,
             color_type,
             bitspp,
-            scanline_remainder,
+            scanline_padding,
             channel_depth
         }
     }
@@ -75,7 +75,7 @@ impl<const F: u8> PostProcessor<F> {
 
     pub fn drain_previous_scanline<const D: u8>(&mut self, dest: &mut DestinationBuffer<'_, D, F>) -> Result<(), DecodingError> {
         if self.color_type != ColorType::Indexed {
-            dest.push_slice(self.prev_buffer().as_slice(), self.pixel_format() as u8, self.channel_depth, self.scanline_remainder);
+            dest.push_slice(self.prev_buffer().as_slice(), self.pixel_format() as u8, self.channel_depth, self.scanline_padding);
         } else {
             self.drain_previous_scanline_indexed(dest)?
         }
@@ -94,7 +94,7 @@ impl<const F: u8> PostProcessor<F> {
 
             let mut iterations = 8/index_bits;
 
-            if i == self.prev_buffer().len() - 1 {iterations -= self.scanline_remainder / index_bits}
+            if i == self.prev_buffer().len() - 1 {iterations -= self.scanline_padding / index_bits}
 
             for _ in 0..iterations {
                 let index = if index_bits == 8 {byte} else {byte >> (8 - index_bits)};
