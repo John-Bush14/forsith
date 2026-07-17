@@ -83,26 +83,19 @@ impl<const F: u8> PostProcessor<F> {
 
     pub fn drain_previous_scanline<const D: u8>(&mut self, dest: &mut DestinationBuffer<'_, D, F>) -> Result<(), DecodingError> {
         if self.color_type != ColorType::Indexed {
-            match (has_alpha(self.pixel_format() as u8), has_alpha(F), F == 0) {
-                (true, true, _) | (false, false, _) | (_, _, true) => dest.push_slice(self.prev_buffer().as_slice()),
-                _ => {
-                    match self.pixel_format() as u8 {
-                        1 => self.drain_previous_scanline_scaled::<D, 1>(dest),
-                        2 => self.drain_previous_scanline_scaled::<D, 2>(dest),
-                        3 => self.drain_previous_scanline_scaled::<D, 3>(dest),
-                        4 => self.drain_previous_scanline_scaled::<D, 4>(dest),
-                        _ => unreachable!()
-                    };
-                }
+            if F == self.pixel_format() as u8 {
+                dest.push_slice(self.prev_buffer().as_slice());
+            } else {
+                match self.pixel_format() as u8 {
+                    1 => self.drain_previous_scanline_scaled::<D, 1>(dest),
+                    2 => self.drain_previous_scanline_scaled::<D, 2>(dest),
+                    3 => self.drain_previous_scanline_scaled::<D, 3>(dest),
+                    4 => self.drain_previous_scanline_scaled::<D, 4>(dest),
+                    _ => unreachable!()
+                };
             }
         } else {
-            match self.bitspp {
-                3 => self.drain_previous_scanline_indexed::<D, 1>(dest),
-                6 => self.drain_previous_scanline_indexed::<D, 2>(dest),
-                12 => self.drain_previous_scanline_indexed::<D, 4>(dest),
-                24 => self.drain_previous_scanline_indexed::<D, 8>(dest),
-                _ => unreachable!()
-            }?
+            self.drain_previous_scanline_indexed(dest)?
         }
 
         self.prev_buffer_mut().clear();
@@ -111,25 +104,25 @@ impl<const F: u8> PostProcessor<F> {
     }
 
     fn drain_previous_scanline_scaled<const D: u8, const SF: u8>(&mut self, dest: &mut DestinationBuffer<'_, D, F>) {
-        let source_pixel_channels = self.pixel_format() as u8 as usize;
-        for i in (0..self.prev_buffer().len()).step_by(source_pixel_channels) {
-            let pixel = self.prev_buffer().slice(i..i+source_pixel_channels);
+        for i in (0..self.prev_buffer().len()).step_by(SF as usize) {
+            let pixel = self.prev_buffer().slice(i..i+SF as usize);
             dest.push_pixel::<SF>(pixel);
         }
     }
 
-    pub fn drain_previous_scanline_indexed<const D: u8, const INDEX_BITS: u8>(&mut self, dest: &mut DestinationBuffer<'_, D, F>) -> Result<(), DecodingError> {
+    pub fn drain_previous_scanline_indexed<const D: u8>(&mut self, dest: &mut DestinationBuffer<'_, D, F>) -> Result<(), DecodingError> {
         let palette = unsafe {self.palette.as_ref().unwrap_unchecked()};
+        let index_bits = self.bitspp / 3;
 
         for i in 0..self.prev_buffer().len() {
             let mut byte = self.prev_buffer()[i];
 
-            let mut iterations = 8/INDEX_BITS;
+            let mut iterations = 8/index_bits;
 
-            if i == self.prev_buffer().len() - 1 {iterations -= self.scanline_remainder / INDEX_BITS}
+            if i == self.prev_buffer().len() - 1 {iterations -= self.scanline_remainder / index_bits}
 
             for _ in 0..iterations {
-                let index = if INDEX_BITS == 8 {byte} else {byte >> (8 - INDEX_BITS)};
+                let index = if index_bits == 8 {byte} else {byte >> (8 - index_bits)};
 
                 let pixel = palette[index as usize].to_le_bytes();
 
@@ -137,7 +130,7 @@ impl<const F: u8> PostProcessor<F> {
 
                 dest.push_slice(pixel);
 
-                if INDEX_BITS < 8 {byte <<= INDEX_BITS};
+                if index_bits < 8 {byte <<= index_bits};
             }
         }
 
