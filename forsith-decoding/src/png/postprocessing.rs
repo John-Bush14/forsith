@@ -108,11 +108,9 @@ impl<const F: u8> PostProcessor<F> {
             if i == self.prev_buffer().len() - 1 {iterations -= self.scanline_remainder / INDEX_BITS}
 
             for _ in 0..iterations {
-                let index = if INDEX_BITS == 8 {byte} else {byte & ((1 << INDEX_BITS) - 1)};
+                let index = if INDEX_BITS == 8 {byte} else {byte >> (8 - INDEX_BITS)};
 
                 let pixel = palette[index as usize].to_le_bytes();
-
-                println!("{index} = {pixel:?}");
 
                 let pixel = if has_alpha(F) {&pixel} else {&pixel[..3]};
 
