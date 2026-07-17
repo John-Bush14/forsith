@@ -1,6 +1,6 @@
 use std::io::{BufRead, Read};
 
-use crate::{BitBuffer, BufferReader, DecodingError, Num, png::{ChunkData, ChunkType::{self, Idat, Plte}, checksum::{Adler32, CRC32}, chunks::{ColorPalette, IHDR, ZlibHeader, is_chunk_type_critical}}};
+use crate::{BitBuffer, BufferReader, DecodingError, Num, png::{ChunkType::{self}, checksum::{Adler32, CRC32}, chunks::is_chunk_type_critical}};
 
 
 const BUFFER_SIZE: usize = 1 << 12;
@@ -27,12 +27,12 @@ impl<R: BufRead> PngReader<R> {
     pub fn new(reader: R) -> Self {
         let mut reader = Self {
             reader,
-            buffer: BufferReader::<BUFFER_SIZE>::new(),
+            buffer: BufferReader::<BUFFER_SIZE>::default(),
             crc: CRC32::default(),
             adler: Adler32::default(),
             remaining_chunk_bytes: 0,
             cur_chunk: Chunk {len: 0, r#type: ChunkType::UnkownAncillerary},
-            bit_buf: BitBuffer::<usize>::new()
+            bit_buf: BitBuffer::<usize>::default()
         };
 
         let first_len = u32::read_be(&mut reader.reader).unwrap();

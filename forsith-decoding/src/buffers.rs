@@ -6,13 +6,6 @@ pub struct BitBuffer<I: Num> {
     bits_remaining: u8
 }
 impl<I: Num> BitBuffer<I> {
-    pub fn new() -> Self {
-        Self {
-            buf: I::default(),
-            bits_remaining: 0
-        }
-    }
-
     pub fn bits_remaining(&self) -> u8 {
         self.bits_remaining
     }
@@ -34,6 +27,14 @@ impl<I: Num> BitBuffer<I> {
         self.buf = self.buf | (I::try_from(value).unwrap_unchecked() << self.bits_remaining as usize);
         self.bits_remaining += 32;
     }}
+}
+impl<I: Num> Default for BitBuffer<I> {
+    fn default() -> Self {
+        Self {
+            buf: I::default(),
+            bits_remaining: 0
+        }
+    }
 }
 
 pub struct DestinationBuffer<'a, const D: u8, const F: u8> {
@@ -62,8 +63,8 @@ impl<'a, const D: u8, const F: u8> DestinationBuffer<'a, D, F> {
         self.index += len;
     }
 
-    pub fn push_slice(&mut self, slice: &[u8], format: u8, channel_depth: u8, remainder: u8) {
-        if (format, channel_depth) == (F, D) && remainder == 0 {
+    pub fn push_slice(&mut self, slice: &[u8], format: u8, channel_depth: u8, padding: u8) {
+        if (format, channel_depth) == (F, D) && padding == 0 {
             self.push_slice_raw(slice);
         } else {
             todo!();
@@ -208,15 +209,15 @@ pub struct BufferReader<const LEN: usize> {
     buffer: [u8; LEN],
     index: usize
 }
-
-impl<const LEN: usize> BufferReader<LEN> {
-    pub fn new() -> Self {
+impl<const LEN: usize> Default for BufferReader<LEN> {
+    fn default() -> Self {
         Self {
             buffer: [0u8; LEN],
             index: 0
         }
     }
-
+}
+impl<const LEN: usize> BufferReader<LEN> {
     pub fn slice(&self, len: usize) -> &[u8] {
         unsafe {self.buffer.get_unchecked(self.index..self.index + len)}
     }

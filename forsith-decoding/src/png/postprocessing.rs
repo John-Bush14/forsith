@@ -10,7 +10,7 @@ impl<R: BufRead, const D: u8, const F: u8> PngDecoder<'_, R, D, F> {
 }
 
 pub fn calculate_scanline_bytes(width: u32, bitspp: u8) -> (usize, u8) {
-    let scanline_bits = (width as usize * bitspp as usize);
+    let scanline_bits = width as usize * bitspp as usize;
 
     (scanline_bits.div_ceil(8) + 1, (scanline_bits % 8) as u8)
 }

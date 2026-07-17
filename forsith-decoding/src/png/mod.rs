@@ -1,5 +1,5 @@
 use std::io::{BufRead, Read};
-use crate::{CursorVec, DecodingError, DestinationBuffer, ImageDecoder, PixelFormat, png::{chunks::{ColorPalette, IHDR, ZlibHeader, tRNS}, deflate::{BlockType, STATIC_DISTANCE_TREE, STATIC_LITLEN_TREE, decode_distance, decode_length}, postprocessing::PostProcessor}};
+use crate::{CursorVec, DecodingError, DestinationBuffer, ImageDecoder, PixelFormat, png::{chunks::{ColorPalette, Ihdr, ZlibHeader, tRNS}, deflate::{BlockType, STATIC_DISTANCE_TREE, STATIC_LITLEN_TREE, decode_distance, decode_length}, postprocessing::PostProcessor}};
 use num_enum::TryFromPrimitive;
 
 mod chunks;
@@ -51,7 +51,7 @@ pub struct PngDecoder<'a, R: BufRead, const D: u8, const F: u8> {
     scanline_multiples: usize,
     postprocessor: PostProcessor<F>,
     phantom: std::marker::PhantomData<&'a ()>,
-    ihdr: IHDR,
+    ihdr: Ihdr,
     cur_block: deflate::Block,
     inflate_capacity: usize,
     deflate_buffer_tail: usize,
@@ -65,7 +65,6 @@ impl<'a, R: BufRead, const D: u8, const F: u8> ImageDecoder<'a, R, D, F> for Png
         let mut reader = PngReader::new(reader);
 
         let ihdr = read_ihdr(&mut reader)?;
-        // println!("{ihdr:?}");
 
         let mut decoder = Self {
             reader,
@@ -166,8 +165,6 @@ impl<'a, R: BufRead, const D: u8, const F: u8> ImageDecoder<'a, R, D, F> for Png
 }
 
 impl<'a, R: BufRead, const D: u8, const F: u8> PngDecoder<'a, R, D, F> {
-    fn color_type(&self) -> ColorType {self.postprocessor.color_type()}
-
     fn calculate_inflate_capacity(&mut self, dest: &mut DestinationBuffer<'_, D, F>) -> usize {
         // let dest_bitspp = self.dest_bitspp();
 
@@ -271,12 +268,12 @@ impl<'a, R: BufRead, const D: u8, const F: u8> PngDecoder<'a, R, D, F> {
         };
 
         if let Err(err) = result
-            && (self.reader.cur_chunk_type().is_critical() || match err {DecodingError::IOError(_) => true, _ => false})
+            && (self.reader.cur_chunk_type().is_critical() || matches!(err, DecodingError::IOError(_)))
         {
             return Err(err);
         }
 
-        return Ok(());
+        Ok(())
     }
 
     fn read_compressed_chunk<const STATIC: bool>(&mut self, dest: &mut DestinationBuffer<'_, D, F>) -> Result<(), DecodingError> {
@@ -326,14 +323,14 @@ fn check_header<R: Read>(reader: &mut R) -> Result<(), DecodingError> {
     Ok(())
 }
 
-fn read_ihdr<R: BufRead>(reader: &mut PngReader<R>) -> Result<IHDR, DecodingError> {
+fn read_ihdr<R: BufRead>(reader: &mut PngReader<R>) -> Result<Ihdr, DecodingError> {
     reader.open_chunk()?;
 
     if reader.cur_chunk_type() != ChunkType::Ihdr {
         return Err(DecodingError::NoIHDR(reader.cur_chunk_type()));
     }
 
-    let ihdr = IHDR::read(reader, reader.cur_chunk_len())?;
+    let ihdr = Ihdr::read(reader, reader.cur_chunk_len())?;
     ihdr.validate()?;
 
     Ok(ihdr)

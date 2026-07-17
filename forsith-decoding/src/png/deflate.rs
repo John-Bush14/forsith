@@ -125,6 +125,7 @@ impl Entry {
     const fn _is_symbol(&self) -> bool {self.0 >> 16 & 0b11 == 1}
     const fn is_subtable(&self) -> bool {self.0 >> 16 & 0b11 == 2}
 
+    #[allow(unused)]
     const fn is_empty(&self) -> bool {
         self.0 == 0
     }

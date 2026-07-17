@@ -29,7 +29,7 @@ pub fn is_chunk_type_critical(chunk_type_buffer: &[u8; 4]) -> bool {
 
 
 #[derive(Debug)]
-pub struct IHDR {
+pub struct Ihdr {
     pub width: u32,
     pub _height: u32,
     pub channel_depth: u8,
@@ -39,7 +39,7 @@ pub struct IHDR {
     pub interlace_method: u8,
 }
 
-impl IHDR {
+impl Ihdr {
     pub fn validate(&self) -> Result<(), DecodingError> {
         if !matches!((self.compression_method, self.filter_method, self.interlace_method), (0, 0, 0 | 1)) {
             return Err(DecodingError::InvalidChunk(ChunkType::Ihdr));
@@ -77,6 +77,7 @@ impl IHDR {
 
 
 pub trait ChunkData: Any {
+    #[allow(unused)]
     fn chunk_type(&self) -> ChunkType; // &self needed for Box
 
     fn update_decoder<'a, R: BufRead, const D: u8, const F: u8>(decoder: &mut PngDecoder<'a, R, D, F>) -> Result<(), DecodingError>
