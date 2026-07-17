@@ -137,20 +137,20 @@ impl<const F: u8> PostProcessor<F> {
         };
 
         match self.stride {
-            1 => self.filter_and_push_scanline_simd::<FILTER, 1>(scanline),
-            2 => self.filter_and_push_scanline_simd::<FILTER, 2>(scanline),
-            3 => self.filter_and_push_scanline_simd::<FILTER, 3>(scanline),
-            4 => self.filter_and_push_scanline_simd::<FILTER, 4>(scanline),
-            6 => self.filter_and_push_scanline_simd::<FILTER, 6>(scanline),
-            8 => self.filter_and_push_scanline_simd::<FILTER, 8>(scanline),
+            1 => self.filter_and_push_scanline_simd::<FILTER, 1>(alignment_bytes, scanline),
+            2 => self.filter_and_push_scanline_simd::<FILTER, 2>(alignment_bytes, scanline),
+            3 => self.filter_and_push_scanline_simd::<FILTER, 3>(alignment_bytes, scanline),
+            4 => self.filter_and_push_scanline_simd::<FILTER, 4>(alignment_bytes, scanline),
+            6 => self.filter_and_push_scanline_simd::<FILTER, 6>(alignment_bytes, scanline),
+            8 => self.filter_and_push_scanline_simd::<FILTER, 8>(alignment_bytes, scanline),
             _ => unreachable!()
         }?;
 
         Ok(())
     }
 
-    fn filter_and_push_scanline_simd<const FILTER: u8, const STRIDE: usize>(&mut self, scanline: &[u8]) -> Result<(), DecodingError> {
-        for i in (0..scanline.len()).step_by(SIMD_WIDTH) {
+    fn filter_and_push_scanline_simd<const FILTER: u8, const STRIDE: usize>(&mut self, alignment_bytes: usize, scanline: &[u8]) -> Result<(), DecodingError> {
+        for i in (alignment_bytes..scanline.len()).step_by(SIMD_WIDTH) {
             let filtered_bytes = self.filter_simd::<FILTER, STRIDE>(scanline, i)?;
 
             filtered_bytes.copy_to_slice(self.cur_buffer_mut().mut_slice(i..i + SIMD_WIDTH));
