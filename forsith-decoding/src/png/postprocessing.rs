@@ -24,6 +24,7 @@ pub struct PostProcessor<const F: u8> {
     color_type: ColorType,
     bitspp: u8,
     scanline_remainder: u8,
+    channel_depth: u8
 }
 
 impl<const F: u8> PostProcessor<F> {
@@ -41,7 +42,8 @@ impl<const F: u8> PostProcessor<F> {
             palette: None,
             color_type,
             bitspp,
-            scanline_remainder
+            scanline_remainder,
+            channel_depth
         }
     }
 
@@ -73,17 +75,7 @@ impl<const F: u8> PostProcessor<F> {
 
     pub fn drain_previous_scanline<const D: u8>(&mut self, dest: &mut DestinationBuffer<'_, D, F>) -> Result<(), DecodingError> {
         if self.color_type != ColorType::Indexed {
-            if F == self.pixel_format() as u8 {
-                dest.push_slice(self.prev_buffer().as_slice());
-            } else {
-                match self.pixel_format() as u8 {
-                    1 => self.drain_previous_scanline_scaled::<D, 1>(dest),
-                    2 => self.drain_previous_scanline_scaled::<D, 2>(dest),
-                    3 => self.drain_previous_scanline_scaled::<D, 3>(dest),
-                    4 => self.drain_previous_scanline_scaled::<D, 4>(dest),
-                    _ => unreachable!()
-                };
-            }
+            dest.push_slice(self.prev_buffer().as_slice(), self.pixel_format() as u8, self.channel_depth, self.scanline_remainder);
         } else {
             self.drain_previous_scanline_indexed(dest)?
         }
@@ -91,13 +83,6 @@ impl<const F: u8> PostProcessor<F> {
         self.prev_buffer_mut().clear();
 
         Ok(())
-    }
-
-    fn drain_previous_scanline_scaled<const D: u8, const SF: u8>(&mut self, dest: &mut DestinationBuffer<'_, D, F>) {
-        for i in (0..self.prev_buffer().len()).step_by(SF as usize) {
-            let pixel = self.prev_buffer().slice(i..i+SF as usize);
-            dest.push_pixel::<SF>(pixel);
-        }
     }
 
     pub fn drain_previous_scanline_indexed<const D: u8>(&mut self, dest: &mut DestinationBuffer<'_, D, F>) -> Result<(), DecodingError> {
@@ -118,7 +103,11 @@ impl<const F: u8> PostProcessor<F> {
 
                 let pixel = if has_alpha(F) {&pixel} else {&pixel[..3]};
 
-                dest.push_slice(pixel);
+                if has_alpha(F) {
+                    dest.push_8bit_pixel::<4>(pixel);
+                } else {
+                    dest.push_8bit_pixel::<3>(pixel);
+                }
 
                 if index_bits < 8 {byte <<= index_bits};
             }
