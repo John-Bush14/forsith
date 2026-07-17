@@ -25,6 +25,13 @@ fn pngsuite_png_decoding_tests() -> Result<(), Box<dyn Error>> {
 
         let mut solution_filename = PathBuf::from(filename.clone());
         solution_filename.set_extension("json");
+        if filename.as_encoded_bytes().ends_with(b"16.png") {
+            let mut stem = solution_filename.file_stem().unwrap().to_os_string();
+
+            stem.push("_to8.json");
+
+            solution_filename = PathBuf::from(stem);
+        }
         let solution_file = File::open(pngsuite_dir.join("json").join(solution_filename)).unwrap();
         let solution: Vec<u8> = serde_json::from_reader(&solution_file)?;
 
