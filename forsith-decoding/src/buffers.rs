@@ -51,7 +51,6 @@ impl<'a, const D: u8, const F: u8> DestinationBuffer<'a, D, F> {
         }
     }
 
-    #[allow(unused)]
     pub fn push_byte(&mut self, b: u8) {
         unsafe {*self.buffer.get_unchecked_mut(self.index) = b};
         self.index += 1;
@@ -61,6 +60,35 @@ impl<'a, const D: u8, const F: u8> DestinationBuffer<'a, D, F> {
         let len = slice.len();
         unsafe {self.buffer.get_unchecked_mut(self.index..self.index + len).copy_from_slice(slice)};
         self.index += len;
+    }
+
+    pub fn push_pixel<const SF: u8>(&mut self, pixel: &[u8]) {
+        let mut i = 0;
+
+        // grayscale
+        if F <= 2 {
+            if SF <= 2 {self.push_byte(pixel[0]); i += 1;}
+            else {
+                let [r, g, b] = pixel[0..2] else {unreachable!()};
+                let gray = ((299 * r as u32 + 587 * g as u32 + 114 * b as u32) / 1000) as u8;
+                self.push_byte(gray); i += 3;
+          }
+        }
+
+        // rgb
+        else {
+            if SF > 2 {self.push_slice(&pixel[0..3]); i += 3;}
+            else {
+                let g = pixel[0];
+                self.push_slice(&[g, g, g]); i += 1;
+            }
+        }
+
+        // has alpha
+        if F.is_multiple_of(2) {
+            if SF.is_multiple_of(2) {self.push_byte(pixel[i])}
+            else {self.push_byte(255)}
+        }
     }
 
     pub fn len(&self) -> usize {self.index}

@@ -79,9 +79,22 @@ impl<const F: u8> PostProcessor<F> {
         Ok(())
     }
 
+    pub fn pixel_format(&self) -> PixelFormat {PixelFormat::from(self.color_type())}
+
     pub fn drain_previous_scanline<const D: u8>(&mut self, dest: &mut DestinationBuffer<'_, D, F>) -> Result<(), DecodingError> {
         if self.color_type != ColorType::Indexed {
-            dest.push_slice(self.prev_buffer().as_slice());
+            match (has_alpha(self.pixel_format() as u8), has_alpha(F), F == 0) {
+                (true, true, _) | (false, false, _) | (_, _, true) => dest.push_slice(self.prev_buffer().as_slice()),
+                _ => {
+                    match self.pixel_format() as u8 {
+                        1 => self.drain_previous_scanline_scaled::<D, 1>(dest),
+                        2 => self.drain_previous_scanline_scaled::<D, 2>(dest),
+                        3 => self.drain_previous_scanline_scaled::<D, 3>(dest),
+                        4 => self.drain_previous_scanline_scaled::<D, 4>(dest),
+                        _ => unreachable!()
+                    };
+                }
+            }
         } else {
             match self.bitspp {
                 3 => self.drain_previous_scanline_indexed::<D, 1>(dest),
@@ -95,6 +108,14 @@ impl<const F: u8> PostProcessor<F> {
         self.prev_buffer_mut().clear();
 
         Ok(())
+    }
+
+    fn drain_previous_scanline_scaled<const D: u8, const SF: u8>(&mut self, dest: &mut DestinationBuffer<'_, D, F>) {
+        let source_pixel_channels = self.pixel_format() as u8 as usize;
+        for i in (0..self.prev_buffer().len()).step_by(source_pixel_channels) {
+            let pixel = self.prev_buffer().slice(i..i+source_pixel_channels);
+            dest.push_pixel::<SF>(pixel);
+        }
     }
 
     pub fn drain_previous_scanline_indexed<const D: u8, const INDEX_BITS: u8>(&mut self, dest: &mut DestinationBuffer<'_, D, F>) -> Result<(), DecodingError> {
