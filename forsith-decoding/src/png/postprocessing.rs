@@ -46,16 +46,6 @@ impl<const F: u8> PostProcessor<F> {
     }
 
     pub fn consume_inflated_scanline<const D: u8>(&mut self, scanline: &[u8], dest: &mut DestinationBuffer<'_, D, F>) -> Result<(), DecodingError> {
-        match self.stride {
-            1 => self.consume_inflated_scanline_const_stride::<D, 1>(scanline, dest),
-            2 => self.consume_inflated_scanline_const_stride::<D, 2>(scanline, dest),
-            3 => self.consume_inflated_scanline_const_stride::<D, 3>(scanline, dest),
-            4 => self.consume_inflated_scanline_const_stride::<D, 4>(scanline, dest),
-            6 => self.consume_inflated_scanline_const_stride::<D, 6>(scanline, dest),
-            _ => Err(DecodingError::InvalidStride(self.stride)),
-        }
-    }
-    fn consume_inflated_scanline_const_stride<const D: u8, const STRIDE: usize>(&mut self, scanline: &[u8], dest: &mut DestinationBuffer<'_, D, F>) -> Result<(), DecodingError> {
         self.drain_previous_scanline(dest)?;
 
         self.switch_buffers();
@@ -69,10 +59,10 @@ impl<const F: u8> PostProcessor<F> {
         }
 
         match filter {
-            1 => {self.filter_and_push_scanline::<1, STRIDE>(scanline)?},
-            2 => {self.filter_and_push_scanline::<2, STRIDE>(scanline)?},
-            3 => {self.filter_and_push_scanline::<3, STRIDE>(scanline)?},
-            4 => {self.filter_and_push_scanline::<4, STRIDE>(scanline)?},
+            1 => {self.filter_and_push_scanline::<1>(scanline)?},
+            2 => {self.filter_and_push_scanline::<2>(scanline)?},
+            3 => {self.filter_and_push_scanline::<3>(scanline)?},
+            4 => {self.filter_and_push_scanline::<4>(scanline)?},
             _ => return Err(DecodingError::InvalidFilter(filter)),
         }
 
@@ -138,8 +128,8 @@ impl<const F: u8> PostProcessor<F> {
     }
 
     #[inline]
-    fn filter_and_push_scanline<const FILTER: u8, const STRIDE: usize>(&mut self, scanline: &[u8]) -> Result<(), DecodingError> {
-        if !should_use_simd::<STRIDE, FILTER>() {
+    fn filter_and_push_scanline<const FILTER: u8>(&mut self, scanline: &[u8]) -> Result<(), DecodingError> {
+        if !should_use_simd::<FILTER>(self.stride) {
             for (i, &b) in scanline.iter().enumerate() {
                 let filtered_byte = self.filter::<FILTER>(b, i)?;
                 self.cur_buffer_mut().push(filtered_byte);
@@ -150,21 +140,33 @@ impl<const F: u8> PostProcessor<F> {
 
         let mut alignment_bytes = scanline.len() % SIMD_WIDTH;
 
-        if alignment_bytes < STRIDE && matches!(FILTER, 1 | 3 | 4) {alignment_bytes += SIMD_WIDTH;}
+        if matches!(FILTER, 1 | 3 | 4) && alignment_bytes < self.stride {alignment_bytes += SIMD_WIDTH;}
 
         for (i, &b) in scanline.iter().enumerate().take(alignment_bytes) {
             let filtered_byte = self.filter::<FILTER>(b, i)?;
             self.cur_buffer_mut().push(filtered_byte);
         };
 
-        for i in (alignment_bytes..scanline.len()).step_by(SIMD_WIDTH) {
+        match self.stride {
+            1 => self.filter_and_push_scanline_simd::<FILTER, 1>(scanline),
+            2 => self.filter_and_push_scanline_simd::<FILTER, 2>(scanline),
+            3 => self.filter_and_push_scanline_simd::<FILTER, 3>(scanline),
+            4 => self.filter_and_push_scanline_simd::<FILTER, 4>(scanline),
+            6 => self.filter_and_push_scanline_simd::<FILTER, 6>(scanline),
+            8 => self.filter_and_push_scanline_simd::<FILTER, 8>(scanline),
+            _ => unreachable!()
+        }?;
+
+        Ok(())
+    }
+
+    fn filter_and_push_scanline_simd<const FILTER: u8, const STRIDE: usize>(&mut self, scanline: &[u8]) -> Result<(), DecodingError> {
+        for i in (0..scanline.len()).step_by(SIMD_WIDTH) {
             let filtered_bytes = self.filter_simd::<FILTER, STRIDE>(scanline, i)?;
 
             filtered_bytes.copy_to_slice(self.cur_buffer_mut().mut_slice(i..i + SIMD_WIDTH));
             self.cur_buffer_mut().advance(SIMD_WIDTH);
-        }
-
-        Ok(())
+        } Ok(())
     }
 
     #[inline]

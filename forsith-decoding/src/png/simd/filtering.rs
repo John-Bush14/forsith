@@ -5,12 +5,12 @@ pub use super::SIMD_WIDTH;
 
 use super::open_simd;
 
-pub const fn should_use_simd<const STRIDE: usize, const FILTER: u8>() -> bool {
-    if FILTER == 1 && STRIDE >= 3 {return true}
+pub const fn should_use_simd<const FILTER: u8>(stride: usize) -> bool {
+    if FILTER == 1 && stride >= 3 {return true}
 
     if FILTER == 2 {return true}
 
-    if FILTER == 3 && STRIDE >= 6 {return true}
+    if FILTER == 3 && stride >= 6 {return true}
 
     false
 }

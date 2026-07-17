@@ -65,6 +65,7 @@ impl<'a, R: BufRead, const D: u8, const F: u8> ImageDecoder<'a, R, D, F> for Png
         let mut reader = PngReader::new(reader);
 
         let ihdr = read_ihdr(&mut reader)?;
+        // println!("{ihdr:?}");
 
         let mut decoder = Self {
             reader,
