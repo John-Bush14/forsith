@@ -38,7 +38,14 @@ pub trait ImageDecoder<'a, R: Read, const D: u8, const F: u8> {
     fn dest_bitspp(&self) -> u8 {D * F}
     fn dest_bytespp(&self) -> u8 {D*F / 8}
 
-    fn open(data: R) -> Result<Self, DecodingError> where Self: Sized;
+    fn open_validated(data: R) -> Result<Self, DecodingError> where Self: Sized;
+    fn open(data: R) -> Result<Self, DecodingError> where Self: Sized {
+        assert!((D * F).is_multiple_of(8));
+        assert!(4 <= D && D <= 64 && D.is_power_of_two());
+        assert!(1 <= F && F <= 4);
+
+        Self::open_validated(data)
+    }
 
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, DecodingError>;
 

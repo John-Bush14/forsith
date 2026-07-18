@@ -59,7 +59,7 @@ pub struct PngDecoder<'a, R: BufRead, const D: u8, const F: u8> {
 }
 
 impl<'a, R: BufRead, const D: u8, const F: u8> ImageDecoder<'a, R, D, F> for PngDecoder<'a, R, D, F> {
-    fn open(mut reader: R) -> Result<Self, DecodingError> {
+    fn open_validated(mut reader: R) -> Result<Self, DecodingError> {
         check_header(&mut reader)?;
 
         let mut reader = PngReader::new(reader);
