@@ -1,6 +1,6 @@
 use std::io::{BufRead, Read};
 
-use crate::{BitBuffer, BufferReader, DecodingError, Num, png::{ChunkType::{self}, checksum::{Adler32, CRC32}, chunks::is_chunk_type_critical}};
+use crate::{BitBuffer, BufferReader, DecodingError, Int, png::{ChunkType::{self}, checksum::{Adler32, CRC32}, chunks::is_chunk_type_critical}};
 
 
 const BUFFER_SIZE: usize = 1 << 12;
@@ -139,7 +139,7 @@ impl<R: BufRead> PngReader<R> {
     }
 
 
-    pub fn read_idat<N: Num>(&mut self) -> Result<N, DecodingError> {
+    pub fn read_idat<N: Int>(&mut self) -> Result<N, DecodingError> {
         if self.buffer.remaining() < std::mem::size_of::<N>() {
             self.refill_buffer::<true>()?;
         }

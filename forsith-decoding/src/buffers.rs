@@ -1,11 +1,11 @@
 use std::ops::{Index, IndexMut, Range};
 
 #[derive(Debug)]
-pub struct BitBuffer<I: Num> {
+pub struct BitBuffer<I: Int> {
     buf: I,
     bits_remaining: u8
 }
-impl<I: Num> BitBuffer<I> {
+impl<I: Int> BitBuffer<I> {
     pub fn bits_remaining(&self) -> u8 {
         self.bits_remaining
     }
@@ -15,7 +15,9 @@ impl<I: Num> BitBuffer<I> {
             panic!("Cannot peek more than {} bits from this BitBuffer", I::BIT_DEPTH);
         }
 
-        self.buf & ((I::from(1u8) << n as usize) - I::from(1u8))
+        let one = I::from(true);
+
+        self.buf & ((one << n as usize) - one)
     }
 
     pub fn consume(&mut self, n: u8) {
@@ -28,7 +30,7 @@ impl<I: Num> BitBuffer<I> {
         self.bits_remaining += 32;
     }}
 }
-impl<I: Num> Default for BitBuffer<I> {
+impl<I: Int> Default for BitBuffer<I> {
     fn default() -> Self {
         Self {
             buf: I::default(),
@@ -241,13 +243,13 @@ impl<const LEN: usize> BufferReader<LEN> {
         self.index -= n;
     }
 
-    pub fn read_be<N: Num>(&mut self) -> N {
+    pub fn read_be<N: Int>(&mut self) -> N {
         let value = N::read_be(&mut &self.buffer[self.index..]).unwrap();
         self.index += std::mem::size_of::<N>();
         value
     }
 
-    pub fn read_le<N: Num>(&mut self) -> N {
+    pub fn read_le<N: Int>(&mut self) -> N {
         let value = N::read_le(&mut &self.buffer[self.index..]).unwrap();
         self.index += std::mem::size_of::<N>();
         value

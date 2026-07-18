@@ -1,5 +1,5 @@
 use std::{any::Any, fmt::Display, io::{BufRead, Read}, ops::{Index, IndexMut}};
-use crate::{CursorVec, DecodingError::{self, InvalidChunk}, Num, PngDecoder, png::{ColorType, PngReader}};
+use crate::{CursorVec, DecodingError::{self, InvalidChunk}, Int, PngDecoder, png::{ColorType, PngReader}};
 use num_enum::{TryFromPrimitive, IntoPrimitive};
 
 #[repr(u32)]

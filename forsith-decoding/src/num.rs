@@ -6,9 +6,9 @@ fn read_exact_array<const N: usize, R: Read>(reader: &mut R) -> io::Result<[u8; 
     Ok(buf)
 }
 
-macro_rules! num_types {
+macro_rules! int_types {
     ($($num:ty),+) => {
-        pub trait Num: Sized + Copy + Default + PartialEq + Eq + std::fmt::Debug + From<u8> + From<bool> $( + TryFrom<$num> ) +
+        pub trait Int: Sized + Copy + Default + PartialEq + Eq + std::fmt::Debug + From<bool> $( + TryFrom<$num> ) +
         + BitAnd<Output=Self> + BitOr<Output=Self> + BitXor<Output=Self> + Shl<usize, Output=Self>
         + Shr<usize, Output=Self> + Add<Output=Self> + Sub<Output=Self> + Div<Output=Self> + Mul<Output=Self> {
             fn read_be<R: Read>(reader: &mut R) -> io::Result<Self> where Self: Sized;
@@ -19,7 +19,7 @@ macro_rules! num_types {
         }
 
         $(
-        impl Num for $num {
+        impl Int for $num {
             const BYTE_DEPTH: u8 = std::mem::size_of::<Self>() as u8;
             const BIT_DEPTH: u8 = Self::BYTE_DEPTH * 8;
             const MAX: Self = Self::MAX;
@@ -37,4 +37,4 @@ macro_rules! num_types {
     };
 }
 
-num_types!(usize, u64, u32, u16, u8);
+int_types!(usize, u64, u32, u16, u8, i8, i16, i32, i64, isize);
