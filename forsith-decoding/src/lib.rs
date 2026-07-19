@@ -38,9 +38,10 @@ const fn has_alpha(format: u8) -> bool {matches!(format, 2 | 4)}
 const fn is_rgb(format: u8) -> bool {matches!(format, 3 | 4)}
 const fn is_gray(format: u8) -> bool {matches!(format, 1 | 2)}
 
-pub trait ImageDecoder<'a, R: Read, C: Channel, const F: u8> {
-    fn dest_bitspp(&self) -> u8 {C::BIT_DEPTH * F}
+pub(crate) const fn bitspp<C: Channel, const F: u8>() -> u8 {C::BIT_DEPTH * F}
+pub(crate) const fn bytespp<C: Channel, const F: u8>() -> u8 {C::BIT_DEPTH * F / 8}
 
+pub trait ImageDecoder<'a, R: Read, C: Channel, const F: u8> {
     fn open_validated(data: R) -> Result<Self, DecodingError> where Self: Sized;
     fn open(data: R) -> Result<Self, DecodingError> where Self: Sized {
         assert!((C::BIT_DEPTH * F).is_multiple_of(8));
@@ -58,6 +59,25 @@ impl<R: Read, C: Channel, const F: u8> Read for dyn ImageDecoder<'_, R, C, F> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {self.read(buf).map_err(io::Error::other)}
 }
 
+pub(crate) fn unpack(bytes: &[u8], bits: u8, padding: u8, mut callback: impl FnMut(u8)) {
+    for i in 0..bytes.len() {
+        let mut byte = bytes[i];
+
+        let mut iterations = 8/bits;
+
+        if i == bytes.len() - 1 {iterations -= padding / bits}
+
+        for _ in 0..iterations {
+            let unpacked_val = byte >> (8 - bits);
+
+            callback(unpacked_val);
+
+            byte <<= bits;
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
 pub enum ChannelType {
     Unsigned,
     Signed,

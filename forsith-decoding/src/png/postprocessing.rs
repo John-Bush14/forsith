@@ -1,6 +1,6 @@
 use std::{io::BufRead};
 
-use crate::{Channel, CursorVec, DecodingError, DestinationBuffer, PixelFormat, PngDecoder, has_alpha, png::{ColorType, chunks::ColorPalette, simd::filtering::should_use_simd}};
+use crate::{Channel, CursorVec, DecodingError, DestinationBuffer, PixelFormat, PngDecoder, has_alpha, png::{ColorType, chunks::ColorPalette, simd::filtering::should_use_simd}, unpack};
 
 use super::simd::filtering::SIMD_WIDTH;
 
@@ -89,29 +89,21 @@ impl<const F: u8> PostProcessor<F> {
         let palette = unsafe {self.palette.as_ref().unwrap_unchecked()};
         let index_bits = self.bitspp / 3;
 
-        for i in 0..self.prev_buffer().len() {
-            let mut byte = self.prev_buffer()[i];
+        let push_index = |index: u8| {
+            let pixel = palette[index as usize].to_le_bytes();
 
-            let mut iterations = 8/index_bits;
-
-            if i == self.prev_buffer().len() - 1 {iterations -= self.scanline_padding / index_bits}
-
-            for _ in 0..iterations {
-                let index = if index_bits == 8 {byte} else {byte >> (8 - index_bits)};
-
-                let pixel = palette[index as usize].to_le_bytes();
-
-                let pixel = if has_alpha(F) {&pixel} else {&pixel[..3]};
-
-                if has_alpha(F) {
-                    dest.push_8bit_pixel::<4>(pixel);
-                } else {
-                    dest.push_8bit_pixel::<3>(pixel);
-                }
-
-                if index_bits < 8 {byte <<= index_bits};
+            if has_alpha(F) {
+                dest.push_8bit_pixel::<4>(&pixel);
+            } else {
+                dest.push_8bit_pixel::<3>(&pixel[..3]);
             }
+        };
+
+        match index_bits {
+            8 => self.prev_buffer().as_slice().iter().cloned().for_each(push_index),
+            _ => unpack(self.prev_buffer().as_slice(), index_bits, self.scanline_padding, push_index)
         }
+
 
         Ok(())
     }
