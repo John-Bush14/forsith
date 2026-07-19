@@ -44,7 +44,7 @@ pub trait ImageDecoder<'a, R: Read, C: Channel, const F: u8> {
     fn open_validated(data: R) -> Result<Self, DecodingError> where Self: Sized;
     fn open(data: R) -> Result<Self, DecodingError> where Self: Sized {
         assert!((C::BIT_DEPTH * F).is_multiple_of(8));
-        assert!(1 <= F && F <= 4);
+        assert!(PixelFormat::try_from(F).is_ok());
 
         Self::open_validated(data)
     }
