@@ -37,7 +37,7 @@ fn pngsuite_png_decoding_tests() -> Result<(), Box<dyn Error>> {
 
         println!("decoding {filename:?}!");
 
-        let mut decoder = PngDecoder::<_, 8, {PixelFormat::TruecolorAlpha as u8}>::open(BufReader::new(test_file))?;
+        let mut decoder = PngDecoder::<_, u8, {PixelFormat::TruecolorAlpha as u8}>::open(BufReader::new(test_file))?;
 
         let mut len = 1;
         let mut decoded_bytes = 0;

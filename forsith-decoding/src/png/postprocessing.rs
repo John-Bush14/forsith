@@ -1,10 +1,10 @@
 use std::{io::BufRead};
 
-use crate::{CursorVec, DecodingError, DestinationBuffer, PixelFormat, PngDecoder, has_alpha, png::{ColorType, chunks::ColorPalette, simd::filtering::should_use_simd}};
+use crate::{Channel, CursorVec, DecodingError, DestinationBuffer, PixelFormat, PngDecoder, has_alpha, png::{ColorType, chunks::ColorPalette, simd::filtering::should_use_simd}};
 
 use super::simd::filtering::SIMD_WIDTH;
 
-impl<R: BufRead, const D: u8, const F: u8> PngDecoder<'_, R, D, F> {
+impl<R: BufRead, C: Channel, const F: u8> PngDecoder<'_, R, C, F> {
     pub fn scanline_bytes(&self) -> usize {self.postprocessor.scanline_bytes()}
     pub fn scanline_pixel_bytes(&self) -> usize {self.postprocessor.scanline_pixel_bytes()}
 }
@@ -47,7 +47,7 @@ impl<const F: u8> PostProcessor<F> {
         }
     }
 
-    pub fn consume_inflated_scanline<const D: u8>(&mut self, scanline: &[u8], dest: &mut DestinationBuffer<'_, D, F>) -> Result<(), DecodingError> {
+    pub fn consume_inflated_scanline<C: Channel>(&mut self, scanline: &[u8], dest: &mut DestinationBuffer<'_, C, F>) -> Result<(), DecodingError> {
         self.drain_previous_scanline(dest)?;
 
         self.switch_buffers();
@@ -73,9 +73,9 @@ impl<const F: u8> PostProcessor<F> {
 
     pub fn pixel_format(&self) -> PixelFormat {PixelFormat::from(self.color_type())}
 
-    pub fn drain_previous_scanline<const D: u8>(&mut self, dest: &mut DestinationBuffer<'_, D, F>) -> Result<(), DecodingError> {
+    pub fn drain_previous_scanline<C: Channel>(&mut self, dest: &mut DestinationBuffer<'_, C, F>) -> Result<(), DecodingError> {
         if self.color_type != ColorType::Indexed {
-            dest.push_slice(self.prev_buffer().as_slice(), self.pixel_format() as u8, self.channel_depth, self.scanline_padding);
+            dest.push_slice_unsigned(self.prev_buffer().as_slice(), self.pixel_format() as u8, self.channel_depth, self.scanline_padding);
         } else {
             self.drain_previous_scanline_indexed(dest)?
         }
@@ -85,7 +85,7 @@ impl<const F: u8> PostProcessor<F> {
         Ok(())
     }
 
-    pub fn drain_previous_scanline_indexed<const D: u8>(&mut self, dest: &mut DestinationBuffer<'_, D, F>) -> Result<(), DecodingError> {
+    pub fn drain_previous_scanline_indexed<C: Channel>(&mut self, dest: &mut DestinationBuffer<'_, C, F>) -> Result<(), DecodingError> {
         let palette = unsafe {self.palette.as_ref().unwrap_unchecked()};
         let index_bits = self.bitspp / 3;
 

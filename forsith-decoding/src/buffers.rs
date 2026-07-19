@@ -1,4 +1,4 @@
-use std::ops::{Index, IndexMut, Range};
+use std::{marker::PhantomData, ops::{Index, IndexMut, Range}};
 
 #[derive(Debug)]
 pub struct BitBuffer<I: Int> {
@@ -39,18 +39,20 @@ impl<I: Int> Default for BitBuffer<I> {
     }
 }
 
-pub struct DestinationBuffer<'a, const D: u8, const F: u8> {
+pub struct DestinationBuffer<'a, C: Channel, const F: u8> {
     buffer: &'a mut [u8],
     index: usize,
-    full: bool
+    full: bool,
+    phantom: PhantomData<C>,
 }
 
-impl<'a, const D: u8, const F: u8> DestinationBuffer<'a, D, F> {
+impl<'a, C: Channel, const F: u8> DestinationBuffer<'a, C, F> {
     pub fn new(buffer: &'a mut [u8]) -> Self {
         Self {
             buffer,
             index: 0,
-            full: false
+            full: false,
+            phantom: Default::default()
         }
     }
 
@@ -65,8 +67,8 @@ impl<'a, const D: u8, const F: u8> DestinationBuffer<'a, D, F> {
         self.index += len;
     }
 
-    pub fn push_slice(&mut self, slice: &[u8], format: u8, channel_depth: u8, padding: u8) {
-        if (format, channel_depth) == (F, D) && padding == 0 {
+    pub fn push_slice_unsigned(&mut self, slice: &[u8], format: u8, channel_depth: u8, _padding: u8) {
+        if (format, channel_depth) == (F, C::BIT_DEPTH) {
             self.push_slice_raw(slice);
         } else {
             todo!();

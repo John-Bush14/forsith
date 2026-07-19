@@ -1,5 +1,5 @@
 use std::{any::Any, fmt::Display, io::{BufRead, Read}, ops::{Index, IndexMut}};
-use crate::{CursorVec, DecodingError::{self, InvalidChunk}, Int, PngDecoder, png::{ColorType, PngReader}};
+use crate::{Channel, CursorVec, DecodingError::{self, InvalidChunk}, Int, PngDecoder, png::{ColorType, PngReader}};
 use num_enum::{TryFromPrimitive, IntoPrimitive};
 
 #[repr(u32)]
@@ -80,7 +80,7 @@ pub trait ChunkData: Any {
     #[allow(unused)]
     fn chunk_type(&self) -> ChunkType; // &self needed for Box
 
-    fn update_decoder<'a, R: BufRead, const D: u8, const F: u8>(decoder: &mut PngDecoder<'a, R, D, F>) -> Result<(), DecodingError>
+    fn update_decoder<'a, R: BufRead, C: Channel, const F: u8>(decoder: &mut PngDecoder<'a, R, C, F>) -> Result<(), DecodingError>
     where Self: Sized;
 }
 
@@ -89,7 +89,7 @@ pub struct ZlibHeader {}
 impl ChunkData for ZlibHeader {
     fn chunk_type(&self) -> ChunkType {ChunkType::Idat}
 
-    fn update_decoder<'a, R: BufRead, const D: u8, const F: u8>(decoder: &mut PngDecoder<'a, R, D, F>) -> Result<(), DecodingError>
+    fn update_decoder<'a, R: BufRead, C: Channel, const F: u8>(decoder: &mut PngDecoder<'a, R, C, F>) -> Result<(), DecodingError>
     where Self: Sized {
         let reader = &mut decoder.reader;
         let cmf = reader.read_idat::<u8>()?;
@@ -144,7 +144,7 @@ impl ColorPalette {
 impl ChunkData for ColorPalette {
     fn chunk_type(&self) -> ChunkType {ChunkType::Plte}
 
-    fn update_decoder<'a, R: BufRead, const D: u8, const F: u8>(decoder: &mut PngDecoder<'a, R, D, F>) -> Result<(), DecodingError>
+    fn update_decoder<'a, R: BufRead, C: Channel, const F: u8>(decoder: &mut PngDecoder<'a, R, C, F>) -> Result<(), DecodingError>
     where Self: Sized {
         let reader = &mut decoder.reader; let len = reader.cur_chunk_len();
 
@@ -169,7 +169,7 @@ pub struct tRNS {}
 impl ChunkData for tRNS {
     fn chunk_type(&self) -> ChunkType {ChunkType::tRNS}
 
-    fn update_decoder<'a, R: BufRead, const D: u8, const F: u8>(decoder: &mut PngDecoder<'a, R, D, F>) -> Result<(), DecodingError>
+    fn update_decoder<'a, R: BufRead, C: Channel, const F: u8>(decoder: &mut PngDecoder<'a, R, C, F>) -> Result<(), DecodingError>
     where Self: Sized {
         let reader = &mut decoder.reader; let len = reader.cur_chunk_len();
 

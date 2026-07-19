@@ -24,7 +24,7 @@ fn main() {
 fn benchmark_decoding(data: &[u8], buffer: &mut [u8]) -> Result<Duration, forsith_decoding::DecodingError> {
     let total_time = std::time::Instant::now();
     for _ in 0..REPETITION_COUNT {
-        let mut decoder = PngDecoder::<_, 8, {forsith_decoding::PixelFormat::TruecolorAlpha as u8}>::open(data).unwrap();
+        let mut decoder = PngDecoder::<_, u8, {forsith_decoding::PixelFormat::TruecolorAlpha as u8}>::open(data).unwrap();
         while decoder.read(buffer).unwrap() > 0 {};
     }
 
