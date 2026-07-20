@@ -24,7 +24,7 @@ macro_rules! packed {
     };
 }
 
-pub type OutputConverter = fn(&[u8], &mut OutputWriter, u8);
+pub type OutputConverter = fn(&[u8], &mut OutputWriter, u8, Option<(i64, i64, i64)>);
 
 pub fn get_out_writer_func<C: Channel, const F: u8>(sample_size: u8, format: u8, signed: bool) -> OutputConverter
 {
@@ -39,7 +39,7 @@ pub fn get_out_writer_func<C: Channel, const F: u8>(sample_size: u8, format: u8,
     }
 }
 
-pub fn push_packed_slice<DC: Channel, const DF: u8, const SC: u8, const SF: u8>(slice: &[u8], out: &mut OutputWriter, padding: u8)
+pub fn push_packed_slice<DC: Channel, const DF: u8, const SC: u8, const SF: u8>(slice: &[u8], out: &mut OutputWriter, padding: u8, alpha_color: Option<(i64, i64, i64)>)
 where
     [(); SF as usize]:,
 {
@@ -59,7 +59,7 @@ where
         if i == slice.len() - 1 {
             pixels.push_slice(&bytes[..bytes.len() - padding_pixels as usize]);
 
-            push_aligned_slice::<DC, DF, u8, SF>(pixels.as_slice(), out, 0);
+            push_aligned_slice::<DC, DF, u8, SF>(pixels.as_slice(), out, 0, alpha_color);
 
             return
         }
@@ -67,14 +67,14 @@ where
         pixels.push_slice(bytes);
 
         if pixels.is_full() {
-            push_aligned_slice::<DC, DF, u8, SF>(pixels.as_slice(), out, 0);
+            push_aligned_slice::<DC, DF, u8, SF>(pixels.as_slice(), out, 0, alpha_color);
             pixels.clear();
         }
     }
 }
 
 // DC + DF = dest channel + format, SC + SF = source sample size + format
-pub fn push_aligned_slice<DC: Channel, const DF: u8, SC: Channel, const SF: u8>(slice: &[u8], out: &mut OutputWriter, _padding: u8)
+pub fn push_aligned_slice<DC: Channel, const DF: u8, SC: Channel, const SF: u8>(slice: &[u8], out: &mut OutputWriter, _padding: u8, alpha_color: Option<(i64, i64, i64)>)
 where
     [(); SF as usize]:,
 {
@@ -88,7 +88,7 @@ where
 
         let pixel = unsafe {&*pixel_ptr};
 
-        convert_pixel::<SC, DF, SF>(pixel, |c| {
+        convert_pixel::<SC, DF, SF>(pixel, alpha_color, |c| {
             let converted = convert_channel::<SC, DC>(c);
 
             out.push_channel::<DC>(converted);
@@ -111,20 +111,22 @@ fn convert_channel<SC: Channel, DC: Channel>(value: SC::StorageType) -> DC::Stor
     return out;
 }
 
-fn convert_pixel<C: Channel, const DF: u8, const SF: u8>(pixel: &[C::StorageType; SF as usize], mut out: impl FnMut(C::StorageType)) {
+fn convert_pixel<C: Channel, const DF: u8, const SF: u8>(pixel: &[C::StorageType; SF as usize], alpha_color: Option<(i64, i64, i64)>, mut out: impl FnMut(C::StorageType)) {
     let mut i = 0;
 
     // grayscale
-    if DF <= 2 {
-        if SF <= 2 {out(pixel[0]); i += 1;}
+    let color = if DF <= 2 {
+        let gray = if SF <= 2 {i += 1; pixel[0]}
         else {
+            i += 3;
             let [r, g, b] = pixel[0..2] else {unreachable!()};
             let (r, g, b): (i64, i64, i64) = (r.into(), g.into(), b.into());
-            let gray: C::StorageType = unsafe {
-                ((299 * r + 587 * g  + 114 * b) / 1000).try_into().unwrap_unchecked()
-            };
-            out(gray); i += 3;
-      }
+            unsafe {((299 * r + 587 * g  + 114 * b) / 1000).try_into().unwrap_unchecked()}
+        };
+
+        out(gray);
+
+        (gray.into(), gray.into(), gray.into())
     }
 
     // rgb
@@ -138,12 +140,21 @@ fn convert_pixel<C: Channel, const DF: u8, const SF: u8>(pixel: &[C::StorageType
             &[g, g, g]
         };
         rgb.iter().for_each(|c| out(*c));
-    }
+
+        (rgb[0].into(), rgb[1].into(), rgb[2].into())
+    };
 
     // has alpha
     if DF.is_multiple_of(2) {
         if SF.is_multiple_of(2) {out(pixel[i])}
-        else {unsafe {out(C::StorageType::try_from(C::MAX).unwrap_unchecked())}}
+        else {
+            println!("{color:?} =? {alpha_color:?}");
+            if Some(color) == alpha_color {
+                unsafe {out(C::StorageType::try_from(C::MIN).unwrap_unchecked())}
+            } else {
+                unsafe {out(C::StorageType::try_from(C::MAX).unwrap_unchecked())}
+            }
+        }
     }
 }
 

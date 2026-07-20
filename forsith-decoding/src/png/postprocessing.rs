@@ -25,7 +25,8 @@ pub struct PostProcessor<const F: u8> {
     bitspp: u8,
     scanline_padding: u8, // in bits
     channel_depth: u8,
-    out_writer: OutputConverter
+    out_writer: OutputConverter,
+    alpha_color: Option<(i64, i64, i64)>
 }
 
 impl<const F: u8> PostProcessor<F> {
@@ -53,7 +54,8 @@ impl<const F: u8> PostProcessor<F> {
             bitspp,
             scanline_padding,
             channel_depth,
-            out_writer
+            out_writer,
+            alpha_color: None
         }
     }
 
@@ -85,7 +87,7 @@ impl<const F: u8> PostProcessor<F> {
 
     pub fn drain_previous_scanline(&mut self, dest: &mut OutputWriter) -> Result<(), DecodingError> {
         if self.color_type != ColorType::Indexed {
-            (self.out_writer)(self.prev_buffer().as_slice(), dest, self.scanline_padding);
+            self.write_slice(self.prev_buffer().as_slice(), dest, self.scanline_padding);
         } else {
             self.drain_previous_scanline_indexed(dest)?
         }
@@ -103,9 +105,9 @@ impl<const F: u8> PostProcessor<F> {
             let pixel = palette[index as usize].to_le_bytes();
 
             if has_alpha(F) {
-                (self.out_writer)(&pixel, dest, 0);
+                self.write_slice(&pixel, dest, 0);
             } else {
-                (self.out_writer)(&pixel[..3], dest, 0);
+                self.write_slice(&pixel[..3], dest, 0);
             }
         };
 
@@ -116,6 +118,10 @@ impl<const F: u8> PostProcessor<F> {
 
 
         Ok(())
+    }
+
+    fn write_slice(&self, slice: &[u8], dest: &mut OutputWriter, padding: u8) {
+        (self.out_writer)(slice, dest, 0, self.alpha_color);
     }
 
     #[inline]
@@ -223,6 +229,10 @@ impl<const F: u8> PostProcessor<F> {
 
     pub fn palette(&self) -> Option<&ColorPalette> {self.palette.as_ref()}
     pub fn palette_mut(&mut self) -> Option<&mut ColorPalette> {self.palette.as_mut()}
+
+    pub fn channel_depth(&self) -> u8 {self.channel_depth}
+
+    pub fn set_alpha_color(&mut self, c: (i64, i64, i64)) {self.alpha_color = Some(c);}
 }
 
 #[inline]

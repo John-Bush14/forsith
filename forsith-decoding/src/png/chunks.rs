@@ -1,4 +1,4 @@
-use std::{any::Any, fmt::Display, io::{BufRead, Read}, ops::{Index, IndexMut}};
+use std::{any::Any, fmt::Display, io::{BufRead, Read}, ops::{Index, IndexMut}, ptr::read};
 use crate::{Channel, CursorVec, DecodingError::{self, InvalidChunk}, Int, PngDecoder, png::{ColorType, PngReader}};
 use num_enum::{TryFromPrimitive, IntoPrimitive};
 
@@ -180,7 +180,33 @@ impl ChunkData for tRNS {
     {
         let reader = &mut decoder.reader; let len = reader.cur_chunk_len();
 
-        if decoder.postprocessor.color_type() != ColorType::Indexed {return Ok(())}
+        if decoder.postprocessor.color_type() != ColorType::Indexed {
+            let mask = ((1 << decoder.postprocessor.channel_depth() as u32) - 1) as u16;
+
+            let channel_max = (1 << decoder.postprocessor.channel_depth()) - 1;
+            let mut read_val = || -> Result<i64, DecodingError> {
+                let d = (u16::read_be(reader)? & mask) as i64;
+
+                Ok(if decoder.postprocessor.channel_depth() < 8 {
+                    d * 255 / channel_max
+                } else {d})
+            };
+
+            let alpha_color = match decoder.postprocessor.color_type() {
+                ColorType::Grayscale => {
+                    let g = read_val()?;
+
+                    (g, g, g)
+                },
+                ColorType::Truecolor => (read_val()?, read_val()?, read_val()?),
+                _ => return Ok(())
+            };
+
+            decoder.postprocessor.set_alpha_color(alpha_color);
+
+            return Ok(());
+        }
+
         if decoder.postprocessor.palette().is_none() || len == 0 || len > 256 {return Err(InvalidChunk(ChunkType::tRNS))}
 
         let palette = decoder.postprocessor.palette_mut().unwrap();
