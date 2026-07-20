@@ -141,7 +141,7 @@ impl<'a, R: BufRead, C: Channel, const F: u8> ImageDecoder<'a, R, C, F> for PngD
 
                 self.decrease_inflate_capacity(self.postprocessor.remaining_bytes());
 
-                while self.inflate_capacity() >= self.postprocessor.prev_buffer().len() && !self.postprocessor.prev_buffer().is_empty(){
+                while self.inflate_capacity() >= self.postprocessor.prev_buffer().len() && !self.postprocessor.is_empty(){
                     self.postprocessor.drain_previous_scanline(&mut dest)?;
 
                     self.postprocessor.switch_buffers();
