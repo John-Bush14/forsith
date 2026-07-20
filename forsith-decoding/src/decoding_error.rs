@@ -1,4 +1,4 @@
-use std::io;
+use std::{cmp, io};
 
 use crate::png::{ChunkType, CRC32};
 use thiserror::Error;
@@ -19,7 +19,7 @@ pub enum DecodingError {
     #[error("Unknown critical chunk type '{0:?}'")]
     UnkownChunk([u8; 4]),
     #[error("Stored ({0:?}) and calculated ({1:?}) CRC did not match, indicating data corruption.")]
-    CRCMismatch(CRC32, CRC32), // calculated, store
+    CRCMismatch(u32, u32), // calculated, store
     #[error("Stored ({1:#010X}) and calculated ({0:#010X}) Adler32 checksum did not match, indicating incorrect (de)compression.")]
     Adler32Mismatch(u32, u32), // calculated, store
     #[error("First chunk is not IHDR, instead ({0:?})")]

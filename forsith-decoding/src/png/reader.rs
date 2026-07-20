@@ -24,7 +24,7 @@ pub struct PngReader<R: BufRead> {
 }
 
 impl<R: BufRead> PngReader<R> {
-    pub fn new(reader: R) -> Self {
+    pub fn new(reader: R) -> Result<Self, DecodingError> {
         let mut reader = Self {
             reader,
             buffer: BufferReader::<BUFFER_SIZE>::default(),
@@ -35,14 +35,14 @@ impl<R: BufRead> PngReader<R> {
             bit_buf: BitBuffer::<usize>::default()
         };
 
-        let first_len = u32::read_be(&mut reader.reader).unwrap();
+        let first_len = u32::read_be(&mut reader.reader)?;
         reader.remaining_chunk_bytes = first_len as usize + 4;
 
         reader.buffer.mut_slice(4).copy_from_slice(&first_len.to_be_bytes());
 
-        reader.fill_buffer::<false>(4).unwrap();
+        reader.fill_buffer::<false>(4)?;
 
-        reader
+        Ok(reader)
     }
 
     pub fn open_chunk(&mut self) -> Result<(), DecodingError> {

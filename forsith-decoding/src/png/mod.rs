@@ -63,7 +63,7 @@ impl<'a, R: BufRead, C: Channel, const F: u8> ImageDecoder<'a, R, C, F> for PngD
     fn open_validated(mut reader: R) -> Result<Self, DecodingError> {
         check_header(&mut reader)?;
 
-        let mut reader = PngReader::new(reader);
+        let mut reader = PngReader::new(reader)?;
 
         let ihdr = read_ihdr(&mut reader)?;
 

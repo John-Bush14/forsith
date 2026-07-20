@@ -94,7 +94,7 @@ impl<R: BufRead> PngReader<R> {
         self.crc = !self.crc;
 
         if self.crc != stored_crc {
-            return Err(DecodingError::CRCMismatch(self.crc, stored_crc));
+            return Err(DecodingError::CRCMismatch(self.crc.0, stored_crc.0));
         }
 
         Ok(())

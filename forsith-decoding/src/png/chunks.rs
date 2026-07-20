@@ -4,7 +4,7 @@ use num_enum::{TryFromPrimitive, IntoPrimitive};
 
 #[repr(u32)]
 #[allow(non_camel_case_types)]
-#[derive(TryFromPrimitive, IntoPrimitive, Clone, Copy, Debug, PartialEq)]
+#[derive(TryFromPrimitive, IntoPrimitive, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ChunkType {
     Ihdr = 0x49484452,
     Plte = 0x504C5445,
