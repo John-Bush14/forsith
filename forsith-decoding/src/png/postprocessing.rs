@@ -1,6 +1,6 @@
 use std::{io::BufRead};
 
-use crate::{Channel, CursorVec, DecodingError, DestinationBuffer, PixelFormat, PngDecoder, has_alpha, png::{ColorType, chunks::ColorPalette, simd::filtering::should_use_simd}, unpack};
+use crate::{Channel, CursorVec, DecodingError, OutputWriter, PixelFormat, PngDecoder, has_alpha, outputconverting::{OutputConverter, get_out_writer_func}, png::{ColorType, chunks::ColorPalette, simd::filtering::should_use_simd}, unpack};
 
 use super::simd::filtering::SIMD_WIDTH;
 
@@ -12,7 +12,7 @@ impl<R: BufRead, C: Channel, const F: u8> PngDecoder<'_, R, C, F> {
 pub fn calculate_scanline_bytes(width: u32, bitspp: u8) -> (usize, u8) {
     let scanline_bits = width as usize * bitspp as usize;
 
-    (scanline_bits.div_ceil(8) + 1, (scanline_bits % 8) as u8)
+    (scanline_bits.div_ceil(8) + 1, ((8 - (scanline_bits % 8)) % 8) as u8)
 }
 
 #[derive(Debug)]
@@ -24,16 +24,25 @@ pub struct PostProcessor<const F: u8> {
     color_type: ColorType,
     bitspp: u8,
     scanline_padding: u8, // in bits
-    channel_depth: u8
+    channel_depth: u8,
+    out_writer: OutputConverter
 }
 
 impl<const F: u8> PostProcessor<F> {
-    pub fn new(width: u32, color_type: ColorType, channel_depth: u8) -> Self {
+    pub fn new<C: Channel>(width: u32, color_type: ColorType, channel_depth: u8) -> Self
+    {
         let bitspp = PixelFormat::from(color_type) as u8 * channel_depth;
 
         let (scanline_bytes, scanline_padding) = calculate_scanline_bytes(width, if color_type != ColorType::Indexed {bitspp} else {channel_depth});
 
-        let stride = bitspp as usize / 8;
+        let stride = (bitspp as usize).div_ceil(8);
+
+        let mut src_format = PixelFormat::from(color_type) as u8;
+        if color_type == ColorType::Indexed && has_alpha(F) && !has_alpha(src_format) {
+            src_format += 1;
+        }
+
+        let out_writer = get_out_writer_func::<C, F>(if color_type != ColorType::Indexed {channel_depth} else {8}, src_format, false);
 
         Self {
             scanline_buffers: [CursorVec::new(scanline_bytes-1), CursorVec::new(scanline_bytes-1)],
@@ -43,11 +52,12 @@ impl<const F: u8> PostProcessor<F> {
             color_type,
             bitspp,
             scanline_padding,
-            channel_depth
+            channel_depth,
+            out_writer
         }
     }
 
-    pub fn consume_inflated_scanline<C: Channel>(&mut self, scanline: &[u8], dest: &mut DestinationBuffer<'_, C, F>) -> Result<(), DecodingError> {
+    pub fn consume_inflated_scanline(&mut self, scanline: &[u8], dest: &mut OutputWriter) -> Result<(), DecodingError> {
         self.drain_previous_scanline(dest)?;
 
         self.switch_buffers();
@@ -73,9 +83,9 @@ impl<const F: u8> PostProcessor<F> {
 
     pub fn pixel_format(&self) -> PixelFormat {PixelFormat::from(self.color_type())}
 
-    pub fn drain_previous_scanline<C: Channel>(&mut self, dest: &mut DestinationBuffer<'_, C, F>) -> Result<(), DecodingError> {
+    pub fn drain_previous_scanline(&mut self, dest: &mut OutputWriter) -> Result<(), DecodingError> {
         if self.color_type != ColorType::Indexed {
-            dest.push_slice_unsigned(self.prev_buffer().as_slice(), self.pixel_format() as u8, self.channel_depth, self.scanline_padding);
+            (self.out_writer)(self.prev_buffer().as_slice(), dest, self.scanline_padding);
         } else {
             self.drain_previous_scanline_indexed(dest)?
         }
@@ -85,7 +95,7 @@ impl<const F: u8> PostProcessor<F> {
         Ok(())
     }
 
-    pub fn drain_previous_scanline_indexed<C: Channel>(&mut self, dest: &mut DestinationBuffer<'_, C, F>) -> Result<(), DecodingError> {
+    pub fn drain_previous_scanline_indexed(&mut self, dest: &mut OutputWriter) -> Result<(), DecodingError> {
         let palette = unsafe {self.palette.as_ref().unwrap_unchecked()};
         let index_bits = self.bitspp / 3;
 
@@ -93,9 +103,9 @@ impl<const F: u8> PostProcessor<F> {
             let pixel = palette[index as usize].to_le_bytes();
 
             if has_alpha(F) {
-                dest.push_8bit_pixel::<4>(&pixel);
+                (self.out_writer)(&pixel, dest, 0);
             } else {
-                dest.push_8bit_pixel::<3>(&pixel[..3]);
+                (self.out_writer)(&pixel[..3], dest, 0);
             }
         };
 

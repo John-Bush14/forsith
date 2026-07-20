@@ -39,8 +39,7 @@ impl<const F: u8> PostProcessor<F> {
         left_pixels.as_mut_array()[..STRIDE].copy_from_slice(&self.left_pixel::<STRIDE>(i));
         left_pixels
     }
-    fn upper_pixels(&self, i: usize) -> Simd<u8, SIMD_WIDTH> {open_simd(self.prev_buffer().as_slice(), i)}
-    fn _left_upper_pixels(&self, i: usize) -> Simd<u8, SIMD_WIDTH> {open_simd(self.prev_buffer().as_slice(), i - self.stride)}
+    fn upper_pixels(&self, i: usize) -> Simd<u8, SIMD_WIDTH> {open_simd(self.prev_buffer().full_buf_slice(), i)}
 }
 
 fn average_filter<const STRIDE: usize>(mut raw_bytes: Simd<u8, SIMD_WIDTH>, left_pixels: Simd<u8, SIMD_WIDTH>, mut upper_pixels: Simd<u8, SIMD_WIDTH>) -> Simd<u8, SIMD_WIDTH> {

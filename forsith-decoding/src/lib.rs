@@ -6,8 +6,6 @@
 #![feature(const_cmp)]
 #![feature(const_precise_live_drops)]
 #![feature(const_try)]
-#![feature(f16)]
-#![feature(float_bits_const)]
 
 use std::{io::{self, Read}};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
@@ -23,6 +21,8 @@ pub use decoding_error::DecodingError;
 
 // if you can use ['use'] without tanking performance please do
 include!("num.rs");
+
+mod outputconverting;
 
 
 #[repr(u8)]
@@ -86,36 +86,22 @@ pub enum ChannelType {
 }
 
 pub trait Channel {
-    type StorageType;
+    type StorageType: Int;
     const BIT_DEPTH: u8;
-    const MAX: Self::StorageType;
+    const MAX: u64;
+    const MIN: i64;
     const TYPE: ChannelType;
 }
 
 impl<I: Int> Channel for I {
     type StorageType = I;
     const BIT_DEPTH: u8 = I::BIT_DEPTH;
-    const MAX: I = I::MAX;
+    const MAX: u64 = I::MAX;
+    const MIN: i64 = I::MIN;
     const TYPE: ChannelType = {
         match I::SIGNED {
             true => ChannelType::Signed,
             false => ChannelType::Unsigned
         }
     };
-}
-
-pub struct U4 {}
-impl Channel for U4 {
-    type StorageType = u8;
-    const BIT_DEPTH: u8 = 4;
-    const MAX: u8 = 15;
-    const TYPE: ChannelType = ChannelType::Unsigned;
-}
-
-pub struct I4 {}
-impl Channel for I4 {
-    type StorageType = u8;
-    const BIT_DEPTH: u8 = 4;
-    const MAX: u8 = 7;
-    const TYPE: ChannelType = ChannelType::Unsigned;
 }

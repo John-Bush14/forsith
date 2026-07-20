@@ -1,5 +1,5 @@
 use std::io::{BufRead, Read};
-use crate::{Channel, CursorVec, DecodingError, DestinationBuffer, ImageDecoder, PixelFormat, png::{chunks::{ColorPalette, Ihdr, ZlibHeader, tRNS}, deflate::{BlockType, STATIC_DISTANCE_TREE, STATIC_LITLEN_TREE, decode_distance, decode_length}, postprocessing::PostProcessor}};
+use crate::{Channel, CursorVec, DecodingError, OutputWriter, ImageDecoder, PixelFormat, png::{chunks::{ColorPalette, Ihdr, ZlibHeader, tRNS}, deflate::{BlockType, STATIC_DISTANCE_TREE, STATIC_LITLEN_TREE, decode_distance, decode_length}, postprocessing::PostProcessor}};
 use num_enum::TryFromPrimitive;
 
 mod chunks;
@@ -67,12 +67,13 @@ impl<'a, R: BufRead, C: Channel, const F: u8> ImageDecoder<'a, R, C, F> for PngD
 
         let ihdr = read_ihdr(&mut reader)?;
 
+        println!("{ihdr:?}");
         let mut decoder = Self {
             reader,
             deflate_buffer: CursorVec::new(0),
             scanline_multiples: 0,
             phantom: std::marker::PhantomData,
-            postprocessor: PostProcessor::new(ihdr.width, ihdr.color_type, ihdr.channel_depth),
+            postprocessor: PostProcessor::new::<C>(ihdr.width, ihdr.color_type, ihdr.channel_depth),
             ihdr,
             cur_block: deflate::Block::default(),
             inflate_capacity: 0,
@@ -104,7 +105,7 @@ impl<'a, R: BufRead, C: Channel, const F: u8> ImageDecoder<'a, R, C, F> for PngD
     }
 
     fn read(&mut self, dest: &mut [u8]) -> Result<usize, DecodingError> {
-        let mut dest = DestinationBuffer::<C, F>::new(dest);
+        let mut dest = OutputWriter::new(dest);
         self.inflate_capacity = self.calculate_inflate_capacity(&mut dest);
 
         match self.cur_block.r#type {
@@ -166,7 +167,7 @@ impl<'a, R: BufRead, C: Channel, const F: u8> ImageDecoder<'a, R, C, F> for PngD
 }
 
 impl<'a, R: BufRead, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
-    fn calculate_inflate_capacity(&mut self, dest: &mut DestinationBuffer<'_, C, F>) -> usize {
+    fn calculate_inflate_capacity(&mut self, dest: &mut OutputWriter) -> usize {
         // let dest_bitspp = self.dest_bitspp();
 
         // let correct_dest_capacity = (dest.len() * 8 / dest_bitspp as usize) * self.source_bitspp as usize;
@@ -208,7 +209,7 @@ impl<'a, R: BufRead, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
         Ok(())
     }
 
-    fn emit_backreferenced_inflated_bytes(&mut self, length: usize, distance: usize, dest: &mut DestinationBuffer<'_, C, F>) -> Result<(), DecodingError> {
+    fn emit_backreferenced_inflated_bytes(&mut self, length: usize, distance: usize, dest: &mut OutputWriter) -> Result<(), DecodingError> {
         let mut remaining = length;
         let start = self.deflate_buffer.len() - distance;
 
@@ -230,7 +231,7 @@ impl<'a, R: BufRead, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
         Ok(())
     }
 
-    fn drain_deflate_buffer(&mut self, dest: &mut DestinationBuffer<'_, C, F>) -> Result<(), DecodingError> {
+    fn drain_deflate_buffer(&mut self, dest: &mut OutputWriter) -> Result<(), DecodingError> {
         let mut start = 0;
         for _ in 0..self.scanline_multiples.min(self.inflate_capacity() / self.scanline_bytes()) {
             self.postprocessor.consume_inflated_scanline(self.deflate_buffer.slice(start..start+self.scanline_bytes()), dest)?;
@@ -244,7 +245,7 @@ impl<'a, R: BufRead, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
         Ok(())
     }
 
-    fn emit_inflated_byte(&mut self, b: u8, dest: &mut DestinationBuffer<'_, C, F>) -> Result<(), DecodingError> {
+    fn emit_inflated_byte(&mut self, b: u8, dest: &mut OutputWriter) -> Result<(), DecodingError> {
         if self.deflate_buffer.len() == self.deflate_buffer.capacity() {
             self.drain_deflate_buffer(dest)?;
         }
@@ -277,7 +278,7 @@ impl<'a, R: BufRead, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
         Ok(())
     }
 
-    fn read_compressed_chunk<const STATIC: bool>(&mut self, dest: &mut DestinationBuffer<'_, C, F>) -> Result<(), DecodingError> {
+    fn read_compressed_chunk<const STATIC: bool>(&mut self, dest: &mut OutputWriter) -> Result<(), DecodingError> {
         loop  {
             if self.inflate_capacity() < self.scanline_pixel_bytes() + 258 {
                 dest.set_full();

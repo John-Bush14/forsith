@@ -90,7 +90,9 @@ impl ChunkData for ZlibHeader {
     fn chunk_type(&self) -> ChunkType {ChunkType::Idat}
 
     fn update_decoder<'a, R: BufRead, C: Channel, const F: u8>(decoder: &mut PngDecoder<'a, R, C, F>) -> Result<(), DecodingError>
-    where Self: Sized {
+    where
+        Self: Sized,
+    {
         let reader = &mut decoder.reader;
         let cmf = reader.read_idat::<u8>()?;
         let flg = reader.read_idat::<u8>()?;
@@ -145,7 +147,10 @@ impl ChunkData for ColorPalette {
     fn chunk_type(&self) -> ChunkType {ChunkType::Plte}
 
     fn update_decoder<'a, R: BufRead, C: Channel, const F: u8>(decoder: &mut PngDecoder<'a, R, C, F>) -> Result<(), DecodingError>
-    where Self: Sized {
+    where
+
+        Self: Sized
+    {
         let reader = &mut decoder.reader; let len = reader.cur_chunk_len();
 
         if len == 0 || len > 256*3 || !len.is_multiple_of(3) {return Err(InvalidChunk(ChunkType::Plte))}
@@ -170,10 +175,12 @@ impl ChunkData for tRNS {
     fn chunk_type(&self) -> ChunkType {ChunkType::tRNS}
 
     fn update_decoder<'a, R: BufRead, C: Channel, const F: u8>(decoder: &mut PngDecoder<'a, R, C, F>) -> Result<(), DecodingError>
-    where Self: Sized {
+    where
+        Self: Sized,
+    {
         let reader = &mut decoder.reader; let len = reader.cur_chunk_len();
 
-        if decoder.postprocessor.color_type() != ColorType::Indexed {todo!()}
+        if decoder.postprocessor.color_type() != ColorType::Indexed {return Ok(())}
         if decoder.postprocessor.palette().is_none() || len == 0 || len > 256 {return Err(InvalidChunk(ChunkType::tRNS))}
 
         let palette = decoder.postprocessor.palette_mut().unwrap();

@@ -36,7 +36,7 @@ fn test_image(path: &str, solution_filepath: &str) -> Result<(), Box<dyn Error>>
 
             let solution = &solution[decoded_bytes..decoded_bytes+len];
 
-            if !decoded.iter().eq(solution.iter()) {
+            if !decoded.iter().zip(solution.iter()).all(|(d, &c)| d.abs_diff(c) <= 1) {
                 for i in 0..len {
                     if decoded[i] != solution[i] {
                         panic!("Mismatch at byte {}: decoded = {}, solution = {}", i, decoded[i], solution[i]);

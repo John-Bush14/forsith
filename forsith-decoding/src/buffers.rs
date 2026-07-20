@@ -1,23 +1,21 @@
 use std::{marker::PhantomData, ops::{Index, IndexMut, Range}};
 
 #[derive(Debug)]
-pub struct BitBuffer<I: Int> {
-    buf: I,
+pub struct BitBuffer {
+    buf: u64,
     bits_remaining: u8
 }
-impl<I: Int> BitBuffer<I> {
+impl BitBuffer {
     pub fn bits_remaining(&self) -> u8 {
         self.bits_remaining
     }
 
-    pub fn peek(&self, n: u8) -> I {
-        if n > I::BIT_DEPTH {
-            panic!("Cannot peek more than {} bits from this BitBuffer", I::BIT_DEPTH);
+    pub fn peek(&self, n: u8) -> u64 {
+        if n > 64 {
+            panic!("Cannot peek more than {} bits from this BitBuffer", 64);
         }
 
-        let one = I::from(true);
-
-        self.buf & ((one << n as usize) - one)
+        self.buf & ((1 << n as usize) - 1)
     }
 
     pub fn consume(&mut self, n: u8) {
@@ -25,83 +23,53 @@ impl<I: Int> BitBuffer<I> {
         self.bits_remaining -= n;
     }
 
-    pub fn push_u32(&mut self, value: u32) { unsafe {
-        self.buf = self.buf | (I::try_from(value).unwrap_unchecked() << self.bits_remaining as usize);
+    pub fn push_u32(&mut self, value: u32) {
+        self.buf = self.buf | ((value as u64) << self.bits_remaining as usize);
         self.bits_remaining += 32;
-    }}
+    }
 }
-impl<I: Int> Default for BitBuffer<I> {
+impl Default for BitBuffer {
     fn default() -> Self {
         Self {
-            buf: I::default(),
+            buf: 0,
             bits_remaining: 0
         }
     }
 }
 
-pub struct DestinationBuffer<'a, C: Channel, const F: u8> {
+pub struct OutputWriter<'a> {
     buffer: &'a mut [u8],
     index: usize,
     full: bool,
-    phantom: PhantomData<C>,
 }
 
-impl<'a, C: Channel, const F: u8> DestinationBuffer<'a, C, F> {
+impl<'a> OutputWriter<'a> {
     pub fn new(buffer: &'a mut [u8]) -> Self {
         Self {
             buffer,
             index: 0,
             full: false,
-            phantom: Default::default()
         }
     }
 
-    pub fn push_byte_raw(&mut self, b: u8) {
-        unsafe {*self.buffer.get_unchecked_mut(self.index) = b};
-        self.index += 1;
+    pub fn push_channel<C: Channel>(&mut self, c: C::StorageType) {
+        unsafe {*self.channel_ptr::<C>() = c};
+
+        self.index += C::BIT_DEPTH as usize / 8;
     }
 
-    pub fn push_slice_raw(&mut self, slice: &[u8]) {
-        let len = slice.len();
-        unsafe {self.buffer.get_unchecked_mut(self.index..self.index + len).copy_from_slice(slice)};
-        self.index += len;
+    fn channel_ptr<C: Channel>(&mut self) -> *mut C::StorageType {
+        if self.buffer.as_mut_ptr().wrapping_add(self.index).is_null() {panic!("channel ptr null!");}
+
+        self.buffer.as_mut_ptr().wrapping_add(self.index) as *mut C::StorageType
     }
 
-    pub fn push_slice_unsigned(&mut self, slice: &[u8], format: u8, channel_depth: u8, _padding: u8) {
-        if (format, channel_depth) == (F, C::BIT_DEPTH) {
-            self.push_slice_raw(slice);
-        } else {
-            todo!();
-        }
-    }
+    pub fn push_channels<C: Channel>(&mut self, slice: &[C::StorageType]) {
+        if self.capacity() - self.index < std::mem::size_of_val(slice) {panic!("too little space")}
 
-    pub fn push_8bit_pixel<const SF: u8>(&mut self, pixel: &[u8]) {
-        let mut i = 0;
+        unsafe {self.channel_ptr::<C>().copy_from(slice.as_ptr(), slice.len())};
 
-        // grayscale
-        if F <= 2 {
-            if SF <= 2 {self.push_byte_raw(pixel[0]); i += 1;}
-            else {
-                let [r, g, b] = pixel[0..2] else {unreachable!()};
-                let gray = ((299 * r as u32 + 587 * g as u32 + 114 * b as u32) / 1000) as u8;
-                self.push_byte_raw(gray); i += 3;
-          }
-        }
-
-        // rgb
-        else {
-            if SF > 2 {self.push_slice_raw(&pixel[0..3]); i += 3;}
-            else {
-                let g = pixel[0];
-                self.push_slice_raw(&[g, g, g]); i += 1;
-            }
-        }
-
-        // has alpha
-        if F.is_multiple_of(2) {
-            if SF.is_multiple_of(2) {self.push_byte_raw(pixel[i])}
-            else {self.push_byte_raw(255)}
-        }
+        self.index += std::mem::size_of_val(slice);
     }
 
     pub fn len(&self) -> usize {self.index}
@@ -155,6 +123,8 @@ impl<T> CursorVec<T> {
 
     #[inline(always)]
     pub fn push(&mut self, b: T) {
+        if self.buffer.as_ptr().wrapping_add(self.cursor).is_null() {panic!("null cursorvec ptr")}
+
         unsafe {
             *self.buffer.as_mut_ptr().wrapping_add(self.cursor) = b;
             self.cursor = self.cursor.unchecked_add(1);
@@ -192,6 +162,8 @@ impl<T> CursorVec<T> {
     pub fn clear(&mut self) {
         self.cursor = 0;
     }
+
+    pub fn full_buf_slice(&self) -> &[T] {self.buffer.as_slice()}
 
     pub fn as_slice(&self) -> &[T] {
         unsafe {self.buffer.get_unchecked(..self.cursor)}
