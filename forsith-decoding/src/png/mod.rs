@@ -17,6 +17,7 @@ mod postprocessing;
 
 mod simd;
 
+#[cfg(test)]
 mod pngsuite;
 
 
