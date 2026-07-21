@@ -190,6 +190,7 @@ impl<'a, R: BufRead, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
         correct_dest_capacity + self.deflate_buffer.remaining() + self.postprocessor.remaining_bytes()
     }
 
+    #[inline(always)]
     fn decrease_inflate_capacity(&mut self, change: usize) {unsafe {
         self.inflate_capacity = self.inflate_capacity.unchecked_sub(change);
     }}
@@ -260,6 +261,7 @@ impl<'a, R: BufRead, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
         Ok(())
     }
 
+    #[inline(always)]
     fn emit_inflated_byte(&mut self, b: u8, dest: &mut OutputWriter) -> Result<(), DecodingError> {
         if self.deflate_buffer.len() == self.deflate_buffer.capacity() {
             self.drain_deflate_buffer(dest)?;
