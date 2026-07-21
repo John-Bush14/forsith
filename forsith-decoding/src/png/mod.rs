@@ -67,7 +67,6 @@ impl<'a, R: BufRead, C: Channel, const F: u8> ImageDecoder<'a, R, C, F> for PngD
 
         let ihdr = read_ihdr(&mut reader)?;
 
-        println!("{ihdr:?}");
         let mut decoder = Self {
             reader,
             deflate_buffer: CursorVec::new(0),
@@ -176,8 +175,6 @@ impl<'a, R: BufRead, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
             * src_bpp // ="/ src_ppb"
             / dest_bpp
         ).div_euclid(8);
-
-        println!("{correct_dest_capacity}, {}", dest.capacity());
 
         correct_dest_capacity + self.deflate_buffer.remaining() + self.postprocessor.remaining_bytes()
     }

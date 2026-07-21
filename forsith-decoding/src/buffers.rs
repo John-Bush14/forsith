@@ -52,19 +52,22 @@ impl<'a> OutputWriter<'a> {
         }
     }
 
+    #[inline(always)]
     pub fn push_channel<C: Channel>(&mut self, c: C::StorageType) {
         unsafe {*self.channel_ptr::<C>() = c};
 
-        self.index += C::BIT_DEPTH as usize / 8;
+        self.index += const {C::BIT_DEPTH as usize / 8};
     }
 
     fn channel_ptr<C: Channel>(&mut self) -> *mut C::StorageType {
+        #[cfg(debug_assertions)]
         if self.buffer.as_mut_ptr().wrapping_add(self.index).is_null() {panic!("channel ptr null!");}
 
         self.buffer.as_mut_ptr().wrapping_add(self.index) as *mut C::StorageType
     }
 
     pub fn push_channels<C: Channel>(&mut self, slice: &[C::StorageType]) {
+        #[cfg(debug_assertions)]
         if self.capacity() - self.index < std::mem::size_of_val(slice) {panic!("too little space")}
 
         unsafe {self.channel_ptr::<C>().copy_from(slice.as_ptr(), slice.len())};
@@ -123,10 +126,11 @@ impl<T> CursorVec<T> {
 
     #[inline(always)]
     pub fn push(&mut self, b: T) {
+        #[cfg(debug_assertions)]
         if self.buffer.as_ptr().wrapping_add(self.cursor).is_null() {panic!("null cursorvec ptr")}
 
         unsafe {
-            *self.buffer.as_mut_ptr().wrapping_add(self.cursor) = b;
+            *self.buffer.as_mut_ptr().add(self.cursor) = b;
             self.cursor = self.cursor.unchecked_add(1);
         }
     }

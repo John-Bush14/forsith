@@ -2,7 +2,7 @@ use crate::png::simd::SIMD_WIDTH;
 use core::simd::prelude::*;
 
 
-const POSITIONS: [AdlerLaneSize; SIMD_WIDTH] = {
+const POSITIONS: Simd<AdlerLaneSize, SIMD_WIDTH> = {
     let mut arr = [0; SIMD_WIDTH];
     let mut i = 0;
 
@@ -11,7 +11,7 @@ const POSITIONS: [AdlerLaneSize; SIMD_WIDTH] = {
         i += 1;
     }
 
-    arr
+    Simd::from_array(arr)
 };
 
 
@@ -26,7 +26,7 @@ pub fn compute_alder32_chunk_simd(chunk: &[u8], mut a: u32) -> (u32, u32) {
 
         let sum = chunkv.reduce_sum();
 
-        let weightedv = chunkv * Simd::<AdlerLaneSize, SIMD_WIDTH>::from_array(POSITIONS);
+        let weightedv = chunkv * POSITIONS;
         let weighted_sum = weightedv.reduce_sum();
 
         let delta_b = weighted_sum as u32 + a * SIMD_WIDTH as u32;

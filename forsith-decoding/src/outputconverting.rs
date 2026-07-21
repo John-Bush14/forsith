@@ -82,6 +82,7 @@ where
     for i in (0..slice.len()).step_by(bytespp) {
         let pixel_ptr = unsafe {(slice.get_unchecked(i..i + bytespp).as_ptr() as *const [SC::StorageType; SF as usize])};
 
+        #[cfg(debug_assertions)]
         if pixel_ptr.is_null() {panic!("pixel ptr null?")};
 
         let pixel = unsafe {&*pixel_ptr};
@@ -140,7 +141,6 @@ fn convert_pixel<C: Channel, const DF: u8, const SF: u8>(pixel: &[C::StorageType
     if DF.is_multiple_of(2) {
         if SF.is_multiple_of(2) {out(pixel[i])}
         else {
-            println!("{color:?} =? {alpha_color:?}");
             if Some(color) == alpha_color {
                 unsafe {out(C::StorageType::try_from(C::MIN).unwrap_unchecked())}
             } else {
