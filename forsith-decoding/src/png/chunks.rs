@@ -31,7 +31,7 @@ pub fn is_chunk_type_critical(chunk_type_buffer: &[u8; 4]) -> bool {
 #[derive(Debug)]
 pub struct Ihdr {
     pub width: u32,
-    pub _height: u32,
+    pub height: u32,
     pub channel_depth: u8,
     pub color_type: ColorType,
     pub compression_method: u8,
@@ -65,7 +65,7 @@ impl Ihdr {
 
         Ok(Self {
             width: u32::read_be(reader)?,
-            _height: u32::read_be(reader)?,
+            height: u32::read_be(reader)?,
             channel_depth: u8::read_be(reader)?,
             color_type: ColorType::try_from(u8::read_be(reader)?).map_err(|_| DecodingError::InvalidChunk(ChunkType::Ihdr))?,
             compression_method: u8::read_be(reader)?,

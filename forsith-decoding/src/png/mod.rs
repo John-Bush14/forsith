@@ -67,7 +67,7 @@ impl<'a, R: BufRead, C: Channel, const F: u8> ImageDecoder<'a, R, C, F> for PngD
 
         let ihdr = read_ihdr(&mut reader)?;
 
-        println!("{ihdr:?}");
+        // println!("{ihdr:?}");
 
         let mut decoder = Self {
             reader,
@@ -106,6 +106,8 @@ impl<'a, R: BufRead, C: Channel, const F: u8> ImageDecoder<'a, R, C, F> for PngD
     }
 
     fn read(&mut self, dest: &mut [u8]) -> Result<usize, DecodingError> {
+        if dest.len() < self.min_buf_size() {return Err(DecodingError::TinyDestBuf(dest.len()))}
+
         let mut dest = OutputWriter::new(dest);
         self.inflate_capacity = self.calculate_inflate_capacity(&mut dest);
 
@@ -118,8 +120,6 @@ impl<'a, R: BufRead, C: Channel, const F: u8> ImageDecoder<'a, R, C, F> for PngD
                     self.emit_inflated_byte(b, &mut dest)?;
                 }
 
-                println!("{len} {fill_len}");
-
                 if len as usize == fill_len {
                     self.next_block()?;
                 } else {
@@ -130,21 +130,23 @@ impl<'a, R: BufRead, C: Channel, const F: u8> ImageDecoder<'a, R, C, F> for PngD
             BlockType::CompressedFixed => {self.read_compressed_chunk::<true>(&mut dest)?;},
             BlockType::CompressedDynamic => {self.read_compressed_chunk::<false>(&mut dest)?;},
             BlockType::Finished => {
-                self.decrease_inflate_capacity(self.deflate_buffer.capacity() - self.deflate_buffer.len());
+                self.decrease_inflate_capacity(self.deflate_buffer.remaining());
 
                 while self.inflate_capacity() >= self.scanline_bytes() - 1 && self.deflate_buffer.len() - self.deflate_buffer_tail >= self.scanline_bytes() {
+                    self.decrease_inflate_capacity(self.scanline_bytes() - 1);
+
                     let scanline = self.deflate_buffer.slice(self.deflate_buffer_tail..self.deflate_buffer_tail + self.scanline_bytes());
 
                     self.postprocessor.consume_inflated_scanline(scanline, &mut dest)?;
 
                     self.deflate_buffer_tail += self.scanline_bytes();
-
-                    self.decrease_inflate_capacity(self.scanline_pixel_bytes());
                 }
 
                 self.decrease_inflate_capacity(self.postprocessor.remaining_bytes());
 
                 while self.inflate_capacity() >= self.postprocessor.prev_buffer().len() && !self.postprocessor.is_empty(){
+                    self.decrease_inflate_capacity(self.postprocessor.prev_buffer().len());
+
                     self.postprocessor.drain_previous_scanline(&mut dest)?;
 
                     self.postprocessor.switch_buffers();
@@ -164,20 +166,25 @@ impl<'a, R: BufRead, C: Channel, const F: u8> ImageDecoder<'a, R, C, F> for PngD
         Ok(dest.len())
     }
 
+    fn image_dimensions(&self) -> (usize, usize) {(self.ihdr.width as _, self.ihdr.height as _)}
+    fn min_buf_size(&self) -> usize {
+        ((self.scanline_bytes() - 1 + 258) * 8 * Self::dest_bpp() / self.src_bpp()).div_ceil(8)
+    }
+
     fn bit_depth(&self) -> u8 {self.ihdr.channel_depth}
 
     fn pixel_format(&self) -> crate::PixelFormat {self.ihdr.color_type.into()}
 }
 
 impl<'a, R: BufRead, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
-    fn calculate_inflate_capacity(&mut self, dest: &mut OutputWriter) -> usize {
-        let src_bpp = self.ihdr.channel_depth as usize * self.pixel_format() as usize;
-        let dest_bpp = F as usize * C::BIT_DEPTH as usize;
+    fn src_bpp(&self) -> usize {self.ihdr.channel_depth as usize * into_outconverter_pixel_format::<F>(self.postprocessor.color_type()) as usize}
+    fn dest_bpp() -> usize {F as usize * C::BIT_DEPTH as usize}
 
+    fn calculate_inflate_capacity(&mut self, dest: &mut OutputWriter) -> usize {
         let correct_dest_capacity = (
             (dest.capacity() * 8)
-            * src_bpp // ="/ src_ppb"
-            / dest_bpp
+            * match self.postprocessor.color_type() {ColorType::Indexed => self.ihdr.channel_depth as usize, _ => self.src_bpp()}
+            / Self::dest_bpp()
         ).div_euclid(8);
 
         correct_dest_capacity + self.deflate_buffer.remaining() + self.postprocessor.remaining_bytes()
@@ -288,7 +295,7 @@ impl<'a, R: BufRead, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
 
     fn read_compressed_chunk<const STATIC: bool>(&mut self, dest: &mut OutputWriter) -> Result<(), DecodingError> {
         loop  {
-            if self.inflate_capacity() < self.scanline_pixel_bytes() + 258 {
+            if self.inflate_capacity() < self.scanline_bytes() + 258 {
                 dest.set_full();
                 break;
             }

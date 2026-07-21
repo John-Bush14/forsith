@@ -80,7 +80,7 @@ where
 {
     let bytespp = bytespp::<SC, SF>() as usize;
     for i in (0..slice.len()).step_by(bytespp) {
-        let pixel_ptr = unsafe {(slice.get_unchecked(i..i + bytespp).as_ptr() as *const [SC::StorageType; SF as usize])};
+        let pixel_ptr = unsafe {slice.get_unchecked(i..i + bytespp).as_ptr() as *const [SC::StorageType; SF as usize]};
 
         #[cfg(debug_assertions)]
         if pixel_ptr.is_null() {panic!("pixel ptr null?")};

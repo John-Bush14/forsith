@@ -117,7 +117,7 @@ impl<const F: u8> PostProcessor<F> {
     }
 
     fn write_slice(&self, slice: &[u8], dest: &mut OutputWriter, padding: u8) {
-        (self.out_writer)(slice, dest, 0, self.alpha_color);
+        (self.out_writer)(slice, dest, padding, self.alpha_color);
     }
 
     #[inline]

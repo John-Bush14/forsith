@@ -54,6 +54,9 @@ impl<'a> OutputWriter<'a> {
 
     #[inline(always)]
     pub fn push_channel<C: Channel>(&mut self, c: C::StorageType) {
+        #[cfg(debug_assertions)]
+        if (self.buffer.len() - self.index) < C::BIT_DEPTH as usize/8 {panic!("tried to push channel into full dest")}
+
         unsafe {*self.channel_ptr::<C>() = c};
 
         self.index += const {C::BIT_DEPTH as usize / 8};
@@ -126,10 +129,10 @@ impl<T> CursorVec<T> {
 
     #[inline(always)]
     pub fn push(&mut self, b: T) {
-        #[cfg(debug_assertions)]
-        if self.buffer.as_ptr().wrapping_add(self.cursor).is_null() {panic!("null cursorvec ptr")}
-
         unsafe {
+            #[cfg(debug_assertions)]
+            if self.buffer.as_ptr().add(self.cursor).is_null() {panic!("null cursorvec ptr")}
+
             *self.buffer.as_mut_ptr().add(self.cursor) = b;
             self.cursor = self.cursor.unchecked_add(1);
         }

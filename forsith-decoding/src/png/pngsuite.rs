@@ -2,8 +2,6 @@ use std::error::Error;
 use std::{fs::File, io::BufReader, path::PathBuf};
 use crate::{DecodingError, ImageDecoder, PixelFormat, PngDecoder};
 
-const BUFFER_SIZE: usize = 1024 * 32;
-
 
 include!("pngsuite/generated_tests.rs");
 
@@ -22,7 +20,7 @@ fn test_image(path: &str, solution_filepath: &str) -> Result<(), Box<dyn Error>>
     };
 
     let mut decoded_bytes = 0;
-    let mut decoded_buf = [0u8; BUFFER_SIZE];
+    let mut decoded_buf: Vec<u8> = vec![0u8; decoder.min_buf_size()];
     while match decoder.read(&mut decoded_buf) {
         Ok(len) => {
             let solution = solution.as_ref().unwrap_or_else(|e| panic!("test that should fail succeeded!"));

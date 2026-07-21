@@ -47,7 +47,9 @@ pub enum DecodingError {
     #[error("Invalid bytes per pixel ({0}) calculated for image.")]
     InvalidStride(usize),
     #[error("No Plte chunk found for an index color type image")]
-    NoPallete
+    NoPallete,
+    #[error("Provided dest buf of size less than min_buf_size ({0})")]
+    TinyDestBuf(usize)
 }
 impl From<DecodingError> for io::Error {
     fn from(err: DecodingError) -> Self {
