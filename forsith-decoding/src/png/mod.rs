@@ -1,5 +1,5 @@
 use std::io::{BufRead, Read};
-use crate::{Channel, CursorVec, DecodingError, OutputWriter, ImageDecoder, PixelFormat, png::{chunks::{ColorPalette, Ihdr, ZlibHeader, tRNS}, deflate::{BlockType, STATIC_DISTANCE_TREE, STATIC_LITLEN_TREE, decode_distance, decode_length}, postprocessing::PostProcessor}};
+use crate::{Channel, CursorVec, DecodingError, ImageDecoder, OutputWriter, PixelFormat, png::{chunks::{ColorPalette, Ihdr, ZlibHeader, tRNS}, deflate::{BlockType, STATIC_DISTANCE_TREE, STATIC_LITLEN_TREE, decode_distance, decode_length}, postprocessing::{PostProcessor, into_outconverter_pixel_format}}};
 use num_enum::TryFromPrimitive;
 
 mod chunks;
@@ -168,10 +168,16 @@ impl<'a, R: BufRead, C: Channel, const F: u8> ImageDecoder<'a, R, C, F> for PngD
 
 impl<'a, R: BufRead, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
     fn calculate_inflate_capacity(&mut self, dest: &mut OutputWriter) -> usize {
-        // let dest_bitspp = self.dest_bitspp();
+        let src_bpp = self.ihdr.channel_depth as usize * self.pixel_format() as usize;
+        let dest_bpp = F as usize * C::BIT_DEPTH as usize;
 
-        // let correct_dest_capacity = (dest.len() * 8 / dest_bitspp as usize) * self.source_bitspp as usize;
-        let correct_dest_capacity = dest.capacity();
+        let correct_dest_capacity = (
+            (dest.capacity() * 8)
+            * src_bpp // ="/ src_ppb"
+            / dest_bpp
+        ).div_euclid(8);
+
+        println!("{correct_dest_capacity}, {}", dest.capacity());
 
         correct_dest_capacity + self.deflate_buffer.remaining() + self.postprocessor.remaining_bytes()
     }
@@ -195,7 +201,7 @@ impl<'a, R: BufRead, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
     }
 
     fn finish_decoding(&mut self) -> Result<(), DecodingError> {
-        self.reader.update_adler32(self.deflate_buffer.slice(0..self.deflate_buffer.len()));
+        self.reader.update_adler32(self.deflate_buffer.as_slice());
 
         self.reader.validate_adler32()?;
 
@@ -233,6 +239,7 @@ impl<'a, R: BufRead, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
 
     fn drain_deflate_buffer(&mut self, dest: &mut OutputWriter) -> Result<(), DecodingError> {
         let mut start = 0;
+
         for _ in 0..self.scanline_multiples.min(self.inflate_capacity() / self.scanline_bytes()) {
             self.postprocessor.consume_inflated_scanline(self.deflate_buffer.slice(start..start+self.scanline_bytes()), dest)?;
             start += self.scanline_bytes();

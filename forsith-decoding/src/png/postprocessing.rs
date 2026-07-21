@@ -38,12 +38,8 @@ impl<const F: u8> PostProcessor<F> {
 
         let stride = (bitspp as usize).div_ceil(8);
 
-        let mut src_format = PixelFormat::from(color_type) as u8;
-        if color_type == ColorType::Indexed && has_alpha(F) && !has_alpha(src_format) {
-            src_format += 1;
-        }
-
-        let out_writer = get_out_writer_func::<C, F>(if color_type != ColorType::Indexed {channel_depth} else {8}, src_format, false);
+        let out_format = into_outconverter_pixel_format::<F>(color_type) as u8;
+        let out_writer = get_out_writer_func::<C, F>(if color_type != ColorType::Indexed {channel_depth} else {8}, out_format, false);
 
         Self {
             scanline_buffers: [CursorVec::new(scanline_bytes-1), CursorVec::new(scanline_bytes-1)],
@@ -233,6 +229,12 @@ impl<const F: u8> PostProcessor<F> {
     pub fn channel_depth(&self) -> u8 {self.channel_depth}
 
     pub fn set_alpha_color(&mut self, c: (i64, i64, i64)) {self.alpha_color = Some(c);}
+}
+
+pub fn into_outconverter_pixel_format<const F: u8>(color_type: ColorType) -> PixelFormat {
+    if color_type == ColorType::Indexed && has_alpha(F) {
+        PixelFormat::TruecolorAlpha
+    } else {PixelFormat::from(color_type)}
 }
 
 #[inline]

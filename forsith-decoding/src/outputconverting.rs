@@ -78,8 +78,6 @@ pub fn push_aligned_slice<DC: Channel, const DF: u8, SC: Channel, const SF: u8>(
 where
     [(); SF as usize]:,
 {
-    // println!("input: {slice:?}");
-
     let bytespp = bytespp::<SC, SF>() as usize;
     for i in (0..slice.len()).step_by(bytespp) {
         let pixel_ptr = unsafe {(slice.get_unchecked(i..i + bytespp).as_ptr() as *const [SC::StorageType; SF as usize])};
@@ -97,18 +95,12 @@ where
 }
 
 fn convert_channel<SC: Channel, DC: Channel>(value: SC::StorageType) -> DC::StorageType {
-    // println!("input {value:?}");
-
     let value: i64 = value.to_be().into();
 
     // Normalize input to 0.0..1.0 integer space
     let normalized = (value - SC::MIN) as u64 * DC::MAX / (SC::MAX as i64 - SC::MIN) as u64;
 
-    let out = unsafe {DC::StorageType::try_from(normalized as i64 + DC::MIN).unwrap_unchecked()};
-
-    // println!("{out:?}");
-
-    return out;
+    unsafe {DC::StorageType::try_from(normalized as i64 + DC::MIN).unwrap_unchecked()}
 }
 
 fn convert_pixel<C: Channel, const DF: u8, const SF: u8>(pixel: &[C::StorageType; SF as usize], alpha_color: Option<(i64, i64, i64)>, mut out: impl FnMut(C::StorageType)) {
