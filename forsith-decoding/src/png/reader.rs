@@ -132,7 +132,7 @@ impl<R: BufRead> PngReader<R> {
             self.buffer.raw_mut_slice(index..index + 4).copy_from_slice(&len_buf);
             self.buffer.raw_mut_slice(index+4..index + 8).copy_from_slice(&type_buf);
 
-            index += 8;
+            if !IDAT {index += 8};
         }
 
         Ok(())
