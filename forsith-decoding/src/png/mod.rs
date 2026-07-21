@@ -1,5 +1,5 @@
 use std::io::{BufRead, Read};
-use crate::{Channel, CursorVec, DecodingError, ImageDecoder, OutputWriter, PixelFormat, png::{chunks::{ColorPalette, Ihdr, ZlibHeader, tRNS}, deflate::{BlockType, STATIC_DISTANCE_TREE, STATIC_LITLEN_TREE, decode_distance, decode_length}, postprocessing::{PostProcessor, into_outconverter_pixel_format}}};
+use crate::{Channel, CursorVec, DecodingError, ImageDecoder, OutputWriter, PixelFormat, png::{chunks::{ColorPalette, Ihdr, ZlibHeader, tRNS}, deflate::{BlockType, STATIC_DISTANCE_TREE, STATIC_LITLEN_TREE, decode_distance, decode_length}, postprocessing::{PostProcessor, into_outconverter_pixel_format}, reader::BitReader}};
 use num_enum::TryFromPrimitive;
 
 mod chunks;
@@ -67,6 +67,8 @@ impl<'a, R: BufRead, C: Channel, const F: u8> ImageDecoder<'a, R, C, F> for PngD
 
         let ihdr = read_ihdr(&mut reader)?;
 
+        println!("{ihdr:?}");
+
         let mut decoder = Self {
             reader,
             deflate_buffer: CursorVec::new(0),
@@ -112,11 +114,13 @@ impl<'a, R: BufRead, C: Channel, const F: u8> ImageDecoder<'a, R, C, F> for PngD
                 let fill_len = (len as usize).min(self.inflate_capacity());
 
                 for _ in 0..fill_len {
-                    let b = self.reader.buffer.read_be::<u8>();
+                    let b = self.reader.read_bits(8)? as u8;
                     self.emit_inflated_byte(b, &mut dest)?;
                 }
 
-                if len == fill_len as u16 {
+                println!("{len} {fill_len}");
+
+                if len as usize == fill_len {
                     self.next_block()?;
                 } else {
                     self.cur_block.r#type = BlockType::Uncompressed(len - fill_len as u16);

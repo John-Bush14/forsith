@@ -181,12 +181,17 @@ impl<R: BufRead> BitReader for PngReader<R> {
     fn consume_bits(&mut self, n: u8) {
         self.bit_buf.consume(n);
     }
+
+    fn remaining_bits(&self) -> u8 {
+        self.bit_buf.bits_remaining
+    }
 }
 
 pub trait BitReader {
     fn fill_bitbuf(&mut self) -> std::io::Result<()>;
     fn peek_bits(&mut self, n: u8) -> std::io::Result<u64>;
     fn consume_bits(&mut self, n: u8);
+    fn remaining_bits(&self) -> u8;
     fn read_bits(&mut self, n: u8) -> std::io::Result<u64> {
         let bits = self.peek_bits(n)?;
         self.consume_bits(n);

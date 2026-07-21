@@ -377,6 +377,9 @@ impl Block {
     fn load_compression_type<R: BitReader>(&mut self, reader: &mut R) -> Result<(), DecodingError> {
         match reader.read_bits(2)? {
             0 => {
+                let alignment_bits = reader.remaining_bits() % 8;
+                reader.consume_bits(alignment_bits);
+
                 let len = reader.read_bits(16)? as u16;
                 let nlen = reader.read_bits(16)? as u16;
 
