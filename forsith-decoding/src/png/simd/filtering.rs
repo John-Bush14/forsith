@@ -30,13 +30,13 @@ impl<C: Channel, const F: u8> PostProcessor<C, F> {
         Ok(filtered_bytes)
     }
 
-    /// only first {self.stride} pixels correct, others will be garbage
-    fn left_pixel<const STRIDE: usize>(&self, i: usize) -> [u8; STRIDE] {
+    fn left_pixel<const STRIDE: usize>(&self, i: usize) -> &[u8; STRIDE] {
         self.cur_buffer().slice(i - STRIDE..i).try_into().unwrap()
     }
+    /// only first {self.stride} pixels correct, others 0
     fn left_pixels<const STRIDE: usize>(&self, i: usize) -> Simd<u8, SIMD_WIDTH> {
         let mut left_pixels = Simd::splat(0);
-        left_pixels.as_mut_array()[..STRIDE].copy_from_slice(&self.left_pixel::<STRIDE>(i));
+        left_pixels.as_mut_array()[..STRIDE].copy_from_slice(self.left_pixel::<STRIDE>(i));
         left_pixels
     }
     fn upper_pixels(&self, i: usize) -> Simd<u8, SIMD_WIDTH> {open_simd(self.prev_buffer().full_buf_slice(), i)}
@@ -60,7 +60,7 @@ fn simd_average(a: Simd<u8, SIMD_WIDTH>, b: Simd<u8, SIMD_WIDTH>) -> Simd<u8, SI
     (a & b) + ((a ^ b) >> Simd::splat(1))
 }
 
-fn sub_filter<const STRIDE: usize>(mut raw_bytes: Simd<u8, SIMD_WIDTH>, left_pixel: [u8; STRIDE]) -> Simd<u8, SIMD_WIDTH> {
+fn sub_filter<const STRIDE: usize>(mut raw_bytes: Simd<u8, SIMD_WIDTH>, left_pixel: &[u8; STRIDE]) -> Simd<u8, SIMD_WIDTH> {
     let mut shifted_bytes = raw_bytes;
 
     for _ in (STRIDE..SIMD_WIDTH).step_by(STRIDE) {
@@ -73,8 +73,8 @@ fn sub_filter<const STRIDE: usize>(mut raw_bytes: Simd<u8, SIMD_WIDTH>, left_pix
     raw_bytes + anchor
 }
 
-fn array_repeating_to_simd<const LENGTH: usize>(arr: [u8; LENGTH]) -> Simd<u8, SIMD_WIDTH> {
-    Simd::from_array(arr).resize::<{SIMD_WIDTH}>(0).swizzle_dyn(Simd::from_array(repeating_swizzle_index::<{LENGTH}>()))
+fn array_repeating_to_simd<const LENGTH: usize>(arr: &[u8; LENGTH]) -> Simd<u8, SIMD_WIDTH> {
+    Simd::<u8, LENGTH>::from_slice(arr).resize::<{SIMD_WIDTH}>(0).swizzle_dyn(Simd::from_array(repeating_swizzle_index::<{LENGTH}>()))
 }
 
 const fn repeating_swizzle_index<const MAX_INDEX: usize>() -> [u8; SIMD_WIDTH] {

@@ -47,7 +47,9 @@ pub enum DecodingError {
     #[error("No Plte chunk found for an index color type image")]
     NoPallete,
     #[error("Provided dest buf of size less than min_buf_size ({0})")]
-    TinyDestBuf(usize)
+    TinyDestBuf(usize),
+    #[error("Provided png did not contain a Iend chunk")]
+    NoIend
 }
 impl From<DecodingError> for io::Error {
     fn from(err: DecodingError) -> Self {

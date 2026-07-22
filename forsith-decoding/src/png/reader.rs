@@ -2,9 +2,7 @@ use std::io::{BufRead, Read};
 
 use crate::{BitBuffer, BufferReader, DecodingError, Int, png::{ChunkType::{self}, checksum::{Adler32, CRC32}, chunks::is_chunk_type_critical}};
 
-
-const BUFFER_SIZE: usize = 1 << 12;
-
+const ALLOC_SIZE: usize = 1 << 12;
 
 #[derive(Debug)]
 struct Chunk {
@@ -15,7 +13,7 @@ struct Chunk {
 #[derive(Debug)]
 pub struct PngReader<R: BufRead> {
     pub reader: R,
-    pub buffer: BufferReader<BUFFER_SIZE>,
+    pub buffer: BufferReader,
     pub crc: CRC32,
     pub adler: Adler32,
     pub(crate) remaining_chunk_bytes: usize,
@@ -27,7 +25,7 @@ impl<R: BufRead> PngReader<R> {
     pub fn new(reader: R) -> Result<Self, DecodingError> {
         let mut reader = Self {
             reader,
-            buffer: BufferReader::<BUFFER_SIZE>::default(),
+            buffer: BufferReader::new(ALLOC_SIZE),
             crc: CRC32::default(),
             adler: Adler32::default(),
             remaining_chunk_bytes: 0,
@@ -65,30 +63,19 @@ impl<R: BufRead> PngReader<R> {
     pub fn cur_chunk_type(&self) -> ChunkType {self.cur_chunk.r#type}
     pub fn cur_chunk_len(&self) -> usize {self.cur_chunk.len}
 
-    fn refill_buffer<const IDAT: bool>(&mut self) -> Result<(), DecodingError> {
-        let remaining = self.buffer.remaining();
-
-        self.buffer.empty();
-
-        self.fill_buffer::<IDAT>(remaining)?;
-
-        Ok(())
-    }
-
     fn fill_buffer<const IDAT: bool>(&mut self, mut index: usize) -> Result<(), DecodingError> {
         loop {
-            if BUFFER_SIZE - index <= self.remaining_chunk_bytes {
-                self.reader.read_exact(self.buffer.raw_mut_slice(index..BUFFER_SIZE))?;
-
-                self.remaining_chunk_bytes -= BUFFER_SIZE - index;
-
-                self.crc.update(self.buffer.raw_slice(index..BUFFER_SIZE));
-
-                break;
+            if self.buffer.capacity() - index <= self.remaining_chunk_bytes + 12 {
+                self.buffer.expand((self.remaining_chunk_bytes + 12).div_ceil(ALLOC_SIZE));
             }
 
             // CRC + next length
-            self.reader.read_exact(self.buffer.raw_mut_slice(index..index + self.remaining_chunk_bytes + 4 + 4 + 4))?;
+            match self.reader.read_exact(self.buffer.raw_mut_slice(index..index + self.remaining_chunk_bytes + 4 + 4 + 4)) {
+                Ok(_) => (), Err(e) => return match e.kind() {
+                    std::io::ErrorKind::UnexpectedEof => Err(DecodingError::NoIend),
+                    _ => Err(e.into())
+                }
+            };
             self.crc.update(self.buffer.raw_slice(index..index + self.remaining_chunk_bytes));
 
             index += self.remaining_chunk_bytes;
@@ -113,7 +100,7 @@ impl<R: BufRead> PngReader<R> {
                 self.reader.read_exact(&mut crc_buf)?;
                 self.validate_crc(u32::from_be_bytes(crc_buf))?;
 
-                return Ok(())
+                break;
             }
 
             if let Ok(ChunkType::Idat) = chunk_type {
@@ -138,24 +125,11 @@ impl<R: BufRead> PngReader<R> {
 
         Ok(())
     }
-
-
-    pub fn read_idat<N: Int>(&mut self) -> Result<N, DecodingError> {
-        if self.buffer.remaining() < std::mem::size_of::<N>() {
-            self.refill_buffer::<true>()?;
-        }
-
-        Ok(self.buffer.read_le::<N>())
-    }
 }
 
 impl<R: BufRead> Read for PngReader<R> {
     /// should not be used inside of IDAT chunks
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        if self.buffer.remaining() < buf.len() {
-            self.refill_buffer::<false>()?;
-        }
-
         buf.copy_from_slice(self.buffer.slice(buf.len()));
         self.buffer.consume(buf.len());
 
@@ -173,7 +147,7 @@ impl<R: BufRead> BitReader for PngReader<R> {
     }
 
     fn fill_bitbuf(&mut self) -> std::io::Result<()> {
-        let refil = self.read_idat::<u32>()?;
+        let refil = u32::read_le(self)?;
 
         self.bit_buf.push_u32(refil);
 

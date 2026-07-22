@@ -133,7 +133,7 @@ impl<T> CursorVec<T> {
             #[cfg(debug_assertions)]
             if self.buffer.as_ptr().add(self.cursor).is_null() {panic!("null cursorvec ptr")}
 
-            *self.buffer.as_mut_ptr().add(self.cursor) = b;
+            self.buffer.as_mut_ptr().add(self.cursor).write(b);
             self.cursor = self.cursor.unchecked_add(1);
         }
     }
@@ -188,19 +188,22 @@ impl<T> CursorVec<T> {
 }
 
 #[derive(Debug)]
-pub struct BufferReader<const LEN: usize> {
-    buffer: [u8; LEN],
-    index: usize
+pub struct BufferReader {
+    buffer: Vec<u8>,
+    index: usize,
+    alloc_size: usize
 }
-impl<const LEN: usize> Default for BufferReader<LEN> {
-    fn default() -> Self {
+impl BufferReader {
+    pub fn new(alloc_size: usize) -> Self {
         Self {
-            buffer: [0u8; LEN],
-            index: 0
+            buffer: vec![0u8; alloc_size],
+            index: 0,
+            alloc_size
         }
     }
-}
-impl<const LEN: usize> BufferReader<LEN> {
+
+    pub fn capacity(&self) -> usize {self.buffer.len()}
+
     pub fn slice(&self, len: usize) -> &[u8] {
         unsafe {self.buffer.get_unchecked(self.index..self.index + len)}
     }
@@ -247,7 +250,9 @@ impl<const LEN: usize> BufferReader<LEN> {
         self.index = 0;
     }
 
+    pub fn expand(&mut self, times: usize) {self.buffer.resize(self.buffer.len() + self.alloc_size*times, 0u8)}
+
     pub fn remaining(&self) -> usize {
-        LEN - self.index
+        self.buffer.len() - self.index
     }
 }

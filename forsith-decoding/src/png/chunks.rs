@@ -90,8 +90,8 @@ impl ChunkData for ZlibHeader {
         Self: Sized,
     {
         let reader = &mut decoder.reader;
-        let cmf = reader.read_idat::<u8>()?;
-        let flg = reader.read_idat::<u8>()?;
+        let cmf = u8::read_le(reader)?;
+        let flg = u8::read_le(reader)?;
 
         let compression_method = cmf & 0b00001111;
         let compression_info = (cmf & 0b11110000) >> 4;
