@@ -9,9 +9,6 @@ fn test_image(path: &str, solution_filepath: &str) -> Result<(), Box<dyn Error>>
 
     let test_file = File::open(path).unwrap();
 
-    let solution = File::open(solution_filepath);
-    let solution: Result<Vec<u8>, _> = solution.map(|f| serde_json::from_reader(f).unwrap());
-
     let id = PathBuf::from(path).file_name().unwrap().to_str().unwrap()[..3].to_string();
 
     let mut decoder = match PngDecoder::<_, u8, {PixelFormat::TruecolorAlpha as u8}>::open(BufReader::new(test_file)) {
@@ -19,11 +16,17 @@ fn test_image(path: &str, solution_filepath: &str) -> Result<(), Box<dyn Error>>
         Err(e) => {if is_correct_err(&e, &id) {return Ok(())} else {return Err(Box::from(e))}}
     };
 
+    let solution = File::open(solution_filepath);
+    let solution: Result<Vec<u8>, _> = solution.map(|f| {
+        if decoder.bit_depth() <= 8 {serde_json::from_reader(f).unwrap()}
+        else {serde_json::from_reader::<_, Vec<u16>>(f).unwrap().iter().map(|&v| (v as u32 * 255 / u16::MAX as u32) as u8).collect()}
+    });
+
     let mut decoded_bytes = 0;
     let mut decoded_buf: Vec<u8> = vec![0u8; decoder.min_buf_size()];
     while match decoder.read(&mut decoded_buf) {
         Ok(len) => {
-            let solution = solution.as_ref().unwrap_or_else(|e| panic!("test that should fail succeeded!"));
+            let solution = solution.as_ref().unwrap_or_else(|_| panic!("test that should fail succeeded!"));
 
             let decoded = &decoded_buf[..len];
 

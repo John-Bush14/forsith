@@ -13,13 +13,6 @@ fn main() {
 
         let mut solution_filename = PathBuf::from(path.clone().file_name().unwrap());
         solution_filename.set_extension("json");
-        if path.file_name().unwrap().as_encoded_bytes().ends_with(b"16.png") {
-            let mut stem = solution_filename.file_stem().unwrap().to_os_string();
-
-            stem.push("_to8.json");
-
-            solution_filename = PathBuf::from(stem);
-        }
         let solution_path = pngsuite_dir.join("json").join(solution_filename);
 
         if path.extension().is_some_and(|x| x == "png") {
