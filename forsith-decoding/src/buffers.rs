@@ -37,46 +37,46 @@ impl Default for BitBuffer {
     }
 }
 
-pub struct OutputWriter<'a> {
+pub struct OutputWriter<'a, C: Channel> {
     buffer: &'a mut [u8],
     index: usize,
     full: bool,
+    stride: usize,
+    _phantom: PhantomData<C>
 }
 
-impl<'a> OutputWriter<'a> {
+impl<'a, C: Channel> OutputWriter<'a, C> {
     pub fn new(buffer: &'a mut [u8]) -> Self {
         Self {
             buffer,
             index: 0,
             full: false,
+            stride: 1,
+            _phantom: Default::default()
         }
     }
 
     #[inline(always)]
-    pub fn push_channel<C: Channel>(&mut self, c: C::StorageType) {
+    pub fn push_channel(&mut self, c: C::StorageType) {
         #[cfg(debug_assertions)]
         if (self.buffer.len() - self.index) < C::BIT_DEPTH as usize/8 {panic!("tried to push channel into full dest")}
 
-        unsafe {*self.channel_ptr::<C>() = c};
+        unsafe {self.channel_ptr().write(c)};
 
-        self.index += const {C::BIT_DEPTH as usize / 8};
+        self.index += self.stride;
     }
 
-    fn channel_ptr<C: Channel>(&mut self) -> *mut C::StorageType {
+    fn channel_ptr(&mut self) -> *mut C::StorageType {
         #[cfg(debug_assertions)]
         if self.buffer.as_mut_ptr().wrapping_add(self.index).is_null() {panic!("channel ptr null!");}
 
         self.buffer.as_mut_ptr().wrapping_add(self.index) as *mut C::StorageType
     }
 
-    pub fn push_channels<C: Channel>(&mut self, slice: &[C::StorageType]) {
-        #[cfg(debug_assertions)]
-        if self.capacity() - self.index < std::mem::size_of_val(slice) {panic!("too little space")}
+    fn bbp() -> usize {const {C::BIT_DEPTH as usize / 8}}
 
-        unsafe {self.channel_ptr::<C>().copy_from(slice.as_ptr(), slice.len())};
-
-        self.index += std::mem::size_of_val(slice);
-    }
+    pub fn set_stride(&mut self, pixels: usize) {self.stride = pixels * Self::bbp()}
+    pub fn advance(&mut self, pixels: usize) {self.index += pixels * Self::bbp()}
 
     pub fn len(&self) -> usize {self.index}
 

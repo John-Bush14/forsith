@@ -50,7 +50,7 @@ pub struct PngDecoder<'a, R: BufRead, C: Channel, const F: u8> {
     reader: PngReader<R>,
     deflate_buffer: CursorVec<u8>,
     scanline_multiples: usize,
-    postprocessor: PostProcessor<F>,
+    postprocessor: PostProcessor<C, F>,
     phantom: std::marker::PhantomData<&'a C>,
     ihdr: Ihdr,
     cur_block: deflate::Block,
@@ -74,7 +74,7 @@ impl<'a, R: BufRead, C: Channel, const F: u8> ImageDecoder<'a, R, C, F> for PngD
             deflate_buffer: CursorVec::new(0),
             scanline_multiples: 0,
             phantom: std::marker::PhantomData,
-            postprocessor: PostProcessor::new::<C>(ihdr.width, ihdr.color_type, ihdr.channel_depth),
+            postprocessor: PostProcessor::new(ihdr.width, ihdr.color_type, ihdr.channel_depth),
             ihdr,
             cur_block: deflate::Block::default(),
             inflate_capacity: 0,
@@ -180,7 +180,7 @@ impl<'a, R: BufRead, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
     fn src_bpp(&self) -> usize {self.ihdr.channel_depth as usize * into_outconverter_pixel_format::<F>(self.postprocessor.color_type()) as usize}
     fn dest_bpp() -> usize {F as usize * C::BIT_DEPTH as usize}
 
-    fn calculate_inflate_capacity(&mut self, dest: &mut OutputWriter) -> usize {
+    fn calculate_inflate_capacity(&mut self, dest: &mut OutputWriter<'_, C>) -> usize {
         let correct_dest_capacity = (
             (dest.capacity() * 8)
             * match self.postprocessor.color_type() {ColorType::Indexed => self.ihdr.channel_depth as usize, _ => self.src_bpp()}
@@ -224,7 +224,7 @@ impl<'a, R: BufRead, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
         Ok(())
     }
 
-    fn emit_backreferenced_inflated_bytes(&mut self, length: usize, distance: usize, dest: &mut OutputWriter) -> Result<(), DecodingError> {
+    fn emit_backreferenced_inflated_bytes(&mut self, length: usize, distance: usize, dest: &mut OutputWriter<'_, C>) -> Result<(), DecodingError> {
         let mut remaining = length;
         let start = self.deflate_buffer.len() - distance;
 
@@ -246,7 +246,7 @@ impl<'a, R: BufRead, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
         Ok(())
     }
 
-    fn drain_deflate_buffer(&mut self, dest: &mut OutputWriter) -> Result<(), DecodingError> {
+    fn drain_deflate_buffer(&mut self, dest: &mut OutputWriter<'_, C>) -> Result<(), DecodingError> {
         let mut start = 0;
 
         for _ in 0..self.scanline_multiples.min(self.inflate_capacity() / self.scanline_bytes()) {
@@ -262,7 +262,7 @@ impl<'a, R: BufRead, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
     }
 
     #[inline(always)]
-    fn emit_inflated_byte(&mut self, b: u8, dest: &mut OutputWriter) -> Result<(), DecodingError> {
+    fn emit_inflated_byte(&mut self, b: u8, dest: &mut OutputWriter<'_, C>) -> Result<(), DecodingError> {
         if self.deflate_buffer.len() == self.deflate_buffer.capacity() {
             self.drain_deflate_buffer(dest)?;
         }
@@ -295,7 +295,7 @@ impl<'a, R: BufRead, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
         Ok(())
     }
 
-    fn read_compressed_chunk<const STATIC: bool>(&mut self, dest: &mut OutputWriter) -> Result<(), DecodingError> {
+    fn read_compressed_chunk<const STATIC: bool>(&mut self, dest: &mut OutputWriter<'_, C>) -> Result<(), DecodingError> {
         loop  {
             if self.inflate_capacity() < self.scanline_bytes() + 258 {
                 dest.set_full();

@@ -24,9 +24,10 @@ macro_rules! packed {
     };
 }
 
-pub type OutputConverter = fn(&[u8], &mut OutputWriter, u8, Option<(i64, i64, i64)>);
+#[allow(type_alias_bounds)]
+pub type OutputConverter<C: Channel> = fn(&[u8], &mut OutputWriter<C>, u8, Option<(i64, i64, i64)>);
 
-pub fn get_out_writer_func<C: Channel, const F: u8>(sample_size: u8, format: u8, signed: bool) -> OutputConverter
+pub fn get_out_writer_func<C: Channel, const F: u8>(sample_size: u8, format: u8, signed: bool) -> OutputConverter<C>
 {
     match sample_size {
         1 => packed!(1, format),
@@ -39,7 +40,7 @@ pub fn get_out_writer_func<C: Channel, const F: u8>(sample_size: u8, format: u8,
     }
 }
 
-pub fn push_packed_slice<DC: Channel, const DF: u8, const SC: u8, const SF: u8>(slice: &[u8], out: &mut OutputWriter, padding: u8, alpha_color: Option<(i64, i64, i64)>)
+pub fn push_packed_slice<DC: Channel, const DF: u8, const SC: u8, const SF: u8>(slice: &[u8], out: &mut OutputWriter<'_, DC>, padding: u8, alpha_color: Option<(i64, i64, i64)>)
 where
     [(); SF as usize]:,
 {
@@ -74,7 +75,7 @@ where
 }
 
 // DC + DF = dest channel + format, SC + SF = source sample size + format
-pub fn push_aligned_slice<DC: Channel, const DF: u8, SC: Channel, const SF: u8>(slice: &[u8], out: &mut OutputWriter, _padding: u8, alpha_color: Option<(i64, i64, i64)>)
+pub fn push_aligned_slice<DC: Channel, const DF: u8, SC: Channel, const SF: u8>(slice: &[u8], out: &mut OutputWriter<'_, DC>, _padding: u8, alpha_color: Option<(i64, i64, i64)>)
 where
     [(); SF as usize]:,
 {
@@ -90,7 +91,7 @@ where
         convert_pixel::<SC, DF, SF>(pixel, alpha_color, |c| {
             let converted = convert_channel::<SC, DC>(c);
 
-            out.push_channel::<DC>(converted);
+            out.push_channel(converted);
         });
     }
 }

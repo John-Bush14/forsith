@@ -16,7 +16,7 @@ pub fn calculate_scanline_bytes(width: u32, bitspp: u8) -> (usize, u8) {
 }
 
 #[derive(Debug)]
-pub struct PostProcessor<const F: u8> {
+pub struct PostProcessor<C: Channel, const F: u8> {
     scanline_buffers: [CursorVec<u8>; 2],
     cur_buffer: usize,
     pub stride: usize,
@@ -25,12 +25,12 @@ pub struct PostProcessor<const F: u8> {
     bitspp: u8,
     scanline_padding: u8, // in bits
     channel_depth: u8,
-    out_writer: OutputConverter,
+    out_writer: OutputConverter<C>,
     alpha_color: Option<(i64, i64, i64)>
 }
 
-impl<const F: u8> PostProcessor<F> {
-    pub fn new<C: Channel>(width: u32, color_type: ColorType, channel_depth: u8) -> Self
+impl<C: Channel, const F: u8> PostProcessor<C, F> {
+    pub fn new(width: u32, color_type: ColorType, channel_depth: u8) -> Self
     {
         let bitspp = PixelFormat::from(color_type) as u8 * channel_depth;
 
@@ -55,7 +55,7 @@ impl<const F: u8> PostProcessor<F> {
         }
     }
 
-    pub fn consume_inflated_scanline(&mut self, scanline: &[u8], dest: &mut OutputWriter) -> Result<(), DecodingError> {
+    pub fn consume_inflated_scanline(&mut self, scanline: &[u8], dest: &mut OutputWriter<'_, C>) -> Result<(), DecodingError> {
         self.drain_previous_scanline(dest)?;
 
         self.switch_buffers();
@@ -81,7 +81,7 @@ impl<const F: u8> PostProcessor<F> {
 
     pub fn pixel_format(&self) -> PixelFormat {PixelFormat::from(self.color_type())}
 
-    pub fn drain_previous_scanline(&mut self, dest: &mut OutputWriter) -> Result<(), DecodingError> {
+    pub fn drain_previous_scanline(&mut self, dest: &mut OutputWriter<'_, C>) -> Result<(), DecodingError> {
         if self.color_type != ColorType::Indexed {
             self.write_slice(self.prev_buffer().as_slice(), dest, self.scanline_padding);
         } else {
@@ -93,7 +93,7 @@ impl<const F: u8> PostProcessor<F> {
         Ok(())
     }
 
-    pub fn drain_previous_scanline_indexed(&mut self, dest: &mut OutputWriter) -> Result<(), DecodingError> {
+    pub fn drain_previous_scanline_indexed(&mut self, dest: &mut OutputWriter<'_, C>) -> Result<(), DecodingError> {
         let palette = unsafe {self.palette.as_ref().unwrap_unchecked()};
         let index_bits = self.bitspp / 3;
 
@@ -116,7 +116,7 @@ impl<const F: u8> PostProcessor<F> {
         Ok(())
     }
 
-    fn write_slice(&self, slice: &[u8], dest: &mut OutputWriter, padding: u8) {
+    fn write_slice(&self, slice: &[u8], dest: &mut OutputWriter<'_, C>, padding: u8) {
         (self.out_writer)(slice, dest, padding, self.alpha_color);
     }
 
