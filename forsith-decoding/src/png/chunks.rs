@@ -122,7 +122,7 @@ impl ChunkData for ZlibHeader {
 #[derive(Debug)]
 pub struct ColorPalette {
     palette: [u32; 256],
-    len: u8,
+    len: u16,
 }
 
 impl IndexMut<usize> for ColorPalette {
@@ -151,11 +151,12 @@ impl ChunkData for ColorPalette {
 
         Self: Sized
     {
+
         let reader = &mut decoder.reader; let len = reader.cur_chunk_len();
 
         if len == 0 || len > 256*3 || !len.is_multiple_of(3) {return Err(InvalidChunk(ChunkType::Plte))}
 
-        let mut palette = ColorPalette {palette: [0u32; 256], len: (len / 3) as u8};
+        let mut palette = ColorPalette {palette: [0u32; 256], len: (len / 3) as u16};
 
         // default alpha value should be 255
         let mut rgba = [255u8; 4];

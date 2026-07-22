@@ -53,6 +53,7 @@ impl<R: BufRead> PngReader<R> {
             Ok(t) => t,
             Err(_) => {
                 if is_chunk_type_critical(&chunk_type_buf) {return Err(DecodingError::UnkownChunk(chunk_type_buf))}
+
                 self.read_exact(&mut vec![0u8; self.cur_chunk.len])?;
                 return self.open_chunk();
             }
