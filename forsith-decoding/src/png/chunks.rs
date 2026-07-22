@@ -45,10 +45,6 @@ impl Ihdr {
             return Err(DecodingError::InvalidChunk(ChunkType::Ihdr));
         }
 
-        if self.interlace_method == 1 {
-            return Err(DecodingError::InteralacingNotSupported);
-        }
-
         match (&self.channel_depth, &self.color_type) {
             (1 | 2 | 4 | 8 | 16, ColorType::Grayscale)
             | (8 | 16, ColorType::Truecolor)

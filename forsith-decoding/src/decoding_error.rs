@@ -14,8 +14,6 @@ pub enum DecodingError {
     // PNG specific
     #[error("Critical chunk '{0}' contains invalid data")]
     InvalidChunk(ChunkType),
-    #[error("Interlacing is not supported")]
-    InteralacingNotSupported,
     #[error("Unknown critical chunk type '{0:?}'")]
     UnkownChunk([u8; 4]),
     #[error("Stored ({0:?}) and calculated ({1:?}) CRC did not match, indicating data corruption.")]

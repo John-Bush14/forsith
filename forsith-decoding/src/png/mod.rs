@@ -1,5 +1,5 @@
 use std::io::{BufRead, Read};
-use crate::{Channel, CursorVec, DecodingError, ImageDecoder, OutputWriter, PixelFormat, png::{chunks::{ColorPalette, Ihdr, ZlibHeader, tRNS}, deflate::{BlockType, STATIC_DISTANCE_TREE, STATIC_LITLEN_TREE, decode_distance, decode_length}, postprocessing::{PostProcessor, into_outconverter_pixel_format}, reader::BitReader}};
+use crate::{Channel, CursorVec, DecodingError, ImageDecoder, OutputWriter, PixelFormat, png::{chunks::{ColorPalette, Ihdr, ZlibHeader, tRNS}, deflate::{BlockType, MAX_BACKREF_LEN, STATIC_DISTANCE_TREE, STATIC_LITLEN_TREE, decode_distance, decode_length}, postprocessing::{PostProcessor, into_outconverter_pixel_format}, reader::BitReader}};
 use num_enum::TryFromPrimitive;
 
 mod chunks;
@@ -168,7 +168,17 @@ impl<'a, R: BufRead, C: Channel, const F: u8> ImageDecoder<'a, R, C, F> for PngD
 
     fn image_dimensions(&self) -> (usize, usize) {(self.ihdr.width as _, self.ihdr.height as _)}
     fn min_buf_size(&self) -> usize {
-        ((self.scanline_bytes() - 1 + 258) * 8 * Self::dest_bpp() / self.src_bpp()).div_ceil(8)
+        let mut min_inflate_capacity = (self.scanline_bytes() - 1 + MAX_BACKREF_LEN).min((self.scanline_bytes() - 1) * self.ihdr.height as usize);
+
+        if self.ihdr.interlace_method == 1 {
+            min_inflate_capacity = (self.scanline_bytes() - 1) * self.ihdr.height as usize;
+        }
+
+        self.inflate_capacity_to_out_buffer(min_inflate_capacity)
+    }
+
+    fn max_buf_size(&self) -> usize {
+        self.inflate_capacity_to_out_buffer((self.scanline_bytes() - 1) * self.ihdr.height as usize)
     }
 
     fn bit_depth(&self) -> u8 {self.ihdr.channel_depth}
@@ -177,6 +187,14 @@ impl<'a, R: BufRead, C: Channel, const F: u8> ImageDecoder<'a, R, C, F> for PngD
 }
 
 impl<'a, R: BufRead, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
+    fn inflate_capacity_to_out_buffer(&self, capacity: usize) -> usize {
+        (
+            (capacity * 8)
+            * Self::dest_bpp()
+            / match self.postprocessor.color_type() {ColorType::Indexed => self.ihdr.channel_depth as usize, _ => self.src_bpp()}
+        ).div_ceil(8)
+    }
+
     fn src_bpp(&self) -> usize {self.ihdr.channel_depth as usize * into_outconverter_pixel_format::<F>(self.postprocessor.color_type()) as usize}
     fn dest_bpp() -> usize {F as usize * C::BIT_DEPTH as usize}
 
@@ -186,6 +204,10 @@ impl<'a, R: BufRead, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
             * match self.postprocessor.color_type() {ColorType::Indexed => self.ihdr.channel_depth as usize, _ => self.src_bpp()}
             / Self::dest_bpp()
         ).div_euclid(8);
+
+        if correct_dest_capacity >= (self.scanline_bytes() - 1) * self.ihdr.height as usize {
+            return usize::MAX;
+        }
 
         correct_dest_capacity + self.deflate_buffer.remaining() + self.postprocessor.remaining_bytes()
     }
@@ -297,7 +319,7 @@ impl<'a, R: BufRead, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
 
     fn read_compressed_chunk<const STATIC: bool>(&mut self, dest: &mut OutputWriter<'_, C>) -> Result<(), DecodingError> {
         loop  {
-            if self.inflate_capacity() < self.scanline_bytes() + 258 {
+            if self.inflate_capacity() < self.scanline_bytes() + MAX_BACKREF_LEN {
                 dest.set_full();
                 break;
             }

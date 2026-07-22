@@ -8,7 +8,7 @@ fn main() {
     let rgba = include_bytes!("../assets/test-rgba.png");
     let rgb = include_bytes!("../assets/test-rgb.png");
 
-    let mut buffer = [0u8; 1080 * 1920 * 3];
+    let mut buffer = [0u8; 1080 * 1920 * 4];
 
     println!(
         "Average time for decoding 1080p rgba PNG: {:?}",

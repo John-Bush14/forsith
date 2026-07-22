@@ -9,6 +9,8 @@ const MAX_ROOT_TABLE_COLEN: u8 = 9;
 const MAX_LITLEN_SUBTABLE_ENTIES: usize = 340;
 const MAX_DISTANCE_SUBTABLE_ENTRIES: usize = 80;
 
+pub const MAX_BACKREF_LEN: usize = 258;
+
 // (base, extra_bits) for length symbols 257..=285
 const LENGTH_TABLE: [(u16, u8); 29] = [
     (3,0),(4,0),(5,0),(6,0),(7,0),(8,0),(9,0),(10,0),

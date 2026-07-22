@@ -54,6 +54,7 @@ pub trait ImageDecoder<'a, R: Read, C: Channel, const F: u8> {
 
     fn image_dimensions(&self) -> (usize, usize);
     fn min_buf_size(&self) -> usize;
+    fn max_buf_size(&self) -> usize;
 
     fn bit_depth(&self) -> u8;
     fn pixel_format(&self) -> PixelFormat;
