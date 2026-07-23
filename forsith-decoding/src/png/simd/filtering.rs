@@ -10,7 +10,7 @@ pub const fn should_use_simd<const FILTER: u8>(stride: usize) -> bool {
 
     if FILTER == 2 {return true}
 
-    if FILTER == 3 && stride >= 6 {return true}
+    // if FILTER == 3 && stride >= 6 {return true}
 
     false
 }

@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, ops::{Index, IndexMut, Range}};
+use std::{fmt::Debug, marker::PhantomData, ops::{Index, IndexMut, Range}};
 
 #[derive(Debug)]
 pub struct BitBuffer {
@@ -37,7 +37,7 @@ impl Default for BitBuffer {
     }
 }
 
-pub struct OutputWriter<'a, C: Channel> {
+pub struct OutputWriter<'a, C: Channel, const F: u8> {
     buffer: &'a mut [u8],
     index: usize,
     full: bool,
@@ -45,7 +45,7 @@ pub struct OutputWriter<'a, C: Channel> {
     _phantom: PhantomData<C>
 }
 
-impl<'a, C: Channel> OutputWriter<'a, C> {
+impl<'a, C: Channel, const F: u8> OutputWriter<'a, C, F> {
     pub fn new(buffer: &'a mut [u8]) -> Self {
         Self {
             buffer,
@@ -59,11 +59,11 @@ impl<'a, C: Channel> OutputWriter<'a, C> {
     #[inline(always)]
     pub fn push_channel(&mut self, c: C::StorageType) {
         #[cfg(debug_assertions)]
-        if (self.buffer.len() - self.index) < C::BIT_DEPTH as usize/8 {panic!("tried to push channel into full dest")}
+        if self.index >= self.buffer.len() || (self.buffer.len() - self.index) < C::BIT_DEPTH as usize/8 {panic!("tried to push channel into full dest")}
 
         unsafe {self.channel_ptr().write(c)};
 
-        self.index += self.stride;
+        self.index += std::mem::size_of::<C::StorageType>();
     }
 
     fn channel_ptr(&mut self) -> *mut C::StorageType {
@@ -73,10 +73,16 @@ impl<'a, C: Channel> OutputWriter<'a, C> {
         self.buffer.as_mut_ptr().wrapping_add(self.index) as *mut C::StorageType
     }
 
-    fn bbp() -> usize {const {C::BIT_DEPTH as usize / 8}}
+    fn bbp() -> usize {const {C::BIT_DEPTH as usize / 8 * F as usize}}
 
-    pub fn set_stride(&mut self, pixels: usize) {self.stride = pixels * Self::bbp()}
-    pub fn advance(&mut self, pixels: usize) {self.index += pixels * Self::bbp()}
+    pub fn set_stride(&mut self, pixels: usize) {self.stride = (pixels - 1) * Self::bbp()}
+    pub fn pushed_pixel(&mut self) {
+        self.index += self.stride;
+    }
+    pub fn advance(&mut self, pixels: usize) {
+        self.index += pixels * Self::bbp();
+    }
+    pub fn reset(&mut self) {self.index = 0;}
 
     pub fn len(&self) -> usize {self.index}
 
@@ -140,15 +146,23 @@ impl<T> CursorVec<T> {
 
     pub fn push_slice(&mut self, slice: &[T]) where T: Copy {
         let len = slice.len();
-        unsafe {self.buffer.get_unchecked_mut(self.cursor..self.cursor + len).copy_from_slice(slice)};
+        self.mut_slice(self.cursor..self.cursor + len).copy_from_slice(slice);
         self.cursor += len;
     }
 
     pub fn slice(&self, range: Range<usize>) -> &[T] {
+        #[cfg(debug_assertions)]
+        {&self.buffer[range]}
+
+        #[cfg(not(debug_assertions))]
         unsafe {self.buffer.get_unchecked(range)}
     }
 
     pub fn mut_slice(&mut self, range: Range<usize>) -> &mut [T] {
+        #[cfg(debug_assertions)]
+        {&mut self.buffer[range]}
+
+        #[cfg(not(debug_assertions))]
         unsafe {self.buffer.get_unchecked_mut(range)}
     }
 
@@ -172,8 +186,8 @@ impl<T> CursorVec<T> {
 
     pub fn full_buf_slice(&self) -> &[T] {self.buffer.as_slice()}
 
-    pub fn as_slice(&self) -> &[T] {
-        unsafe {self.buffer.get_unchecked(..self.cursor)}
+    pub fn as_slice(&self) -> &[T] where T: Debug {
+        self.slice(0..self.cursor)
     }
 
     pub fn len(&self) -> usize {self.cursor}

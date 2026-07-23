@@ -25,9 +25,9 @@ macro_rules! packed {
 }
 
 #[allow(type_alias_bounds)]
-pub type OutputConverter<C: Channel> = fn(&[u8], &mut OutputWriter<C>, u8, Option<(i64, i64, i64)>);
+pub type OutputConverter<C: Channel, const F: u8> = fn(&[u8], &mut OutputWriter<C, F>, u8, Option<(i64, i64, i64)>);
 
-pub fn get_out_writer_func<C: Channel, const F: u8>(sample_size: u8, format: u8, signed: bool) -> OutputConverter<C>
+pub fn get_out_writer_func<C: Channel, const F: u8>(sample_size: u8, format: u8, signed: bool) -> OutputConverter<C, F>
 {
     match sample_size {
         1 => packed!(1, format),
@@ -40,7 +40,7 @@ pub fn get_out_writer_func<C: Channel, const F: u8>(sample_size: u8, format: u8,
     }
 }
 
-pub fn push_packed_slice<DC: Channel, const DF: u8, const SC: u8, const SF: u8>(slice: &[u8], out: &mut OutputWriter<'_, DC>, padding: u8, alpha_color: Option<(i64, i64, i64)>)
+pub fn push_packed_slice<DC: Channel, const DF: u8, const SC: u8, const SF: u8>(slice: &[u8], out: &mut OutputWriter<'_, DC, DF>, padding: u8, alpha_color: Option<(i64, i64, i64)>)
 where
     [(); SF as usize]:,
 {
@@ -75,12 +75,12 @@ where
 }
 
 // DC + DF = dest channel + format, SC + SF = source sample size + format
-pub fn push_aligned_slice<DC: Channel, const DF: u8, SC: Channel, const SF: u8>(slice: &[u8], out: &mut OutputWriter<'_, DC>, _padding: u8, alpha_color: Option<(i64, i64, i64)>)
+pub fn push_aligned_slice<DC: Channel, const DF: u8, SC: Channel, const SF: u8>(slice: &[u8], out: &mut OutputWriter<'_, DC, DF>, _padding: u8, alpha_color: Option<(i64, i64, i64)>)
 where
     [(); SF as usize]:,
 {
     let bytespp = bytespp::<SC, SF>() as usize;
-    for i in (0..slice.len()).step_by(bytespp) {
+    for i in (0..=slice.len()-bytespp).step_by(bytespp) {
         let pixel_ptr = unsafe {slice.get_unchecked(i..i + bytespp).as_ptr() as *const [SC::StorageType; SF as usize]};
 
         #[cfg(debug_assertions)]
@@ -88,14 +88,19 @@ where
 
         let pixel = unsafe {&*pixel_ptr};
 
+        // print!(" pushing pixel! at {} ", out.index);
+
         convert_pixel::<SC, DF, SF>(pixel, alpha_color, |c| {
             let converted = convert_channel::<SC, DC>(c);
 
             out.push_channel(converted);
         });
+
+        out.pushed_pixel();
     }
 }
 
+#[inline(always)]
 fn convert_channel<SC: Channel, DC: Channel>(value: SC::StorageType) -> DC::StorageType {
     let value: i64 = value.to_be().into();
 
@@ -105,6 +110,7 @@ fn convert_channel<SC: Channel, DC: Channel>(value: SC::StorageType) -> DC::Stor
     unsafe {DC::StorageType::try_from(normalized as i64 + DC::MIN).unwrap_unchecked()}
 }
 
+#[inline(always)]
 fn convert_pixel<C: Channel, const DF: u8, const SF: u8>(pixel: &[C::StorageType; SF as usize], alpha_color: Option<(i64, i64, i64)>, mut out: impl FnMut(C::StorageType)) {
     let mut i = 0;
 

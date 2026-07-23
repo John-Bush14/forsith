@@ -109,7 +109,12 @@ impl ChunkData for ZlibHeader {
 
         decoder.deflate_buffer = CursorVec::new(lz77_buffer_size + lz77_buffer_size.next_multiple_of(decoder.scanline_bytes()));
 
-        decoder.scanline_multiples = (decoder.deflate_buffer.capacity()-lz77_buffer_size) / decoder.scanline_bytes();
+        let max_scanline_bytes = match decoder.ihdr.interlace_method {
+            1 => decoder.scanline_bytes() / 2,
+            _ => decoder.scanline_bytes()
+        };
+
+        decoder.scanline_multiples = (decoder.deflate_buffer.capacity()-lz77_buffer_size) / max_scanline_bytes;
 
         Ok(())
     }

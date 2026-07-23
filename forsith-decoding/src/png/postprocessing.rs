@@ -1,6 +1,6 @@
 use std::{io::BufRead};
 
-use crate::{Channel, CursorVec, DecodingError, OutputWriter, PixelFormat, PngDecoder, has_alpha, outputconverting::{OutputConverter, get_out_writer_func}, png::{ColorType, chunks::ColorPalette, simd::filtering::should_use_simd}, unpack};
+use crate::{Channel, CursorVec, DecodingError, OutputWriter, PixelFormat, PngDecoder, has_alpha, outputconverting::{OutputConverter, get_out_writer_func}, png::{ColorType, chunks::{ColorPalette, Ihdr}, postprocessing, simd::filtering::should_use_simd}, unpack};
 
 use super::simd::filtering::SIMD_WIDTH;
 
@@ -25,8 +25,10 @@ pub struct PostProcessor<C: Channel, const F: u8> {
     bitspp: u8,
     scanline_padding: u8, // in bits
     channel_depth: u8,
-    out_writer: OutputConverter<C>,
-    alpha_color: Option<(i64, i64, i64)>
+    out_writer: OutputConverter<C, F>,
+    alpha_color: Option<(i64, i64, i64)>,
+    consuming_pass: Pass,
+    draining_pass: Pass
 }
 
 impl<C: Channel, const F: u8> PostProcessor<C, F> {
@@ -51,21 +53,25 @@ impl<C: Channel, const F: u8> PostProcessor<C, F> {
             scanline_padding,
             channel_depth,
             out_writer,
-            alpha_color: None
+            alpha_color: None,
+            consuming_pass: Default::default(),
+            draining_pass: Default::default()
         }
     }
 
-    pub fn consume_inflated_scanline(&mut self, scanline: &[u8], dest: &mut OutputWriter<'_, C>) -> Result<(), DecodingError> {
+    pub fn consume_inflated_scanline(&mut self, scanline: &[u8], dest: &mut OutputWriter<'_, C, F>) -> Result<(), DecodingError> {
         self.drain_previous_scanline(dest)?;
-
-        self.switch_buffers();
 
         let filter = scanline[0];
 
         let scanline = &scanline[1..self.scanline_bytes()];
 
         if filter == 0 {
-            self.cur_buffer_mut().push_slice(scanline); return Ok(());
+            self.cur_buffer_mut().push_slice(scanline);
+
+            self.scanline_consumed(dest)?;
+
+            return Ok(());
         }
 
         match filter {
@@ -76,24 +82,32 @@ impl<C: Channel, const F: u8> PostProcessor<C, F> {
             _ => return Err(DecodingError::InvalidFilter(filter)),
         }
 
+        self.scanline_consumed(dest)?;
+
         Ok(())
     }
 
     pub fn pixel_format(&self) -> PixelFormat {PixelFormat::from(self.color_type())}
 
-    pub fn drain_previous_scanline(&mut self, dest: &mut OutputWriter<'_, C>) -> Result<(), DecodingError> {
+    pub fn drain_previous_scanline(&mut self, dest: &mut OutputWriter<'_, C, F>) -> Result<(), DecodingError> {
+        if self.prev_buffer().is_empty() {self.switch_buffers(); return Ok(())}
+
         if self.color_type != ColorType::Indexed {
             self.write_slice(self.prev_buffer().as_slice(), dest, self.scanline_padding);
         } else {
             self.drain_previous_scanline_indexed(dest)?
         }
 
+        self.scanline_drained(dest);
+
         self.prev_buffer_mut().clear();
+
+        self.switch_buffers();
 
         Ok(())
     }
 
-    pub fn drain_previous_scanline_indexed(&mut self, dest: &mut OutputWriter<'_, C>) -> Result<(), DecodingError> {
+    pub fn drain_previous_scanline_indexed(&mut self, dest: &mut OutputWriter<'_, C, F>) -> Result<(), DecodingError> {
         let palette = unsafe {self.palette.as_ref().unwrap_unchecked()};
         let index_bits = self.bitspp / 3;
 
@@ -116,7 +130,7 @@ impl<C: Channel, const F: u8> PostProcessor<C, F> {
         Ok(())
     }
 
-    fn write_slice(&self, slice: &[u8], dest: &mut OutputWriter<'_, C>, padding: u8) {
+    fn write_slice(&self, slice: &[u8], dest: &mut OutputWriter<'_, C, F>, padding: u8) {
         (self.out_writer)(slice, dest, padding, self.alpha_color);
     }
 
@@ -229,7 +243,77 @@ impl<C: Channel, const F: u8> PostProcessor<C, F> {
     pub fn channel_depth(&self) -> u8 {self.channel_depth}
 
     pub fn set_alpha_color(&mut self, c: (i64, i64, i64)) {self.alpha_color = Some(c);}
+
+    pub fn setup_interlacing(&mut self, ihdr: &Ihdr) {
+        self.consuming_pass = Pass::new(ihdr, self);
+        self.draining_pass = self.consuming_pass.clone();
+    }
+    pub fn update_dest(&self, dest: &mut OutputWriter<'_, C, F>) {
+        self.draining_pass.update_dest(dest)
+    }
+
+    pub fn scanline_consumed(&mut self, dest: &mut OutputWriter<'_, C, F>) -> Result<(), DecodingError> {
+        self.scanline_passed::<false>(dest)
+    }
+
+    pub fn scanline_drained(&mut self, dest: &mut OutputWriter<'_, C, F>) {
+        self.scanline_passed::<true>(dest).unwrap();
+    }
+
+    #[inline(always)]
+    fn scanline_passed<const DRAIN: bool>(&mut self, dest: &mut OutputWriter<'_, C, F>) -> Result<(), DecodingError> {
+        let pass: &mut Pass = if DRAIN {&mut self.draining_pass} else {&mut self.consuming_pass};
+
+        if pass.end_scanline_skip == 0 {return Ok(())}
+
+        pass.cur_scanline += pass.end_scanline_scanlines_passed as usize;
+
+        if pass.cur == 6 && pass.cur_scanline + 1 > pass.dim.1 {return Ok(());}
+        if pass.cur_scanline >= pass.dim.1 {
+            pass.cur += 1;
+
+            let (start, stride, passed_scanlines) = PASSES[pass.cur as usize];
+
+            if start.0 >= pass.dim.0 || start.1 >= pass.dim.1 {return self.scanline_passed::<DRAIN>(dest);}
+
+            let width = ((pass.dim.0 - start.0 - 1) as u32).div_euclid(stride as u32) + 1;
+            let alignment = (pass.dim.0 + start.0) as isize - (start.0 as isize + width as isize * stride as isize);
+
+            pass.cur_scanline = start.1;
+            pass.end_scanline_scanlines_passed = passed_scanlines;
+            pass.end_scanline_skip = (((passed_scanlines as usize - 1) * pass.dim.0) as isize + alignment) as usize;
+            pass.stride = stride;
+
+            if !DRAIN {
+                self.drain_previous_scanline(dest)?;
+                self.drain_previous_scanline(dest)?;
+
+                let (new_scanline_bytes, padding) = calculate_scanline_bytes(width, if self.color_type != ColorType::Indexed {self.bitspp} else {self.channel_depth});
+                self.scanline_padding = padding;
+
+                self.scanline_buffers.iter_mut().for_each(|b| {b.buffer.clear(); b.clear(); b.buffer.resize(new_scanline_bytes - 1, 0u8)});
+            } else {
+                dest.reset(); dest.advance(start.0 + start.1 * pass.dim.0);
+
+                dest.set_stride(pass.stride);
+            }
+        } else if DRAIN {
+            dest.advance(pass.end_scanline_skip);
+        }
+
+        Ok(())
+    }
 }
+
+const PASSES: [((usize, usize), usize, u8); 7] = [
+    ((0, 0), 8, 8),
+    ((4, 0), 8, 8),
+    ((0, 4), 4, 8),
+    ((2, 0), 4, 4),
+    ((0, 2), 2, 4),
+    ((1, 0), 2, 2),
+    ((0, 1), 1, 2)
+];
 
 pub fn into_outconverter_pixel_format<const F: u8>(color_type: ColorType) -> PixelFormat {
     if color_type == ColorType::Indexed && has_alpha(F) {
@@ -252,4 +336,45 @@ fn paeth_predictor(a: u8, b: u8, c: u8) -> u8 {
     } else {
         c
     }) as u8
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct Pass {
+    cur: u8,
+    stride: usize,
+    dim: (usize, usize), // widht, height
+    cur_scanline: usize,
+    end_scanline_skip: usize,
+    end_scanline_scanlines_passed: u8,
+}
+
+impl Pass {
+    fn new<const F: u8>(ihdr: &Ihdr, postprocessor: &mut PostProcessor<impl Channel, F>) -> Pass {
+        let (end_scanline_skip, stride) =  if ihdr.interlace_method == 1 {
+            let width = (ihdr.width - 1).div_euclid(8) + 1;
+            let alignment = ihdr.width as isize - width as isize * 8;
+
+            let (new_scanline_bytes, padding) = calculate_scanline_bytes(width, ihdr.channel_depth * match ihdr.color_type {ColorType::Indexed => 1, c => PixelFormat::from(c) as u8});
+            postprocessor.scanline_padding = padding;
+
+            postprocessor.scanline_buffers.iter_mut().for_each(|b| b.buffer.resize(new_scanline_bytes - 1, 0u8));
+
+            (((ihdr.width as usize * 7) as isize + alignment) as usize, 8)
+        } else {
+            (0, 1)
+        };
+
+        Self {
+            cur: 0,
+            stride,
+            dim: (ihdr.width as usize, ihdr.height as usize),
+            cur_scanline: 0,
+            end_scanline_skip,
+            end_scanline_scanlines_passed: 8
+        }
+    }
+
+    pub fn update_dest<const F: u8>(&self, dest: &mut OutputWriter<'_, impl Channel, F>) {
+        dest.set_stride(self.stride);
+    }
 }
