@@ -7,6 +7,7 @@
 #![feature(const_precise_live_drops)]
 #![feature(const_try)]
 #![feature(generic_const_items)]
+#![feature(likely_unlikely)]
 
 use std::{io::{self, Read}};
 use num_enum::{IntoPrimitive, TryFromPrimitive};

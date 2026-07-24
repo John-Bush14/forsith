@@ -318,7 +318,7 @@ impl<'a, R: BufRead, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
     #[cold]
     fn read_compressed_chunk<const STATIC: bool>(&mut self, dest: &mut OutputWriter<'_, C, F>) -> Result<(), DecodingError> {
         loop  {
-            if self.deflate_buffer.len() + MAX_BACKREF_LEN >= self.deflate_buffer.capacity() {
+            if std::hint::unlikely(self.deflate_buffer.len() + MAX_BACKREF_LEN >= self.deflate_buffer.capacity()) {
                 self.drain_deflate_buffer(dest)?;
 
                 if self.inflate_capacity() < MAX_BACKREF_LEN {
@@ -339,7 +339,7 @@ impl<'a, R: BufRead, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
                 self.decrease_inflate_capacity(1);
 
                 self.emit_inflated_byte(symbol as u8);
-            } else if symbol == 256 {
+            } else if std::hint::unlikely(symbol == 256) {
                 self.next_block()?;
                 break;
             } else {
