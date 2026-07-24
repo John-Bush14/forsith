@@ -1,12 +1,12 @@
 [workspace]
 resolver = "2"
 
-members = ["forsith-benchmarking",
+members = [
     "forsith-decoding",
     "forsith-shared",
 ]
 
-[profile.profiling]
+[profile.bench]
 inherits = "release"
 debug = true
 debug-assertions = false
