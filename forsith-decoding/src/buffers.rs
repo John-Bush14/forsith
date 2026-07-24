@@ -1,6 +1,6 @@
 use std::{fmt::Debug, marker::PhantomData, ops::{Index, IndexMut, Range}};
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct BitBuffer {
     buf: u64,
     bits_remaining: u8
@@ -10,6 +10,7 @@ impl BitBuffer {
         self.bits_remaining
     }
 
+    #[inline(always)]
     pub fn peek(&self, n: u8) -> u64 {
         if n > 64 {
             panic!("Cannot peek more than {} bits from this BitBuffer", 64);
@@ -18,22 +19,16 @@ impl BitBuffer {
         self.buf & ((1 << n as usize) - 1)
     }
 
+    #[inline(always)]
     pub fn consume(&mut self, n: u8) {
-        self.buf = self.buf >> n as usize;
+        self.buf >>= n as usize;
         self.bits_remaining -= n;
     }
 
+    #[inline(always)]
     pub fn push_u32(&mut self, value: u32) {
-        self.buf = self.buf | ((value as u64) << self.bits_remaining as usize);
+        self.buf |= (value as u64) << self.bits_remaining as usize;
         self.bits_remaining += 32;
-    }
-}
-impl Default for BitBuffer {
-    fn default() -> Self {
-        Self {
-            buf: 0,
-            bits_remaining: 0
-        }
     }
 }
 
@@ -79,6 +74,7 @@ impl<'a, C: Channel, const F: u8> OutputWriter<'a, C, F> {
     pub fn pushed_pixel(&mut self) {
         self.index += self.stride;
     }
+    #[inline(always)]
     pub fn advance(&mut self, pixels: usize) {
         self.index += pixels * Self::bbp();
     }
@@ -170,6 +166,7 @@ impl<T> CursorVec<T> {
         self.buffer.copy_within(src, dest);
     }
 
+    #[inline(always)]
     pub fn advance(&mut self, n: usize) {
         self.cursor += n;
     }
@@ -205,14 +202,12 @@ impl<T> CursorVec<T> {
 pub struct BufferReader {
     buffer: Vec<u8>,
     index: usize,
-    alloc_size: usize
 }
 impl BufferReader {
-    pub fn new(alloc_size: usize) -> Self {
+    pub fn new(start_len: usize) -> Self {
         Self {
-            buffer: vec![0u8; alloc_size],
+            buffer: vec![0u8; start_len],
             index: 0,
-            alloc_size
         }
     }
 
@@ -264,7 +259,7 @@ impl BufferReader {
         self.index = 0;
     }
 
-    pub fn expand(&mut self, times: usize) {self.buffer.resize(self.buffer.len() + self.alloc_size*times, 0u8)}
+    pub fn expand(&mut self, len: usize) {self.buffer.resize(self.buffer.len() + len, 0u8)}
 
     pub fn remaining(&self) -> usize {
         self.buffer.len() - self.index

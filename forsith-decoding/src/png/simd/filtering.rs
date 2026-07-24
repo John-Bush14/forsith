@@ -16,18 +16,17 @@ pub const fn should_use_simd<const FILTER: u8>(stride: usize) -> bool {
 }
 
 impl<C: Channel, const F: u8> PostProcessor<C, F> {
-    pub fn filter_simd<const FILTER: u8, const STRIDE: usize>(&self, scanline: &[u8], i: usize) -> Result<Simd<u8, SIMD_WIDTH>, DecodingError> {
+    #[inline(always)]
+    pub fn filter_simd<const FILTER: u8, const STRIDE: usize>(&self, scanline: &[u8], i: usize) -> Simd<u8, SIMD_WIDTH> {
         let raw_bytes = open_simd(scanline, i);
 
-        let filtered_bytes = match FILTER {
+        match FILTER {
             1 => sub_filter::<STRIDE>(raw_bytes, self.left_pixel::<STRIDE>(i)),
             2 => raw_bytes + self.upper_pixels(i),
             3 => average_filter::<STRIDE>(raw_bytes, self.left_pixels::<STRIDE>(i), self.upper_pixels(i)),
             4 => todo!(),
-            _ => return Err(DecodingError::InvalidFilter(FILTER)),
-        };
-
-        Ok(filtered_bytes)
+            _ => unreachable!(),
+        }
     }
 
     fn left_pixel<const STRIDE: usize>(&self, i: usize) -> &[u8; STRIDE] {
@@ -60,6 +59,7 @@ fn simd_average(a: Simd<u8, SIMD_WIDTH>, b: Simd<u8, SIMD_WIDTH>) -> Simd<u8, SI
     (a & b) + ((a ^ b) >> Simd::splat(1))
 }
 
+#[inline]
 fn sub_filter<const STRIDE: usize>(mut raw_bytes: Simd<u8, SIMD_WIDTH>, left_pixel: &[u8; STRIDE]) -> Simd<u8, SIMD_WIDTH> {
     let mut shifted_bytes = raw_bytes;
 
@@ -73,6 +73,7 @@ fn sub_filter<const STRIDE: usize>(mut raw_bytes: Simd<u8, SIMD_WIDTH>, left_pix
     raw_bytes + anchor
 }
 
+#[inline]
 fn array_repeating_to_simd<const LENGTH: usize>(arr: &[u8; LENGTH]) -> Simd<u8, SIMD_WIDTH> {
     Simd::<u8, LENGTH>::from_slice(arr).resize::<{SIMD_WIDTH}>(0).swizzle_dyn(Simd::from_array(repeating_swizzle_index::<{LENGTH}>()))
 }

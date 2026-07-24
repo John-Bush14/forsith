@@ -1,6 +1,6 @@
 use core::panic;
 use std::io::{BufRead, Read};
-use crate::{Channel, CursorVec, DecodingError, ImageDecoder, OutputWriter, PixelFormat, png::{chunks::{ColorPalette, Ihdr, ZlibHeader, tRNS}, deflate::{BlockType, MAX_BACKREF_LEN, STATIC_DISTANCE_TREE, STATIC_LITLEN_TREE, decode_distance, decode_length}, postprocessing::{PostProcessor, calculate_scanline_bytes, into_outconverter_pixel_format}, reader::BitReader}};
+use crate::{Channel, CursorVec, DecodingError, ImageDecoder, OutputWriter, PixelFormat, png::{chunks::{ColorPalette, Ihdr, ZlibHeader, tRNS}, deflate::{BlockType, MAX_BACKREF_LEN, STATIC_DISTANCE_TREE, STATIC_LITLEN_TREE, decode_distance, decode_length}, postprocessing::{PostProcessor, calculate_scanline_bytes, into_outconverter_pixel_format}, reader::BitReader}, read_exact_array};
 use num_enum::TryFromPrimitive;
 
 mod chunks;
@@ -108,6 +108,7 @@ impl<'a, R: BufRead, C: Channel, const F: u8> ImageDecoder<'a, R, C, F> for PngD
         Ok(decoder)
     }
 
+    #[cold]
     fn read(&mut self, dest: &mut [u8]) -> Result<usize, DecodingError> {
         if dest.len() < self.min_buf_size() {return Err(DecodingError::TinyDestBuf(dest.len()))}
 
@@ -119,10 +120,23 @@ impl<'a, R: BufRead, C: Channel, const F: u8> ImageDecoder<'a, R, C, F> for PngD
             match self.cur_block.r#type {
                 BlockType::Uncompressed(len) => {
                     let fill_len = (len as usize).min(self.inflate_capacity());
+                    let mut remaining = fill_len;
 
-                    for _ in 0..fill_len {
-                        let b = self.reader.read_bits(8)? as u8;
-                        self.emit_inflated_byte(b, &mut dest)?;
+                    self.reader.buffer.unconsume(self.reader.bit_buf.bits_remaining() as usize / 8);
+                    self.reader.consume_bits(self.reader.bit_buf.bits_remaining());
+
+                    loop {
+                        let chunk_len = remaining.min(self.deflate_buffer.remaining());
+
+                        let i = self.deflate_buffer.cursor;
+                        self.reader.read_exact(self.deflate_buffer.mut_slice(i..i + chunk_len))?;
+                        self.deflate_buffer.advance(chunk_len);
+
+                        remaining -= chunk_len;
+
+                        if remaining == 0 {break;} else {
+                            self.drain_deflate_buffer(&mut dest)?;
+                        }
                     }
 
                     if len as usize == fill_len {
@@ -152,14 +166,10 @@ impl<'a, R: BufRead, C: Channel, const F: u8> ImageDecoder<'a, R, C, F> for PngD
                     while self.inflate_capacity() >= self.postprocessor.prev_buffer().len() && !self.postprocessor.is_empty(){
                         self.decrease_inflate_capacity(self.postprocessor.prev_buffer().len());
 
-                        self.postprocessor.drain_previous_scanline(&mut dest)?;
+                        self.postprocessor.drain_previous_scanline(&mut dest);
                     }
 
-                    self.done = self.deflate_buffer.is_empty() && self.postprocessor.is_empty();
-
-                    if !self.done {dest.set_full();}
-
-
+                    break;
                 }
             }
         }
@@ -177,8 +187,7 @@ impl<'a, R: BufRead, C: Channel, const F: u8> ImageDecoder<'a, R, C, F> for PngD
             return self.max_buf_size();
         }
 
-        let (scanline_bytes, _) = calculate_scanline_bytes(self.ihdr.width, self.ihdr.channel_depth * match self.ihdr.color_type {ColorType::Indexed => 1, c => PixelFormat::from(c) as u8});
-        let min_inflate_capacity = (scanline_bytes - 1 + MAX_BACKREF_LEN).min((self.scanline_bytes() - 1) * self.ihdr.height as usize);
+        let min_inflate_capacity = MAX_BACKREF_LEN.min((self.scanline_bytes() - 1) * self.ihdr.height as usize);
 
         self.inflate_capacity_to_out_buffer(min_inflate_capacity)
     }
@@ -223,6 +232,7 @@ impl<'a, R: BufRead, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
         self.inflate_capacity = self.inflate_capacity.unchecked_sub(change);
     }}
 
+    #[cold]
     fn next_block(&mut self) -> Result<(), DecodingError> {
         if self.reader.cur_chunk_type() != ChunkType::Idat {
             return Err(DecodingError::InvalidChunk(self.reader.cur_chunk_type()));
@@ -237,6 +247,7 @@ impl<'a, R: BufRead, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
         Ok(())
     }
 
+    #[cold]
     fn finish_decoding(&mut self) -> Result<(), DecodingError> {
         self.reader.update_adler32(self.deflate_buffer.as_slice());
 
@@ -253,27 +264,29 @@ impl<'a, R: BufRead, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
     }
 
     fn emit_backreferenced_inflated_bytes(&mut self, length: usize, distance: usize, dest: &mut OutputWriter<'_, C, F>) -> Result<(), DecodingError> {
+        self.decrease_inflate_capacity(length);
+
         let mut remaining = length;
         let start = self.deflate_buffer.len() - distance;
 
-        while remaining > 0 {
+        loop {
             let len = remaining.min(self.deflate_buffer.remaining());
 
             let cur_start = length - remaining + start;
             self.deflate_buffer.copy_within(cur_start..cur_start+len, self.deflate_buffer.len());
             self.deflate_buffer.advance(len);
 
-            self.decrease_inflate_capacity(len);
             remaining -= len;
 
-            if self.deflate_buffer.is_full() {
+            if remaining > 0 {
                 self.drain_deflate_buffer(dest)?;
-            }
+            } else {break}
         }
 
         Ok(())
     }
 
+    #[cold]
     fn drain_deflate_buffer(&mut self, dest: &mut OutputWriter<'_, C, F>) -> Result<(), DecodingError> {
         let mut start = 0;
 
@@ -291,16 +304,8 @@ impl<'a, R: BufRead, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
     }
 
     #[inline(always)]
-    fn emit_inflated_byte(&mut self, b: u8, dest: &mut OutputWriter<'_, C, F>) -> Result<(), DecodingError> {
-        if self.deflate_buffer.len() == self.deflate_buffer.capacity() {
-            self.drain_deflate_buffer(dest)?;
-        }
-
-        self.decrease_inflate_capacity(1);
-
+    fn emit_inflated_byte(&mut self, b: u8) {
         self.deflate_buffer.push(b);
-
-        Ok(())
     }
 
     /// how many deflate bytes can be emitted before the image buffer is full.
@@ -324,9 +329,10 @@ impl<'a, R: BufRead, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
         Ok(())
     }
 
+    #[cold]
     fn read_compressed_chunk<const STATIC: bool>(&mut self, dest: &mut OutputWriter<'_, C, F>) -> Result<(), DecodingError> {
         loop  {
-            if self.inflate_capacity() < self.scanline_bytes() + MAX_BACKREF_LEN {
+            if self.inflate_capacity() < MAX_BACKREF_LEN {
                 dest.set_full();
                 break;
             }
@@ -337,24 +343,36 @@ impl<'a, R: BufRead, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
                 (&self.cur_block.litlen_tree, &self.cur_block.distance_tree)
             };
 
-            let symbol = litlen_tree.decode_symbol(&mut self.reader)?;
+            let symbol = litlen_tree.decode_symbol(&mut self.reader);
 
             if symbol < 256 {
-                self.emit_inflated_byte(symbol as u8, dest)?;
+                if self.deflate_buffer.len() == self.deflate_buffer.capacity() {
+                    self.drain_deflate_buffer(dest)?;
+                }
+
+                self.decrease_inflate_capacity(1);
+
+                self.emit_inflated_byte(symbol as u8);
             } else if symbol == 256 {
                 self.next_block()?;
                 break;
             } else {
-                let length = decode_length(symbol, &mut self.reader)?;
-                let dist_code = distance_tree.decode_symbol(&mut self.reader)?;
-                let distance = decode_distance(dist_code, &mut self.reader)?;
+                let length = decode_length(symbol, &mut self.reader);
+                let dist_code = distance_tree.decode_symbol(&mut self.reader);
+                let distance = decode_distance(dist_code, &mut self.reader);
 
-                if distance as usize > self.deflate_buffer.len() {
+                if distance as usize > length as usize {
                     self.emit_backreferenced_inflated_bytes(length as usize, distance as usize, dest)?;
                 } else {
+                    self.decrease_inflate_capacity(length as usize);
+
+                    if self.deflate_buffer.len() + length as usize >= self.deflate_buffer.capacity() {
+                        self.drain_deflate_buffer(dest)?;
+                    }
+
                     for _ in 0..length {
                         let byte = self.deflate_buffer[self.deflate_buffer.len() - distance as usize];
-                        self.emit_inflated_byte(byte, dest)?;
+                        self.emit_inflated_byte(byte);
                     }
                 }
             }

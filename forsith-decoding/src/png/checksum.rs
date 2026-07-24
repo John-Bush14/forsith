@@ -121,6 +121,7 @@ impl<R: BufRead> PngReader<R> {
         self.adler.b %= ADLER_MOD;
     }
 
+    #[inline(always)]
     pub fn compute_alder32_chunk<const FULL_CHUNK: bool>(&mut self, chunk: &[u8]) {
         let (a, delta_b) = compute_alder32_chunk_simd(chunk, self.adler.a);
         self.adler.a = a;
@@ -134,7 +135,7 @@ impl<R: BufRead> PngReader<R> {
 
     pub fn validate_adler32(&mut self) -> Result<(), DecodingError> {
         if self.bit_buf.bits_remaining() < 32 {
-            self.fill_bitbuf()?;
+            self.fill_bitbuf();
         }
 
         self.consume_bits(self.bit_buf.bits_remaining() % 8);

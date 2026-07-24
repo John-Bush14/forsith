@@ -6,6 +6,7 @@
 #![feature(const_cmp)]
 #![feature(const_precise_live_drops)]
 #![feature(const_try)]
+#![feature(generic_const_items)]
 
 use std::{io::{self, Read}};
 use num_enum::{IntoPrimitive, TryFromPrimitive};

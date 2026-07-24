@@ -2,7 +2,7 @@ use std::io::{BufRead, Read};
 
 use crate::{BitBuffer, BufferReader, DecodingError, Int, png::{ChunkType::{self}, checksum::{Adler32, CRC32}, chunks::is_chunk_type_critical}};
 
-const ALLOC_SIZE: usize = 1 << 12;
+const BUFFER_EXTRA: usize = 1 << 12;
 
 #[derive(Debug)]
 struct Chunk {
@@ -25,7 +25,7 @@ impl<R: BufRead> PngReader<R> {
     pub fn new(reader: R) -> Result<Self, DecodingError> {
         let mut reader = Self {
             reader,
-            buffer: BufferReader::new(ALLOC_SIZE),
+            buffer: BufferReader::new(BUFFER_EXTRA),
             crc: CRC32::default(),
             adler: Adler32::default(),
             remaining_chunk_bytes: 0,
@@ -66,7 +66,7 @@ impl<R: BufRead> PngReader<R> {
     fn fill_buffer<const IDAT: bool>(&mut self, mut index: usize) -> Result<(), DecodingError> {
         loop {
             if self.buffer.capacity() - index <= self.remaining_chunk_bytes + 12 {
-                self.buffer.expand((self.remaining_chunk_bytes + 12).div_ceil(ALLOC_SIZE));
+                self.buffer.expand(self.remaining_chunk_bytes + 12 + BUFFER_EXTRA);
             }
 
             // CRC + next length
@@ -138,39 +138,42 @@ impl<R: BufRead> Read for PngReader<R> {
 }
 
 impl<R: BufRead> BitReader for PngReader<R> {
-    fn peek_bits(&mut self, n: u8) -> std::io::Result<u64> {
+    #[inline(always)]
+    fn peek_bits(&mut self, n: u8) -> u64 {
         if self.bit_buf.bits_remaining() <= 32 {
-            self.fill_bitbuf()?;
+            self.fill_bitbuf();
         }
 
-        Ok(self.bit_buf.peek(n))
+        self.bit_buf.peek(n)
     }
 
-    fn fill_bitbuf(&mut self) -> std::io::Result<()> {
-        let refil = u32::read_le(self)?;
+    #[inline(always)]
+    fn fill_bitbuf(&mut self) {
+        let refil = unsafe {u32::read_le(self).unwrap_unchecked()};
 
         self.bit_buf.push_u32(refil);
-
-        Ok(())
     }
+
+    #[inline(always)]
     fn consume_bits(&mut self, n: u8) {
         self.bit_buf.consume(n);
     }
 
+    #[inline]
     fn remaining_bits(&self) -> u8 {
         self.bit_buf.bits_remaining
     }
 }
 
 pub trait BitReader {
-    fn fill_bitbuf(&mut self) -> std::io::Result<()>;
-    fn peek_bits(&mut self, n: u8) -> std::io::Result<u64>;
+    fn fill_bitbuf(&mut self);
+    fn peek_bits(&mut self, n: u8) -> u64;
     fn consume_bits(&mut self, n: u8);
     fn remaining_bits(&self) -> u8;
-    fn read_bits(&mut self, n: u8) -> std::io::Result<u64> {
-        let bits = self.peek_bits(n)?;
+    fn read_bits(&mut self, n: u8) -> u64 {
+        let bits = self.peek_bits(n);
         self.consume_bits(n);
-        Ok(bits)
+        bits
     }
     fn iterate_bits(&mut self, n: u8) -> BitIterator<'_, Self> where Self: Sized {
         BitIterator {
@@ -185,7 +188,7 @@ pub struct BitIterator<'a, R: BitReader> {
     bits: u8
 }
 impl<R: BitReader> Iterator for BitIterator<'_, R> {
-    type Item = Result<u64, std::io::Error>;
+    type Item = u64;
 
     fn next(&mut self) -> Option<Self::Item> {
         Some(self.reader.read_bits(self.bits))

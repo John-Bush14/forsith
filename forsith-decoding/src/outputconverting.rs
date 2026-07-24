@@ -1,4 +1,4 @@
-use crate::{Channel, CursorVec, Int, OutputWriter, bitspp, bytespp};
+use crate::{Channel, CursorVec, Int, OutputWriter, bitspp, bytespp, has_alpha, is_gray, is_rgb};
 
 macro_rules! aligned {
     ($t:ty, $format:ident) => {
@@ -88,8 +88,6 @@ where
 
         let pixel = unsafe {&*pixel_ptr};
 
-        // print!(" pushing pixel! at {} ", out.index);
-
         convert_pixel::<SC, DF, SF>(pixel, alpha_color, |c| {
             let converted = convert_channel::<SC, DC>(c);
 
@@ -114,9 +112,8 @@ fn convert_channel<SC: Channel, DC: Channel>(value: SC::StorageType) -> DC::Stor
 fn convert_pixel<C: Channel, const DF: u8, const SF: u8>(pixel: &[C::StorageType; SF as usize], alpha_color: Option<(i64, i64, i64)>, mut out: impl FnMut(C::StorageType)) {
     let mut i = 0;
 
-    // grayscale
-    let color = if DF <= 2 {
-        let gray = if SF <= 2 {i += 1; pixel[0]}
+    let color = if is_gray(DF) {
+        let gray = if is_gray(SF) {i += 1; pixel[0]}
         else {
             i += 3;
             let [r, g, b] = pixel[0..2] else {unreachable!()};
@@ -127,11 +124,8 @@ fn convert_pixel<C: Channel, const DF: u8, const SF: u8>(pixel: &[C::StorageType
         out(gray);
 
         (gray.into(), gray.into(), gray.into())
-    }
-
-    // rgb
-    else {
-        let rgb = if SF > 2 {
+    } else {
+        let rgb = if is_rgb(SF) {
             i += 3;
             &pixel[0..3]
         }
@@ -144,9 +138,8 @@ fn convert_pixel<C: Channel, const DF: u8, const SF: u8>(pixel: &[C::StorageType
         (rgb[0].into(), rgb[1].into(), rgb[2].into())
     };
 
-    // has alpha
-    if DF.is_multiple_of(2) {
-        if SF.is_multiple_of(2) {out(pixel[i])}
+    if has_alpha(DF) {
+        if has_alpha(SF) {out(pixel[i])}
         else {
             if Some(color) == alpha_color {
                 unsafe {out(C::StorageType::try_from(C::MIN).unwrap_unchecked())}

@@ -4,7 +4,7 @@ use crate::{DecodingError, png::reader::BitReader};
 
 const MAX_COLEN: u8 = 17;
 const CODE_LENGTH_ORDER: [u8; 19] = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15];
-const MAX_ROOT_TABLE_COLEN: u8 = 9;
+const MAX_ROOT_TABLE_COLEN: u8 = 10;
 
 const MAX_LITLEN_SUBTABLE_ENTIES: usize = 340;
 const MAX_DISTANCE_SUBTABLE_ENTRIES: usize = 80;
@@ -69,14 +69,16 @@ type DistanceTree = HuffmanTree<MAX_ROOT_TABLE_COLEN, MAX_DISTANCE_SUBTABLE_ENTR
 type CodlenTree = HuffmanTree<7, 0>;
 
 
-pub fn decode_length<R: BitReader>(symbol: u16, reader: &mut R) -> std::io::Result<u16> {
+#[inline(always)]
+pub fn decode_length<R: BitReader>(symbol: u16, reader: &mut R) -> u16 {
     let (base, extra) = LENGTH_TABLE[(symbol - 257) as usize];
-    Ok(base + reader.read_bits(extra)? as u16)
+    base + reader.read_bits(extra) as u16
 }
 
-pub fn decode_distance<R: BitReader>(code: u16, reader: &mut R) -> std::io::Result<u16> {
+#[inline(always)]
+pub fn decode_distance<R: BitReader>(code: u16, reader: &mut R) -> u16 {
     let (base, extra) = DISTANCE_TABLE[code as usize];
-    Ok(base + reader.read_bits(extra)? as u16)
+    base + reader.read_bits(extra) as u16
 }
 
 #[derive(Debug)]
@@ -111,14 +113,19 @@ impl Entry {
         Self(symbol as u32 | (code as u32) << 16)
     }
 
+    #[inline(always)]
     const fn symbol(&self) -> u16 {
         unsafe {(self.0 & u16::MAX as u32).unchecked_cast()}
     }
+    #[inline(always)]
     const fn subtable_index(&self) -> usize {self.symbol() as usize}
 
+    #[inline(always)]
     const fn colen(&self) -> u8 {
         unsafe {(self.0 >> 24).unchecked_cast()}
-    } const fn subtable_bits(&self) -> u8 {self.colen()}
+    }
+    #[inline(always)]
+    const fn subtable_bits(&self) -> u8 {self.colen()}
 
     const fn code(&self) -> u16 {
         unsafe {(self.0 >> 16).unchecked_cast()}
@@ -148,6 +155,8 @@ where [(); (1 << MAX_ROOT_BITS as usize) + MAX_SUBTABLE_ENTRIES]:
 
     pub const fn load(&mut self, code_lengths: &[u8]) -> Result<(), DecodingError> {
         let (mut colen_counts, max_colen) = Self::get_colen_counts(code_lengths);
+
+        if max_colen > MAX_COLEN {return Err(DecodingError::InvalidCodeLength(max_colen))}
 
         self.root_bits = max_colen.min(MAX_ROOT_BITS);
 
@@ -281,21 +290,23 @@ where [(); (1 << MAX_ROOT_BITS as usize) + MAX_SUBTABLE_ENTRIES]:
         first_codes
     }
 
-    pub fn decode_symbol<R: BitReader>(&self, reader: &mut R) -> Result<u16, DecodingError> {
-        let code = reader.peek_bits(self.root_bits)?;
+    #[inline(always)]
+    pub fn decode_symbol<R: BitReader>(&self, reader: &mut R) -> u16 {
+        let code = reader.peek_bits(self.root_bits);
 
         let mut entry = self.table[code as usize];
 
         if MAX_SUBTABLE_ENTRIES != 0 && entry.is_subtable() {
-            let subtable_bits = reader.peek_bits(entry.subtable_bits() + MAX_ROOT_BITS)? >> MAX_ROOT_BITS;
+            let subtable_bits = reader.peek_bits(entry.subtable_bits() + MAX_ROOT_BITS) >> MAX_ROOT_BITS;
             entry = self.table[entry.subtable_index() + subtable_bits as usize]
         }
 
         reader.consume_bits(entry.colen());
-        Ok(entry.symbol())
+        entry.symbol()
     }
 }
 
+#[inline(always)]
 const fn reverse_bits(value: u32, bits: usize) -> u32 {
     value.reverse_bits() >> (32 - bits)
 }
@@ -323,7 +334,7 @@ impl Default for Block {
 }
 impl Block {
     pub fn load_block<R: BitReader>(&mut self, reader: &mut R) -> Result<(), DecodingError> {
-        self.last = reader.read_bits(1)? == 1;
+        self.last = reader.read_bits(1) == 1;
         self.load_compression_type(reader)?;
 
         if self.r#type == BlockType::CompressedDynamic {
@@ -334,14 +345,14 @@ impl Block {
     }
 
     fn load_trees<R: BitReader>(&mut self, reader: &mut R) -> Result<(), DecodingError> {
-        let hlit: u16 = reader.read_bits(5)? as u16 + 257;
-        let hdist: u16 = reader.read_bits(5)? as u16 + 1;
-        let hclen: u16 = reader.read_bits(4)? as u16 + 4;
+        let hlit: u16 = reader.read_bits(5) as u16 + 257;
+        let hdist: u16 = reader.read_bits(5) as u16 + 1;
+        let hclen: u16 = reader.read_bits(4) as u16 + 4;
 
         let mut codlen_codelengths = vec![0u8; 19];
         for (i, colen) in reader.iterate_bits(3).take(hclen as usize).enumerate() {
             let index = CODE_LENGTH_ORDER[i] as usize;
-            codlen_codelengths[index] = colen? as u8;
+            codlen_codelengths[index] = colen as u8;
         }
         self.codlen_tree.load(&codlen_codelengths)?;
 
@@ -349,21 +360,21 @@ impl Block {
         let total = hlit as usize + hdist as usize;
         let mut all_codelengths = Vec::with_capacity(total);
         while all_codelengths.len() < total {
-            let symbol = self.codlen_tree.decode_symbol(reader)? as u8;
+            let symbol = self.codlen_tree.decode_symbol(reader) as u8;
 
             match symbol {
                 0..=15 => all_codelengths.push(symbol),
                 16 => {
-                    let repeat = reader.read_bits(2)? as u8 + 3;
+                    let repeat = reader.read_bits(2) as u8 + 3;
                     let prev = *all_codelengths.last().unwrap_or(&0);
                     for _ in 0..repeat { all_codelengths.push(prev); }
                 }
                 17 => {
-                    let repeat = reader.read_bits(3)? as u8 + 3;
+                    let repeat = reader.read_bits(3) as u8 + 3;
                     all_codelengths.resize(all_codelengths.len() + repeat as usize, 0);
                 }
                 18 => {
-                    let repeat = reader.read_bits(7)? as u8 + 11;
+                    let repeat = reader.read_bits(7) as u8 + 11;
                     all_codelengths.resize(all_codelengths.len() + repeat as usize, 0);
                 }
                 _ => unreachable!(),
@@ -377,13 +388,13 @@ impl Block {
     }
 
     fn load_compression_type<R: BitReader>(&mut self, reader: &mut R) -> Result<(), DecodingError> {
-        match reader.read_bits(2)? {
+        match reader.read_bits(2) {
             0 => {
                 let alignment_bits = reader.remaining_bits() % 8;
                 reader.consume_bits(alignment_bits);
 
-                let len = reader.read_bits(16)? as u16;
-                let nlen = reader.read_bits(16)? as u16;
+                let len = reader.read_bits(16) as u16;
+                let nlen = reader.read_bits(16) as u16;
 
                 if len != !nlen {
                     return Err(DecodingError::BlockLengthMismatch(len, nlen));

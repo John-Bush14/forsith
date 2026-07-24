@@ -18,6 +18,7 @@ const POSITIONS: Simd<AdlerLaneSize, SIMD_WIDTH> = {
 
 type AdlerLaneSize = u16;
 
+#[inline(always)]
 pub fn compute_alder32_chunk_simd(chunk: &[u8], mut a: u32) -> (u32, u32) {
     let mut b = 0u32;
 

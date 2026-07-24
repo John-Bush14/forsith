@@ -15,6 +15,16 @@ macro_rules! benchmarks {
             fn $bench() {super::$bench(&mut [0u8; $size])}
         )+
 
+        pub fn vanilla_benchmarks() {
+            let mut buf = [0u8; $max_size];
+
+            $(
+                for _ in 0..100 {
+                    $bench(&mut buf);
+                }
+            )+
+        }
+
         fn $group(c: &mut Criterion) {
             let mut buf = [0u8; $max_size];
 
@@ -31,7 +41,7 @@ macro_rules! benchmarks {
 
 benchmarks!(png_benchmarks: 1080*1920*4 => {
     decode_1080p_8rgba_image => "assets/test-rgba.png", 1080*1920*4,
-    decode_1080p_8rgb_image => "assets/test-rgb.png", 1080*1920*3
+    decode_1080p_8rgb_image => "assets/test-rgb.png", 1080*1920*4
 });
 
 fn benchmark_decoding(data: &[u8], buffer: &mut [u8]) -> Result<(), forsith_decoding::DecodingError> {

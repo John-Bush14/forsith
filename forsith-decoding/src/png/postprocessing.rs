@@ -5,7 +5,11 @@ use crate::{Channel, CursorVec, DecodingError, OutputWriter, PixelFormat, PngDec
 use super::simd::filtering::SIMD_WIDTH;
 
 impl<R: BufRead, C: Channel, const F: u8> PngDecoder<'_, R, C, F> {
+    #[inline(always)]
+    #[must_use]
     pub fn scanline_bytes(&self) -> usize {self.postprocessor.scanline_bytes()}
+    #[inline(always)]
+    #[must_use]
     pub fn scanline_pixel_bytes(&self) -> usize {self.postprocessor.scanline_pixel_bytes()}
 }
 
@@ -60,42 +64,41 @@ impl<C: Channel, const F: u8> PostProcessor<C, F> {
     }
 
     pub fn consume_inflated_scanline(&mut self, scanline: &[u8], dest: &mut OutputWriter<'_, C, F>) -> Result<(), DecodingError> {
-        self.drain_previous_scanline(dest)?;
+        self.drain_previous_scanline(dest);
 
         let filter = scanline[0];
+        if filter > 4 {return Err(DecodingError::InvalidFilter(filter));}
 
         let scanline = &scanline[1..self.scanline_bytes()];
 
         if filter == 0 {
             self.cur_buffer_mut().push_slice(scanline);
 
-            self.scanline_consumed(dest)?;
+            self.scanline_consumed(dest);
 
             return Ok(());
         }
 
         match filter {
-            1 => {self.filter_and_push_scanline::<1>(scanline)?},
-            2 => {self.filter_and_push_scanline::<2>(scanline)?},
-            3 => {self.filter_and_push_scanline::<3>(scanline)?},
-            4 => {self.filter_and_push_scanline::<4>(scanline)?},
+            1 => {self.filter_and_push_scanline::<1>(scanline)},
+            2 => {self.filter_and_push_scanline::<2>(scanline)},
+            3 => {self.filter_and_push_scanline::<3>(scanline)},
+            4 => {self.filter_and_push_scanline::<4>(scanline)},
             _ => return Err(DecodingError::InvalidFilter(filter)),
         }
 
-        self.scanline_consumed(dest)?;
+        self.scanline_consumed(dest);
 
         Ok(())
     }
 
-    pub fn pixel_format(&self) -> PixelFormat {PixelFormat::from(self.color_type())}
-
-    pub fn drain_previous_scanline(&mut self, dest: &mut OutputWriter<'_, C, F>) -> Result<(), DecodingError> {
-        if self.prev_buffer().is_empty() {self.switch_buffers(); return Ok(())}
+    pub fn drain_previous_scanline(&mut self, dest: &mut OutputWriter<'_, C, F>) {
+        if self.prev_buffer().is_empty() {self.switch_buffers(); return;}
 
         if self.color_type != ColorType::Indexed {
             self.write_slice(self.prev_buffer().as_slice(), dest, self.scanline_padding);
         } else {
-            self.drain_previous_scanline_indexed(dest)?
+            self.drain_previous_scanline_indexed(dest)
         }
 
         self.scanline_drained(dest);
@@ -103,11 +106,9 @@ impl<C: Channel, const F: u8> PostProcessor<C, F> {
         self.prev_buffer_mut().clear();
 
         self.switch_buffers();
-
-        Ok(())
     }
 
-    pub fn drain_previous_scanline_indexed(&mut self, dest: &mut OutputWriter<'_, C, F>) -> Result<(), DecodingError> {
+    pub fn drain_previous_scanline_indexed(&mut self, dest: &mut OutputWriter<'_, C, F>) {
         let palette = unsafe {self.palette.as_ref().unwrap_unchecked()};
         let index_bits = self.bitspp / 3;
 
@@ -125,24 +126,20 @@ impl<C: Channel, const F: u8> PostProcessor<C, F> {
             8 => self.prev_buffer().as_slice().iter().cloned().for_each(push_index),
             _ => unpack(self.prev_buffer().as_slice(), index_bits, self.scanline_padding, push_index)
         }
-
-
-        Ok(())
     }
 
     fn write_slice(&self, slice: &[u8], dest: &mut OutputWriter<'_, C, F>, padding: u8) {
         (self.out_writer)(slice, dest, padding, self.alpha_color);
     }
 
-    #[inline]
-    fn filter_and_push_scanline<const FILTER: u8>(&mut self, scanline: &[u8]) -> Result<(), DecodingError> {
+    fn filter_and_push_scanline<const FILTER: u8>(&mut self, scanline: &[u8]) {
         if !should_use_simd::<FILTER>(self.stride) {
             for (i, &b) in scanline.iter().enumerate() {
-                let filtered_byte = self.filter::<FILTER>(b, i)?;
+                let filtered_byte = self.filter::<FILTER>(b, i);
                 self.cur_buffer_mut().push(filtered_byte);
             };
 
-            return Ok(());
+            return;
         }
 
         let mut alignment_bytes = scanline.len() % SIMD_WIDTH;
@@ -150,7 +147,7 @@ impl<C: Channel, const F: u8> PostProcessor<C, F> {
         if matches!(FILTER, 1 | 3 | 4) && alignment_bytes < self.stride {alignment_bytes += SIMD_WIDTH;}
 
         for (i, &b) in scanline.iter().enumerate().take(alignment_bytes) {
-            let filtered_byte = self.filter::<FILTER>(b, i)?;
+            let filtered_byte = self.filter::<FILTER>(b, i);
             self.cur_buffer_mut().push(filtered_byte);
         };
 
@@ -162,41 +159,40 @@ impl<C: Channel, const F: u8> PostProcessor<C, F> {
             6 => self.filter_and_push_scanline_simd::<FILTER, 6>(alignment_bytes, scanline),
             8 => self.filter_and_push_scanline_simd::<FILTER, 8>(alignment_bytes, scanline),
             _ => unreachable!()
-        }?;
-
-        Ok(())
+        };
     }
 
-    fn filter_and_push_scanline_simd<const FILTER: u8, const STRIDE: usize>(&mut self, alignment_bytes: usize, scanline: &[u8]) -> Result<(), DecodingError> {
+    fn filter_and_push_scanline_simd<const FILTER: u8, const STRIDE: usize>(&mut self, alignment_bytes: usize, scanline: &[u8]) {
         for i in (alignment_bytes..scanline.len()).step_by(SIMD_WIDTH) {
-            let filtered_bytes = self.filter_simd::<FILTER, STRIDE>(scanline, i)?;
+            let filtered_bytes = self.filter_simd::<FILTER, STRIDE>(scanline, i);
 
             filtered_bytes.copy_to_slice(self.cur_buffer_mut().mut_slice(i..i + SIMD_WIDTH));
             self.cur_buffer_mut().advance(SIMD_WIDTH);
-        } Ok(())
+        }
     }
 
-    #[inline]
-    fn filter<const FILTER: u8>(&self, b: u8, i: usize) -> Result<u8, DecodingError> {
-        Ok(match FILTER {
+    #[inline(always)]
+    fn filter<const FILTER: u8>(&self, b: u8, i: usize) -> u8 {
+        match FILTER {
             1 => b.wrapping_add(self.left_byte(i)),
             2 => b.wrapping_add(self.upper_byte(i)),
             3 => b.wrapping_add(((self.left_byte(i) as u16 + self.upper_byte(i) as u16) / 2) as u8),
             4 => b.wrapping_add(paeth_predictor(self.left_byte(i), self.upper_byte(i), self.left_upper_byte(i))),
-            _ => return Err(DecodingError::InvalidFilter(FILTER)),
-        })
+            _ => unreachable!(),
+        }
     }
 
     pub fn remaining_bytes(&self) -> usize {
         self.capacity() - self.scanline_buffers[0].len() - self.scanline_buffers[1].len()
     }
 
-    #[must_use]
     pub fn is_empty(&self) -> bool {self.prev_buffer().is_empty() && self.cur_buffer().is_empty()}
 
     pub fn capacity(&self) -> usize {self.scanline_buffers[0].capacity() * 2}
 
+    #[must_use]
     pub fn scanline_bytes(&self) -> usize {self.scanline_buffers[0].capacity() + 1}
+    #[must_use]
     pub fn scanline_pixel_bytes(&self) -> usize {self.scanline_buffers[0].capacity()}
 
     pub fn cur_buffer(&self) -> &CursorVec<u8> {unsafe {self.scanline_buffers.get_unchecked(self.cur_buffer)}}
@@ -209,6 +205,7 @@ impl<C: Channel, const F: u8> PostProcessor<C, F> {
 
     pub fn color_type(&self) -> ColorType {self.color_type}
 
+    #[inline]
     pub fn left_byte(&self, i: usize) -> u8 {
         if i < self.stride {
             return 0;
@@ -217,16 +214,14 @@ impl<C: Channel, const F: u8> PostProcessor<C, F> {
         self.cur_buffer()[i - self.stride]
     }
 
+    #[inline]
     pub fn upper_byte(&self, i: usize) -> u8 {
-        if self.prev_buffer().is_empty() {
-            return 0;
-        }
-
         self.prev_buffer()[i]
     }
 
+    #[inline]
     pub fn left_upper_byte(&self, i: usize) -> u8 {
-        if i < self.stride || self.prev_buffer().is_empty() {
+        if i < self.stride {
             return 0;
         }
 
@@ -252,23 +247,23 @@ impl<C: Channel, const F: u8> PostProcessor<C, F> {
         self.draining_pass.update_dest(dest)
     }
 
-    pub fn scanline_consumed(&mut self, dest: &mut OutputWriter<'_, C, F>) -> Result<(), DecodingError> {
+    pub fn scanline_consumed(&mut self, dest: &mut OutputWriter<'_, C, F>) {
         self.scanline_passed::<false>(dest)
     }
 
     pub fn scanline_drained(&mut self, dest: &mut OutputWriter<'_, C, F>) {
-        self.scanline_passed::<true>(dest).unwrap();
+        self.scanline_passed::<true>(dest);
     }
 
     #[inline(always)]
-    fn scanline_passed<const DRAIN: bool>(&mut self, dest: &mut OutputWriter<'_, C, F>) -> Result<(), DecodingError> {
+    fn scanline_passed<const DRAIN: bool>(&mut self, dest: &mut OutputWriter<'_, C, F>) {
         let pass: &mut Pass = if DRAIN {&mut self.draining_pass} else {&mut self.consuming_pass};
 
-        if pass.end_scanline_skip == 0 {return Ok(())}
+        if pass.end_scanline_skip == 0 {return;}
 
         pass.cur_scanline += pass.end_scanline_scanlines_passed as usize;
 
-        if pass.cur == 6 && pass.cur_scanline + 1 > pass.dim.1 {return Ok(());}
+        if pass.cur == 6 && pass.cur_scanline + 1 > pass.dim.1 {return;}
         if pass.cur_scanline >= pass.dim.1 {
             pass.cur += 1;
 
@@ -285,8 +280,8 @@ impl<C: Channel, const F: u8> PostProcessor<C, F> {
             pass.stride = stride;
 
             if !DRAIN {
-                self.drain_previous_scanline(dest)?;
-                self.drain_previous_scanline(dest)?;
+                self.drain_previous_scanline(dest);
+                self.drain_previous_scanline(dest);
 
                 let (new_scanline_bytes, padding) = calculate_scanline_bytes(width, if self.color_type != ColorType::Indexed {self.bitspp} else {self.channel_depth});
                 self.scanline_padding = padding;
@@ -300,8 +295,6 @@ impl<C: Channel, const F: u8> PostProcessor<C, F> {
         } else if DRAIN {
             dest.advance(pass.end_scanline_skip);
         }
-
-        Ok(())
     }
 }
 
@@ -321,7 +314,6 @@ pub fn into_outconverter_pixel_format<const F: u8>(color_type: ColorType) -> Pix
     } else {PixelFormat::from(color_type)}
 }
 
-#[inline]
 fn paeth_predictor(a: u8, b: u8, c: u8) -> u8 {
     let (a, b, c) = (a as i16, b as i16, c as i16);
 
