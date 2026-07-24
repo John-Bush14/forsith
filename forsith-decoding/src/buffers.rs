@@ -71,6 +71,7 @@ impl<'a, C: Channel, const F: u8> OutputWriter<'a, C, F> {
     fn bbp() -> usize {const {C::BIT_DEPTH as usize / 8 * F as usize}}
 
     pub fn set_stride(&mut self, pixels: usize) {self.stride = (pixels - 1) * Self::bbp()}
+    #[inline(always)]
     pub fn pushed_pixel(&mut self) {
         self.index += self.stride;
     }
@@ -172,7 +173,7 @@ impl<T> CursorVec<T> {
     }
 
     pub fn shift(&mut self, new_start: usize) where T: Copy {
-        self.buffer.copy_within(new_start..self.cursor, 0);
+        self.copy_within(new_start..self.cursor, 0);
 
         self.cursor -= new_start;
     }

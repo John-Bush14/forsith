@@ -359,25 +359,22 @@ impl Block {
         // Decode hlit + hdist code lengths, expanding RLE symbols 16/17/18
         let total = hlit as usize + hdist as usize;
         let mut all_codelengths = Vec::with_capacity(total);
+
+        let mut prev = 0;
+
         while all_codelengths.len() < total {
             let symbol = self.codlen_tree.decode_symbol(reader) as u8;
 
             match symbol {
-                0..=15 => all_codelengths.push(symbol),
-                16 => {
-                    let repeat = reader.read_bits(2) as u8 + 3;
-                    let prev = *all_codelengths.last().unwrap_or(&0);
-                    for _ in 0..repeat { all_codelengths.push(prev); }
+                0..=15 => {all_codelengths.push(symbol); prev = symbol;},
+                _ => {
+                    let (extra_bits, base, use_prev) = [(2, 3, true), (3, 3, false), (7,11, false)][symbol as usize - 16];
+
+                    if !use_prev {prev = 0;}
+
+                    let repeat = base + reader.read_bits(extra_bits) as usize;
+                    all_codelengths.resize(all_codelengths.len() + repeat, prev);
                 }
-                17 => {
-                    let repeat = reader.read_bits(3) as u8 + 3;
-                    all_codelengths.resize(all_codelengths.len() + repeat as usize, 0);
-                }
-                18 => {
-                    let repeat = reader.read_bits(7) as u8 + 11;
-                    all_codelengths.resize(all_codelengths.len() + repeat as usize, 0);
-                }
-                _ => unreachable!(),
             }
         }
 
