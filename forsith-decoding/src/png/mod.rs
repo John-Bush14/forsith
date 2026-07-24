@@ -112,59 +112,56 @@ impl<'a, R: BufRead, C: Channel, const F: u8> ImageDecoder<'a, R, C, F> for PngD
         if dest.len() < self.min_buf_size() {return Err(DecodingError::TinyDestBuf(dest.len()))}
 
         let mut dest = OutputWriter::new(dest); self.postprocessor.update_dest(&mut dest);
-        self.inflate_capacity = self.calculate_inflate_capacity(&mut dest);
 
-        match self.cur_block.r#type {
-            BlockType::Uncompressed(len) => {
-                let fill_len = (len as usize).min(self.inflate_capacity());
+        while !dest.is_full() && !self.done {
+            self.inflate_capacity = self.calculate_inflate_capacity(&mut dest);
 
-                for _ in 0..fill_len {
-                    let b = self.reader.read_bits(8)? as u8;
-                    self.emit_inflated_byte(b, &mut dest)?;
+            match self.cur_block.r#type {
+                BlockType::Uncompressed(len) => {
+                    let fill_len = (len as usize).min(self.inflate_capacity());
+
+                    for _ in 0..fill_len {
+                        let b = self.reader.read_bits(8)? as u8;
+                        self.emit_inflated_byte(b, &mut dest)?;
+                    }
+
+                    if len as usize == fill_len {
+                        self.next_block()?;
+                    } else {
+                        self.cur_block.r#type = BlockType::Uncompressed(len - fill_len as u16);
+                        dest.set_full();
+                    }
                 }
+                BlockType::CompressedFixed => {self.read_compressed_chunk::<true>(&mut dest)?;},
+                BlockType::CompressedDynamic => {self.read_compressed_chunk::<false>(&mut dest)?;},
+                BlockType::Finished => {
+                    self.decrease_inflate_capacity(self.deflate_buffer.remaining());
 
-                if len as usize == fill_len {
-                    self.next_block()?;
-                } else {
-                    self.cur_block.r#type = BlockType::Uncompressed(len - fill_len as u16);
-                    dest.set_full();
+                    while self.inflate_capacity() >= self.scanline_bytes() - 1 && self.deflate_buffer.len() - self.deflate_buffer_tail >= self.scanline_bytes() {
+                        self.decrease_inflate_capacity(self.scanline_bytes() - 1);
+
+                        let scanline = self.deflate_buffer.slice(self.deflate_buffer_tail..self.deflate_buffer_tail + self.scanline_bytes());
+
+                        self.deflate_buffer_tail += self.scanline_bytes();
+
+                        self.postprocessor.consume_inflated_scanline(scanline, &mut dest)?;
+                    }
+
+                    self.decrease_inflate_capacity(self.postprocessor.remaining_bytes());
+
+                    while self.inflate_capacity() >= self.postprocessor.prev_buffer().len() && !self.postprocessor.is_empty(){
+                        self.decrease_inflate_capacity(self.postprocessor.prev_buffer().len());
+
+                        self.postprocessor.drain_previous_scanline(&mut dest)?;
+                    }
+
+                    self.done = self.deflate_buffer.is_empty() && self.postprocessor.is_empty();
+
+                    if !self.done {dest.set_full();}
+
+
                 }
             }
-            BlockType::CompressedFixed => {self.read_compressed_chunk::<true>(&mut dest)?;},
-            BlockType::CompressedDynamic => {self.read_compressed_chunk::<false>(&mut dest)?;},
-            BlockType::Finished => {
-                self.decrease_inflate_capacity(self.deflate_buffer.remaining());
-
-                while self.inflate_capacity() >= self.scanline_bytes() - 1 && self.deflate_buffer.len() - self.deflate_buffer_tail >= self.scanline_bytes() {
-                    self.decrease_inflate_capacity(self.scanline_bytes() - 1);
-
-                    let scanline = self.deflate_buffer.slice(self.deflate_buffer_tail..self.deflate_buffer_tail + self.scanline_bytes());
-
-                    self.deflate_buffer_tail += self.scanline_bytes();
-
-                    self.postprocessor.consume_inflated_scanline(scanline, &mut dest)?;
-                }
-
-                self.decrease_inflate_capacity(self.postprocessor.remaining_bytes());
-
-                while self.inflate_capacity() >= self.postprocessor.prev_buffer().len() && !self.postprocessor.is_empty(){
-                    self.decrease_inflate_capacity(self.postprocessor.prev_buffer().len());
-
-                    self.postprocessor.drain_previous_scanline(&mut dest)?;
-                }
-
-                self.done = self.deflate_buffer.is_empty() && self.postprocessor.is_empty();
-
-                if !self.done {dest.set_full();}
-
-
-            }
-        }
-
-        if !dest.is_full() && !self.done {
-            let filled_len = dest.len();
-
-            return Ok(filled_len + self.read(dest.remaining_mut_slice())?)
         }
 
         if self.ihdr.interlace_method == 1 && !dest.is_empty() {
