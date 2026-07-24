@@ -263,27 +263,13 @@ impl<'a, R: BufRead, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
         Ok(())
     }
 
-    fn emit_backreferenced_inflated_bytes(&mut self, length: usize, distance: usize, dest: &mut OutputWriter<'_, C, F>) -> Result<(), DecodingError> {
-        self.decrease_inflate_capacity(length);
-
-        let mut remaining = length;
+    #[inline]
+    fn emit_backreferenced_inflated_bytes(&mut self, length: usize, distance: usize) {
         let start = self.deflate_buffer.len() - distance;
 
-        loop {
-            let len = remaining.min(self.deflate_buffer.remaining());
+        self.deflate_buffer.copy_within(start..start+length, self.deflate_buffer.len());
 
-            let cur_start = length - remaining + start;
-            self.deflate_buffer.copy_within(cur_start..cur_start+len, self.deflate_buffer.len());
-            self.deflate_buffer.advance(len);
-
-            remaining -= len;
-
-            if remaining > 0 {
-                self.drain_deflate_buffer(dest)?;
-            } else {break}
-        }
-
-        Ok(())
+        self.deflate_buffer.advance(length);
     }
 
     #[cold]
@@ -332,9 +318,13 @@ impl<'a, R: BufRead, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
     #[cold]
     fn read_compressed_chunk<const STATIC: bool>(&mut self, dest: &mut OutputWriter<'_, C, F>) -> Result<(), DecodingError> {
         loop  {
-            if self.inflate_capacity() < MAX_BACKREF_LEN {
-                dest.set_full();
-                break;
+            if self.deflate_buffer.len() + MAX_BACKREF_LEN >= self.deflate_buffer.capacity() {
+                self.drain_deflate_buffer(dest)?;
+
+                if self.inflate_capacity() < MAX_BACKREF_LEN {
+                    dest.set_full();
+                    break;
+                }
             }
 
             let (litlen_tree, distance_tree) = if STATIC {
@@ -346,10 +336,6 @@ impl<'a, R: BufRead, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
             let symbol = litlen_tree.decode_symbol(&mut self.reader);
 
             if symbol < 256 {
-                if self.deflate_buffer.len() == self.deflate_buffer.capacity() {
-                    self.drain_deflate_buffer(dest)?;
-                }
-
                 self.decrease_inflate_capacity(1);
 
                 self.emit_inflated_byte(symbol as u8);
@@ -361,15 +347,11 @@ impl<'a, R: BufRead, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
                 let dist_code = distance_tree.decode_symbol(&mut self.reader);
                 let distance = decode_distance(dist_code, &mut self.reader);
 
+                self.decrease_inflate_capacity(length as usize);
+
                 if distance as usize > length as usize {
-                    self.emit_backreferenced_inflated_bytes(length as usize, distance as usize, dest)?;
+                    self.emit_backreferenced_inflated_bytes(length as usize, distance as usize);
                 } else {
-                    self.decrease_inflate_capacity(length as usize);
-
-                    if self.deflate_buffer.len() + length as usize >= self.deflate_buffer.capacity() {
-                        self.drain_deflate_buffer(dest)?;
-                    }
-
                     for _ in 0..length {
                         let byte = self.deflate_buffer[self.deflate_buffer.len() - distance as usize];
                         self.emit_inflated_byte(byte);
