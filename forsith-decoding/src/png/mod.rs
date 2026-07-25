@@ -150,11 +150,9 @@ impl<'a, R: BufRead, C: Channel, const F: u8> ImageDecoder<'a, R, C, F> for PngD
                     while self.inflate_capacity() >= self.scanline_bytes() - 1 && self.deflate_buffer.len() - self.deflate_buffer_tail >= self.scanline_bytes() {
                         self.decrease_inflate_capacity(self.scanline_bytes() - 1);
 
-                        let scanline = self.deflate_buffer.slice(self.deflate_buffer_tail..self.deflate_buffer_tail + self.scanline_bytes());
+                        let consumed_bytes = self.consume_inflated_scanlines(self.deflate_buffer_tail, 1, &mut dest)?;
 
-                        self.deflate_buffer_tail += self.scanline_bytes();
-
-                        self.postprocessor.consume_inflated_scanline(scanline, &mut dest)?;
+                        self.deflate_buffer_tail += consumed_bytes;
                     }
 
                     self.decrease_inflate_capacity(self.postprocessor.remaining_bytes());
@@ -269,19 +267,28 @@ impl<'a, R: BufRead, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
 
     #[cold]
     fn drain_deflate_buffer(&mut self, dest: &mut OutputWriter<'_, C, F>) -> Result<(), DecodingError> {
-        let mut start = 0;
+        let scanlines = self.scanline_multiples.min(self.inflate_capacity() / self.scanline_bytes());
 
-        for _ in 0..self.scanline_multiples.min(self.inflate_capacity() / self.scanline_bytes()) {
-            start += self.scanline_bytes();
+        let drained_bytes = self.consume_inflated_scanlines(0, scanlines, dest)?;
 
-            self.postprocessor.consume_inflated_scanline(self.deflate_buffer.slice(start..start+self.scanline_bytes()), dest)?;
-        }
-
-        self.reader.update_adler32(self.deflate_buffer.slice(0..start));
-
-        self.deflate_buffer.shift(start);
+        self.deflate_buffer.shift(drained_bytes);
 
         Ok(())
+    }
+
+    #[inline(always)]
+    fn consume_inflated_scanlines(&mut self, start: usize, scanlines: usize, dest: &mut OutputWriter<'_, C, F>) -> Result<usize, DecodingError> {
+        let mut end = start;
+
+        for _ in 0..scanlines {
+            end += self.scanline_bytes();
+
+            self.postprocessor.consume_inflated_scanline(self.deflate_buffer.slice(start..end), dest)?;
+        }
+
+        self.reader.update_adler32(self.deflate_buffer.slice(start..end));
+
+        Ok(end - start)
     }
 
     #[inline(always)]
