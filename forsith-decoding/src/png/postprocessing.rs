@@ -134,8 +134,8 @@ impl<C: Channel, const F: u8> PostProcessor<C, F> {
 
     fn filter_and_push_scanline<const FILTER: u8>(&mut self, scanline: &[u8]) {
         if !should_use_simd::<FILTER>(self.stride) {
-            for (i, &b) in scanline.iter().enumerate() {
-                let filtered_byte = self.filter::<FILTER>(b, i);
+            for &b in scanline {
+                let filtered_byte = self.filter::<FILTER>(b);
                 self.cur_buffer_mut().push(filtered_byte);
             };
 
@@ -146,8 +146,8 @@ impl<C: Channel, const F: u8> PostProcessor<C, F> {
 
         if matches!(FILTER, 1 | 3 | 4) && alignment_bytes < self.stride {alignment_bytes += SIMD_WIDTH;}
 
-        for (i, &b) in scanline.iter().enumerate().take(alignment_bytes) {
-            let filtered_byte = self.filter::<FILTER>(b, i);
+        for &b in scanline.iter().take(alignment_bytes) {
+            let filtered_byte = self.filter::<FILTER>(b);
             self.cur_buffer_mut().push(filtered_byte);
         };
 
@@ -172,12 +172,12 @@ impl<C: Channel, const F: u8> PostProcessor<C, F> {
     }
 
     #[inline(always)]
-    fn filter<const FILTER: u8>(&self, b: u8, i: usize) -> u8 {
+    fn filter<const FILTER: u8>(&self, b: u8) -> u8 {
         match FILTER {
-            1 => b.wrapping_add(self.left_byte(i)),
-            2 => b.wrapping_add(self.upper_byte(i)),
-            3 => b.wrapping_add(((self.left_byte(i) as u16 + self.upper_byte(i) as u16) / 2) as u8),
-            4 => b.wrapping_add(paeth_predictor(self.left_byte(i), self.upper_byte(i), self.left_upper_byte(i))),
+            1 => b.wrapping_add(self.left_byte()),
+            2 => b.wrapping_add(self.upper_byte()),
+            3 => b.wrapping_add(((self.left_byte() as u16 + self.upper_byte() as u16) / 2) as u8),
+            4 => b.wrapping_add(paeth_predictor(self.left_byte(), self.upper_byte(), self.left_upper_byte())),
             _ => unreachable!(),
         }
     }
@@ -206,7 +206,9 @@ impl<C: Channel, const F: u8> PostProcessor<C, F> {
     pub fn color_type(&self) -> ColorType {self.color_type}
 
     #[inline]
-    pub fn left_byte(&self, i: usize) -> u8 {
+    pub fn left_byte(&self) -> u8 {
+        let i = self.cur_buffer().len();
+
         if i < self.stride {
             return 0;
         }
@@ -215,12 +217,16 @@ impl<C: Channel, const F: u8> PostProcessor<C, F> {
     }
 
     #[inline]
-    pub fn upper_byte(&self, i: usize) -> u8 {
+    pub fn upper_byte(&self) -> u8 {
+        let i = self.cur_buffer().len();
+
         self.prev_buffer()[i]
     }
 
     #[inline]
-    pub fn left_upper_byte(&self, i: usize) -> u8 {
+    pub fn left_upper_byte(&self) -> u8 {
+        let i = self.cur_buffer().len();
+
         if i < self.stride {
             return 0;
         }
