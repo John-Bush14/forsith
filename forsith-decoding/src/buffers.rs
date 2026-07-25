@@ -6,6 +6,7 @@ pub struct BitBuffer {
     bits_remaining: u8
 }
 impl BitBuffer {
+    #[inline(always)]
     pub fn bits_remaining(&self) -> u8 {
         self.bits_remaining
     }
@@ -170,8 +171,13 @@ impl<T> CursorVec<T> {
         unsafe {self.buffer.get_unchecked_mut(range)}
     }
 
-    pub fn copy_within(&mut self, src: Range<usize>, dest: usize) where T: Copy {
-        self.buffer.copy_within(src, dest);
+    #[inline]
+    pub fn copy_nonoverlapping(&mut self, src: Range<usize>, dest: usize) where T: Copy {
+        let ptr = self.buffer.as_mut_ptr();
+
+        unsafe {
+            std::ptr::copy_nonoverlapping(ptr.add(src.start), ptr.add(dest), src.len());
+        }
     }
 
     #[inline(always)]
@@ -180,7 +186,7 @@ impl<T> CursorVec<T> {
     }
 
     pub fn shift(&mut self, new_start: usize) where T: Copy {
-        self.copy_within(new_start..self.cursor, 0);
+        self.copy_nonoverlapping(new_start..self.cursor, 0);
 
         self.cursor -= new_start;
     }
@@ -229,6 +235,7 @@ impl BufferReader {
         unsafe {self.buffer.get_unchecked_mut(self.index..self.index + len)}
     }
 
+    #[inline(always)]
     pub fn as_ptr(&self) -> *const u8 {unsafe {self.buffer.as_ptr().add(self.index)}}
 
     pub fn raw_slice(&self, range: Range<usize>) -> &[u8] {

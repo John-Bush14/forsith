@@ -1,5 +1,5 @@
 use std::{any::Any, fmt::Display, io::{BufRead, Read}, ops::{Index, IndexMut}};
-use crate::{Channel, CursorVec, DecodingError::{self, InvalidChunk}, Int, PngDecoder, png::{ColorType, PngReader}};
+use crate::{Channel, CursorVec, DecodingError::{self, InvalidChunk}, Int, PngDecoder, png::{ColorType, PngReader, deflate::MAX_BACKREF_LEN}};
 use num_enum::{TryFromPrimitive, IntoPrimitive};
 
 #[repr(u32)]
@@ -109,7 +109,8 @@ impl ChunkData for ZlibHeader {
 
         let lz77_buffer_size: usize = 1 << (compression_info + 8);
 
-        decoder.deflate_buffer = CursorVec::new(lz77_buffer_size + lz77_buffer_size.next_multiple_of(decoder.scanline_bytes()));
+        let deflate_buffer_size = (lz77_buffer_size + lz77_buffer_size.next_multiple_of(decoder.scanline_bytes())).max(MAX_BACKREF_LEN*3);
+        decoder.deflate_buffer = CursorVec::new(deflate_buffer_size);
 
         let max_scanline_bytes = match decoder.ihdr.interlace_method {
             1 => decoder.scanline_bytes() / 2,

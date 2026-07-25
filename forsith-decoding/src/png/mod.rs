@@ -262,7 +262,7 @@ impl<'a, R: BufRead, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
     fn emit_backreferenced_inflated_bytes(&mut self, length: usize, distance: usize) {
         let start = self.deflate_buffer.len() - distance;
 
-        self.deflate_buffer.copy_within(start..start+length, self.deflate_buffer.len());
+        self.deflate_buffer.copy_nonoverlapping(start..start+length, self.deflate_buffer.len());
 
         self.deflate_buffer.advance(length);
     }
