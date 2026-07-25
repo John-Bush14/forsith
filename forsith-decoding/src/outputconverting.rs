@@ -1,4 +1,4 @@
-use crate::{Channel, CursorVec, Int, OutputWriter, bitspp, bytespp, has_alpha, is_gray, is_rgb};
+use crate::{Channel, CursorVec, Int, OutputWriter, bitspp, bytespp, has_alpha, is_gray, is_rgb, unpack_constant};
 
 macro_rules! aligned {
     ($t:ty, $format:ident) => {
@@ -44,33 +44,20 @@ pub fn push_packed_slice<DC: Channel, const DF: u8, const SC: u8, const SF: u8>(
 where
     [(); SF as usize]:,
 {
-    let padding_pixels = padding/SF;
-
     let mut pixels = CursorVec::<u8>::new(match SF {3 => 24,  _ => 8});
-    for i in 0..slice.len() {
-        let b = slice[i] as usize;
 
-        let bytes = match SC {
-            1 => {UPSAMPLE_1BIT[b].as_slice()},
-            2 => {UPSAMPLE_2BIT[b].as_slice()},
-            4 => {UPSAMPLE_4BIT[b].as_slice()},
-            _ => unreachable!()
-        };
 
-        if i == slice.len() - 1 {
-            pixels.push_slice(&bytes[..bytes.len() - padding_pixels as usize]);
-
-            push_aligned_slice::<DC, DF, u8, SF>(pixels.as_slice(), out, 0, alpha_color);
-
-            return
-        }
-
+    unpack_constant::<SC, true>(slice, padding, |bytes| {
         pixels.push_slice(bytes);
 
         if pixels.is_full() {
             push_aligned_slice::<DC, DF, u8, SF>(pixels.as_slice(), out, 0, alpha_color);
             pixels.clear();
         }
+    });
+
+    if !pixels.is_empty() {
+        push_aligned_slice::<DC, DF, u8, SF>(pixels.as_slice(), out, 0, alpha_color);
     }
 }
 
@@ -149,28 +136,3 @@ fn convert_pixel<C: Channel, const DF: u8, const SF: u8>(pixel: &[C::StorageType
         }
     }
 }
-
-const fn make_upsample_lut<const BITS: usize, const SAMPLES: usize>() -> [[u8; SAMPLES]; 256] {
-    let mut lut = [[0u8; SAMPLES]; 256];
-
-    let mut byte = 0;
-    while byte < 256 {
-        let mut i = 0;
-        while i < SAMPLES {
-            let shift = 8 - BITS * (i + 1);
-            let sample = (byte >> shift) & ((1 << BITS) - 1);
-
-            // Expand to 8-bit range
-            lut[byte][i] = (sample * 255 / ((1 << BITS) - 1)) as u8;
-
-            i += 1;
-        }
-        byte += 1;
-    }
-
-    lut
-}
-
-pub const UPSAMPLE_1BIT: [[u8; 8]; 256] = make_upsample_lut::<1, 8>();
-pub const UPSAMPLE_2BIT: [[u8; 4]; 256] = make_upsample_lut::<2, 4>();
-pub const UPSAMPLE_4BIT: [[u8; 2]; 256] = make_upsample_lut::<4, 2>();

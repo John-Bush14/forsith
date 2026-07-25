@@ -112,7 +112,7 @@ impl<C: Channel, const F: u8> PostProcessor<C, F> {
         let palette = unsafe {self.palette.as_ref().unwrap_unchecked()};
         let index_bits = self.bitspp / 3;
 
-        let push_index = |index: u8| {
+        let mut push_index = |index: u8| {
             let pixel = palette[index as usize].to_le_bytes();
 
             if has_alpha(F) {
@@ -124,7 +124,7 @@ impl<C: Channel, const F: u8> PostProcessor<C, F> {
 
         match index_bits {
             8 => self.prev_buffer().as_slice().iter().cloned().for_each(push_index),
-            _ => unpack(self.prev_buffer().as_slice(), index_bits, self.scanline_padding, push_index)
+            _ => unpack::<false>(self.prev_buffer().as_slice(), index_bits, self.scanline_padding, |bs| for &b in bs {push_index(b)})
         }
     }
 

@@ -65,24 +65,6 @@ impl<R: Read, C: Channel, const F: u8> Read for dyn ImageDecoder<'_, R, C, F> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {self.read(buf).map_err(io::Error::other)}
 }
 
-pub(crate) fn unpack(bytes: &[u8], bits: u8, padding: u8, mut callback: impl FnMut(u8)) {
-    for i in 0..bytes.len() {
-        let mut byte = bytes[i];
-
-        let mut iterations = 8/bits;
-
-        if i == bytes.len() - 1 {iterations -= padding / bits}
-
-        for _ in 0..iterations {
-            let unpacked_val = byte >> (8 - bits);
-
-            callback(unpacked_val);
-
-            byte <<= bits;
-        }
-    }
-}
-
 #[derive(Debug, PartialEq, Eq)]
 pub enum ChannelType {
     Unsigned,
