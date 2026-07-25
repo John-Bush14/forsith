@@ -1,6 +1,6 @@
 use std::{io::BufRead};
 
-use crate::{Channel, CursorVec, DecodingError, OutputWriter, PixelFormat, PngDecoder, has_alpha, outputconverting::{OutputConverter, get_out_writer_func}, png::{ColorType, chunks::{ColorPalette, Ihdr}, postprocessing, simd::filtering::should_use_simd}, unpack};
+use crate::{Channel, CursorVec, DecodingError, OutputWriter, PixelFormat, PngDecoder, has_alpha, outputconverting::{OutputConverter, get_out_writer_func}, png::{ColorType, chunks::{ColorPalette, Ihdr}, simd::filtering::should_use_simd}, unpack};
 
 use super::simd::filtering::SIMD_WIDTH;
 
@@ -67,7 +67,6 @@ impl<C: Channel, const F: u8> PostProcessor<C, F> {
         self.drain_previous_scanline(dest);
 
         let filter = scanline[0];
-        if filter > 4 {return Err(DecodingError::InvalidFilter(filter));}
 
         let scanline = &scanline[1..self.scanline_bytes()];
 

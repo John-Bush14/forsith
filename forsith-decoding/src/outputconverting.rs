@@ -1,4 +1,4 @@
-use crate::{Channel, CursorVec, Int, OutputWriter, bitspp, bytespp, has_alpha, is_gray, is_rgb, unpack_constant};
+use crate::{Channel, CursorVec, Int, OutputWriter, bytespp, has_alpha, is_gray, is_rgb, unpack_constant};
 
 macro_rules! aligned {
     ($t:ty, $format:ident) => {

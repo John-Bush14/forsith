@@ -1,6 +1,5 @@
-use core::panic;
 use std::io::{BufRead, Read};
-use crate::{Channel, CursorVec, DecodingError, ImageDecoder, OutputWriter, PixelFormat, png::{chunks::{ColorPalette, Ihdr, ZlibHeader, tRNS}, deflate::{BlockType, MAX_BACKREF_LEN, STATIC_DISTANCE_TREE, STATIC_LITLEN_TREE, decode_distance, decode_length}, postprocessing::{PostProcessor, calculate_scanline_bytes, into_outconverter_pixel_format}, reader::BitReader}, read_exact_array};
+use crate::{Channel, CursorVec, DecodingError, ImageDecoder, OutputWriter, PixelFormat, bitspp, bytespp, png::{chunks::{ColorPalette, Ihdr, ZlibHeader, tRNS}, deflate::{BlockType, MAX_BACKREF_LEN, STATIC_DISTANCE_TREE, STATIC_LITLEN_TREE, decode_distance, decode_length}, postprocessing::{PostProcessor, into_outconverter_pixel_format}, reader::BitReader}};
 use num_enum::TryFromPrimitive;
 
 mod chunks;
@@ -10,7 +9,6 @@ mod reader;
 pub use reader::PngReader;
 
 mod checksum;
-pub use checksum::CRC32;
 
 mod deflate;
 
@@ -193,7 +191,7 @@ impl<'a, R: BufRead, C: Channel, const F: u8> ImageDecoder<'a, R, C, F> for PngD
     }
 
     fn max_buf_size(&self) -> usize {
-        (self.ihdr.width * self.ihdr.height) as usize * (F as usize * C::BIT_DEPTH as usize)/8
+        (self.ihdr.width * self.ihdr.height) as usize * bytespp::<C, F>() as usize
     }
 
     fn bit_depth(&self) -> u8 {self.ihdr.channel_depth}
@@ -205,13 +203,12 @@ impl<'a, R: BufRead, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
     fn inflate_capacity_to_out_buffer(&self, capacity: usize) -> usize {
         (
             (capacity * 8)
-            * Self::dest_bpp()
+            * bitspp::<C, F>() as usize
             / match self.postprocessor.color_type() {ColorType::Indexed => self.ihdr.channel_depth as usize, _ => self.ihdr.channel_depth as usize * PixelFormat::from(self.ihdr.color_type) as usize}
         ).div_ceil(8)
     }
 
     fn src_bpp(&self) -> usize {self.ihdr.channel_depth as usize * into_outconverter_pixel_format::<F>(self.postprocessor.color_type()) as usize}
-    fn dest_bpp() -> usize {F as usize * C::BIT_DEPTH as usize}
 
     fn calculate_inflate_capacity(&mut self, dest: &mut OutputWriter<'_, C, F>) -> usize {
         if dest.capacity() >= self.max_buf_size() {
@@ -221,7 +218,7 @@ impl<'a, R: BufRead, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
         let correct_dest_capacity = (
             (dest.capacity() * 8)
             * match self.postprocessor.color_type() {ColorType::Indexed => self.ihdr.channel_depth as usize, _ => self.src_bpp()}
-            / Self::dest_bpp()
+            / bitspp::<C, F>() as usize
         ).div_euclid(8);
 
         correct_dest_capacity + self.deflate_buffer.remaining() + self.postprocessor.remaining_bytes()

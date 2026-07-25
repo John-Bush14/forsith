@@ -1,6 +1,6 @@
-use std::{cmp, io};
+use std::io;
 
-use crate::png::{ChunkType, CRC32};
+use crate::png::ChunkType;
 use thiserror::Error;
 
 

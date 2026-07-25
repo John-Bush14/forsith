@@ -68,10 +68,6 @@ impl CRC32 {
             self.0 = CRC_TABLES[0][((self.0 ^ *b as u32) & 0xff) as usize] ^ (self.0 >> 8);
         }
     }
-
-    pub fn finalize(&mut self) -> u32 {
-        !self.0
-    }
 }
 
 #[derive(Debug)]

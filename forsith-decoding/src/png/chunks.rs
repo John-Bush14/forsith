@@ -1,4 +1,4 @@
-use std::{any::Any, fmt::Display, io::{BufRead, Read}, ops::{Index, IndexMut}, ptr::read};
+use std::{any::Any, fmt::Display, io::{BufRead, Read}, ops::{Index, IndexMut}};
 use crate::{Channel, CursorVec, DecodingError::{self, InvalidChunk}, Int, PngDecoder, png::{ColorType, PngReader}};
 use num_enum::{TryFromPrimitive, IntoPrimitive};
 

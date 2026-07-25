@@ -1,4 +1,4 @@
-use crate::{Channel, DecodingError, png::postprocessing::PostProcessor};
+use crate::{Channel, png::postprocessing::PostProcessor};
 use core::simd::prelude::*;
 
 pub use super::SIMD_WIDTH;

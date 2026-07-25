@@ -1,5 +1,6 @@
 use criterion::{criterion_group, Criterion};
 use forsith_decoding::{ImageDecoder, PngDecoder};
+#[allow(unused)]
 use gungraun::prelude::*;
 
 macro_rules! benchmarks {
@@ -12,11 +13,12 @@ macro_rules! benchmarks {
             }
 
             #[library_benchmark]
-            fn $bench() {super::$bench(&mut [0u8; $size])}
+            fn $bench() {super::$bench(&mut vec![0u8; $size])}
+
         )+
 
         pub fn vanilla_benchmarks() {
-            let mut buf = [0u8; $max_size];
+            let mut buf = vec![0u8; $max_size];
 
             $(
                 for _ in 0..100 {
@@ -25,8 +27,9 @@ macro_rules! benchmarks {
             )+
         }
 
+        #[allow(unused)]
         fn $group(c: &mut Criterion) {
-            let mut buf = [0u8; $max_size];
+            let mut buf = vec![0u8; $max_size];
 
             $(
                 c.bench_function("benchmark 1080p rgba image", |b| b.iter(|| $bench(&mut buf)));
