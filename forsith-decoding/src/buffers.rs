@@ -171,13 +171,8 @@ impl<T> CursorVec<T> {
         unsafe {self.buffer.get_unchecked_mut(range)}
     }
 
-    #[inline]
-    pub fn copy_nonoverlapping(&mut self, src: Range<usize>, dest: usize) where T: Copy {
-        let ptr = self.buffer.as_mut_ptr();
-
-        unsafe {
-            std::ptr::copy_nonoverlapping(ptr.add(src.start), ptr.add(dest), src.len());
-        }
+    pub fn copy_within(&mut self, src: Range<usize>, dest: usize) where T: Copy {
+        self.buffer.copy_within(src, dest);
     }
 
     #[inline(always)]
@@ -186,7 +181,7 @@ impl<T> CursorVec<T> {
     }
 
     pub fn shift(&mut self, new_start: usize) where T: Copy {
-        self.copy_nonoverlapping(new_start..self.cursor, 0);
+        self.copy_within(new_start..self.cursor, 0);
 
         self.cursor -= new_start;
     }
