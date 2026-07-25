@@ -2,6 +2,7 @@
 name = "forsith-decoding"
 version = "0.1.0"
 edition = "2024"
+autotests = false
 
 [dependencies]
 const_for = "0.1.5"
@@ -12,6 +13,10 @@ thiserror = "2.0.18"
 serde_json = "1.0.150"
 gungraun = "0.19.4"
 criterion = { version = "0.8", features = ["html_reports"] }
+
+[[test]]
+name = "png"
+path = "tests/png.rs"
 
 [[bench]]
 name = "vanilla"
