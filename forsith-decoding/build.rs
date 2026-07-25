@@ -3,10 +3,10 @@ use std::{env, fs, path::{Path, PathBuf}};
 fn main() {
     let mut out = String::new();
 
-    let pngsuite_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("src")
-        .join("png")
-        .join("pngsuite");
+    let test_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests");
+
+    let pngsuite_dir = test_dir.clone().join("pngsuite");
 
     for file in fs::read_dir(pngsuite_dir.clone().join("png")).unwrap() {
         let path = file.unwrap().path();
@@ -30,5 +30,5 @@ fn main() {
         }
     }
 
-    fs::write(pngsuite_dir.join("generated_tests.rs"), out).unwrap();
+    fs::write(test_dir.join("generated_png_tests.rs"), out).unwrap();
 }

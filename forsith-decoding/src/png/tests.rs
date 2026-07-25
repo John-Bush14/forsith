@@ -2,8 +2,7 @@ use std::error::Error;
 use std::{fs::File, io::BufReader, path::PathBuf};
 use crate::{DecodingError, ImageDecoder, PixelFormat, PngDecoder};
 
-
-include!("pngsuite/generated_tests.rs");
+include!("../../tests/generated_png_tests.rs");
 
 fn test_image(path: &str, solution_filepath: &str) -> Result<(), Box<dyn Error>> {
 
