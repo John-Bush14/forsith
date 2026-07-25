@@ -125,10 +125,32 @@ impl<R: BufRead> PngReader<R> {
 
         Ok(())
     }
+
+    pub fn align(&mut self) -> Result<(), DecodingError> {
+        let alignment = 4 - (self.buffer.index % align_of::<u32>());
+
+        let mut buf = vec![0u8; alignment];
+        self.read_exact(&mut buf)?;
+
+        for b in buf {self.bit_buf.push_u8(b)}; Ok(())
+    }
+
+    fn read_le_fast<T: Int>(&mut self) -> T
+    where
+        Self: Sized,
+    {
+        let ptr = self.buffer.as_ptr() as *const T;
+
+        #[cfg(debug_assertions)]
+        assert!(!ptr.is_null() && self.buffer.remaining() >= size_of::<T>(), "tried to read_le too much");
+
+        self.buffer.consume(size_of::<T>());
+
+        unsafe {*ptr}
+    }
 }
 
 impl<R: BufRead> Read for PngReader<R> {
-    /// should not be used inside of IDAT chunks
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         buf.copy_from_slice(self.buffer.slice(buf.len()));
         self.buffer.consume(buf.len());
@@ -149,7 +171,7 @@ impl<R: BufRead> BitReader for PngReader<R> {
 
     #[inline(always)]
     fn fill_bitbuf(&mut self) {
-        let refil = unsafe {u32::read_le(self).unwrap_unchecked()};
+        let refil = self.read_le_fast::<u32>();
 
         self.bit_buf.push_u32(refil);
     }

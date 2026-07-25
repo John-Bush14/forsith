@@ -134,6 +134,8 @@ impl<'a, R: BufRead, C: Channel, const F: u8> ImageDecoder<'a, R, C, F> for PngD
                     }
 
                     if len as usize == fill_len {
+                        self.reader.align()?;
+
                         self.next_block()?;
                     } else {
                         self.cur_block.r#type = BlockType::Uncompressed(len - fill_len as u16);

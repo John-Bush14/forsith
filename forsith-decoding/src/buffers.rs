@@ -30,6 +30,11 @@ impl BitBuffer {
         self.buf |= (value as u64) << self.bits_remaining as usize;
         self.bits_remaining += 32;
     }
+
+    pub fn push_u8(&mut self, value: u8) {
+        self.buf |= (value as u64) << self.bits_remaining as usize;
+        self.bits_remaining += 8;
+    }
 }
 
 pub struct OutputWriter<'a, C: Channel, const F: u8> {
@@ -56,16 +61,18 @@ impl<'a, C: Channel, const F: u8> OutputWriter<'a, C, F> {
         #[cfg(debug_assertions)]
         if self.index >= self.buffer.len() || (self.buffer.len() - self.index) < C::BIT_DEPTH as usize/8 {panic!("tried to push channel into full dest")}
 
-        unsafe {self.channel_ptr().write(c)};
+        unsafe {
+            self.channel_ptr().write(c);
 
-        self.index += std::mem::size_of::<C::StorageType>();
+            self.index = self.index.unchecked_add(std::mem::size_of::<C::StorageType>());
+        }
     }
 
     fn channel_ptr(&mut self) -> *mut C::StorageType {
         #[cfg(debug_assertions)]
         if self.buffer.as_mut_ptr().wrapping_add(self.index).is_null() {panic!("channel ptr null!");}
 
-        self.buffer.as_mut_ptr().wrapping_add(self.index) as *mut C::StorageType
+        unsafe {self.buffer.as_mut_ptr().add(self.index) as *mut C::StorageType}
     }
 
     fn bbp() -> usize {const {C::BIT_DEPTH as usize / 8 * F as usize}}
@@ -73,7 +80,7 @@ impl<'a, C: Channel, const F: u8> OutputWriter<'a, C, F> {
     pub fn set_stride(&mut self, pixels: usize) {self.stride = (pixels - 1) * Self::bbp()}
     #[inline(always)]
     pub fn pushed_pixel(&mut self) {
-        self.index += self.stride;
+        unsafe {self.index = self.index.unchecked_add(self.stride)};
     }
     #[inline(always)]
     pub fn advance(&mut self, pixels: usize) {
@@ -222,6 +229,8 @@ impl BufferReader {
         unsafe {self.buffer.get_unchecked_mut(self.index..self.index + len)}
     }
 
+    pub fn as_ptr(&self) -> *const u8 {unsafe {self.buffer.as_ptr().add(self.index)}}
+
     pub fn raw_slice(&self, range: Range<usize>) -> &[u8] {
         unsafe {self.buffer.get_unchecked(range)}
     }
@@ -229,8 +238,9 @@ impl BufferReader {
         unsafe {self.buffer.get_unchecked_mut(range)}
     }
 
+    #[inline(always)]
     pub fn consume(&mut self, n: usize) {
-        self.index += n;
+        self.index = unsafe {self.index.unchecked_add(n)};
     }
 
     pub fn unconsume(&mut self, n: usize) {
