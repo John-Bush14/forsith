@@ -71,13 +71,13 @@ type CodlenTree = HuffmanTree<7, 0>;
 
 #[inline(always)]
 pub fn decode_length<R: BitReader>(symbol: u16, reader: &mut R) -> u16 {
-    let (base, extra) = LENGTH_TABLE[(symbol - 257) as usize];
+    let (base, extra) = unsafe {*LENGTH_TABLE.get_unchecked((symbol - 257) as usize)};
     base + reader.read_bits(extra) as u16
 }
 
 #[inline(always)]
 pub fn decode_distance<R: BitReader>(code: u16, reader: &mut R) -> u16 {
-    let (base, extra) = DISTANCE_TABLE[code as usize];
+    let (base, extra) = unsafe {*DISTANCE_TABLE.get_unchecked(code as usize)};
     base + reader.read_bits(extra) as u16
 }
 
@@ -294,11 +294,11 @@ where [(); (1 << MAX_ROOT_BITS as usize) + MAX_SUBTABLE_ENTRIES]:
     pub fn decode_symbol<R: BitReader>(&self, reader: &mut R) -> u16 {
         let code = reader.peek_bits(self.root_bits);
 
-        let mut entry = self.table[code as usize];
+        let mut entry = unsafe {self.table.get_unchecked(code as usize)};
 
         if MAX_SUBTABLE_ENTRIES != 0 && entry.is_subtable() {
             let subtable_bits = reader.peek_bits(entry.subtable_bits() + MAX_ROOT_BITS) >> MAX_ROOT_BITS;
-            entry = self.table[entry.subtable_index() + subtable_bits as usize]
+            entry = unsafe {self.table.get_unchecked(entry.subtable_index() + subtable_bits as usize)};
         }
 
         reader.consume_bits(entry.colen());
