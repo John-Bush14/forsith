@@ -72,13 +72,13 @@ type CodlenTree = HuffmanTree<7, 0>;
 #[inline(always)]
 pub fn decode_length<R: BitReader>(symbol: u16, reader: &mut R) -> u16 {
     let (base, extra) = unsafe {*LENGTH_TABLE.get_unchecked((symbol - 257) as usize)};
-    base + reader.read_bits(extra) as u16
+    base + reader.read_bits_nobranch(extra) as u16
 }
 
 #[inline(always)]
 pub fn decode_distance<R: BitReader>(code: u16, reader: &mut R) -> u16 {
     let (base, extra) = unsafe {*DISTANCE_TABLE.get_unchecked(code as usize)};
-    base + reader.read_bits(extra) as u16
+    base + reader.read_bits_nobranch(extra) as u16
 }
 
 #[derive(Debug)]

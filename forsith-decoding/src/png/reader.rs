@@ -201,6 +201,11 @@ pub trait BitReader {
         self.consume_bits(n);
         bits
     }
+    fn read_bits_nobranch(&mut self, n: u8) -> u64 {
+        let bits = self.peek_bits_nobranch(n);
+        self.consume_bits(n);
+        bits
+    }
     fn iterate_bits(&mut self, n: u8) -> BitIterator<'_, Self> where Self: Sized {
         BitIterator {
             reader: self,
