@@ -4,7 +4,10 @@ use crate::{DecodingError, png::reader::BitReader};
 
 const MAX_COLEN: u8 = 17;
 const CODE_LENGTH_ORDER: [u8; 19] = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15];
-const MAX_ROOT_TABLE_COLEN: u8 = 10;
+
+type LitLenTree = HuffmanTree<9, MAX_LITLEN_SUBTABLE_ENTIES>;
+type DistanceTree = HuffmanTree<9, MAX_DISTANCE_SUBTABLE_ENTRIES>;
+type CodlenTree = HuffmanTree<7, 0>;
 
 const MAX_LITLEN_SUBTABLE_ENTIES: usize = 340;
 const MAX_DISTANCE_SUBTABLE_ENTRIES: usize = 80;
@@ -63,11 +66,6 @@ pub const STATIC_DISTANCE_TREE: DistanceTree = {
 
     tree
 };
-
-type LitLenTree = HuffmanTree<MAX_ROOT_TABLE_COLEN, MAX_LITLEN_SUBTABLE_ENTIES>;
-type DistanceTree = HuffmanTree<MAX_ROOT_TABLE_COLEN, MAX_DISTANCE_SUBTABLE_ENTRIES>;
-type CodlenTree = HuffmanTree<7, 0>;
-
 
 #[inline(always)]
 pub fn decode_length<R: BitReader>(symbol: u16, reader: &mut R) -> u16 {
@@ -192,7 +190,7 @@ where [(); (1 << MAX_ROOT_BITS as usize) + MAX_SUBTABLE_ENTRIES]:
 
             let code = reverse_bits(code, colen as _);
 
-            if MAX_SUBTABLE_ENTRIES == 0 || colen <= MAX_ROOT_TABLE_COLEN {
+            if MAX_SUBTABLE_ENTRIES == 0 || colen <= MAX_ROOT_BITS {
                 let filler = 1 << (self.root_bits - colen);
 
                 let mut i = 0;
@@ -205,7 +203,7 @@ where [(); (1 << MAX_ROOT_BITS as usize) + MAX_SUBTABLE_ENTRIES]:
                 continue;
             }
 
-            let subcolen = colen - MAX_ROOT_TABLE_COLEN;
+            let subcolen = colen - MAX_ROOT_BITS;
             let root = (code & ((1 << MAX_ROOT_BITS) - 1)) as usize;
 
             if self.table[root].subtable_index() != self.generation {
