@@ -13,6 +13,7 @@ impl BitBuffer {
 
     #[inline(always)]
     pub fn peek(&self, n: u8) -> u64 {
+        #[cfg(debug_assertions)]
         if n > 64 {
             panic!("Cannot peek more than {} bits from this BitBuffer", 64);
         }
@@ -67,6 +68,10 @@ impl<'a, C: Channel, const F: u8> OutputWriter<'a, C, F> {
 
             self.index = self.index.unchecked_add(std::mem::size_of::<C::StorageType>());
         }
+    }
+
+    pub fn remaining(&self) -> usize {
+        self.buffer.len().saturating_sub(self.index)
     }
 
     fn channel_ptr(&mut self) -> *mut C::StorageType {
@@ -138,6 +143,10 @@ impl<T> CursorVec<T> {
         }
     }
 
+    pub fn as_mut_ptr(&mut self) -> *mut T {
+        self.buffer.as_mut_ptr()
+    }
+
     #[inline(always)]
     pub fn push(&mut self, b: T) {
         unsafe {
@@ -180,11 +189,7 @@ impl<T> CursorVec<T> {
         self.cursor += n;
     }
 
-    pub fn shift(&mut self, new_start: usize) where T: Copy {
-        self.copy_within(new_start..self.cursor, 0);
-
-        self.cursor -= new_start;
-    }
+    pub fn set_cursor(&mut self, i: usize) {self.cursor = i}
 
     pub fn clear(&mut self) {
         self.cursor = 0;

@@ -1,5 +1,5 @@
-use std::{any::Any, fmt::Display, io::{BufRead, Read}, ops::{Index, IndexMut}};
-use crate::{Channel, CursorVec, DecodingError::{self, InvalidChunk}, Int, PngDecoder, png::{ColorType, PngReader}};
+use std::{any::Any, char::MAX, fmt::Display, io::{BufRead, Read}, ops::{Index, IndexMut}};
+use crate::{Channel, CursorVec, DecodingError::{self, InvalidChunk}, Int, PngDecoder, png::{ColorType, PngReader, postprocessing::MAX_STRIDE}};
 use num_enum::{TryFromPrimitive, IntoPrimitive};
 
 #[repr(u32)]
@@ -109,14 +109,14 @@ impl ChunkData for ZlibHeader {
 
         let lz77_buffer_size: usize = 1 << (compression_info + 8);
 
-        decoder.deflate_buffer = CursorVec::new(lz77_buffer_size + lz77_buffer_size.next_multiple_of(decoder.scanline_bytes()));
+        let scanline_padding = decoder.max_scanline_bytes() + MAX_STRIDE;
+        decoder.deflate_buffer = CursorVec::new(scanline_padding + lz77_buffer_size + lz77_buffer_size.next_multiple_of(decoder.max_scanline_bytes()));
 
-        let max_scanline_bytes = match decoder.ihdr.interlace_method {
-            1 => decoder.scanline_bytes() / 2,
-            _ => decoder.scanline_bytes()
-        };
+        decoder.deflate_buffer.advance(scanline_padding);
+        decoder.deflate_buffer_tail = scanline_padding;
+        decoder.last_adler_update_i = scanline_padding;
 
-        decoder.scanline_multiples = (decoder.deflate_buffer.capacity()-lz77_buffer_size) / max_scanline_bytes;
+        decoder.scanline_multiples = (decoder.deflate_buffer.capacity() - lz77_buffer_size - MAX_STRIDE) / decoder.max_scanline_bytes() - 1;
 
         Ok(())
     }

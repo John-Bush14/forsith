@@ -68,14 +68,12 @@ where
 {
     let bytespp = bytespp::<SC, SF>() as usize;
     for pixel in slice.chunks(bytespp) {
-        let pixel_ptr = pixel.as_ptr() as *const [SC::StorageType; SF as usize];
+        let pixel_ptr = pixel.as_ptr() as *const SC::StorageType;
 
         #[cfg(debug_assertions)]
         if pixel_ptr.is_null() {panic!("pixel ptr null?")};
 
-        let pixel = unsafe {&*pixel_ptr};
-
-        convert_pixel::<SC, DF, SF>(pixel, alpha_color, |c| {
+        convert_pixel::<SC, DF, SF>(pixel_ptr, alpha_color, |c| {
             let converted = convert_channel::<SC, DC>(c);
 
             out.push_channel(converted);
@@ -96,14 +94,20 @@ fn convert_channel<SC: Channel, DC: Channel>(value: SC::StorageType) -> DC::Stor
 }
 
 #[inline(always)]
-fn convert_pixel<C: Channel, const DF: u8, const SF: u8>(pixel: &[C::StorageType; SF as usize], alpha_color: Option<(i64, i64, i64)>, mut out: impl FnMut(C::StorageType)) {
-    let mut i = 0;
+fn read<T>(ptr: &mut *const T) -> T {
+    unsafe {
+        let r = if std::mem::align_of::<T>() == 1 {ptr.read()} else {ptr.read_unaligned()};
 
+        (*ptr) = ptr.add(1); r
+    }
+}
+
+#[inline(always)]
+fn convert_pixel<C: Channel, const DF: u8, const SF: u8>(mut pixel: *const C::StorageType, alpha_color: Option<(i64, i64, i64)>, mut out: impl FnMut(C::StorageType)) {
     let color = if is_gray(DF) {
-        let gray = if is_gray(SF) {i += 1; pixel[0]}
+        let gray = if is_gray(SF) {read(&mut pixel)}
         else {
-            i += 3;
-            let [r, g, b] = pixel[0..2] else {unreachable!()};
+            let [r, g, b] = [read(&mut pixel), read(&mut pixel), read(&mut pixel)];
             let (r, g, b): (i64, i64, i64) = (r.into(), g.into(), b.into());
             unsafe {((299 * r + 587 * g  + 114 * b) / 1000).try_into().unwrap_unchecked()}
         };
@@ -113,11 +117,10 @@ fn convert_pixel<C: Channel, const DF: u8, const SF: u8>(pixel: &[C::StorageType
         (gray.into(), gray.into(), gray.into())
     } else {
         let rgb = if is_rgb(SF) {
-            i += 3;
-            &pixel[0..3]
+            &[read(&mut pixel), read(&mut pixel), read(&mut pixel)]
         }
         else {
-            let g = pixel[0];i += 1;
+            let g = read(&mut pixel);
             &[g, g, g]
         };
         rgb.iter().for_each(|c| out(*c));
@@ -126,7 +129,7 @@ fn convert_pixel<C: Channel, const DF: u8, const SF: u8>(pixel: &[C::StorageType
     };
 
     if has_alpha(DF) {
-        if has_alpha(SF) {out(pixel[i])}
+        if has_alpha(SF) {out(read(&mut pixel))}
         else {
             if Some(color) == alpha_color {
                 unsafe {out(C::StorageType::try_from(C::MIN).unwrap_unchecked())}
