@@ -46,7 +46,6 @@ where
 {
     let mut pixels = CursorVec::<u8>::new(match SF {3 => 24,  _ => 8});
 
-
     unpack_constant::<SC, true>(slice, padding, |bytes| {
         pixels.push_slice(bytes);
 
@@ -61,11 +60,28 @@ where
     }
 }
 
+pub fn handle_special_case<DC: Channel, const DF: u8, SC: Channel, const SF: u8>(slice: &[u8], out: &mut OutputWriter<'_, DC, DF>, _padding: u8, _alpha_color: Option<(i64, i64, i64)>) -> bool {
+    if (SC::MAX == DC::MAX) && (SC::MIN == DC::MIN) && out.stride == 0 {
+        if DF == SF {
+            out.buffer[out.index..out.index+slice.len()].copy_from_slice(slice);
+            out.advance(slice.len()/SF as usize);
+        } else {
+            return false
+        }
+
+        return true;
+    }
+
+    false
+}
+
 // DC + DF = dest channel + format, SC + SF = source sample size + format
 pub fn push_aligned_slice<DC: Channel, const DF: u8, SC: Channel, const SF: u8>(slice: &[u8], out: &mut OutputWriter<'_, DC, DF>, _padding: u8, alpha_color: Option<(i64, i64, i64)>)
 where
     [(); SF as usize]:,
 {
+    if handle_special_case::<DC, DF, SC, SF>(slice, out, _padding, alpha_color) {return;}
+
     let bytespp = bytespp::<SC, SF>() as usize;
     for pixel in slice.chunks(bytespp) {
         let pixel_ptr = pixel.as_ptr() as *const SC::StorageType;
