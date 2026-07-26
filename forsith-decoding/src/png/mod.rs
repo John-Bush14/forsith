@@ -337,7 +337,7 @@ impl<'a, R: BufRead, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
                 let dist_code = distance_tree.decode_symbol(&mut self.reader);
                 let distance = decode_distance(dist_code, &mut self.reader);
 
-                if distance as usize > length as usize {
+                if distance as usize >= length as usize {
                     self.emit_backreferenced_inflated_bytes(length as usize, distance as usize);
                 } else {
                     for _ in 0..length {
