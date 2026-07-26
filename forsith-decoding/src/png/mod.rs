@@ -339,7 +339,15 @@ impl<'a, R: BufRead, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
 
                 if distance as usize >= length as usize {
                     self.emit_backreferenced_inflated_bytes(length as usize, distance as usize);
-                } else {
+                }
+                else if distance == 1 {
+                    unsafe {
+                        let ptr = self.deflate_buffer.buffer.as_mut_ptr().add(self.deflate_buffer.len());
+                        ptr.write_bytes(self.deflate_buffer[self.deflate_buffer.len()-1], length as usize);
+                        self.deflate_buffer.advance(length as usize);
+                    }
+                }
+                else {
                     for _ in 0..length {
                         let byte = self.deflate_buffer[self.deflate_buffer.len() - distance as usize];
                         self.emit_inflated_byte(byte);
