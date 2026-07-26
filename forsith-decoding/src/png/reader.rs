@@ -185,11 +185,15 @@ impl<R: BufRead> BitReader for PngReader<R> {
     fn remaining_bits(&self) -> u8 {
         self.bit_buf.bits_remaining
     }
+
+    #[inline(always)]
+    fn peek_bits_nobranch(&mut self, n: u8) -> u64 {self.bit_buf.peek(n)}
 }
 
 pub trait BitReader {
     fn fill_bitbuf(&mut self);
     fn peek_bits(&mut self, n: u8) -> u64;
+    fn peek_bits_nobranch(&mut self, n: u8) -> u64;
     fn consume_bits(&mut self, n: u8);
     fn remaining_bits(&self) -> u8;
     fn read_bits(&mut self, n: u8) -> u64 {

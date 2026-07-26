@@ -297,7 +297,7 @@ where [(); (1 << MAX_ROOT_BITS as usize) + MAX_SUBTABLE_ENTRIES]:
         let mut entry = unsafe {self.table.get_unchecked(code as usize)};
 
         if MAX_SUBTABLE_ENTRIES != 0 && entry.is_subtable() {
-            let subtable_bits = reader.peek_bits(entry.subtable_bits() + MAX_ROOT_BITS) >> MAX_ROOT_BITS;
+            let subtable_bits = reader.peek_bits_nobranch(entry.subtable_bits() + MAX_ROOT_BITS) >> MAX_ROOT_BITS;
             entry = unsafe {self.table.get_unchecked(entry.subtable_index() + subtable_bits as usize)};
         }
 
