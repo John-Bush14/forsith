@@ -1,6 +1,6 @@
 use std::fs::DirEntry;
 
-use criterion::{Criterion, criterion_group, criterion_main, BenchmarkGroup, measurement::Measurement};
+use criterion::{Criterion, criterion_group, criterion_main, BenchmarkGroup, measurement::Measurement, Throughput};
 use forsith_decoding::{ImageDecoder, PngDecoder};
 
 criterion_group!(benches, png_decode_benchmarks);
@@ -30,14 +30,13 @@ fn png_decode_benchmarks(c: &mut Criterion) {
 }
 
 fn benchmark_decoding<const BUFFERED: bool>(g: &mut BenchmarkGroup<impl Measurement>, filename: String, data: &[u8]) {
-    let size = {
-        let check_decoder = PngDecoder::<_, u8, {forsith_decoding::PixelFormat::TruecolorAlpha as u8}>::open(data).unwrap();
+    let check_decoder = PngDecoder::<_, u8, {forsith_decoding::PixelFormat::TruecolorAlpha as u8}>::open(data).unwrap();
 
-        if BUFFERED {check_decoder.min_buf_size()} else {check_decoder.max_buf_size()}
-    };
+    let size = if BUFFERED {check_decoder.min_buf_size()} else {check_decoder.max_buf_size()};
 
     let mut buf = vec![0u8; size];
 
+    g.throughput(Throughput::Bytes(check_decoder.max_buf_size() as u64));
     g.bench_function(filename, |b| b.iter(|| {
         let mut decoder = PngDecoder::<_, u8, {forsith_decoding::PixelFormat::TruecolorAlpha as u8}>::open(data).unwrap();
         while decoder.read(&mut buf).unwrap() > 0 {};
