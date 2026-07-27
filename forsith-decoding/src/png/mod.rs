@@ -168,7 +168,7 @@ impl<'a, R: BufRead, C: Channel, const F: u8> ImageDecoder<'a, R, C, F> for PngD
             return self.max_buf_size();
         }
 
-        let min_inflate_capacity = self.scanline_bytes() - 1;
+        let min_inflate_capacity = (self.scanline_bytes() - 1).max(MAX_BACKREF_LEN);
 
         self.inflate_capacity_to_out_buffer(min_inflate_capacity)
     }
@@ -250,7 +250,7 @@ impl<'a, R: BufRead, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
         let mut drained_bytes = 0;
 
         for _ in 0..self.scanline_multiples {
-            if dest.remaining()*8 / bitspp::<C, F>() as usize * self.src_bpp() < self.scanline_bytes() {
+            if dest.remaining()*8 / bitspp::<C, F>() as usize * self.src_bpp() < self.scanline_bytes()*8 {
                 break
             }
             drained_bytes += self.consume_inflated_scanlines(self.deflate_buffer_tail, 1, dest)?;
