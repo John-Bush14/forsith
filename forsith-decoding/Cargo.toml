@@ -19,13 +19,5 @@ name = "png"
 path = "tests/png.rs"
 
 [[bench]]
-name = "vanilla"
-harness = false
-
-[[bench]]
-name = "gungraun"
-harness = false
-
-[[bench]]
-name = "criterion"
+name = "png_decode"
 harness = false
