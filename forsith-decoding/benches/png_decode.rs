@@ -29,13 +29,14 @@ fn png_decode_benchmarks(c: &mut Criterion) {
 }
 
 fn benchmark_decoding<const BUFFERED: bool>(g: &mut BenchmarkGroup<impl Measurement>, filename: String, data: &[u8]) {
-    let check_decoder = PngDecoder::<_, u8, {forsith_decoding::PixelFormat::TruecolorAlpha as u8}>::open(data).unwrap();
+    let info_decoder = PngDecoder::<_, u8, {forsith_decoding::PixelFormat::TruecolorAlpha as u8}>::open(data).unwrap();
 
-    let size = if BUFFERED {check_decoder.min_buf_size()} else {check_decoder.max_buf_size()};
+    let size = if BUFFERED {info_decoder.min_buf_size()} else {info_decoder.max_buf_size()};
 
     let mut buf = vec![0u8; size];
 
-    g.throughput(Throughput::Bytes(check_decoder.max_buf_size() as u64));
+    let dim = info_decoder.image_dimensions();
+    g.throughput(Throughput::Bytes((dim.0 * dim.1 * info_decoder.pixel_format() as usize) as u64));
     g.bench_function(BenchmarkId::new(if BUFFERED {"buffered"} else {"full"}, filename), |b| b.iter(|| {
         let mut decoder = PngDecoder::<_, u8, {forsith_decoding::PixelFormat::TruecolorAlpha as u8}>::open(data).unwrap();
         while decoder.read(&mut buf).unwrap() > 0 {};
