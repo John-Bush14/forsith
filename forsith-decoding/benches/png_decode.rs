@@ -1,6 +1,6 @@
 use std::fs::DirEntry;
 
-use criterion::{Criterion, criterion_group, criterion_main, BenchmarkGroup, measurement::Measurement, Throughput};
+use criterion::{BenchmarkGroup, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main, measurement::Measurement};
 use forsith_decoding::{ImageDecoder, PngDecoder};
 
 criterion_group!(benches, png_decode_benchmarks);
@@ -16,17 +16,12 @@ fn png_decode_benchmarks(c: &mut Criterion) {
         }
     }).collect();
 
-    let mut maxg = c.benchmark_group("decode_full");
+    let mut g = c.benchmark_group("png_decode");
     for entry in &benches {
         let data = std::fs::read(entry.path()).unwrap();
-        benchmark_decoding::<false>(&mut maxg, entry.file_name().into_string().unwrap(), &data);
-    }; maxg.finish();
-
-    let mut ming = c.benchmark_group("decode_buffered");
-    for entry in &benches {
-        let data = std::fs::read(entry.path()).unwrap();
-        benchmark_decoding::<true>(&mut ming, entry.file_name().into_string().unwrap(), &data);
-    }; ming.finish();
+        benchmark_decoding::<false>(&mut g, entry.file_name().into_string().unwrap(), &data);
+        benchmark_decoding::<true>(&mut g, entry.file_name().into_string().unwrap(), &data);
+    }; g.finish();
 }
 
 fn benchmark_decoding<const BUFFERED: bool>(g: &mut BenchmarkGroup<impl Measurement>, filename: String, data: &[u8]) {
@@ -37,7 +32,7 @@ fn benchmark_decoding<const BUFFERED: bool>(g: &mut BenchmarkGroup<impl Measurem
     let mut buf = vec![0u8; size];
 
     g.throughput(Throughput::Bytes(check_decoder.max_buf_size() as u64));
-    g.bench_function(filename, |b| b.iter(|| {
+    g.bench_function(BenchmarkId::new(if BUFFERED {"buffered"} else {"full"}, filename), |b| b.iter(|| {
         let mut decoder = PngDecoder::<_, u8, {forsith_decoding::PixelFormat::TruecolorAlpha as u8}>::open(data).unwrap();
         while decoder.read(&mut buf).unwrap() > 0 {};
     }));
