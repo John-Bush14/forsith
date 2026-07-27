@@ -1,4 +1,4 @@
-use std::fs::DirEntry;
+use std::{fs::DirEntry, path::Path};
 
 use criterion::{BenchmarkGroup, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main, measurement::Measurement};
 use forsith_decoding::{ImageDecoder, PngDecoder};
@@ -7,7 +7,11 @@ criterion_group!(benches, png_decode_benchmarks);
 criterion_main!(benches);
 
 fn png_decode_benchmarks(c: &mut Criterion) {
-    let benches: Vec<DirEntry> = std::fs::read_dir("benches/assets").unwrap().filter_map(|entry| {
+    let asset_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("benches")
+        .join("assets");
+
+    let benches: Vec<DirEntry> = std::fs::read_dir(asset_dir).unwrap().filter_map(|entry| {
         let entry = entry.unwrap();
 
         match entry.path().extension() {
