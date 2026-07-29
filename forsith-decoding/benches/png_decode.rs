@@ -36,7 +36,7 @@ fn benchmark_decoding<const BUFFERED: bool>(g: &mut BenchmarkGroup<impl Measurem
     let mut buf = vec![0u8; size];
 
     let dim = info_decoder.image_dimensions();
-    g.throughput(Throughput::Bytes((dim.0 * dim.1 * info_decoder.pixel_format() as usize) as u64));
+    g.throughput(Throughput::Bytes((dim.0 * dim.1 * info_decoder.source_pixel_format() as usize * info_decoder.source_bit_depth() as usize / 8) as u64));
     g.bench_function(BenchmarkId::new(if BUFFERED {"buffered"} else {"full"}, filename), |b| b.iter(|| {
         let mut decoder = PngDecoder::<_, u8, {forsith_decoding::PixelFormat::TruecolorAlpha as u8}>::open(data).unwrap();
         while decoder.read(&mut buf).unwrap() > 0 {};

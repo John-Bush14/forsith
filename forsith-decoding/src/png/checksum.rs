@@ -1,6 +1,6 @@
-use std::{io::BufRead, ops::Not};
+use std::{io::{BufRead, Read}, ops::Not};
 use const_for::const_for;
-use crate::{DecodingError, png::{reader::{BitReader, PngReader}, simd::{SIMD_WIDTH, checksum::compute_alder32_chunk_simd}}};
+use crate::{DecodingError, png::{reader::PngReader, simd::{SIMD_WIDTH, checksum::compute_alder32_chunk_simd}}};
 
 pub const POLY: u32 = 0xedb88320;
 const CRC_TABLES: [[u32; 256]; 8] = const {
@@ -130,19 +130,7 @@ impl<R: BufRead> PngReader<R> {
     }
 
     pub fn validate_adler32(&mut self) -> Result<(), DecodingError> {
-        if self.bit_buf.bits_remaining() < 32 {
-            self.fill_bitbuf();
-        }
-
-        self.consume_bits(self.bit_buf.bits_remaining() % 8);
-        let stored_adler = (self.bit_buf.peek(32) as u32).to_be();
-        self.bit_buf.consume(32);
-
-        let stolen_bytes = self.bit_buf.bits_remaining() as usize / 8;
-
-        self.buffer.unconsume(stolen_bytes);
-        self.buffer.mut_slice(stolen_bytes).copy_from_slice(&self.bit_buf.peek(stolen_bytes as u8*8).to_be_bytes()[..stolen_bytes]);
-        self.bit_buf.consume(stolen_bytes as u8);
+        let stored_adler = self.read_be::<u32>()?;
 
         let computed_adler = (self.adler.b << 16) | self.adler.a;
 

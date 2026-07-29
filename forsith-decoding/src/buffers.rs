@@ -28,19 +28,18 @@ impl BitBuffer {
     }
 
     #[inline(always)]
-    pub fn push_u32(&mut self, value: u32) {
-        self.buf |= (value as u64) << self.bits_remaining as usize;
-        self.bits_remaining += 32;
-    }
+    pub fn push<T: Int>(&mut self, value: T) {
+        assert!(T::MIN == 0, "BitBuffer.push should only be called with unsigned ints");
 
-    pub fn push_u8(&mut self, value: u8) {
-        self.buf |= (value as u64) << self.bits_remaining as usize;
-        self.bits_remaining += 8;
+        let value: u64 = match value.try_into() {Ok(v) => v, _ => unreachable!()};
+
+        self.buf |= value << self.bits_remaining as usize;
+        self.bits_remaining += T::BIT_DEPTH;
     }
 }
 
 pub struct OutputWriter<'a, C: Channel, const F: u8> {
-    buffer: &'a mut [u8],
+    buffer: &'a mut [C::StorageType],
     index: usize,
     full: bool,
     stride: usize,
@@ -48,7 +47,7 @@ pub struct OutputWriter<'a, C: Channel, const F: u8> {
 }
 
 impl<'a, C: Channel, const F: u8> OutputWriter<'a, C, F> {
-    pub fn new(buffer: &'a mut [u8]) -> Self {
+    pub fn new(buffer: &'a mut [C::StorageType]) -> Self {
         Self {
             buffer,
             index: 0,
@@ -60,41 +59,25 @@ impl<'a, C: Channel, const F: u8> OutputWriter<'a, C, F> {
 
     #[inline(always)]
     pub fn push_channel(&mut self, c: C::StorageType) {
-        #[cfg(debug_assertions)]
-        if self.index >= self.buffer.len() || (self.buffer.len() - self.index) < C::BIT_DEPTH as usize/8 {panic!("tried to push channel into full dest")}
-
-        unsafe {
-            self.channel_ptr().write(c);
-
-            self.index = self.index.unchecked_add(std::mem::size_of::<C::StorageType>());
-        }
+        self.buffer[self.index] = c;
+        self.index += 1;
     }
 
-    pub fn remaining(&self) -> usize {
-        self.buffer.len().saturating_sub(self.index)
-    }
-
-    fn channel_ptr(&mut self) -> *mut C::StorageType {
-        #[cfg(debug_assertions)]
-        if self.buffer.as_mut_ptr().wrapping_add(self.index).is_null() {panic!("channel ptr null!");}
-
-        unsafe {self.buffer.as_mut_ptr().add(self.index) as *mut C::StorageType}
-    }
-
-    fn bbp() -> usize {const {C::BIT_DEPTH as usize / 8 * F as usize}}
-
-    pub fn set_stride(&mut self, pixels: usize) {self.stride = (pixels - 1) * Self::bbp()}
+    pub fn remaining(&self) -> usize {self.buffer.len().saturating_sub(self.index)}
     #[inline(always)]
-    pub fn pushed_pixel(&mut self) {
-        unsafe {self.index = self.index.unchecked_add(self.stride)};
-    }
+    pub fn remaining_bytes(&self) -> usize {self.remaining() * C::StorageType::BYTE_DEPTH as usize}
+
+    pub fn set_stride(&mut self, pixels: usize) {self.stride = (pixels - 1) * F as usize;}
+    #[inline(always)]
+    pub fn pushed_pixel(&mut self) {self.index += self.stride}
     #[inline(always)]
     pub fn advance(&mut self, pixels: usize) {
-        self.index += pixels * Self::bbp();
+        self.index += pixels * F as usize;
     }
     pub fn reset(&mut self) {self.index = 0;}
 
     pub fn len(&self) -> usize {self.index}
+    pub fn bytes_len(&self) -> usize {self.index * C::StorageType::BYTE_DEPTH as usize}
 
     pub fn is_full(&self) -> bool {self.full}
     pub fn set_full(&mut self) {self.full = true;}
@@ -106,8 +89,9 @@ impl<'a, C: Channel, const F: u8> OutputWriter<'a, C, F> {
     }
 
     pub fn capacity(&self) -> usize {self.buffer.len()}
+    pub fn bytes_capacity(&self) -> usize {self.buffer.len() * C::StorageType::BYTE_DEPTH as usize}
 
-    pub fn remaining_mut_slice(&mut self) -> &mut [u8] {&mut self.buffer[self.index..]}
+    pub fn remaining_mut_slice(&mut self) -> &mut [C::StorageType] {&mut self.buffer[self.index..]}
 }
 
 #[derive(Debug)]
@@ -125,14 +109,10 @@ impl<T> Default for CursorVec<T> where T: Default + Copy {
 impl<T> Index<usize> for CursorVec<T> {
     type Output = T;
 
-    fn index(&self, index: usize) -> &Self::Output {
-        unsafe {self.buffer.get_unchecked(index)}
-    }
+    fn index(&self, index: usize) -> &Self::Output {&self.buffer[index]}
 }
 impl<T> IndexMut<usize> for CursorVec<T> {
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        unsafe {self.buffer.get_unchecked_mut(index)}
-    }
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {&mut self.buffer[index]}
 }
 
 impl<T> CursorVec<T> {
@@ -149,13 +129,8 @@ impl<T> CursorVec<T> {
 
     #[inline(always)]
     pub fn push(&mut self, b: T) {
-        unsafe {
-            #[cfg(debug_assertions)]
-            if self.buffer.as_ptr().add(self.cursor).is_null() {panic!("null cursorvec ptr")}
-
-            self.buffer.as_mut_ptr().add(self.cursor).write(b);
-            self.cursor = self.cursor.unchecked_add(1);
-        }
+        self.buffer[self.cursor] = b;
+        self.cursor += 1;
     }
 
     pub fn push_slice(&mut self, slice: &[T]) where T: Copy {
@@ -164,21 +139,9 @@ impl<T> CursorVec<T> {
         self.cursor += len;
     }
 
-    pub fn slice(&self, range: Range<usize>) -> &[T] {
-        #[cfg(debug_assertions)]
-        {&self.buffer[range]}
+    pub fn slice(&self, range: Range<usize>) -> &[T] {&self.buffer[range]}
 
-        #[cfg(not(debug_assertions))]
-        unsafe {self.buffer.get_unchecked(range)}
-    }
-
-    pub fn mut_slice(&mut self, range: Range<usize>) -> &mut [T] {
-        #[cfg(debug_assertions)]
-        {&mut self.buffer[range]}
-
-        #[cfg(not(debug_assertions))]
-        unsafe {self.buffer.get_unchecked_mut(range)}
-    }
+    pub fn mut_slice(&mut self, range: Range<usize>) -> &mut [T] {&mut self.buffer[range]}
 
     pub fn copy_within(&mut self, src: Range<usize>, dest: usize) where T: Copy {
         self.buffer.copy_within(src, dest);
@@ -228,58 +191,32 @@ impl BufferReader {
     pub fn capacity(&self) -> usize {self.buffer.len()}
 
     pub fn slice(&self, len: usize) -> &[u8] {
-        unsafe {self.buffer.get_unchecked(self.index..self.index + len)}
+        &self.buffer[self.index..self.index + len]
     }
 
     pub fn mut_slice(&mut self, len: usize) -> &mut [u8] {
-        unsafe {self.buffer.get_unchecked_mut(self.index..self.index + len)}
+        &mut self.buffer[self.index..self.index + len]
     }
+
+    pub fn raw_slice(&self, range: Range<usize>) -> &[u8] {&self.buffer[range]}
+    pub fn raw_mut_slice(&mut self, range: Range<usize>) -> &mut [u8] {&mut self.buffer[range]}
 
     #[inline(always)]
-    pub fn as_ptr(&self) -> *const u8 {unsafe {self.buffer.as_ptr().add(self.index)}}
-
-    pub fn raw_slice(&self, range: Range<usize>) -> &[u8] {
-        unsafe {self.buffer.get_unchecked(range)}
-    }
-    pub fn raw_mut_slice(&mut self, range: Range<usize>) -> &mut [u8] {
-        unsafe {self.buffer.get_unchecked_mut(range)}
-    }
-
-    #[inline(always)]
-    pub fn consume(&mut self, n: usize) {
-        self.index = unsafe {self.index.unchecked_add(n)};
-    }
-
-    pub fn unconsume(&mut self, n: usize) {
-        self.index -= n;
-    }
-
-    pub fn read_be<N: Int>(&mut self) -> N {
-        let value = N::read_be(&mut &self.buffer[self.index..]).unwrap();
-        self.index += std::mem::size_of::<N>();
-        value
-    }
-
-    pub fn read_le<N: Int>(&mut self) -> N {
-        let value = N::read_le(&mut &self.buffer[self.index..]).unwrap();
-        self.index += std::mem::size_of::<N>();
-        value
-    }
-
-    pub fn read_array<const N: usize>(&mut self) -> [u8; N] {
-        let value = self.slice(N).try_into().unwrap();
-        self.index += N;
-        value
-    }
-
-    pub fn empty(&mut self) {
-        self.buffer.copy_within(self.index.., 0);
-        self.index = 0;
-    }
+    pub fn consume(&mut self, n: usize) {self.index += n;}
+    pub fn unconsume(&mut self, n: usize) {self.index -= n;}
 
     pub fn expand(&mut self, len: usize) {self.buffer.resize(self.buffer.len() + len, 0u8)}
 
     pub fn remaining(&self) -> usize {
         self.buffer.len() - self.index
+    }
+}
+
+impl Read for BufferReader {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        buf.copy_from_slice(&self.buffer[self.index..self.index+buf.len()]);
+        self.index += buf.len();
+
+        Ok(buf.len())
     }
 }

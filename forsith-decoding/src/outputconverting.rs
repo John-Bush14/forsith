@@ -60,36 +60,17 @@ where
     }
 }
 
-pub fn handle_special_case<DC: Channel, const DF: u8, SC: Channel, const SF: u8>(slice: &[u8], out: &mut OutputWriter<'_, DC, DF>, _padding: u8, _alpha_color: Option<(i64, i64, i64)>) -> bool {
-    if (SC::MAX == DC::MAX) && (SC::MIN == DC::MIN) && out.stride == 0 {
-        if DF == SF {
-            out.buffer[out.index..out.index+slice.len()].copy_from_slice(slice);
-            out.advance(slice.len()/SF as usize);
-        } else {
-            return false
-        }
-
-        return true;
-    }
-
-    false
-}
-
 // DC + DF = dest channel + format, SC + SF = source sample size + format
 pub fn push_aligned_slice<DC: Channel, const DF: u8, SC: Channel, const SF: u8>(slice: &[u8], out: &mut OutputWriter<'_, DC, DF>, _padding: u8, alpha_color: Option<(i64, i64, i64)>)
 where
     [(); SF as usize]:,
 {
-    if handle_special_case::<DC, DF, SC, SF>(slice, out, _padding, alpha_color) {return;}
-
     let bytespp = bytespp::<SC, SF>() as usize;
-    for pixel in slice.chunks(bytespp) {
-        let pixel_ptr = pixel.as_ptr() as *const SC::StorageType;
 
-        #[cfg(debug_assertions)]
-        if pixel_ptr.is_null() {panic!("pixel ptr null?")};
+    let mut samples = SC::StorageType::iterate_bytes_be(slice);
 
-        convert_pixel::<SC, DF, SF>(pixel_ptr, alpha_color, |c| {
+    for _ in 0..(slice.len() / bytespp) {
+        convert_pixel::<SC, DF, SF>(&mut samples, alpha_color, |c| {
             let converted = convert_channel::<SC, DC>(c);
 
             out.push_channel(converted);
@@ -101,31 +82,22 @@ where
 
 #[inline(always)]
 fn convert_channel<SC: Channel, DC: Channel>(value: SC::StorageType) -> DC::StorageType {
-    let value: i64 = value.to_be().into();
+    let value: i64 = value.into();
 
     // Normalize input to 0.0..1.0 integer space
     let normalized = (value - SC::MIN) as u64 * DC::MAX / (SC::MAX as i64 - SC::MIN) as u64;
 
-    unsafe {DC::StorageType::try_from(normalized as i64 + DC::MIN).unwrap_unchecked()}
+    DC::StorageType::try_from(normalized as i64 + DC::MIN).unwrap()
 }
 
 #[inline(always)]
-fn read<T>(ptr: &mut *const T) -> T {
-    unsafe {
-        let r = if std::mem::align_of::<T>() == 1 {ptr.read()} else {ptr.read_unaligned()};
-
-        (*ptr) = ptr.add(1); r
-    }
-}
-
-#[inline(always)]
-fn convert_pixel<C: Channel, const DF: u8, const SF: u8>(mut pixel: *const C::StorageType, alpha_color: Option<(i64, i64, i64)>, mut out: impl FnMut(C::StorageType)) {
+fn convert_pixel<C: Channel, const DF: u8, const SF: u8>(samples: &mut impl Iterator<Item=C::StorageType>, alpha_color: Option<(i64, i64, i64)>, mut out: impl FnMut(C::StorageType)) {
     let color = if is_gray(DF) {
-        let gray = if is_gray(SF) {read(&mut pixel)}
+        let gray = if is_gray(SF) {samples.next().unwrap()}
         else {
-            let [r, g, b] = [read(&mut pixel), read(&mut pixel), read(&mut pixel)];
+            let [r, g, b] = [samples.next().unwrap(), samples.next().unwrap(), samples.next().unwrap()];
             let (r, g, b): (i64, i64, i64) = (r.into(), g.into(), b.into());
-            unsafe {((299 * r + 587 * g  + 114 * b) / 1000).try_into().unwrap_unchecked()}
+            ((299 * r + 587 * g  + 114 * b) / 1000).try_into().unwrap()
         };
 
         out(gray);
@@ -133,10 +105,10 @@ fn convert_pixel<C: Channel, const DF: u8, const SF: u8>(mut pixel: *const C::St
         (gray.into(), gray.into(), gray.into())
     } else {
         let rgb = if is_rgb(SF) {
-            &[read(&mut pixel), read(&mut pixel), read(&mut pixel)]
+            &[samples.next().unwrap(), samples.next().unwrap(), samples.next().unwrap()]
         }
         else {
-            let g = read(&mut pixel);
+            let g = samples.next().unwrap();
             &[g, g, g]
         };
         rgb.iter().for_each(|c| out(*c));
@@ -145,12 +117,12 @@ fn convert_pixel<C: Channel, const DF: u8, const SF: u8>(mut pixel: *const C::St
     };
 
     if has_alpha(DF) {
-        if has_alpha(SF) {out(read(&mut pixel))}
+        if has_alpha(SF) {out(samples.next().unwrap())}
         else {
             if Some(color) == alpha_color {
-                unsafe {out(C::StorageType::try_from(C::MIN).unwrap_unchecked())}
+                out(C::StorageType::try_from(C::MIN).unwrap())
             } else {
-                unsafe {out(C::StorageType::try_from(C::MAX).unwrap_unchecked())}
+                out(C::StorageType::try_from(C::MAX).unwrap())
             }
         }
     }

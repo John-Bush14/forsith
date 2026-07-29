@@ -69,13 +69,13 @@ pub const STATIC_DISTANCE_TREE: DistanceTree = {
 
 #[inline(always)]
 pub fn decode_length<R: BitReader>(symbol: u16, reader: &mut R) -> u16 {
-    let (base, extra) = unsafe {*LENGTH_TABLE.get_unchecked((symbol - 257) as usize)};
+    let (base, extra) = LENGTH_TABLE[(symbol - 257) as usize];
     base + reader.read_bits_nobranch(extra) as u16
 }
 
 #[inline(always)]
 pub fn decode_distance<R: BitReader>(code: u16, reader: &mut R) -> u16 {
-    let (base, extra) = unsafe {*DISTANCE_TABLE.get_unchecked(code as usize)};
+    let (base, extra) = DISTANCE_TABLE[code as usize];
     base + reader.read_bits_nobranch(extra) as u16
 }
 
@@ -113,20 +113,20 @@ impl Entry {
 
     #[inline(always)]
     const fn symbol(&self) -> u16 {
-        unsafe {(self.0 & u16::MAX as u32).unchecked_cast()}
+        (self.0 & u16::MAX as u32) as u16
     }
     #[inline(always)]
     const fn subtable_index(&self) -> usize {self.symbol() as usize}
 
     #[inline(always)]
     const fn colen(&self) -> u8 {
-        unsafe {(self.0 >> 24).unchecked_cast()}
+        (self.0 >> 24) as u8
     }
     #[inline(always)]
     const fn subtable_bits(&self) -> u8 {self.colen()}
 
     const fn code(&self) -> u16 {
-        unsafe {(self.0 >> 16).unchecked_cast()}
+        (self.0 >> 16) as u16
     }
 
     const fn _is_symbol(&self) -> bool {self.0 >> 16 & 0b11 == 1}
@@ -160,7 +160,7 @@ where [(); (1 << MAX_ROOT_BITS as usize) + MAX_SUBTABLE_ENTRIES]:
 
         if MAX_SUBTABLE_ENTRIES > 0 {
             self.sub_bits = max_colen.saturating_sub(MAX_ROOT_BITS);
-            self.generation = (self.generation + 1) & (1 << MAX_ROOT_BITS);
+            self.generation = (self.generation + 1) & ((1 << MAX_ROOT_BITS) - 1);
         }
 
         if colen_counts[2] == 0 && colen_counts[1] == 1 {
@@ -206,7 +206,7 @@ where [(); (1 << MAX_ROOT_BITS as usize) + MAX_SUBTABLE_ENTRIES]:
             let subcolen = colen - MAX_ROOT_BITS;
             let root = (code & ((1 << MAX_ROOT_BITS) - 1)) as usize;
 
-            if self.table[root].subtable_index() != self.generation {
+            if self.table[root].subtable_index() != self.generation || !self.table[root].is_subtable() {
                 self.table[root] = Entry::new_subtable(self.generation, subcolen);
             } else {
                 self.table[root] = Entry::new_subtable(self.generation, self.table[root].subtable_bits().max(subcolen));
@@ -233,7 +233,7 @@ where [(); (1 << MAX_ROOT_BITS as usize) + MAX_SUBTABLE_ENTRIES]:
 
             let root_entry = &mut self.table[root as usize];
 
-            if root_entry.subtable_index() == 0 {
+            if root_entry.subtable_index() == self.generation {
                 *root_entry = Entry::new_subtable(self.next_subtable, root_entry.subtable_bits());
                 self.next_subtable += 1 << root_entry.subtable_bits();
             }
@@ -292,11 +292,11 @@ where [(); (1 << MAX_ROOT_BITS as usize) + MAX_SUBTABLE_ENTRIES]:
     pub fn decode_symbol<R: BitReader>(&self, reader: &mut R) -> u16 {
         let code = reader.peek_bits(self.root_bits);
 
-        let mut entry = unsafe {self.table.get_unchecked(code as usize)};
+        let mut entry = self.table[code as usize];
 
         if MAX_SUBTABLE_ENTRIES != 0 && entry.is_subtable() {
             let subtable_bits = reader.peek_bits_nobranch(entry.subtable_bits() + MAX_ROOT_BITS) >> MAX_ROOT_BITS;
-            entry = unsafe {self.table.get_unchecked(entry.subtable_index() + subtable_bits as usize)};
+            entry = self.table[entry.subtable_index() + subtable_bits as usize];
         }
 
         reader.consume_bits(entry.colen());

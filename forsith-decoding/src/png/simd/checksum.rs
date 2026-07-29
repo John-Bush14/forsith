@@ -1,7 +1,6 @@
 use crate::png::simd::SIMD_WIDTH;
 use core::simd::prelude::*;
 
-
 const POSITIONS: Simd<AdlerLaneSize, SIMD_WIDTH> = {
     let mut arr = [0; SIMD_WIDTH];
     let mut i = 0;
@@ -13,8 +12,6 @@ const POSITIONS: Simd<AdlerLaneSize, SIMD_WIDTH> = {
 
     Simd::from_array(arr)
 };
-
-
 
 type AdlerLaneSize = u16;
 

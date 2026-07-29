@@ -17,7 +17,7 @@ fn test_image(path: &str, solution_filepath: &str) -> Result<(), Box<dyn Error>>
 
     let solution = File::open(solution_filepath);
     let solution: Result<Vec<u8>, _> = solution.map(|f| {
-        if decoder.bit_depth() <= 8 {serde_json::from_reader(f).unwrap()}
+        if decoder.source_bit_depth() <= 8 {serde_json::from_reader(f).unwrap()}
         else {serde_json::from_reader::<_, Vec<u16>>(f).unwrap().iter().map(|&v| (v as u32 * 255 / u16::MAX as u32) as u8).collect()}
     });
 

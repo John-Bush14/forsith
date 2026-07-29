@@ -1,5 +1,5 @@
-use std::{any::Any, char::MAX, fmt::Display, io::{BufRead, Read}, ops::{Index, IndexMut}};
-use crate::{Channel, CursorVec, DecodingError::{self, InvalidChunk}, Int, PngDecoder, png::{ColorType, PngReader, postprocessing::MAX_STRIDE}};
+use std::{any::Any, fmt::Display, io::{BufRead, Read}, ops::{Index, IndexMut}};
+use crate::{Channel, CursorVec, DecodingError::{self, InvalidChunk}, PngDecoder, png::{ColorType, PngReader, postprocessing::MAX_STRIDE}};
 use num_enum::{TryFromPrimitive, IntoPrimitive};
 
 #[repr(u32)]
@@ -60,13 +60,13 @@ impl Ihdr {
         if len != 13 {return Err(InvalidChunk(ChunkType::Idat))}
 
         Ok(Self {
-            width: u32::read_be(reader)?,
-            height: u32::read_be(reader)?,
-            channel_depth: u8::read_be(reader)?,
-            color_type: ColorType::try_from(u8::read_be(reader)?).map_err(|_| DecodingError::InvalidChunk(ChunkType::Ihdr))?,
-            compression_method: u8::read_be(reader)?,
-            filter_method:  u8::read_be(reader)?,
-            interlace_method: u8::read_be(reader)?,
+            width: reader.read_be::<u32>()?,
+            height: reader.read_be::<u32>()?,
+            channel_depth: reader.read_be::<u8>()?,
+            color_type: ColorType::try_from(reader.read_be::<u8>()?).map_err(|_| DecodingError::InvalidChunk(ChunkType::Ihdr))?,
+            compression_method: reader.read_be::<u8>()?,
+            filter_method:  reader.read_be::<u8>()?,
+            interlace_method: reader.read_be::<u8>()?,
         })
     }
 }
@@ -91,8 +91,8 @@ impl ChunkData for ZlibHeader {
     {
         let reader = &mut decoder.reader;
 
-        let cmf = u8::read_le(reader)?;
-        let flg = u8::read_le(reader)?;
+        let cmf = reader.read_le::<u8>()?;
+        let flg = reader.read_le::<u8>()?;
         reader.align()?;
 
         let compression_method = cmf & 0b00001111;
@@ -185,13 +185,13 @@ impl ChunkData for tRNS {
         let reader = &mut decoder.reader; let len = reader.cur_chunk_len();
 
         if decoder.postprocessor.color_type() != ColorType::Indexed {
-            let mask = ((1 << decoder.postprocessor.channel_depth() as u32) - 1) as u16;
+            let mask = ((1 << decoder.postprocessor.stored_channel_depth() as u32) - 1) as u16;
 
-            let channel_max = (1 << decoder.postprocessor.channel_depth()) - 1;
+            let channel_max = (1 << decoder.postprocessor.stored_channel_depth()) - 1;
             let mut read_val = || -> Result<i64, DecodingError> {
-                let d = (u16::read_be(reader)? & mask) as i64;
+                let d = (reader.read_be::<u16>()? & mask) as i64;
 
-                Ok(if decoder.postprocessor.channel_depth() < 8 {
+                Ok(if decoder.postprocessor.stored_channel_depth() < 8 {
                     d * 255 / channel_max
                 } else {d})
             };
@@ -215,7 +215,7 @@ impl ChunkData for tRNS {
 
         let palette = decoder.postprocessor.palette_mut().unwrap();
         for i in 0..len {
-            let a = u8::read_le(reader)?;
+            let a = reader.read_le::<u8>()?;
 
             palette.set_pixel_alpha(i, a);
         }

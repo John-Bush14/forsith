@@ -8,9 +8,7 @@ pub mod checksum;
 pub const SIMD_WIDTH: usize = 16;
 
 #[inline(always)]
-fn open_simd(ptr: *const u8) -> Simd::<u8, {SIMD_WIDTH}> {
-    unsafe {
-        ptr.cast::<Simd<u8, SIMD_WIDTH>>().read_unaligned()
-    }
+fn open_simd(slice: &[u8]) -> Simd::<u8, {SIMD_WIDTH}> {
+    Simd::from_slice(slice)
 }
 

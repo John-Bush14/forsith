@@ -10,16 +10,18 @@ pub enum DecodingError {
     InccorectHeader(Vec<u8>),
     #[error("Unexpected IO error while reading data")]
     IOError(#[from] std::io::Error),
+    #[error("Stored ({0:?}) and calculated ({1:?}) CRC did not match, indicating data corruption.")]
+    CRCMismatch(u32, u32), // calculated, store
+    #[error("Stored ({1:#010X}) and calculated ({0:#010X}) Adler32 checksum did not match, indicating incorrect (de)compression.")]
+    Adler32Mismatch(u32, u32), // calculated, store
+    #[error("Provided dest buf of size less than min_buf_size ({0})")]
+    TinyDestBuf(usize),
 
     // PNG specific
     #[error("Critical chunk '{0}' contains invalid data")]
     InvalidChunk(ChunkType),
     #[error("Unknown critical chunk type '{0:?}'")]
     UnkownChunk([u8; 4]),
-    #[error("Stored ({0:?}) and calculated ({1:?}) CRC did not match, indicating data corruption.")]
-    CRCMismatch(u32, u32), // calculated, store
-    #[error("Stored ({1:#010X}) and calculated ({0:#010X}) Adler32 checksum did not match, indicating incorrect (de)compression.")]
-    Adler32Mismatch(u32, u32), // calculated, store
     #[error("First chunk is not IHDR, instead ({0:?})")]
     NoIHDR(ChunkType),
     #[error("No IDAT chunk found")]
@@ -46,8 +48,6 @@ pub enum DecodingError {
     InvalidStride(usize),
     #[error("No Plte chunk found for an index color type image")]
     NoPallete,
-    #[error("Provided dest buf of size less than min_buf_size ({0})")]
-    TinyDestBuf(usize),
     #[error("Provided png did not contain a Iend chunk")]
     NoIend
 }

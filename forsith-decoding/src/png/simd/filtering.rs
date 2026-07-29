@@ -17,35 +17,31 @@ pub const fn should_use_simd<const FILTER: u8>(stride: usize) -> bool {
 
 impl<C: Channel, const F: u8> PostProcessor<C, F> {
     #[inline(always)]
-    pub fn filter_simd<const FILTER: u8, const STRIDE: usize>(&self, cur: *mut u8, up: *mut u8) {
-        let raw_bytes = open_simd(cur);
+    pub fn filter_simd<const FILTER: u8, const STRIDE: usize>(&self, scanlines: &mut [u8], cur: usize, up: usize) {
+        let raw_bytes = open_simd(&scanlines[cur..]);
 
         let result = match FILTER {
-            1 => sub_filter::<STRIDE>(raw_bytes, self.left_pixel::<STRIDE>(cur)),
-            2 => raw_bytes + self.upper_pixels(up),
-            3 => average_filter::<STRIDE>(raw_bytes, self.left_pixels::<STRIDE>(cur), self.upper_pixels(up)),
+            1 => sub_filter::<STRIDE>(raw_bytes, self.left_pixel::<STRIDE>(scanlines, cur)),
+            2 => raw_bytes + self.upper_pixels(scanlines, up),
+            3 => average_filter::<STRIDE>(raw_bytes, self.left_pixels::<STRIDE>(scanlines, cur), self.upper_pixels(scanlines, up)),
             4 => todo!(),
             _ => unreachable!(),
         };
 
-        unsafe {
-            cur.copy_from_nonoverlapping(result.as_array().as_ptr(), SIMD_WIDTH);
-        }
+        scanlines[cur..cur + SIMD_WIDTH].copy_from_slice(result.as_array());
     }
 
-    fn left_pixel<const STRIDE: usize>(&self, cur: *mut u8) -> &[u8; STRIDE] {
-        unsafe {
-            std::slice::from_raw_parts(cur.sub(STRIDE), STRIDE).try_into().unwrap_unchecked()
-        }
+    fn left_pixel<'a, const STRIDE: usize>(&self, scanlines: &'a mut [u8], cur: usize) -> &'a [u8; STRIDE] {
+        (&scanlines[cur - STRIDE..cur]).try_into().unwrap()
     }
     /// only first {self.stride} pixels correct, others 0
-    fn left_pixels<const STRIDE: usize>(&self, cur: *mut u8) -> Simd<u8, SIMD_WIDTH> {
+    fn left_pixels<const STRIDE: usize>(&self, scanlines: &mut [u8], cur: usize) -> Simd<u8, SIMD_WIDTH> {
         let mut left_pixels = Simd::splat(0);
-        left_pixels.as_mut_array()[..STRIDE].copy_from_slice(self.left_pixel::<STRIDE>(cur));
+        left_pixels.as_mut_array()[..STRIDE].copy_from_slice(self.left_pixel::<STRIDE>(scanlines, cur));
         left_pixels
     }
-    fn upper_pixels(&self, up: *mut u8) -> Simd<u8, SIMD_WIDTH> {
-        open_simd(up)
+    fn upper_pixels(&self, scanlines: &mut [u8], up: usize) -> Simd<u8, SIMD_WIDTH> {
+        open_simd(&scanlines[up..])
     }
 }
 
@@ -63,6 +59,7 @@ fn average_filter<const STRIDE: usize>(mut raw_bytes: Simd<u8, SIMD_WIDTH>, left
 
     raw_bytes
 }
+
 fn simd_average(a: Simd<u8, SIMD_WIDTH>, b: Simd<u8, SIMD_WIDTH>) -> Simd<u8, SIMD_WIDTH> {
     (a & b) + ((a ^ b) >> Simd::splat(1))
 }
