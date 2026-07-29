@@ -30,6 +30,7 @@ include!("int.rs");
 
 mod outputconverting;
 
+pub(crate) mod compression;
 
 #[repr(u8)]
 #[derive(TryFromPrimitive, IntoPrimitive)]
