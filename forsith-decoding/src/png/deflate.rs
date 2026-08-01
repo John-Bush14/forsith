@@ -1,6 +1,6 @@
 use const_for::const_for;
 
-use crate::{DecodingError, compression::{BitReader, HuffmanTree}};
+use crate::{DecodingError, decompression::{BitReader, HuffmanTree}};
 
 const CODE_LENGTH_ORDER: [u8; 19] = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15];
 

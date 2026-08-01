@@ -1,6 +1,6 @@
 use std::io::{BufRead, Read};
 
-use crate::{BitBuffer, BufferReader, DecodingError, compression::BitReader, png::{ChunkType::{self}, checksum::{Adler32, CRC32}, chunks::is_chunk_type_critical}};
+use crate::{BitBuffer, BufferReader, DecodingError, decompression::BitReader, png::{ChunkType::{self}, checksum::{Adler32, CRC32}, chunks::is_chunk_type_critical}};
 
 const EXTRA_ALLOC: usize = 1 << 12;
 

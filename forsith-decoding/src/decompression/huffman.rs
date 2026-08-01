@@ -1,4 +1,4 @@
-use crate::{DecodingError, compression::BitReader, };
+use crate::{DecodingError, decompression::BitReader, };
 
 #[derive(Debug)]
 #[repr(C)]
