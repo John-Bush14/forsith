@@ -19,6 +19,9 @@ use num_enum::{IntoPrimitive, TryFromPrimitive};
 mod png;
 pub use png::PngDecoder;
 
+mod jpeg;
+pub use jpeg::JpegDecoder;
+
 // don't ask me
 include!("buffers.rs");
 
