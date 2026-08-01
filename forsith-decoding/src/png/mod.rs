@@ -41,7 +41,7 @@ impl From<ColorType> for PixelFormat {
 }
 
 #[derive(Debug)]
-pub struct PngDecoder<'a, R: BufRead, C: Channel, const F: u8> {
+pub struct PngDecoder<'a, R: Read, C: Channel, const F: u8> {
     reader: PngReader<R>,
     deflate_buffer: CursorVec<u8>,
     scanline_multiples: usize,
@@ -53,7 +53,7 @@ pub struct PngDecoder<'a, R: BufRead, C: Channel, const F: u8> {
     last_adler_update_i: usize
 }
 
-impl<'a, R: BufRead, C: Channel, const F: u8> ImageDecoder<'a, R, C, F> for PngDecoder<'a, R, C, F> {
+impl<'a, R: Read, C: Channel, const F: u8> ImageDecoder<'a, R, C, F> for PngDecoder<'a, R, C, F> {
     fn open_validated(mut reader: R) -> Result<Self, DecodingError> {
         check_header(&mut reader)?;
 
@@ -131,7 +131,7 @@ impl<'a, R: BufRead, C: Channel, const F: u8> ImageDecoder<'a, R, C, F> for PngD
     fn source_pixel_format(&self) -> crate::PixelFormat {self.stored_format()}
 }
 
-impl<'a, R: BufRead, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
+impl<'a, R: Read, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
     fn handle_chunks_until_idat(&mut self) -> Result<(), DecodingError> {
         loop  {
             self.reader.open_chunk()?;
@@ -347,7 +347,7 @@ fn check_header<R: Read>(reader: &mut R) -> Result<(), DecodingError> {
     Ok(())
 }
 
-fn read_ihdr<R: BufRead>(reader: &mut PngReader<R>) -> Result<Ihdr, DecodingError> {
+fn read_ihdr<R: Read>(reader: &mut PngReader<R>) -> Result<Ihdr, DecodingError> {
     reader.open_chunk()?;
 
     if reader.cur_chunk_type() != ChunkType::Ihdr {

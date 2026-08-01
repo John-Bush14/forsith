@@ -11,7 +11,7 @@ struct Chunk {
 }
 
 #[derive(Debug)]
-pub struct PngReader<R: BufRead> {
+pub struct PngReader<R: Read> {
     pub reader: R,
     pub buffer: BufferReader,
     pub crc: CRC32,
@@ -21,7 +21,7 @@ pub struct PngReader<R: BufRead> {
     pub bit_buf: BitBuffer
 }
 
-impl<R: BufRead> PngReader<R> {
+impl<R: Read> PngReader<R> {
     pub fn new(reader: R) -> Result<Self, DecodingError> {
         let mut reader = Self {
             reader,
@@ -154,7 +154,7 @@ impl<R: BufRead> PngReader<R> {
     }
 }
 
-impl<R: BufRead> Read for PngReader<R> {
+impl<R: Read> Read for PngReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         buf.copy_from_slice(self.buffer.slice(buf.len()));
         self.buffer.consume(buf.len());
@@ -163,7 +163,7 @@ impl<R: BufRead> Read for PngReader<R> {
     }
 }
 
-impl<R: BufRead> BitReader for PngReader<R> {
+impl<R: Read> BitReader for PngReader<R> {
     #[inline(always)]
     fn peek_bits(&mut self, n: u8) -> u64 {
         if self.bit_buf.bits_remaining() <= 32 {

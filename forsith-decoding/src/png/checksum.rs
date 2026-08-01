@@ -83,7 +83,7 @@ impl Default for Adler32 {
 const ADLER_MOD: u32 = 65521;
 const ADLER_CHUNK_SIZE: u16 = 5552 - (5552 % SIMD_WIDTH as u16);
 
-impl<R: BufRead> PngReader<R> {
+impl<R: Read> PngReader<R> {
     pub fn validate_crc(&mut self, stored_crc: u32) -> Result<(), DecodingError> {
         let stored_crc = CRC32(stored_crc);
 

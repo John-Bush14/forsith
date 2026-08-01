@@ -1,10 +1,10 @@
-use std::io::BufRead;
+use std::io::Read;
 use crate::{Channel, DecodingError, OutputWriter, PixelFormat, PngDecoder, has_alpha, outputconverting::{OutputConverter, get_out_writer_func}, png::{ColorType, chunks::{ColorPalette, Ihdr}, simd::filtering::should_use_simd}, unpack};
 use super::simd::filtering::SIMD_WIDTH;
 
 pub const MAX_STRIDE: usize = 8;
 
-impl<R: BufRead, C: Channel, const F: u8> PngDecoder<'_, R, C, F> {
+impl<R: Read, C: Channel, const F: u8> PngDecoder<'_, R, C, F> {
     #[inline(always)]
     #[must_use]
     pub fn scanline_bytes(&self) -> usize {self.postprocessor.scanline_bytes()}

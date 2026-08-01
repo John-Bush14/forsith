@@ -55,7 +55,7 @@ impl Ihdr {
         }
     }
 
-    pub fn read<R: BufRead>(reader: &mut PngReader<R>, len: usize) -> Result<Self, DecodingError>
+    pub fn read<R: Read>(reader: &mut PngReader<R>, len: usize) -> Result<Self, DecodingError>
     where Self: Sized {
         if len != 13 {return Err(InvalidChunk(ChunkType::Idat))}
 
@@ -76,7 +76,7 @@ pub trait ChunkData: Any {
     #[allow(unused)]
     fn chunk_type(&self) -> ChunkType; // &self needed for Box
 
-    fn update_decoder<'a, R: BufRead, C: Channel, const F: u8>(decoder: &mut PngDecoder<'a, R, C, F>) -> Result<(), DecodingError>
+    fn update_decoder<'a, R: Read, C: Channel, const F: u8>(decoder: &mut PngDecoder<'a, R, C, F>) -> Result<(), DecodingError>
     where Self: Sized;
 }
 
@@ -85,7 +85,7 @@ pub struct ZlibHeader {}
 impl ChunkData for ZlibHeader {
     fn chunk_type(&self) -> ChunkType {ChunkType::Idat}
 
-    fn update_decoder<'a, R: BufRead, C: Channel, const F: u8>(decoder: &mut PngDecoder<'a, R, C, F>) -> Result<(), DecodingError>
+    fn update_decoder<'a, R: Read, C: Channel, const F: u8>(decoder: &mut PngDecoder<'a, R, C, F>) -> Result<(), DecodingError>
     where
         Self: Sized,
     {
@@ -149,7 +149,7 @@ impl ColorPalette {
 impl ChunkData for ColorPalette {
     fn chunk_type(&self) -> ChunkType {ChunkType::Plte}
 
-    fn update_decoder<'a, R: BufRead, C: Channel, const F: u8>(decoder: &mut PngDecoder<'a, R, C, F>) -> Result<(), DecodingError>
+    fn update_decoder<'a, R: Read, C: Channel, const F: u8>(decoder: &mut PngDecoder<'a, R, C, F>) -> Result<(), DecodingError>
     where
 
         Self: Sized
@@ -178,7 +178,7 @@ pub struct tRNS {}
 impl ChunkData for tRNS {
     fn chunk_type(&self) -> ChunkType {ChunkType::tRNS}
 
-    fn update_decoder<'a, R: BufRead, C: Channel, const F: u8>(decoder: &mut PngDecoder<'a, R, C, F>) -> Result<(), DecodingError>
+    fn update_decoder<'a, R: Read, C: Channel, const F: u8>(decoder: &mut PngDecoder<'a, R, C, F>) -> Result<(), DecodingError>
     where
         Self: Sized,
     {
