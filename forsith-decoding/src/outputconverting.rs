@@ -52,7 +52,7 @@ where
         if pixels.is_full() {
             push_aligned_slice::<DC, DF, u8, SF>(pixels.as_slice(), out, 0, alpha_color);
             pixels.clear();
-        }
+    }
     });
 
     if !pixels.is_empty() {

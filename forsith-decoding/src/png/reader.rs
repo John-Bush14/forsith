@@ -1,14 +1,8 @@
 use std::io::{BufRead, Read};
 
-use crate::{BitBuffer, BufferReader, DecodingError, decompression::BitReader, png::{ChunkType::{self}, checksum::{Adler32, CRC32}, chunks::is_chunk_type_critical}};
+use crate::{BitBuffer, BufferReader, DecodingError, decompression::BitReader, png::{ChunkType::{self}, checksum::{Adler32, CRC32}, chunks::{ChunkHeader, is_chunk_type_critical}}};
 
 const EXTRA_ALLOC: usize = 1 << 12;
-
-#[derive(Debug)]
-struct Chunk {
-    len: usize,
-    r#type: ChunkType
-}
 
 #[derive(Debug)]
 pub struct PngReader<R: Read> {
@@ -17,7 +11,7 @@ pub struct PngReader<R: Read> {
     pub crc: CRC32,
     pub adler: Adler32,
     pub(crate) remaining_chunk_bytes: usize,
-    cur_chunk: Chunk,
+    cur_chunk: ChunkHeader,
     pub bit_buf: BitBuffer
 }
 
@@ -29,7 +23,7 @@ impl<R: Read> PngReader<R> {
             crc: CRC32::default(),
             adler: Adler32::default(),
             remaining_chunk_bytes: 0,
-            cur_chunk: Chunk {len: 0, r#type: ChunkType::UnkownAncillerary},
+            cur_chunk: ChunkHeader::default(),
             bit_buf: BitBuffer::default()
         };
 
@@ -39,24 +33,10 @@ impl<R: Read> PngReader<R> {
     }
 
     pub fn open_chunk(&mut self) -> Result<(), DecodingError> {
-        self.cur_chunk.len = self.buffer.read_be::<u32>()? as usize;
-
-        let chunk_type_buf = self.buffer.read_array::<4>()?;
-        self.cur_chunk.r#type = match u32::from_be_bytes(chunk_type_buf).try_into() {
-            Ok(t) => t,
-            Err(_) => {
-                if is_chunk_type_critical(&chunk_type_buf) {return Err(DecodingError::UnkownChunk(chunk_type_buf))}
-
-                self.read_exact(&mut vec![0u8; self.cur_chunk.len])?;
-                return self.open_chunk();
-            }
-        };
-
-        Ok(())
+        self.cur_chunk = ChunkHeader::read(&mut self.buffer)?; Ok(())
     }
 
-    pub fn cur_chunk_type(&self) -> ChunkType {self.cur_chunk.r#type}
-    pub fn cur_chunk_len(&self) -> usize {self.cur_chunk.len}
+    pub fn cur_chunk(&self) -> &ChunkHeader {&self.cur_chunk}
 
     fn prepare_buffer(&mut self) -> Result<(), DecodingError> {
         let first_len = self.reader.read_be::<u32>()?;
@@ -83,26 +63,24 @@ impl<R: Read> PngReader<R> {
         self.prepare_buffer()?;
 
         let mut reading_idats = false;
-        #[allow(clippy::useless_conversion)]
-        let mut chunk_type: Result<ChunkType, <ChunkType as TryFrom<u32>>::Error> = Ok(ChunkType::UnkownAncillerary).into();
+        let mut chunk_header = ChunkHeader::default();
 
-        while !matches!(chunk_type, Ok(ChunkType::Iend))  {
+        while !matches!(chunk_header.r#type(), ChunkType::Iend)  {
             self.read_chunkdata_and_next_header()?;
 
             self.validate_chunkdata()?;
 
-            self.remaining_chunk_bytes = self.buffer.read_be::<u32>()? as usize;
+            self.crc.update(self.buffer.raw_slice(self.buffer.index + 4 .. self.buffer.index + 8));
 
-            let type_buf: [u8; 4] = self.buffer.read_array()?;
-            self.update_crc(&type_buf);
-            chunk_type = ChunkType::try_from(u32::from_be_bytes(type_buf));
+            chunk_header = ChunkHeader::read(&mut self.buffer)?;
+            self.remaining_chunk_bytes = chunk_header.len();
 
-            match chunk_type {
-                Ok(ChunkType::Idat) if reading_idats => self.buffer.index -= 12,
-                _ => self.place_chunk_header(type_buf),
+            match chunk_header.r#type() {
+                ChunkType::Idat if reading_idats => self.buffer.index -= 12,
+                _ => self.place_chunk_header(),
             }
 
-           reading_idats = matches!(chunk_type, Ok(ChunkType::Idat))
+           reading_idats = matches!(chunk_header.r#type(), ChunkType::Idat)
         };
 
         let crc = self.reader.read_be::<u32>()?;
@@ -113,12 +91,10 @@ impl<R: Read> PngReader<R> {
         Ok(())
     }
 
-    fn place_chunk_header(&mut self, type_buf: [u8; 4]) {
+    fn place_chunk_header(&mut self) {
         self.buffer.index -= 4;
 
-        let index = self.buffer.index - 8;
-        self.buffer.raw_mut_slice(index..index + 4).copy_from_slice(&(self.remaining_chunk_bytes as u32).to_be_bytes());
-        self.buffer.raw_mut_slice(index+4..index + 8).copy_from_slice(&type_buf);
+        self.buffer.buffer.copy_within(self.buffer.index - 4..self.buffer.index + 4, self.buffer.index - 8);
     }
 
     pub fn align(&mut self) -> Result<(), DecodingError> {

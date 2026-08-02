@@ -136,13 +136,13 @@ impl<'a, R: Read, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
         loop  {
             self.reader.open_chunk()?;
 
-            if self.reader.cur_chunk_type() == ChunkType::Iend {
+            if self.reader.cur_chunk().r#type() == ChunkType::Iend {
                 return Err(DecodingError::NoIDAT);
             }
 
             self.update_with_chunk()?;
 
-            if self.reader.cur_chunk_type() == ChunkType::Idat {
+            if self.reader.cur_chunk().r#type() == ChunkType::Idat {
                 break Ok(()); // update_with_chunk has called prepare_for_decompression here.
             }
         }
@@ -158,8 +158,8 @@ impl<'a, R: Read, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
 
     #[cold]
     fn next_block(&mut self) -> Result<(), DecodingError> {
-        if self.reader.cur_chunk_type() != ChunkType::Idat {
-            return Err(DecodingError::InvalidChunk(self.reader.cur_chunk_type()));
+        if self.reader.cur_chunk().r#type() != ChunkType::Idat {
+            return Err(DecodingError::InvalidChunk(self.reader.cur_chunk().r#type()));
         }
 
         if self.cur_block.last {
@@ -178,7 +178,7 @@ impl<'a, R: Read, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
         self.reader.unconsume_bitbuf();
         self.reader.validate_adler32()?;
 
-        while self.reader.cur_chunk_type() != ChunkType::Iend {
+        while self.reader.cur_chunk().r#type() != ChunkType::Iend {
             self.reader.open_chunk()?;
             self.update_with_chunk()?;
         }
@@ -238,8 +238,9 @@ impl<'a, R: Read, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
     }
 
     fn update_with_chunk(&mut self) -> Result<(), DecodingError> {
-        let result = match self.reader.cur_chunk_type() {
-            ChunkType::UnkownAncillerary | ChunkType::Iend => return Ok(()),
+        let result = match self.reader.cur_chunk().r#type() {
+            ChunkType::Iend => return Ok(()),
+            ChunkType::UnkownAncillerary => self.reader.read_exact(&mut vec![0u8; self.reader.cur_chunk().len()]).map_err(DecodingError::IOError),
             ChunkType::Ihdr => Err(DecodingError::MultipleChunks(ChunkType::Ihdr)),
             ChunkType::Idat => ZlibHeader::update_decoder(self),
             ChunkType::Plte => ColorPalette::update_decoder(self),
@@ -247,7 +248,7 @@ impl<'a, R: Read, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
         };
 
         if let Err(err) = result
-            && (self.reader.cur_chunk_type().is_critical() || matches!(err, DecodingError::IOError(_)))
+            && (self.reader.cur_chunk().r#type().is_critical() || matches!(err, DecodingError::IOError(_)))
         {
             return Err(err);
         }
@@ -350,11 +351,11 @@ fn check_header<R: Read>(reader: &mut R) -> Result<(), DecodingError> {
 fn read_ihdr<R: Read>(reader: &mut PngReader<R>) -> Result<Ihdr, DecodingError> {
     reader.open_chunk()?;
 
-    if reader.cur_chunk_type() != ChunkType::Ihdr {
-        return Err(DecodingError::NoIHDR(reader.cur_chunk_type()));
+    if reader.cur_chunk().r#type() != ChunkType::Ihdr {
+        return Err(DecodingError::NoIHDR(reader.cur_chunk().r#type()));
     }
 
-    let ihdr = Ihdr::read(reader, reader.cur_chunk_len())?;
+    let ihdr = Ihdr::read(reader, reader.cur_chunk().len())?;
     ihdr.validate()?;
 
     Ok(ihdr)

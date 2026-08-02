@@ -4,14 +4,15 @@ use num_enum::{TryFromPrimitive, IntoPrimitive};
 
 #[repr(u32)]
 #[allow(non_camel_case_types)]
-#[derive(TryFromPrimitive, IntoPrimitive, Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(TryFromPrimitive, IntoPrimitive, Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum ChunkType {
     Ihdr = 0x49484452,
     Plte = 0x504C5445,
     Idat = 0x49444154,
     Iend = 0x49454E44,
     tRNS = 0x74524E53,
-    UnkownAncillerary
+    #[default]
+    UnkownAncillerary = 0
 }
 impl Display for ChunkType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -27,6 +28,32 @@ pub fn is_chunk_type_critical(chunk_type_buffer: &[u8; 4]) -> bool {
     chunk_type_buffer[0] & 0x20 == 0
 }
 
+#[derive(Default, Debug)]
+pub struct ChunkHeader {
+    len: usize,
+    r#type: ChunkType
+}
+impl ChunkHeader {
+    pub fn read<R: Read>(reader: &mut R) -> Result<Self, DecodingError> {
+        let len = reader.read_be::<u32>()? as usize;
+
+        let chunk_type_buf = reader.read_array::<4>()?;
+        let r#type = match u32::from_be_bytes(chunk_type_buf).try_into() {
+            Ok(t) => t,
+            Err(_) => {
+                if is_chunk_type_critical(&chunk_type_buf) {return Err(DecodingError::UnkownChunk(chunk_type_buf))}
+
+                ChunkType::UnkownAncillerary
+            }
+        };
+
+        Ok(Self {len, r#type})
+    }
+
+    pub fn len(&self) -> usize {self.len}
+
+    pub fn r#type(&self) -> ChunkType {self.r#type}
+}
 
 #[derive(Debug)]
 pub struct Ihdr {
@@ -155,7 +182,7 @@ impl ChunkData for ColorPalette {
         Self: Sized
     {
 
-        let reader = &mut decoder.reader; let len = reader.cur_chunk_len();
+        let reader = &mut decoder.reader; let len = reader.cur_chunk().len();
 
         if len == 0 || len > 256*3 || !len.is_multiple_of(3) {return Err(InvalidChunk(ChunkType::Plte))}
 
@@ -182,7 +209,7 @@ impl ChunkData for tRNS {
     where
         Self: Sized,
     {
-        let reader = &mut decoder.reader; let len = reader.cur_chunk_len();
+        let reader = &mut decoder.reader; let len = reader.cur_chunk().len();
 
         if decoder.postprocessor.color_type() != ColorType::Indexed {
             let mask = ((1 << decoder.postprocessor.stored_channel_depth() as u32) - 1) as u16;
