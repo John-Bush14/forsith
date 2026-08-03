@@ -1,12 +1,12 @@
-use std::io::{BufRead, Read};
-use crate::{Channel, CursorVec, DecodingError, ImageDecoder, OutputWriter, PixelFormat, bitspp, decompression::BitReader, png::{chunks::{ColorPalette, Ihdr, ZlibHeader, tRNS}, deflate::{BlockType, MAX_BACKREF_LEN, STATIC_DISTANCE_TREE, STATIC_LITLEN_TREE, decode_distance, decode_length}, postprocessing::{MAX_STRIDE, PostProcessor}}};
+use std::io::Read;
+use crate::{BufferReader, Channel, CursorVec, DecodingError, ImageDecoder, OutputWriter, PixelFormat, bitspp, buffers::BitBufferReader, png::{checksum::Adler32, chunks::{ChunkHeader, ColorPalette, Ihdr, ZlibDataStream, tRNS}, deflate::{BlockType, MAX_BACKREF_LEN, STATIC_DISTANCE_TREE, STATIC_LITLEN_TREE, decode_distance, decode_length}, postprocessing::{MAX_STRIDE, PostProcessor}}};
 use num_enum::TryFromPrimitive;
 
 mod chunks;
 pub use chunks::{ChunkType, ChunkData};
 
-mod reader;
-pub use reader::PngReader;
+mod parser;
+pub use parser::ChunkParser;
 
 mod checksum;
 
@@ -41,8 +41,8 @@ impl From<ColorType> for PixelFormat {
 }
 
 #[derive(Debug)]
-pub struct PngDecoder<'a, R: Read, C: Channel, const F: u8> {
-    reader: PngReader<R>,
+pub struct PngDecoder<'a, C: Channel, const F: u8> {
+    compressed_data: BitBufferReader,
     deflate_buffer: CursorVec<u8>,
     scanline_multiples: usize,
     postprocessor: PostProcessor<C, F>,
@@ -50,37 +50,45 @@ pub struct PngDecoder<'a, R: Read, C: Channel, const F: u8> {
     ihdr: Ihdr,
     cur_block: deflate::Block,
     deflate_buffer_tail: usize,
-    last_adler_update_i: usize
+    last_adler_update_i: usize,
+    adler: Adler32,
 }
 
-impl<'a, R: Read, C: Channel, const F: u8> ImageDecoder<'a, R, C, F> for PngDecoder<'a, R, C, F> {
-    fn open_validated(mut reader: R) -> Result<Self, DecodingError> {
+impl<'a, C: Channel, const F: u8> ImageDecoder<'a, C, F> for PngDecoder<'a, C, F> {
+    fn open_validated<R: Read>(mut reader: R) -> Result<Self, DecodingError> {
         check_header(&mut reader)?;
 
-        let mut reader = PngReader::new(reader)?;
-        let ihdr = read_ihdr(&mut reader)?;
+        let mut chunk_parser = ChunkParser::new(reader)?;
+
+        let ihdr = read_ihdr(&mut chunk_parser)?;
 
         let postprocessor = PostProcessor::new(ihdr.width, ihdr.color_type, ihdr.channel_depth);
 
         let mut decoder = Self {
-            reader,
-            deflate_buffer: CursorVec::new(0),
+            compressed_data: Default::default(),
+            deflate_buffer: Default::default(),
             scanline_multiples: 0,
             phantom: std::marker::PhantomData,
             postprocessor,
             ihdr,
             cur_block: deflate::Block::default(),
             deflate_buffer_tail: 0,
-            last_adler_update_i: 0
+            last_adler_update_i: 0,
+            adler: Default::default()
         };
 
-        decoder.handle_chunks_until_idat()?;
+        chunk_parser.parse_chunks(&mut decoder)?;
+
         if decoder.postprocessor.palette().is_none() && decoder.ihdr.color_type == ColorType::Indexed {
             return Err(DecodingError::NoPallete);
         }
 
+        if decoder.deflate_buffer.capacity() == 0 {
+            return Err(DecodingError::NoIDAT);
+        }
+
         decoder.postprocessor.setup_interlacing(&decoder.ihdr);
-        decoder.cur_block.load_block(&mut decoder.reader)?;
+        decoder.cur_block.load_block(&mut decoder.compressed_data)?;
 
         Ok(decoder)
     }
@@ -131,23 +139,7 @@ impl<'a, R: Read, C: Channel, const F: u8> ImageDecoder<'a, R, C, F> for PngDeco
     fn source_pixel_format(&self) -> crate::PixelFormat {self.stored_format()}
 }
 
-impl<'a, R: Read, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
-    fn handle_chunks_until_idat(&mut self) -> Result<(), DecodingError> {
-        loop  {
-            self.reader.open_chunk()?;
-
-            if self.reader.cur_chunk().r#type() == ChunkType::Iend {
-                return Err(DecodingError::NoIDAT);
-            }
-
-            self.update_with_chunk()?;
-
-            if self.reader.cur_chunk().r#type() == ChunkType::Idat {
-                break Ok(()); // update_with_chunk has called prepare_for_decompression here.
-            }
-        }
-    }
-
+impl<'a, C: Channel, const F: u8> PngDecoder<'a, C, F> {
     fn can_drain_scanline(&self, dest: &mut OutputWriter<'_, C, F>) -> bool {
         dest.remaining_bytes()*8 / bitspp::<C, F>() as usize * self.stored_bpp() >= self.scanline_pixel_bytes()*8 || self.ihdr.interlace_method == 1
     }
@@ -158,30 +150,21 @@ impl<'a, R: Read, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
 
     #[cold]
     fn next_block(&mut self) -> Result<(), DecodingError> {
-        if self.reader.cur_chunk().r#type() != ChunkType::Idat {
-            return Err(DecodingError::InvalidChunk(self.reader.cur_chunk().r#type()));
-        }
-
         if self.cur_block.last {
             return self.finish_decoding();
         }
 
-        self.cur_block.load_block(&mut self.reader)?;
+        self.cur_block.load_block(&mut self.compressed_data)?;
 
         Ok(())
     }
 
     #[cold]
     fn finish_decoding(&mut self) -> Result<(), DecodingError> {
-        self.reader.update_adler32(self.deflate_buffer.slice(self.last_adler_update_i .. self.deflate_buffer.len()));
+        self.adler.update(self.deflate_buffer.slice(self.last_adler_update_i .. self.deflate_buffer.len()));
 
-        self.reader.unconsume_bitbuf();
-        self.reader.validate_adler32()?;
-
-        while self.reader.cur_chunk().r#type() != ChunkType::Iend {
-            self.reader.open_chunk()?;
-            self.update_with_chunk()?;
-        }
+        self.compressed_data.unconsume_bitbuf();
+        self.adler.validate(self.compressed_data.buffer.read_be::<u32>()?)?;
 
         self.cur_block.r#type = BlockType::Finished;
 
@@ -199,7 +182,7 @@ impl<'a, R: Read, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
 
     #[cold]
     fn drain_deflate_buffer(&mut self, dest: &mut OutputWriter<'_, C, F>) -> Result<(), DecodingError> {
-        self.reader.update_adler32(self.deflate_buffer.slice(self.last_adler_update_i..self.deflate_buffer.len()));
+        self.adler.update(self.deflate_buffer.slice(self.last_adler_update_i..self.deflate_buffer.len()));
         self.last_adler_update_i = self.deflate_buffer.len();
 
         let mut drained_bytes = 0;
@@ -237,18 +220,17 @@ impl<'a, R: Read, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
         Ok(scanline_bytes)
     }
 
-    fn update_with_chunk(&mut self) -> Result<(), DecodingError> {
-        let result = match self.reader.cur_chunk().r#type() {
-            ChunkType::Iend => return Ok(()),
-            ChunkType::UnkownAncillerary => self.reader.read_exact(&mut vec![0u8; self.reader.cur_chunk().len()]).map_err(DecodingError::IOError),
+    pub fn update_with_chunk(&mut self, chunk_header: &ChunkHeader, chunk_data: &mut BufferReader) -> Result<(), DecodingError> {
+        let result = match chunk_header.r#type() {
+            ChunkType::Iend | ChunkType::UnkownAncillerary => return Ok(()),
             ChunkType::Ihdr => Err(DecodingError::MultipleChunks(ChunkType::Ihdr)),
-            ChunkType::Idat => ZlibHeader::update_decoder(self),
-            ChunkType::Plte => ColorPalette::update_decoder(self),
-            ChunkType::tRNS => tRNS::update_decoder(self)
+            ChunkType::Idat => ZlibDataStream::update_decoder(self, chunk_header, chunk_data),
+            ChunkType::Plte => ColorPalette::update_decoder(self, chunk_header, chunk_data),
+            ChunkType::tRNS => tRNS::update_decoder(self, chunk_header, chunk_data),
         };
 
         if let Err(err) = result
-            && (self.reader.cur_chunk().r#type().is_critical() || matches!(err, DecodingError::IOError(_)))
+            && (chunk_header.r#type().is_critical() || matches!(err, DecodingError::IOError(_)))
         {
             return Err(err);
         }
@@ -258,32 +240,30 @@ impl<'a, R: Read, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
 
     #[cold]
     fn read_uncompressed_chunk(&mut self, len: u16, dest: &mut OutputWriter<'_, C, F>) -> Result<(), DecodingError> {
-        let fill_len = (len as usize).min(self.deflate_buffer.remaining() - self.deflate_buffer_tail + dest.remaining_bytes());
-        let mut remaining = fill_len;
+        let len = len as usize;
+        self.compressed_data.unconsume_bitbuf();
 
-        self.reader.buffer.unconsume(self.reader.bit_buf.bits_remaining() as usize / 8);
-        self.reader.consume_bits(self.reader.bit_buf.bits_remaining());
+        let mut decoded_bytes = 0;
 
         loop {
-            let chunk_len = remaining.min(self.deflate_buffer.remaining());
+            let chunk_len = (len - decoded_bytes).min(self.deflate_buffer.remaining() - self.deflate_buffer_tail);
 
-            let i = self.deflate_buffer.cursor;
-            self.reader.read_exact(self.deflate_buffer.mut_slice(i..i + chunk_len))?;
-            self.deflate_buffer.advance(chunk_len);
+            self.deflate_buffer.read_from(&mut self.compressed_data.buffer, chunk_len)?;
 
-            remaining -= chunk_len;
+            decoded_bytes += chunk_len;
 
-            if remaining == 0 {break;} else {
-                self.drain_deflate_buffer(dest)?;
+            if decoded_bytes >= len || !self.can_drain_scanline(dest) {
+                break;
             }
+
+            self.drain_deflate_buffer(dest)?;
         }
 
-        if len as usize == fill_len {
-            self.reader.align()?;
-
+        if len == decoded_bytes {
+            self.compressed_data.align()?;
             self.next_block()?;
         } else {
-            self.cur_block.r#type = BlockType::Uncompressed(len - fill_len as u16);
+            self.cur_block.r#type = BlockType::Uncompressed((len - decoded_bytes) as u16);
             dest.set_full();
         } Ok(())
     }
@@ -306,7 +286,7 @@ impl<'a, R: Read, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
                 (&self.cur_block.litlen_tree, &self.cur_block.distance_tree)
             };
 
-            let symbol = litlen_tree.decode_symbol(&mut self.reader);
+            let symbol = litlen_tree.decode_symbol(&mut self.compressed_data);
 
             if symbol < 256 {
                 self.deflate_buffer.push(symbol as u8);
@@ -314,9 +294,9 @@ impl<'a, R: Read, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
                 self.next_block()?;
                 break;
             } else {
-                let length = decode_length(symbol, &mut self.reader);
-                let dist_code = distance_tree.decode_symbol(&mut self.reader);
-                let distance = decode_distance(dist_code, &mut self.reader);
+                let length = decode_length(symbol, &mut self.compressed_data);
+                let dist_code = distance_tree.decode_symbol(&mut self.compressed_data);
+                let distance = decode_distance(dist_code, &mut self.compressed_data);
 
                 if distance as usize >= length as usize {
                     self.emit_backreferenced_inflated_bytes(length as usize, distance as usize);
@@ -325,7 +305,7 @@ impl<'a, R: Read, C: Channel, const F: u8> PngDecoder<'a, R, C, F> {
                     let i = self.deflate_buffer.len();
 
                     let fill = self.deflate_buffer[i - 1];
-                    self.deflate_buffer.buffer[i..i + length as usize].fill(fill);
+                    self.deflate_buffer.mut_slice(i..i + length as usize).fill(fill);
                     self.deflate_buffer.advance(length as usize);
                 }
                 else {
@@ -348,14 +328,14 @@ fn check_header<R: Read>(reader: &mut R) -> Result<(), DecodingError> {
     Ok(())
 }
 
-fn read_ihdr<R: Read>(reader: &mut PngReader<R>) -> Result<Ihdr, DecodingError> {
-    reader.open_chunk()?;
+fn read_ihdr<R: Read>(parser: &mut ChunkParser<R>) -> Result<Ihdr, DecodingError> {
+    let (chunk_header, mut chunk_data) = parser.parse_first_chunk()?;
 
-    if reader.cur_chunk().r#type() != ChunkType::Ihdr {
-        return Err(DecodingError::NoIHDR(reader.cur_chunk().r#type()));
+    if chunk_header.r#type() != ChunkType::Ihdr {
+        return Err(DecodingError::NoIHDR(chunk_header.r#type()));
     }
 
-    let ihdr = Ihdr::read(reader, reader.cur_chunk().len())?;
+    let ihdr = Ihdr::read(&mut chunk_data, chunk_header.len())?;
     ihdr.validate()?;
 
     Ok(ihdr)

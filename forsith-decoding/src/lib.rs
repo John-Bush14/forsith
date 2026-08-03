@@ -14,6 +14,7 @@
 #![forbid(unsafe_code)]
 
 use std::io::Read;
+use std::fmt::Debug;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 mod png;
@@ -22,8 +23,9 @@ pub use png::PngDecoder;
 mod jpeg;
 pub use jpeg::JpegDecoder;
 
-// don't ask me
-include!("buffers.rs");
+#[allow(dead_code)]
+mod buffers;
+use buffers::*;
 
 mod decoding_error;
 pub use decoding_error::DecodingError;
@@ -52,9 +54,9 @@ const fn is_gray(format: u8) -> bool {matches!(format, 1 | 2)}
 pub(crate) const fn bitspp<C: Channel, const F: u8>() -> u8 {C::BIT_DEPTH * F}
 pub(crate) const fn bytespp<C: Channel, const F: u8>() -> u8 {C::BIT_DEPTH * F / 8}
 
-pub trait ImageDecoder<'a, R: Read, C: Channel, const F: u8> {
-    fn open_validated(data: R) -> Result<Self, DecodingError> where Self: Sized;
-    fn open(data: R) -> Result<Self, DecodingError> where Self: Sized {
+pub trait ImageDecoder<'a, C: Channel, const F: u8> {
+    fn open_validated<R: Read>(data: R) -> Result<Self, DecodingError> where Self: Sized;
+    fn open<R: Read>(data: R) -> Result<Self, DecodingError> where Self: Sized {
         assert!((C::BIT_DEPTH * F).is_multiple_of(8));
         assert!(PixelFormat::try_from(F).is_ok());
 

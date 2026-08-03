@@ -1,4 +1,5 @@
-use std::{fmt::Debug, marker::PhantomData, ops::{Index, IndexMut, Range}};
+use std::{fmt::Debug, io::Read, marker::PhantomData, ops::{Index, IndexMut, Range}};
+use crate::{Channel, Int, decompression::BitReader};
 
 #[derive(Debug, Default)]
 pub struct BitBuffer {
@@ -83,7 +84,6 @@ impl<'a, C: Channel, const F: u8> OutputWriter<'a, C, F> {
     pub fn set_full(&mut self) {self.full = true;}
 
     #[must_use]
-    #[allow(unused)]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -174,11 +174,80 @@ impl<T> CursorVec<T> {
     #[must_use]
     pub fn is_full(&self) -> bool {self.len() == self.capacity()}
 }
+impl CursorVec<u8> {
+    pub fn read_from<R: Read>(&mut self, reader: &mut R, len: usize) -> std::io::Result<()> {
+        self.cursor += len;
+        let buf = self.mut_slice(self.cursor - len..self.cursor);
+        reader.read_exact(buf)
+    }
+}
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
+pub struct BitBufferReader {
+    pub buffer: BufferReader,
+    bit_buf: BitBuffer,
+}
+impl BitBufferReader {
+    pub fn new(start_len: usize) -> Self {
+        Self {
+            buffer: BufferReader::new(start_len),
+            bit_buf: BitBuffer::default(),
+        }
+    }
+
+    pub fn align(&mut self) -> Result<(), std::io::Error> {
+        let alignment = 4 - (self.buffer.index % align_of::<u32>());
+
+        let mut buf = vec![0u8; alignment];
+        self.buffer.read_exact(&mut buf)?;
+
+        for b in buf {self.bit_buf.push(b)}; Ok(())
+    }
+
+    pub fn unconsume_bitbuf(&mut self) {
+        let bitbuf_bytes = self.bit_buf.bits_remaining().div_euclid(8) as usize;
+
+        self.buffer.unconsume(bitbuf_bytes);
+        self.bit_buf.consume(self.bit_buf.bits_remaining());
+    }
+}
+
+impl BitReader for BitBufferReader {
+    #[inline(always)]
+    fn peek_bits(&mut self, n: u8) -> u64 {
+        if self.bit_buf.bits_remaining() <= 32 {
+            self.fill_bitbuf();
+        }
+
+        self.bit_buf.peek(n)
+    }
+
+    #[inline(always)]
+    fn fill_bitbuf(&mut self) {
+        let refil = u32::from_le_bytes(self.buffer.buffer[self.buffer.index..self.buffer.index + 4].try_into().unwrap());
+        self.buffer.consume(4);
+
+        self.bit_buf.push(refil);
+    }
+
+    #[inline(always)]
+    fn consume_bits(&mut self, n: u8) {
+        self.bit_buf.consume(n);
+    }
+
+    #[inline]
+    fn remaining_bits(&self) -> u8 {
+        self.bit_buf.bits_remaining
+    }
+
+    #[inline(always)]
+    fn peek_bits_nobranch(&mut self, n: u8) -> u64 {self.bit_buf.peek(n)}
+}
+
+#[derive(Debug, Default)]
 pub struct BufferReader {
     buffer: Vec<u8>,
-    index: usize,
+    pub index: usize,
 }
 impl BufferReader {
     pub fn new(start_len: usize) -> Self {
@@ -189,6 +258,8 @@ impl BufferReader {
     }
 
     pub fn capacity(&self) -> usize {self.buffer.len()}
+
+    pub fn mut_buffer(&mut self) -> &mut Vec<u8> {&mut self.buffer}
 
     pub fn slice(&self, len: usize) -> &[u8] {
         &self.buffer[self.index..self.index + len]
@@ -209,6 +280,11 @@ impl BufferReader {
 
     pub fn remaining(&self) -> usize {
         self.buffer.len() - self.index
+    }
+
+    pub fn shrink_buffer(&mut self, len: usize) {
+        self.buffer.truncate(len);
+        self.buffer.shrink_to_fit();
     }
 }
 

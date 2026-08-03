@@ -1,5 +1,5 @@
-use std::{any::Any, fmt::Display, io::{BufRead, Read}, ops::{Index, IndexMut}};
-use crate::{Channel, CursorVec, DecodingError::{self, InvalidChunk}, PngDecoder, png::{ColorType, PngReader, postprocessing::MAX_STRIDE}};
+use std::{any::Any, fmt::Display, io::Read, ops::{Index, IndexMut}};
+use crate::{BufferReader, Channel, CursorVec, DecodingError::{self, InvalidChunk}, PngDecoder, png::{ColorType, checksum::CRC32, postprocessing::MAX_STRIDE}};
 use num_enum::{TryFromPrimitive, IntoPrimitive};
 
 #[repr(u32)]
@@ -28,16 +28,18 @@ pub fn is_chunk_type_critical(chunk_type_buffer: &[u8; 4]) -> bool {
     chunk_type_buffer[0] & 0x20 == 0
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct ChunkHeader {
     len: usize,
     r#type: ChunkType
 }
 impl ChunkHeader {
-    pub fn read<R: Read>(reader: &mut R) -> Result<Self, DecodingError> {
+    pub fn read<R: Read>(reader: &mut R) -> Result<(Self, CRC32), DecodingError> {
         let len = reader.read_be::<u32>()? as usize;
 
         let chunk_type_buf = reader.read_array::<4>()?;
+        let mut crc = CRC32::default(); crc.update(&chunk_type_buf);
+
         let r#type = match u32::from_be_bytes(chunk_type_buf).try_into() {
             Ok(t) => t,
             Err(_) => {
@@ -47,8 +49,10 @@ impl ChunkHeader {
             }
         };
 
-        Ok(Self {len, r#type})
+        Ok((Self::new(len, r#type), crc))
     }
+
+    pub fn new(len: usize, r#type: ChunkType) -> Self {Self {len, r#type}}
 
     pub fn len(&self) -> usize {self.len}
 
@@ -82,7 +86,7 @@ impl Ihdr {
         }
     }
 
-    pub fn read<R: Read>(reader: &mut PngReader<R>, len: usize) -> Result<Self, DecodingError>
+    pub fn read<R: Read>(reader: &mut R, len: usize) -> Result<Self, DecodingError>
     where Self: Sized {
         if len != 13 {return Err(InvalidChunk(ChunkType::Idat))}
 
@@ -103,23 +107,26 @@ pub trait ChunkData: Any {
     #[allow(unused)]
     fn chunk_type(&self) -> ChunkType; // &self needed for Box
 
-    fn update_decoder<'a, R: Read, C: Channel, const F: u8>(decoder: &mut PngDecoder<'a, R, C, F>) -> Result<(), DecodingError>
+    fn update_decoder<'a, C: Channel, const F: u8>(decoder: &mut PngDecoder<'a, C, F>, chunk_header: &ChunkHeader, data: &mut BufferReader) -> Result<(), DecodingError>
     where Self: Sized;
 }
 
 // Will be read as IDAT chunk data
-pub struct ZlibHeader {}
-impl ChunkData for ZlibHeader {
+pub struct ZlibDataStream {}
+impl ChunkData for ZlibDataStream {
     fn chunk_type(&self) -> ChunkType {ChunkType::Idat}
 
-    fn update_decoder<'a, R: Read, C: Channel, const F: u8>(decoder: &mut PngDecoder<'a, R, C, F>) -> Result<(), DecodingError>
+    fn update_decoder<'a, C: Channel, const F: u8>(decoder: &mut PngDecoder<'a, C, F>, chunk_header: &ChunkHeader, data: &mut BufferReader) -> Result<(), DecodingError>
     where
         Self: Sized,
     {
-        let reader = &mut decoder.reader;
+        data.shrink_buffer(chunk_header.len() + 4);
 
-        let cmf = reader.read_le::<u8>()?;
-        let flg = reader.read_le::<u8>()?;
+        std::mem::swap(&mut decoder.compressed_data.buffer, data);
+        let reader = &mut decoder.compressed_data;
+
+        let cmf = reader.buffer.read_le::<u8>()?;
+        let flg = reader.buffer.read_le::<u8>()?;
         reader.align()?;
 
         let compression_method = cmf & 0b00001111;
@@ -176,13 +183,11 @@ impl ColorPalette {
 impl ChunkData for ColorPalette {
     fn chunk_type(&self) -> ChunkType {ChunkType::Plte}
 
-    fn update_decoder<'a, R: Read, C: Channel, const F: u8>(decoder: &mut PngDecoder<'a, R, C, F>) -> Result<(), DecodingError>
+    fn update_decoder<'a, C: Channel, const F: u8>(decoder: &mut PngDecoder<'a, C, F>, chunk_header: &ChunkHeader, reader: &mut BufferReader) -> Result<(), DecodingError>
     where
-
         Self: Sized
     {
-
-        let reader = &mut decoder.reader; let len = reader.cur_chunk().len();
+        let len = chunk_header.len();
 
         if len == 0 || len > 256*3 || !len.is_multiple_of(3) {return Err(InvalidChunk(ChunkType::Plte))}
 
@@ -205,11 +210,11 @@ pub struct tRNS {}
 impl ChunkData for tRNS {
     fn chunk_type(&self) -> ChunkType {ChunkType::tRNS}
 
-    fn update_decoder<'a, R: Read, C: Channel, const F: u8>(decoder: &mut PngDecoder<'a, R, C, F>) -> Result<(), DecodingError>
+    fn update_decoder<'a, C: Channel, const F: u8>(decoder: &mut PngDecoder<'a, C, F>, chunk_header: &ChunkHeader, reader: &mut BufferReader) -> Result<(), DecodingError>
     where
         Self: Sized,
     {
-        let reader = &mut decoder.reader; let len = reader.cur_chunk().len();
+        let len = chunk_header.len();
 
         if decoder.postprocessor.color_type() != ColorType::Indexed {
             let mask = ((1 << decoder.postprocessor.stored_channel_depth() as u32) - 1) as u16;

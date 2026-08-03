@@ -1,6 +1,6 @@
-use std::{io::{BufRead, Read}, ops::Not};
+use std::{io::Read, ops::Not};
 use const_for::const_for;
-use crate::{DecodingError, png::{reader::PngReader, simd::{SIMD_WIDTH, checksum::compute_alder32_chunk_simd}}};
+use crate::{DecodingError, png::{parser::ChunkParser, simd::{SIMD_WIDTH, checksum::compute_alder32_chunk_simd}}};
 
 pub const POLY: u32 = 0xedb88320;
 const CRC_TABLES: [[u32; 256]; 8] = const {
@@ -70,6 +70,20 @@ impl CRC32 {
     }
 }
 
+impl<R: Read> ChunkParser<R> {
+    pub fn validate_crc(&mut self, stored_crc: u32) -> Result<(), DecodingError> {
+        let stored_crc = CRC32(stored_crc);
+
+        let calculated_crc = !self.crc();
+
+        if calculated_crc != stored_crc {
+            return Err(DecodingError::CRCMismatch(calculated_crc.0, stored_crc.0));
+        }
+
+        Ok(())
+    }
+}
+
 #[derive(Debug)]
 pub struct Adler32{
     a: u32,
@@ -83,59 +97,41 @@ impl Default for Adler32 {
 const ADLER_MOD: u32 = 65521;
 const ADLER_CHUNK_SIZE: u16 = 5552 - (5552 % SIMD_WIDTH as u16);
 
-impl<R: Read> PngReader<R> {
-    pub fn validate_crc(&mut self, stored_crc: u32) -> Result<(), DecodingError> {
-        let stored_crc = CRC32(stored_crc);
-
-        self.crc = !self.crc;
-
-        if self.crc != stored_crc {
-            return Err(DecodingError::CRCMismatch(self.crc.0, stored_crc.0));
-        }
-
-        Ok(())
-    }
-
-    pub fn update_crc(&mut self, buf: &[u8]) {self.crc.update(buf)}
-
-    pub fn reset_crc(&mut self) {self.crc = CRC32::default()}
-
-    pub fn update_adler32(&mut self, data: &[u8]) {
+impl Adler32 {
+    pub fn update(&mut self, data: &[u8]) {
         let (chunks, remainder) = data.as_chunks::<{ADLER_CHUNK_SIZE as usize}>();
 
-        for chunk in chunks {self.compute_alder32_chunk::<true>(chunk)}
+        for chunk in chunks {self.compute_chunk::<true>(chunk)}
 
         let unaligned_bytes = remainder.len() % SIMD_WIDTH;
-        self.compute_alder32_chunk::<false>(&remainder[..remainder.len()-unaligned_bytes]);
+        self.compute_chunk::<false>(&remainder[..remainder.len()-unaligned_bytes]);
 
         for b in remainder[remainder.len()-unaligned_bytes..].iter() {
-            self.adler.a += *b as u32;
-            self.adler.b += self.adler.a;
+            self.a += *b as u32;
+            self.b += self.a;
         }
 
-        self.adler.a %= ADLER_MOD;
-        self.adler.b %= ADLER_MOD;
+        self.a %= ADLER_MOD;
+        self.b %= ADLER_MOD;
     }
 
     #[inline(always)]
-    pub fn compute_alder32_chunk<const FULL_CHUNK: bool>(&mut self, chunk: &[u8]) {
-        let (a, delta_b) = compute_alder32_chunk_simd(chunk, self.adler.a);
-        self.adler.a = a;
-        self.adler.b += delta_b;
+    pub fn compute_chunk<const FULL_CHUNK: bool>(&mut self, chunk: &[u8]) {
+        let (a, delta_b) = compute_alder32_chunk_simd(chunk, self.a);
+        self.a = a;
+        self.b += delta_b;
 
         if FULL_CHUNK {
-            self.adler.a %= ADLER_MOD;
-            self.adler.b %= ADLER_MOD;
+            self.a %= ADLER_MOD;
+            self.b %= ADLER_MOD;
         }
     }
 
-    pub fn validate_adler32(&mut self) -> Result<(), DecodingError> {
-        let stored_adler = self.read_be::<u32>()?;
+    pub fn validate(&mut self, stored: u32) -> Result<(), DecodingError> {
+        let computed = (self.b << 16) | self.a;
 
-        let computed_adler = (self.adler.b << 16) | self.adler.a;
-
-        if computed_adler != stored_adler {
-            return Err(DecodingError::Adler32Mismatch(computed_adler, stored_adler));
+        if computed != stored {
+            return Err(DecodingError::Adler32Mismatch(computed, stored));
         }
 
         Ok(())

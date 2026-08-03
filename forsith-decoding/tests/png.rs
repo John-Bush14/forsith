@@ -10,7 +10,7 @@ fn test_image(path: &str, solution_filepath: &str) -> Result<(), Box<dyn Error>>
 
     let id = PathBuf::from(path).file_name().unwrap().to_str().unwrap()[..3].to_string();
 
-    let mut decoder = match PngDecoder::<_, u8, {PixelFormat::TruecolorAlpha as u8}>::open(BufReader::new(test_file)) {
+    let mut decoder = match PngDecoder::<u8, {PixelFormat::TruecolorAlpha as u8}>::open(BufReader::new(test_file)) {
         Ok(d) => d,
         Err(e) => {if is_correct_err(&e, &id) {return Ok(())} else {return Err(Box::from(e))}}
     };

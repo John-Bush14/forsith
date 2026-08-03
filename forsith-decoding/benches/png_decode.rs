@@ -29,7 +29,7 @@ fn png_decode_benchmarks(c: &mut Criterion) {
 }
 
 fn benchmark_decoding<const BUFFERED: bool>(g: &mut BenchmarkGroup<impl Measurement>, filename: String, data: &[u8]) {
-    let info_decoder = PngDecoder::<_, u8, {forsith_decoding::PixelFormat::TruecolorAlpha as u8}>::open(data).unwrap();
+    let info_decoder = PngDecoder::<u8, {forsith_decoding::PixelFormat::TruecolorAlpha as u8}>::open(data).unwrap();
 
     let size = if BUFFERED {info_decoder.min_buf_size()} else {info_decoder.max_buf_size()};
 
@@ -38,7 +38,7 @@ fn benchmark_decoding<const BUFFERED: bool>(g: &mut BenchmarkGroup<impl Measurem
     let dim = info_decoder.image_dimensions();
     g.throughput(Throughput::Bytes((dim.0 * dim.1 * info_decoder.source_pixel_format() as usize * info_decoder.source_bit_depth() as usize / 8) as u64));
     g.bench_function(BenchmarkId::new(if BUFFERED {"buffered"} else {"full"}, filename), |b| b.iter(|| {
-        let mut decoder = PngDecoder::<_, u8, {forsith_decoding::PixelFormat::TruecolorAlpha as u8}>::open(data).unwrap();
+        let mut decoder = PngDecoder::<u8, {forsith_decoding::PixelFormat::TruecolorAlpha as u8}>::open(data).unwrap();
         while decoder.read(&mut buf).unwrap() > 0 {};
     }));
 }

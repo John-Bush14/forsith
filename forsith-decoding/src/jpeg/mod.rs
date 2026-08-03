@@ -6,12 +6,12 @@ pub struct JpegDecoder<'a, R: Read, C: Channel, const F: u8> {
     phantom: std::marker::PhantomData<&'a (R, C)>,
 }
 
-impl<'a, R: Read, C: Channel, const F: u8> ImageDecoder<'a, R, C, F> for JpegDecoder<'a, R, C, F> {
-    fn open_validated(data: R) -> Result<Self, DecodingError> where Self: Sized {
+impl<'a, R: Read, C: Channel, const F: u8> ImageDecoder<'a, C, F> for JpegDecoder<'a, R, C, F> {
+    fn open_validated<R2: Read>(_data: R2) -> Result<Self, DecodingError> where Self: Sized {
         todo!()
     }
 
-    fn read(&mut self, buf: &mut [<C as Channel>::StorageType]) -> Result<usize, DecodingError> {
+    fn read(&mut self, _buf: &mut [<C as Channel>::StorageType]) -> Result<usize, DecodingError> {
         todo!()
     }
 
@@ -32,7 +32,7 @@ impl<'a, R: Read, C: Channel, const F: u8> ImageDecoder<'a, R, C, F> for JpegDec
     }
 }
 
-enum JpegMarker {
+enum _JpegMarker {
     Soi,
     Sof(u8, usize),
     Dht(usize),
