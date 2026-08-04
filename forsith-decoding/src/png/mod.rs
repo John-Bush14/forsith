@@ -1,5 +1,6 @@
 use std::io::Read;
 use crate::{BufferReader, Channel, CursorVec, DecodingError, ImageDecoder, OutputWriter, PixelFormat, bitspp, buffers::BitBufferReader, png::{checksum::Adler32, chunks::{ChunkHeader, ColorPalette, Ihdr, ZlibDataStream, tRNS}, deflate::{BlockType, MAX_BACKREF_LEN, STATIC_DISTANCE_TREE, STATIC_LITLEN_TREE, decode_distance, decode_length}, postprocessing::{MAX_STRIDE, PostProcessor}}};
+use derive_more::IsVariant;
 use num_enum::TryFromPrimitive;
 
 mod chunks;
@@ -19,7 +20,7 @@ mod simd;
 const PNG_HEADER: [u8; 8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
 
 #[repr(u8)]
-#[derive(Debug, TryFromPrimitive, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, TryFromPrimitive, Clone, Copy, PartialEq, Eq, IsVariant)]
 enum ColorType {
     Grayscale = 0,
     Truecolor = 2,
@@ -79,7 +80,7 @@ impl<'a, C: Channel, const F: u8> ImageDecoder<'a, C, F> for PngDecoder<'a, C, F
 
         chunk_parser.parse_chunks(&mut decoder)?;
 
-        if decoder.postprocessor.palette().is_none() && decoder.ihdr.color_type == ColorType::Indexed {
+        if decoder.postprocessor.palette().is_none() && decoder.ihdr.color_type.is_indexed() {
             return Err(DecodingError::NoPallete);
         }
 
@@ -164,7 +165,7 @@ impl<'a, C: Channel, const F: u8> PngDecoder<'a, C, F> {
         self.adler.update(self.deflate_buffer.slice(self.last_adler_update_i .. self.deflate_buffer.len()));
 
         self.compressed_data.unconsume_bitbuf();
-        self.adler.validate(self.compressed_data.buffer.read_be::<u32>()?)?;
+        self.adler.validate(self.compressed_data.read_be::<u32>()?)?;
 
         self.cur_block.r#type = BlockType::Finished;
 
@@ -230,7 +231,7 @@ impl<'a, C: Channel, const F: u8> PngDecoder<'a, C, F> {
         };
 
         if let Err(err) = result
-            && (chunk_header.r#type().is_critical() || matches!(err, DecodingError::IOError(_)))
+            && (chunk_header.is_critical() || matches!(err, DecodingError::IOError(_)))
         {
             return Err(err);
         }
@@ -248,7 +249,7 @@ impl<'a, C: Channel, const F: u8> PngDecoder<'a, C, F> {
         loop {
             let chunk_len = (len - decoded_bytes).min(self.deflate_buffer.remaining() - self.deflate_buffer_tail);
 
-            self.deflate_buffer.read_from(&mut self.compressed_data.buffer, chunk_len)?;
+            self.deflate_buffer.read_from(&mut self.compressed_data, chunk_len)?;
 
             decoded_bytes += chunk_len;
 
@@ -331,7 +332,7 @@ fn check_header<R: Read>(reader: &mut R) -> Result<(), DecodingError> {
 fn read_ihdr<R: Read>(parser: &mut ChunkParser<R>) -> Result<Ihdr, DecodingError> {
     let (chunk_header, mut chunk_data) = parser.parse_first_chunk()?;
 
-    if chunk_header.r#type() != ChunkType::Ihdr {
+    if !chunk_header.is_ihdr() {
         return Err(DecodingError::NoIHDR(chunk_header.r#type()));
     }
 

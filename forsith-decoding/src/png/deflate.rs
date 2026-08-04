@@ -1,4 +1,5 @@
 use const_for::const_for;
+use derive_more::IsVariant;
 
 use crate::{DecodingError, decompression::{BitReader, HuffmanTree}};
 
@@ -78,7 +79,7 @@ pub fn decode_distance<R: BitReader>(code: u16, reader: &mut R) -> u16 {
     base + reader.read_bits_nobranch(extra) as u16
 }
 
-#[derive(Debug, Default, PartialEq, Eq)]
+#[derive(Debug, Default, PartialEq, Eq, IsVariant)]
 pub enum BlockType {
     Uncompressed(u16),
     CompressedFixed,

@@ -15,6 +15,7 @@
 
 use std::io::Read;
 use std::fmt::Debug;
+use derive_more::IsVariant;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 mod png;
@@ -38,7 +39,7 @@ mod outputconverting;
 pub(crate) mod decompression;
 
 #[repr(u8)]
-#[derive(TryFromPrimitive, IntoPrimitive)]
+#[derive(TryFromPrimitive, IntoPrimitive, IsVariant)]
 pub enum PixelFormat {
     Native = 0,
     Grayscale = 1,
@@ -77,7 +78,7 @@ pub trait ImageDecoder<'a, C: Channel, const F: u8> {
     fn source_pixel_format(&self) -> PixelFormat;
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, IsVariant)]
 pub enum ChannelType {
     Unsigned,
     Signed,

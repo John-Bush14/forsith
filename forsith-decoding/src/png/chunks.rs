@@ -1,10 +1,11 @@
-use std::{any::Any, fmt::Display, io::Read, ops::{Index, IndexMut}};
+use std::{any::Any, fmt::Display, io::Read};
 use crate::{BufferReader, Channel, CursorVec, DecodingError::{self, InvalidChunk}, PngDecoder, png::{ColorType, checksum::CRC32, postprocessing::MAX_STRIDE}};
+use derive_more::{Deref, IsVariant, Index};
 use num_enum::{TryFromPrimitive, IntoPrimitive};
 
 #[repr(u32)]
 #[allow(non_camel_case_types)]
-#[derive(TryFromPrimitive, IntoPrimitive, Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[derive(TryFromPrimitive, IntoPrimitive, Clone, Copy, Debug, PartialEq, Eq, Default, IsVariant)]
 pub enum ChunkType {
     Ihdr = 0x49484452,
     Plte = 0x504C5445,
@@ -28,9 +29,10 @@ pub fn is_chunk_type_critical(chunk_type_buffer: &[u8; 4]) -> bool {
     chunk_type_buffer[0] & 0x20 == 0
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, Deref)]
 pub struct ChunkHeader {
     len: usize,
+    #[deref]
     r#type: ChunkType
 }
 impl ChunkHeader {
@@ -122,11 +124,11 @@ impl ChunkData for ZlibDataStream {
     {
         data.shrink_buffer(chunk_header.len() + 4);
 
-        std::mem::swap(&mut decoder.compressed_data.buffer, data);
+        std::mem::swap(&mut *decoder.compressed_data, data);
         let reader = &mut decoder.compressed_data;
 
-        let cmf = reader.buffer.read_le::<u8>()?;
-        let flg = reader.buffer.read_le::<u8>()?;
+        let cmf = reader.read_le::<u8>()?;
+        let flg = reader.read_le::<u8>()?;
         reader.align()?;
 
         let compression_method = cmf & 0b00001111;
@@ -156,25 +158,16 @@ impl ChunkData for ZlibDataStream {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Index)]
 pub struct ColorPalette {
+    #[index]
     palette: [u32; 256],
     len: u16,
 }
 
-impl IndexMut<usize> for ColorPalette {
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output {&mut self.palette[index]}
-}
-
-impl Index<usize> for ColorPalette {
-    type Output = u32;
-
-    fn index(&self, index: usize) -> &Self::Output {&self.palette[index]}
-}
-
 impl ColorPalette {
     fn set_pixel_alpha(&mut self, i: usize, a: u8) {
-        let pixel = &mut self[i];
+        let pixel = &mut self.palette[i];
 
         *pixel = (*pixel & 0x00FF_FFFF) | ((a as u32) << 24);
     }

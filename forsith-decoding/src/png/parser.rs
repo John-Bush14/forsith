@@ -26,7 +26,7 @@ impl<R: Read> ChunkParser<R> {
 
     fn validate_chunkdata(&mut self) -> Result<(), DecodingError> {
         self.crc.update(self.buffer.slice(self.cur_chunk().len()));
-        self.buffer.index += self.cur_chunk().len();
+        self.buffer.consume(self.cur_chunk().len());
 
         let crc = self.buffer.read_be::<u32>()?;
         self.validate_crc(crc)?;
@@ -44,49 +44,49 @@ impl<R: Read> ChunkParser<R> {
         self.validate_chunkdata()?;
 
         self.parse_chunk_header()?;
-        self.buffer.index = 0;
+        self.buffer.set_cursor(0);
 
         let chunk_data = self.buffer.raw_slice(8..8 + prev_chunk.len());
         Ok((prev_chunk, chunk_data))
     }
 
     pub fn parse_chunks<C: Channel, const F: u8>(&mut self, decoder: &mut PngDecoder<'_, C, F>) -> Result<(), DecodingError> {
-        let mut reading_idats = matches!(self.cur_chunk().r#type(), ChunkType::Idat);
+        let mut reading_idats = self.cur_chunk().is_idat();
 
-        while !matches!(self.cur_chunk().r#type(), ChunkType::Iend)  {
+        while !self.cur_chunk().is_iend() {
             self.read_chunkdata_and_next_header()?;
 
             self.validate_chunkdata()?;
 
-            if !matches!(self.cur_chunk().r#type(), ChunkType::Idat) {
-                self.buffer.index = 0;
+            if !self.cur_chunk().is_idat() {
+                self.buffer.set_cursor(0);
                 decoder.update_with_chunk(&self.cur_chunk, &mut self.buffer)?;
-                self.buffer.index = self.cur_chunk().len() + 4;
+                self.buffer.set_cursor(self.cur_chunk().len() + 4);
             }
 
             self.parse_chunk_header()?;
 
             if reading_idats {
-                self.buffer.index -= 12;
+                self.buffer.unconsume(12);
 
-                if !matches!(self.cur_chunk().r#type(), ChunkType::Idat) {
-                    let idat_len = self.buffer.index;
+                if !self.cur_chunk().is_idat() {
+                    let idat_len = self.buffer.cursor();
 
-                    self.buffer.index = 0;
+                    self.buffer.set_cursor(0);
                     decoder.update_with_chunk(&ChunkHeader::new(idat_len, ChunkType::Idat), &mut self.buffer)?;
-                    self.buffer.index = 0;
+                    self.buffer.set_cursor(0);
                 }
             } else {
-                self.buffer.index = 0;
+                self.buffer.set_cursor(0);
             }
 
-           reading_idats = matches!(self.cur_chunk().r#type(), ChunkType::Idat);
+           reading_idats = self.cur_chunk().is_idat();
         };
 
         let crc = self.reader.read_be::<u32>()?;
         self.validate_crc(crc)?;
 
-        self.buffer.index = 0;
+        self.buffer.set_cursor(0);
 
         Ok(())
     }
@@ -97,7 +97,7 @@ impl<R: Read> ChunkParser<R> {
         }
 
         // CRC + next (length + type)
-        match self.reader.read_exact(self.buffer.raw_mut_slice(self.buffer.index..self.buffer.index + self.cur_chunk().len() + 4 + 4 + 4)) {
+        match self.reader.read_exact(self.buffer.raw_mut_slice(self.buffer.cursor()..self.buffer.cursor() + self.cur_chunk().len() + 4 + 4 + 4)) {
             Ok(_) => Ok(()), Err(e) => match e.kind() {
                 std::io::ErrorKind::UnexpectedEof => Err(DecodingError::NoIend),
                 _ => Err(e.into())

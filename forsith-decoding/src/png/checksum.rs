@@ -1,5 +1,6 @@
-use std::{io::Read, ops::Not};
+use std::io::Read;
 use const_for::const_for;
+use derive_more::Not;
 use crate::{DecodingError, png::{parser::ChunkParser, simd::{SIMD_WIDTH, checksum::compute_alder32_chunk_simd}}};
 
 pub const POLY: u32 = 0xedb88320;
@@ -29,19 +30,11 @@ const CRC_TABLES: [[u32; 256]; 8] = const {
 };
 const CRC_INIT: u32 = 0xFFFF_FFFF;
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Not)]
 pub struct CRC32(u32);
 impl Default for CRC32 {
     fn default() -> Self {
         CRC32(CRC_INIT)
-    }
-}
-
-impl Not for CRC32 {
-    type Output = Self;
-
-    fn not(self) -> Self::Output {
-        CRC32(!self.0)
     }
 }
 

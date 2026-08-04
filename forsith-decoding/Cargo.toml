@@ -6,6 +6,7 @@ autotests = false
 
 [dependencies]
 const_for = "0.1.5"
+derive_more = { version = "2.1.1", features = ["not", "is_variant", "index_mut", "index", "deref", "deref_mut"] }
 num_enum = "0.7.6"
 thiserror = "2.0.18"
 

@@ -1,10 +1,11 @@
 use std::io;
 
 use crate::png::ChunkType;
+use derive_more::IsVariant;
 use thiserror::Error;
 
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, IsVariant)]
 pub enum DecodingError {
     #[error("Incorrect header ({0:?})")]
     InccorectHeader(Vec<u8>),
