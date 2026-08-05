@@ -1,5 +1,5 @@
-use std::{any::Any, fmt::Display, io::Read};
-use crate::{BufferReader, Channel, CursorVec, DecodingError::{self, InvalidChunk}, PngDecoder, png::{ColorType, checksum::CRC32, postprocessing::MAX_STRIDE}};
+use std::{any::Any, fmt::Display, io::{Read, Seek}};
+use crate::{Channel, CursorVec, DecodingError::{self, InvalidChunk}, PngDecoder, png::{ColorType, checksum::CRC32, postprocessing::MAX_STRIDE}};
 use derive_more::{Deref, IsVariant, Index};
 use num_enum::{TryFromPrimitive, IntoPrimitive};
 
@@ -109,7 +109,7 @@ pub trait ChunkData: Any {
     #[allow(unused)]
     fn chunk_type(&self) -> ChunkType; // &self needed for Box
 
-    fn update_decoder<'a, C: Channel, const F: u8>(decoder: &mut PngDecoder<'a, C, F>, chunk_header: &ChunkHeader, data: &mut BufferReader) -> Result<(), DecodingError>
+    fn update_decoder<'a, C: Channel, const F: u8>(decoder: &mut PngDecoder<'a, C, F>, chunk_header: &ChunkHeader, data: &mut CursorVec<u8>) -> Result<(), DecodingError>
     where Self: Sized;
 }
 
@@ -118,11 +118,11 @@ pub struct ZlibDataStream {}
 impl ChunkData for ZlibDataStream {
     fn chunk_type(&self) -> ChunkType {ChunkType::Idat}
 
-    fn update_decoder<'a, C: Channel, const F: u8>(decoder: &mut PngDecoder<'a, C, F>, chunk_header: &ChunkHeader, data: &mut BufferReader) -> Result<(), DecodingError>
+    fn update_decoder<'a, C: Channel, const F: u8>(decoder: &mut PngDecoder<'a, C, F>, chunk_header: &ChunkHeader, data: &mut CursorVec<u8>) -> Result<(), DecodingError>
     where
         Self: Sized,
     {
-        data.shrink_buffer(chunk_header.len() + 4);
+        data.get_mut().shrink_to(chunk_header.len() + 4);
 
         std::mem::swap(&mut *decoder.compressed_data, data);
         let reader = &mut decoder.compressed_data;
@@ -148,7 +148,7 @@ impl ChunkData for ZlibDataStream {
         let scanline_padding = decoder.max_scanline_bytes() + MAX_STRIDE;
         decoder.deflate_buffer = CursorVec::new(scanline_padding + lz77_buffer_size + lz77_buffer_size.next_multiple_of(decoder.max_scanline_bytes()));
 
-        decoder.deflate_buffer.advance(scanline_padding);
+        decoder.deflate_buffer.seek_relative(scanline_padding as _).unwrap();
         decoder.deflate_buffer_tail = scanline_padding;
         decoder.last_adler_update_i = scanline_padding;
 
@@ -157,6 +157,7 @@ impl ChunkData for ZlibDataStream {
         Ok(())
     }
 }
+
 
 #[derive(Debug, Index)]
 pub struct ColorPalette {
@@ -176,7 +177,7 @@ impl ColorPalette {
 impl ChunkData for ColorPalette {
     fn chunk_type(&self) -> ChunkType {ChunkType::Plte}
 
-    fn update_decoder<'a, C: Channel, const F: u8>(decoder: &mut PngDecoder<'a, C, F>, chunk_header: &ChunkHeader, reader: &mut BufferReader) -> Result<(), DecodingError>
+    fn update_decoder<'a, C: Channel, const F: u8>(decoder: &mut PngDecoder<'a, C, F>, chunk_header: &ChunkHeader, reader: &mut CursorVec<u8>) -> Result<(), DecodingError>
     where
         Self: Sized
     {
@@ -203,7 +204,7 @@ pub struct tRNS {}
 impl ChunkData for tRNS {
     fn chunk_type(&self) -> ChunkType {ChunkType::tRNS}
 
-    fn update_decoder<'a, C: Channel, const F: u8>(decoder: &mut PngDecoder<'a, C, F>, chunk_header: &ChunkHeader, reader: &mut BufferReader) -> Result<(), DecodingError>
+    fn update_decoder<'a, C: Channel, const F: u8>(decoder: &mut PngDecoder<'a, C, F>, chunk_header: &ChunkHeader, reader: &mut CursorVec<u8>) -> Result<(), DecodingError>
     where
         Self: Sized,
     {

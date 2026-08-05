@@ -1,4 +1,5 @@
 use crate::{Channel, CursorVec, Int, OutputWriter, bytespp, has_alpha, is_gray, is_rgb, unpack_constant};
+use std::io::{Seek, Write};
 
 macro_rules! aligned {
     ($t:ty, $format:ident) => {
@@ -47,16 +48,16 @@ where
     let mut pixels = CursorVec::<u8>::new(match SF {3 => 24,  _ => 8});
 
     unpack_constant::<SC, true>(slice, padding, |bytes| {
-        pixels.push_slice(bytes);
+        pixels.write_all(bytes).unwrap();
 
         if pixels.is_full() {
-            push_aligned_slice::<DC, DF, u8, SF>(pixels.as_slice(), out, 0, alpha_color);
-            pixels.clear();
-    }
+            push_aligned_slice::<DC, DF, u8, SF>(pixels.get_ref().as_slice(), out, 0, alpha_color);
+            pixels.rewind().unwrap();
+        }
     });
 
     if !pixels.is_empty() {
-        push_aligned_slice::<DC, DF, u8, SF>(pixels.as_slice(), out, 0, alpha_color);
+        push_aligned_slice::<DC, DF, u8, SF>(&pixels.get_ref()[..pixels.cursor()], out, 0, alpha_color);
     }
 }
 

@@ -1,5 +1,5 @@
-use std::io::Read;
-use crate::{BufferReader, Channel, CursorVec, DecodingError, ImageDecoder, OutputWriter, PixelFormat, bitspp, buffers::BitBufferReader, png::{checksum::Adler32, chunks::{ChunkHeader, ColorPalette, Ihdr, ZlibDataStream, tRNS}, deflate::{BlockType, MAX_BACKREF_LEN, STATIC_DISTANCE_TREE, STATIC_LITLEN_TREE, decode_distance, decode_length}, postprocessing::{MAX_STRIDE, PostProcessor}}};
+use std::io::{Read, Seek, Write};
+use crate::{Channel, DecodingError, ImageDecoder, OutputWriter, PixelFormat, bitspp, buffers::{BitCursorVec, CursorVec}, png::{checksum::Adler32, chunks::{ChunkHeader, ColorPalette, Ihdr, ZlibDataStream, tRNS}, deflate::{BlockType, MAX_BACKREF_LEN, STATIC_DISTANCE_TREE, STATIC_LITLEN_TREE, decode_distance, decode_length}, postprocessing::{MAX_STRIDE, PostProcessor}}};
 use derive_more::IsVariant;
 use num_enum::TryFromPrimitive;
 
@@ -43,7 +43,7 @@ impl From<ColorType> for PixelFormat {
 
 #[derive(Debug)]
 pub struct PngDecoder<'a, C: Channel, const F: u8> {
-    compressed_data: BitBufferReader,
+    compressed_data: BitCursorVec,
     deflate_buffer: CursorVec<u8>,
     scanline_multiples: usize,
     postprocessor: PostProcessor<C, F>,
@@ -84,7 +84,7 @@ impl<'a, C: Channel, const F: u8> ImageDecoder<'a, C, F> for PngDecoder<'a, C, F
             return Err(DecodingError::NoPallete);
         }
 
-        if decoder.deflate_buffer.capacity() == 0 {
+        if decoder.deflate_buffer.get_ref().is_empty() {
             return Err(DecodingError::NoIDAT);
         }
 
@@ -106,7 +106,7 @@ impl<'a, C: Channel, const F: u8> ImageDecoder<'a, C, F> for PngDecoder<'a, C, F
                 BlockType::CompressedFixed => {self.read_compressed_chunk::<true>(&mut dest)?;},
                 BlockType::CompressedDynamic => {self.read_compressed_chunk::<false>(&mut dest)?;},
                 BlockType::Finished => {
-                    while self.can_drain_scanline(&mut dest) && self.deflate_buffer.len() - self.deflate_buffer_tail >= self.scanline_bytes() {
+                    while self.can_drain_scanline(&mut dest) && self.deflate_buffer.cursor() - self.deflate_buffer_tail >= self.scanline_bytes() {
                         let consumed_bytes = self.consume_inflated_scanline(self.deflate_buffer_tail, &mut dest)?;
 
                         self.deflate_buffer_tail += consumed_bytes;
@@ -162,7 +162,7 @@ impl<'a, C: Channel, const F: u8> PngDecoder<'a, C, F> {
 
     #[cold]
     fn finish_decoding(&mut self) -> Result<(), DecodingError> {
-        self.adler.update(self.deflate_buffer.slice(self.last_adler_update_i .. self.deflate_buffer.len()));
+        self.update_adler();
 
         self.compressed_data.unconsume_bitbuf();
         self.adler.validate(self.compressed_data.read_be::<u32>()?)?;
@@ -174,17 +174,21 @@ impl<'a, C: Channel, const F: u8> PngDecoder<'a, C, F> {
 
     #[inline]
     fn emit_backreferenced_inflated_bytes(&mut self, length: usize, distance: usize) {
-        let i = self.deflate_buffer.len();
+        let i = self.deflate_buffer.cursor();
 
-        self.deflate_buffer.copy_within(i-distance..i-distance+length, i);
+        self.deflate_buffer.get_mut().copy_within(i-distance..i-distance+length, i);
 
-        self.deflate_buffer.advance(length);
+        self.deflate_buffer.seek_relative(length as i64).unwrap();
+    }
+
+    fn update_adler(&mut self) {
+        self.adler.update(&self.deflate_buffer.get_ref()[self.last_adler_update_i .. self.deflate_buffer.cursor()]);
+        self.last_adler_update_i = self.deflate_buffer.cursor();
     }
 
     #[cold]
     fn drain_deflate_buffer(&mut self, dest: &mut OutputWriter<'_, C, F>) -> Result<(), DecodingError> {
-        self.adler.update(self.deflate_buffer.slice(self.last_adler_update_i..self.deflate_buffer.len()));
-        self.last_adler_update_i = self.deflate_buffer.len();
+        self.update_adler();
 
         let mut drained_bytes = 0;
 
@@ -201,12 +205,12 @@ impl<'a, C: Channel, const F: u8> PngDecoder<'a, C, F> {
 
     fn deflate_buffer_remove(&mut self, bytes: usize) {
         let prev_scanline = self.max_scanline_bytes() + MAX_STRIDE;
-        let range = self.deflate_buffer_tail + bytes - prev_scanline..self.deflate_buffer.len();
+        let range = self.deflate_buffer_tail + bytes - prev_scanline..self.deflate_buffer.cursor();
 
-        self.last_adler_update_i -= self.deflate_buffer.len() - range.len();
+        self.last_adler_update_i -= self.deflate_buffer.cursor() - range.len();
 
         self.deflate_buffer.set_cursor(range.len());
-        self.deflate_buffer.copy_within(range, 0);
+        self.deflate_buffer.get_mut().copy_within(range, 0);
     }
 
     #[inline(always)]
@@ -214,14 +218,14 @@ impl<'a, C: Channel, const F: u8> PngDecoder<'a, C, F> {
         let prev_scanline_bytes = self.max_scanline_bytes() + MAX_STRIDE;
         let scanline_bytes = self.scanline_bytes();
 
-        let prev_and_cur_scanline = self.deflate_buffer.mut_slice(start - prev_scanline_bytes..start + scanline_bytes);
+        let prev_and_cur_scanline = &mut self.deflate_buffer.get_mut()[start - prev_scanline_bytes..start + scanline_bytes];
 
         self.postprocessor.filter_inflated_scanline(prev_and_cur_scanline, prev_scanline_bytes, dest)?;
 
         Ok(scanline_bytes)
     }
 
-    pub fn update_with_chunk(&mut self, chunk_header: &ChunkHeader, chunk_data: &mut BufferReader) -> Result<(), DecodingError> {
+    pub fn update_with_chunk(&mut self, chunk_header: &ChunkHeader, chunk_data: &mut CursorVec<u8>) -> Result<(), DecodingError> {
         let result = match chunk_header.r#type() {
             ChunkType::Iend | ChunkType::UnkownAncillerary => return Ok(()),
             ChunkType::Ihdr => Err(DecodingError::MultipleChunks(ChunkType::Ihdr)),
@@ -247,9 +251,9 @@ impl<'a, C: Channel, const F: u8> PngDecoder<'a, C, F> {
         let mut decoded_bytes = 0;
 
         loop {
-            let chunk_len = (len - decoded_bytes).min(self.deflate_buffer.remaining() - self.deflate_buffer_tail);
+            let chunk_len = (len - decoded_bytes).min(self.deflate_buffer.remaining());
 
-            self.deflate_buffer.read_from(&mut self.compressed_data, chunk_len)?;
+            self.deflate_buffer.read_from(&mut **self.compressed_data, chunk_len)?;
 
             decoded_bytes += chunk_len;
 
@@ -272,7 +276,7 @@ impl<'a, C: Channel, const F: u8> PngDecoder<'a, C, F> {
     #[cold]
     fn read_compressed_chunk<const STATIC: bool>(&mut self, dest: &mut OutputWriter<'_, C, F>) -> Result<(), DecodingError> {
         loop  {
-            if std::hint::unlikely(self.deflate_buffer.len() + MAX_BACKREF_LEN >= self.deflate_buffer.capacity()) {
+            if std::hint::unlikely(self.deflate_buffer.cursor() + MAX_BACKREF_LEN >= self.deflate_buffer.capacity()) {
                 if self.can_drain_scanline(dest) {
                     self.drain_deflate_buffer(dest)?;
                 } else {
@@ -290,7 +294,7 @@ impl<'a, C: Channel, const F: u8> PngDecoder<'a, C, F> {
             let symbol = litlen_tree.decode_symbol(&mut self.compressed_data);
 
             if symbol < 256 {
-                self.deflate_buffer.push(symbol as u8);
+                self.deflate_buffer.write_all(&[symbol as u8]).unwrap();
             } else if std::hint::unlikely(symbol == 256) {
                 self.next_block()?;
                 break;
@@ -303,16 +307,15 @@ impl<'a, C: Channel, const F: u8> PngDecoder<'a, C, F> {
                     self.emit_backreferenced_inflated_bytes(length as usize, distance as usize);
                 }
                 else if distance == 1 {
-                    let i = self.deflate_buffer.len();
+                    let i = self.deflate_buffer.cursor();
 
-                    let fill = self.deflate_buffer[i - 1];
-                    self.deflate_buffer.mut_slice(i..i + length as usize).fill(fill);
-                    self.deflate_buffer.advance(length as usize);
+                    let fill = self.deflate_buffer.get_ref()[i - 1];
+                    self.deflate_buffer.take_mut_slice(length as usize).fill(fill);
                 }
                 else {
                     for _ in 0..length {
-                        let byte = self.deflate_buffer[self.deflate_buffer.len() - distance as usize];
-                        self.deflate_buffer.push(byte);
+                        let byte = self.deflate_buffer.get_ref()[self.deflate_buffer.cursor() - distance as usize];
+                        self.deflate_buffer.write_all(&[byte]).unwrap();
                     }
                 }
             }

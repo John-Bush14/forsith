@@ -1,6 +1,6 @@
-use std::{fmt::Debug, io::Read, marker::PhantomData, ops::Range};
+use std::{fmt::Debug, io::{Cursor, Read, Seek}, marker::PhantomData};
 use crate::{Channel, Int, decompression::BitReader};
-use derive_more::{Deref, DerefMut, Index, IndexMut};
+use derive_more::{Deref, DerefMut};
 
 #[derive(Debug, Default)]
 pub struct BitBuffer {
@@ -9,17 +9,10 @@ pub struct BitBuffer {
 }
 impl BitBuffer {
     #[inline(always)]
-    pub fn bits_remaining(&self) -> u8 {
-        self.bits_remaining
-    }
+    pub fn bits_remaining(&self) -> u8 {self.bits_remaining}
 
     #[inline(always)]
     pub fn peek(&self, n: u8) -> u64 {
-        #[cfg(debug_assertions)]
-        if n > 64 {
-            panic!("Cannot peek more than {} bits from this BitBuffer", 64);
-        }
-
         self.buf & ((1 << n as usize) - 1)
     }
 
@@ -95,98 +88,66 @@ impl<'a, C: Channel, const F: u8> OutputWriter<'a, C, F> {
     pub fn remaining_mut_slice(&mut self) -> &mut [C::StorageType] {&mut self.buffer[self.index..]}
 }
 
-#[derive(Debug, Index, IndexMut, Default)]
-pub struct CursorVec<T> {
-    #[index]
-    #[index_mut]
-    buffer: Vec<T>,
-    cursor: usize,
-}
+#[derive(Debug, Default, Deref, DerefMut)]
+pub struct CursorVec<T: Default + Clone>(Cursor<Vec<T>>);
+impl<T: Default + Clone> CursorVec<T> {
+    pub fn new(len: usize) -> Self {Self(Cursor::new(vec![T::default(); len]))}
 
-impl<T> CursorVec<T> {
-    pub fn new(size: usize) -> Self where T: Default + Copy {
-        Self {
-            buffer: vec![T::default(); size],
-            cursor: 0
-        }
+    pub fn remaining(&self) -> usize {self.capacity() - self.cursor()}
+    pub fn capacity(&self) -> usize {self.get_ref().len()}
+    pub fn cursor(&self) -> usize {self.position() as usize}
+    pub fn set_cursor(&mut self, cursor: usize) {self.set_position(cursor as u64);}
+    pub fn is_empty(&self) -> bool {self.cursor() == 0}
+    pub fn is_full(&self) -> bool {self.cursor() == self.capacity()}
+
+    pub fn expand(&mut self, len: usize) {
+        let cap = self.capacity();
+        self.get_mut().resize(cap + len, T::default());
     }
 
-    pub fn as_mut_ptr(&mut self) -> *mut T {
-        self.buffer.as_mut_ptr()
+    pub fn take_slice(&mut self, len: usize) -> &[T] {
+        let cursor = self.cursor();
+        self.set_cursor(cursor + len);
+        &self.get_ref()[cursor..cursor + len]
     }
-
-    #[inline(always)]
-    pub fn push(&mut self, b: T) {
-        self.buffer[self.cursor] = b;
-        self.cursor += 1;
+    pub fn take_mut_slice(&mut self, len: usize) -> &mut [T] {
+        let cursor = self.cursor();
+        self.set_cursor(cursor + len);
+        &mut self.get_mut()[cursor..cursor + len]
     }
-
-    pub fn push_slice(&mut self, slice: &[T]) where T: Copy {
-        let len = slice.len();
-        self.mut_slice(self.cursor..self.cursor + len).copy_from_slice(slice);
-        self.cursor += len;
-    }
-
-    pub fn slice(&self, range: Range<usize>) -> &[T] {&self.buffer[range]}
-
-    pub fn mut_slice(&mut self, range: Range<usize>) -> &mut [T] {&mut self.buffer[range]}
-
-    pub fn copy_within(&mut self, src: Range<usize>, dest: usize) where T: Copy {
-        self.buffer.copy_within(src, dest);
-    }
-
-    #[inline(always)]
-    pub fn advance(&mut self, n: usize) {
-        self.cursor += n;
-    }
-
-    pub fn set_cursor(&mut self, i: usize) {self.cursor = i}
-
-    pub fn clear(&mut self) {
-        self.cursor = 0;
-    }
-
-    pub fn full_buf_slice(&self) -> &[T] {self.buffer.as_slice()}
-
-    pub fn as_slice(&self) -> &[T] where T: Debug {
-        self.slice(0..self.cursor)
-    }
-
-    pub fn len(&self) -> usize {self.cursor}
-    pub fn capacity(&self) -> usize {self.buffer.len()}
-    pub fn remaining(&self) -> usize {self.capacity() - self.len()}
-
-    #[must_use]
-    pub fn is_empty(&self) -> bool {self.len() == 0}
-
-    #[must_use]
-    pub fn is_full(&self) -> bool {self.len() == self.capacity()}
 }
 impl CursorVec<u8> {
-    pub fn read_from<R: Read>(&mut self, reader: &mut R, len: usize) -> std::io::Result<()> {
-        self.cursor += len;
-        let buf = self.mut_slice(self.cursor - len..self.cursor);
-        reader.read_exact(buf)
+    pub fn fill_from(&mut self, reader: &mut impl Read, len: usize) -> std::io::Result<()> {
+        let cursor = self.cursor();
+        let buf = &mut self.0.get_mut()[cursor..cursor + len];
+        reader.read_exact(buf)?;
+
+        Ok(())
+    }
+    pub fn read_from(&mut self, reader: &mut impl Read, len: usize) -> std::io::Result<()> {
+        self.fill_from(reader, len)?;
+        self.seek_relative(len as _)?;
+        Ok(())
     }
 }
 
 #[derive(Debug, Default, Deref, DerefMut)]
-pub struct BitBufferReader {
+pub struct BitCursorVec {
     #[deref]
     #[deref_mut]
-    buffer: BufferReader,
+    buffer: CursorVec<u8>,
     bit_buf: BitBuffer,
 }
-impl BitBufferReader {
+impl BitCursorVec {
     pub fn new(start_len: usize) -> Self {
         Self {
-            buffer: BufferReader::new(start_len),
+            buffer: CursorVec::<u8>::new(start_len),
             bit_buf: BitBuffer::default(),
         }
     }
 
     pub fn align(&mut self) -> Result<(), std::io::Error> {
-        let alignment = 4 - (self.buffer.cursor % align_of::<u32>());
+        let alignment = 4 - (self.buffer.cursor() % align_of::<u32>());
 
         let mut buf = vec![0u8; alignment];
         self.buffer.read_exact(&mut buf)?;
@@ -197,12 +158,12 @@ impl BitBufferReader {
     pub fn unconsume_bitbuf(&mut self) {
         let bitbuf_bytes = self.bit_buf.bits_remaining().div_euclid(8) as usize;
 
-        self.buffer.unconsume(bitbuf_bytes);
+        self.buffer.seek_relative(-(bitbuf_bytes as i64)).unwrap();
         self.bit_buf.consume(self.bit_buf.bits_remaining());
     }
 }
 
-impl BitReader for BitBufferReader {
+impl BitReader for BitCursorVec {
     #[inline(always)]
     fn peek_bits(&mut self, n: u8) -> u64 {
         if self.bit_buf.bits_remaining() <= 32 {
@@ -214,8 +175,8 @@ impl BitReader for BitBufferReader {
 
     #[inline(always)]
     fn fill_bitbuf(&mut self) {
-        let refil = u32::from_le_bytes(self.buffer.buffer[self.buffer.cursor..self.buffer.cursor + 4].try_into().unwrap());
-        self.buffer.consume(4);
+        // doesn't use read_le for performance reasons
+        let refil = u32::from_le_bytes(self.buffer.take_mut_slice(4).try_into().unwrap());
 
         self.bit_buf.push(refil);
     }
@@ -232,65 +193,4 @@ impl BitReader for BitBufferReader {
 
     #[inline(always)]
     fn peek_bits_nobranch(&mut self, n: u8) -> u64 {self.bit_buf.peek(n)}
-}
-impl Read for BitBufferReader {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        self.buffer.read(buf)
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct BufferReader {
-    buffer: Vec<u8>,
-    cursor: usize,
-}
-impl BufferReader {
-    pub fn new(start_len: usize) -> Self {
-        Self {
-            buffer: vec![0u8; start_len],
-            cursor: 0,
-        }
-    }
-
-    pub fn capacity(&self) -> usize {self.buffer.len()}
-
-    pub fn mut_buffer(&mut self) -> &mut Vec<u8> {&mut self.buffer}
-
-    pub fn slice(&self, len: usize) -> &[u8] {
-        &self.buffer[self.cursor..self.cursor + len]
-    }
-
-    pub fn mut_slice(&mut self, len: usize) -> &mut [u8] {
-        &mut self.buffer[self.cursor..self.cursor + len]
-    }
-
-    pub fn raw_slice(&self, range: Range<usize>) -> &[u8] {&self.buffer[range]}
-    pub fn raw_mut_slice(&mut self, range: Range<usize>) -> &mut [u8] {&mut self.buffer[range]}
-
-    #[inline(always)]
-    pub fn consume(&mut self, n: usize) {self.cursor += n;}
-    pub fn unconsume(&mut self, n: usize) {self.cursor -= n;}
-
-    pub fn expand(&mut self, len: usize) {self.buffer.resize(self.buffer.len() + len, 0u8)}
-
-    pub fn remaining(&self) -> usize {
-        self.buffer.len() - self.cursor
-    }
-
-    pub fn shrink_buffer(&mut self, len: usize) {
-        self.buffer.truncate(len);
-        self.buffer.shrink_to_fit();
-    }
-
-    pub fn cursor(&self) -> usize {self.cursor}
-    pub fn set_cursor(&mut self, cursor: usize) {self.cursor = cursor;}
-}
-
-impl Read for BufferReader {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        buf.copy_from_slice(&self.buffer[self.cursor..self.cursor+buf.len()]);
-        self.cursor += buf.len();
-
-        Ok(buf.len())
-    }
 }
