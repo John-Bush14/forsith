@@ -294,7 +294,7 @@ impl<'a, C: Channel, const F: u8> PngDecoder<'a, C, F> {
             let symbol = litlen_tree.decode_symbol(&mut self.compressed_data);
 
             if symbol < 256 {
-                self.deflate_buffer.write_all(&[symbol as u8]).unwrap();
+                self.deflate_buffer.write_fast_single(symbol as u8);
             } else if std::hint::unlikely(symbol == 256) {
                 self.next_block()?;
                 break;
@@ -315,7 +315,7 @@ impl<'a, C: Channel, const F: u8> PngDecoder<'a, C, F> {
                 else {
                     for _ in 0..length {
                         let byte = self.deflate_buffer.get_ref()[self.deflate_buffer.cursor() - distance as usize];
-                        self.deflate_buffer.write_all(&[byte]).unwrap();
+                        self.deflate_buffer.write_fast_single(byte);
                     }
                 }
             }

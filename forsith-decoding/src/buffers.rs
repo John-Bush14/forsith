@@ -100,6 +100,13 @@ impl<T: Default + Clone> CursorVec<T> {
     pub fn is_empty(&self) -> bool {self.cursor() == 0}
     pub fn is_full(&self) -> bool {self.cursor() == self.capacity()}
 
+    #[inline(always)]
+    pub fn write_fast_single(&mut self, data: T) {
+        let cursor = self.cursor();
+        self.get_mut()[cursor] = data;
+        self.set_cursor(cursor + 1);
+    }
+
     pub fn expand(&mut self, len: usize) {
         let cap = self.capacity();
         self.get_mut().resize(cap + len, T::default());
