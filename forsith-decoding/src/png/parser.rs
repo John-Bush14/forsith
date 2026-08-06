@@ -107,4 +107,8 @@ impl<R: Read> ChunkParser<R> {
     fn parse_chunk_header(&mut self) -> Result<(), DecodingError> {
         (self.cur_chunk, self.crc) = ChunkHeader::read(&mut *self.buffer)?; Ok(())
     }
+
+    pub fn validate_crc(&mut self, stored_crc: u32) -> Result<(), DecodingError> {
+        self.crc.validate(stored_crc)
+    }
 }

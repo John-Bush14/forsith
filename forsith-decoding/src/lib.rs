@@ -31,6 +31,10 @@ use buffers::*;
 mod decoding_error;
 pub use decoding_error::DecodingError;
 
+mod simd;
+
+mod checksums;
+
 // if you can use ['use'] without tanking performance please do
 include!("int.rs");
 
@@ -114,3 +118,5 @@ where
         }
     };
 }
+
+

@@ -1,6 +1,6 @@
 use std::io;
 
-use crate::png::ChunkType;
+use crate::{checksums::CRC32, png::ChunkType};
 use derive_more::IsVariant;
 use thiserror::Error;
 
@@ -12,7 +12,7 @@ pub enum DecodingError {
     #[error("Unexpected IO error while reading data")]
     IOError(#[from] std::io::Error),
     #[error("Stored ({0:?}) and calculated ({1:?}) CRC did not match, indicating data corruption.")]
-    CRCMismatch(u32, u32), // calculated, store
+    CRCMismatch(CRC32, CRC32), // calculated, store
     #[error("Stored ({1:#010X}) and calculated ({0:#010X}) Adler32 checksum did not match, indicating incorrect (de)compression.")]
     Adler32Mismatch(u32, u32), // calculated, store
     #[error("Provided dest buf of size less than min_buf_size ({0})")]

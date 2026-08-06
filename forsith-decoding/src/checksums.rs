@@ -1,7 +1,9 @@
 use std::io::Read;
 use const_for::const_for;
 use derive_more::Not;
-use crate::{DecodingError, png::{parser::ChunkParser, simd::{SIMD_WIDTH, checksum::compute_alder32_chunk_simd}}};
+use crate::{DecodingError};
+use crate::simd::SIMD_WIDTH;
+use core::simd::prelude::*;
 
 pub const POLY: u32 = 0xedb88320;
 const CRC_TABLES: [[u32; 256]; 8] = const {
@@ -61,16 +63,14 @@ impl CRC32 {
             self.0 = CRC_TABLES[0][((self.0 ^ *b as u32) & 0xff) as usize] ^ (self.0 >> 8);
         }
     }
-}
 
-impl<R: Read> ChunkParser<R> {
-    pub fn validate_crc(&mut self, stored_crc: u32) -> Result<(), DecodingError> {
+    pub(crate) fn validate(&self, stored_crc: u32) -> Result<(), DecodingError> {
         let stored_crc = CRC32(stored_crc);
 
-        let calculated_crc = !self.crc();
+        let calculated_crc = !self.clone();
 
         if calculated_crc != stored_crc {
-            return Err(DecodingError::CRCMismatch(calculated_crc.0, stored_crc.0));
+            return Err(DecodingError::CRCMismatch(calculated_crc, stored_crc));
         }
 
         Ok(())
@@ -129,4 +129,39 @@ impl Adler32 {
 
         Ok(())
     }
+}
+
+const POSITIONS: Simd<AdlerLaneSize, SIMD_WIDTH> = {
+    let mut arr = [0; SIMD_WIDTH];
+    let mut i = 0;
+
+    while i < SIMD_WIDTH {
+        arr[i] = SIMD_WIDTH as AdlerLaneSize - i as AdlerLaneSize;
+        i += 1;
+    }
+
+    Simd::from_array(arr)
+};
+
+type AdlerLaneSize = u16;
+
+#[inline(always)]
+pub fn compute_alder32_chunk_simd(chunk: &[u8], mut a: u32) -> (u32, u32) {
+    let mut b = 0u32;
+
+    for chunk in chunk.as_chunks::<SIMD_WIDTH>().0 {
+        let chunkv = Simd::<u8, SIMD_WIDTH>::from_slice(chunk).cast::<AdlerLaneSize>();
+
+        let sum = chunkv.reduce_sum();
+
+        let weightedv = chunkv * POSITIONS;
+        let weighted_sum = weightedv.reduce_sum();
+
+        let delta_b = weighted_sum as u32 + a * SIMD_WIDTH as u32;
+
+        a += sum as u32;
+        b += delta_b;
+    }
+
+    (a, b)
 }

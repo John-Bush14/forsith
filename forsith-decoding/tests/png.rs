@@ -70,10 +70,10 @@ fn is_correct_err(err: &DecodingError, id: &str) -> bool {
         | ("xs2", DecodingError::InccorectHeader(_))
         | ("xs4", DecodingError::InccorectHeader(_))
         | ("xs7", DecodingError::InccorectHeader(_))
-        | ("xhd", DecodingError::CRCMismatch(1443964200, 1129534797))
+        | ("xhd", DecodingError::CRCMismatch(_, _))
         | ("xc1" | "xc9" | "xd0" | "xd3" | "xd9", DecodingError::InvalidChunk(_))
         | ("xdt", DecodingError::NoIDAT)
-        | ("xcs", DecodingError::CRCMismatch(3492746441, 1129534797))
+        | ("xcs", DecodingError::CRCMismatch(_, _))
         | ("xcr" | "xlf", _)
     )
 }
