@@ -1,7 +1,9 @@
+use derive_more::IsVariant;
+use num_enum::{IntoPrimitive, TryFromPrimitive};
+
 use crate::{DecodingError, decompression::BitReader, };
 
 #[derive(Debug)]
-#[repr(C)]
 pub struct HuffmanTree<const MAX_COLEN: u8, const MAX_ROOT_COLEN: u8, const MAX_SUBTABLE_ENTRIES: usize>
 where
     [(); (1 << MAX_ROOT_COLEN as usize) + MAX_SUBTABLE_ENTRIES]:,
@@ -15,49 +17,77 @@ where
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[repr(transparent)]
 struct Entry(u32);
 
+#[derive(IntoPrimitive, Debug, Clone, Copy, PartialEq, Eq, IsVariant)]
+#[repr(u32)]
+enum EntryTag {
+    Empty = 0,
+    Symbol = 1,
+    Subtable = 2,
+}
+
 impl Entry {
-    const fn empty() -> Self {Entry(0)}
+    const VALUE_MASK: u32 = 0xFFFF;
+    const TAG_SHIFT: u32 = 16;
+    const TAG_MASK: u32 = 0b11;
+    const META_SHIFT: u32 = 24;
 
+    pub const EMPTY: Self = Self(0);
+
+    #[inline(always)]
     const fn new_symbol(symbol: u16, colen: u8) -> Self {
-        Self(symbol as u32 | ((colen as u32) << 24) | (0b01 << 16) as u32)
+        Self(
+            symbol as u32
+                | ((EntryTag::Symbol as u32) << Self::TAG_SHIFT)
+                | ((colen as u32) << Self::META_SHIFT),
+        )
     }
 
-    /// offset from root table end
+    /// `index` is the offset from the end of the root table.
+    #[inline(always)]
     const fn new_subtable(index: usize, bits: u8) -> Self {
-        Self(index as u32 | ((bits as u32) << 24) | (0b10 << 16) as u32)
+        Self(
+            index as u32
+                | ((EntryTag::Subtable as u32) << Self::TAG_SHIFT)
+                | ((bits as u32) << Self::META_SHIFT),
+        )
     }
 
-    /// not to be used in decoding as can't be differentiated
+    /// Not used during decoding.
+    #[inline(always)]
     const fn new_longcode(symbol: u16, code: u16) -> Self {
-        Self(symbol as u32 | (code as u32) << 16)
+        Self(symbol as u32 | ((code as u32) << 16))
     }
 
     #[inline(always)]
-    const fn symbol(&self) -> u16 {
-        (self.0 & u16::MAX as u32) as u16
+    const fn value(self) -> u16 {
+        (self.0 & Self::VALUE_MASK) as u16
     }
-    #[inline(always)]
-    const fn subtable_index(&self) -> usize {self.symbol() as usize}
+    const fn symbol(self) -> u16 {self.value()}
+    const fn subtable_index(self) -> usize {self.value() as usize}
 
     #[inline(always)]
-    const fn colen(&self) -> u8 {
-        (self.0 >> 24) as u8
+    const fn meta(self) -> u8 {
+        (self.0 >> Self::META_SHIFT) as u8
     }
-    #[inline(always)]
-    const fn subtable_bits(&self) -> u8 {self.colen()}
+    const fn colen(self) -> u8 {self.meta()}
+    const fn subtable_bits(self) -> u8 {self.meta()}
 
-    const fn code(&self) -> u16 {
-        (self.0 >> 16) as u16
+    #[inline(always)]
+    const fn code(self) -> u16 {
+        (self.0 >> Self::TAG_SHIFT) as u16
     }
 
-    const fn _is_symbol(&self) -> bool {self.0 >> 16 & 0b11 == 1}
-    const fn is_subtable(&self) -> bool {self.0 >> 16 & 0b11 == 2}
-
-    #[allow(unused)]
-    const fn is_empty(&self) -> bool {
-        self.0 == 0
+    #[inline(always)]
+    const fn tag(self) -> EntryTag {
+        match (self.0 >> Self::TAG_SHIFT) & Self::TAG_MASK {
+            0 => EntryTag::Empty,
+            1 => EntryTag::Symbol,
+            2 => EntryTag::Subtable,
+            _ => unreachable!(),
+        }
     }
 }
 
@@ -68,7 +98,7 @@ where
 {
     pub const fn default() -> Self {
         Self {
-            table: [Entry::empty(); (1 << MAX_ROOT_COLEN as usize) + MAX_SUBTABLE_ENTRIES],
+            table: [Entry::EMPTY; (1 << MAX_ROOT_COLEN as usize) + MAX_SUBTABLE_ENTRIES],
             root_bits: 0,
             sub_bits: 0,
             next_subtable: 0,
@@ -100,7 +130,7 @@ where
     }
 
     const fn generate_table(&mut self, code_lengths: &[u8], mut next_code: [u32; MAX_COLEN as usize + 1]) -> Result<(), DecodingError> {
-        let mut longcodes = [Entry::empty(); MAX_SUBTABLE_ENTRIES];
+        let mut longcodes = [Entry::EMPTY; MAX_SUBTABLE_ENTRIES];
         self.next_subtable = 0;
 
         let mut i = 0usize;
@@ -131,7 +161,7 @@ where
             let subcolen = colen - MAX_ROOT_COLEN;
             let root = (code & ((1 << MAX_ROOT_COLEN) - 1)) as usize;
 
-            if self.table[root].subtable_index() != self.generation || !self.table[root].is_subtable() {
+            if self.table[root].subtable_index() != self.generation || !self.table[root].tag().is_subtable() {
                 self.table[root] = Entry::new_subtable(self.generation, subcolen);
             } else {
                 self.table[root] = Entry::new_subtable(self.generation, self.table[root].subtable_bits().max(subcolen));
@@ -219,7 +249,7 @@ where
 
         let mut entry = self.table[code as usize];
 
-        if MAX_SUBTABLE_ENTRIES != 0 && entry.is_subtable() {
+        if MAX_SUBTABLE_ENTRIES != 0 && entry.tag().is_subtable() {
             let subtable_bits = reader.peek_bits_nobranch(entry.subtable_bits() + MAX_ROOT_COLEN) >> MAX_ROOT_COLEN;
             entry = self.table[entry.subtable_index() + subtable_bits as usize];
         }
