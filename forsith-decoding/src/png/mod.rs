@@ -17,6 +17,7 @@ mod postprocessing;
 
 const PNG_HEADER: [u8; 8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
 
+
 #[repr(u8)]
 #[derive(Debug, TryFromPrimitive, Clone, Copy, PartialEq, Eq, IsVariant)]
 enum ColorType {
@@ -311,10 +312,12 @@ impl<'a, C: Channel, const F: u8> PngDecoder<'a, C, F> {
                     self.deflate_buffer.take_mut_slice(length as usize).fill(fill);
                 }
                 else {
-                    for _ in 0..length {
+                    for _ in 0..length-distance {
                         let byte = self.deflate_buffer.get_ref()[self.deflate_buffer.cursor() - distance as usize];
                         self.deflate_buffer.write_fast_single(byte);
                     }
+
+                    self.emit_backreferenced_inflated_bytes(distance as usize, distance as usize);
                 }
             }
         } Ok(())
