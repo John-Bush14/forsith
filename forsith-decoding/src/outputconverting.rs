@@ -1,4 +1,4 @@
-use crate::{Channel, CursorVec, Int, OutputWriter, bytespp, has_alpha, is_gray, is_rgb, unpack_constant};
+use crate::{Channel, buffers::CursorVec, Int, buffers::OutputWriter, bytespp, has_alpha, is_gray, is_rgb, int::unpack_constant};
 use std::io::{Seek, Write};
 
 macro_rules! aligned {

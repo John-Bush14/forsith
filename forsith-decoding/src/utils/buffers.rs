@@ -1,5 +1,5 @@
 use std::{fmt::Debug, io::{Cursor, Read, Seek}, marker::PhantomData};
-use crate::{Channel, Int, decompression::BitReader};
+use crate::{Channel, Int, parsing::BitReader};
 use derive_more::{Deref, DerefMut};
 
 #[derive(Debug, Default)]

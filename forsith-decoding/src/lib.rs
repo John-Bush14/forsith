@@ -24,23 +24,17 @@ pub use png::PngDecoder;
 mod jpeg;
 pub use jpeg::JpegDecoder;
 
-#[allow(dead_code)]
-mod buffers;
-use buffers::*;
+mod utils;
+pub(crate) use utils::*;
+use int::Int;
 
 mod decoding_error;
 pub use decoding_error::DecodingError;
 
-mod simd;
-
-mod checksums;
-
-// if you can use ['use'] without tanking performance please do
-include!("int.rs");
-
-mod outputconverting;
-
+pub(crate) mod checksums;
+pub(crate) mod outputconverting;
 pub(crate) mod decompression;
+pub(crate) mod parsing;
 
 #[repr(u8)]
 #[derive(TryFromPrimitive, IntoPrimitive, IsVariant)]

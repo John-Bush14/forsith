@@ -1,7 +1,7 @@
 use derive_more::IsVariant;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
+use crate::{DecodingError, parsing::BitReader};
 
-use crate::{DecodingError, decompression::BitReader, };
 
 #[derive(Debug)]
 pub struct HuffmanTree<const MAX_COLEN: u8, const MAX_ROOT_COLEN: u8, const MAX_SUBTABLE_ENTRIES: usize>
