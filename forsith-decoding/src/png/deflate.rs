@@ -118,7 +118,7 @@ impl Block {
         let hclen: u16 = reader.read_bits(4) as u16 + 4;
 
         let mut codlen_codelengths = vec![0u8; 19];
-        for (i, colen) in reader.iterate_bits(3).take(hclen as usize).enumerate() {
+        for (i, colen) in reader.iterate_bits::<3>().take(hclen as usize).enumerate() {
             let index = CODE_LENGTH_ORDER[i] as usize;
             codlen_codelengths[index] = colen as u8;
         }
