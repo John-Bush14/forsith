@@ -9,7 +9,7 @@ use thiserror::Error;
 pub enum DecodingError {
     #[error("Incorrect header ({0:?})")]
     InccorectHeader(Vec<u8>),
-    #[error("Unexpected IO error while reading data")]
+    #[error("Unexpected IO error while reading data ({0})")]
     IOError(#[from] std::io::Error),
     #[error("Stored ({0:?}) and calculated ({1:?}) CRC did not match, indicating data corruption.")]
     CRCMismatch(CRC32, CRC32), // calculated, store

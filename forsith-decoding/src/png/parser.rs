@@ -3,7 +3,7 @@ use derive_more::Deref;
 
 use crate::{DecodingError, buffers::CursorVec, parsing::{SegmentHeader, SegmentParser}, png::{ChunkType::{self}, checksum::CRC32}};
 
-const EXTRA_ALLOC: usize = 1 << 12;
+const BASE_ALLOC: usize = 1 << 12;
 
 #[derive(Debug)]
 pub struct ChunkParser<R: Read> {
@@ -16,13 +16,34 @@ impl<R: Read> ChunkParser<R> {
     pub fn new(reader: R) -> Result<Self, DecodingError> {
         Ok(Self {
             reader,
-            buffer: CursorVec::<u8>::new(EXTRA_ALLOC),
+            buffer: CursorVec::<u8>::new(BASE_ALLOC),
             header: Default::default(),
         })
     }
 
     fn validate_crc(&mut self, stored_crc: u32) -> Result<(), DecodingError> {
         self.header.crc.validate(stored_crc)
+    }
+
+    fn coalesce_idat_chunks(&mut self) -> Result<(), DecodingError> {
+        while self.header.is_idat() {
+            self.read_to_next_header()?;
+            self.parse_header()?;
+            self.buffer.seek_relative(-12).unwrap();
+        } Ok(())
+    }
+
+    fn handle_idat_chunks<F>(&mut self, out: &mut F) -> Result<(), DecodingError>
+        where F: FnMut(&ChunkHeader, &mut CursorVec<u8>) -> Result<(), DecodingError>
+    {
+        let idat_start = self.buffer.cursor();
+
+        self.coalesce_idat_chunks()?;
+
+        let idat_len = self.buffer.cursor() - idat_start;
+
+        self.buffer.seek_relative(-(idat_len as i64)).unwrap();
+        out(&ChunkHeader::new(idat_len, ChunkType::Idat), &mut self.buffer)
     }
 }
 
@@ -44,45 +65,28 @@ impl<R: Read> SegmentParser<R> for ChunkParser<R> {
         Ok(())
     }
 
-
+    /// out should ensure whole chunk is read before returing, for cursor alignment.
     fn parse_chunks<F>(&mut self, mut out: F) -> Result<(), DecodingError>
         where F: FnMut(&Self::Header, &mut CursorVec<u8>) -> Result<(), DecodingError>
     {
-        let mut reading_idats = self.header.is_idat();
+        if self.header.is_idat() {self.handle_idat_chunks(&mut out)?}
 
         while !self.header.is_iend() {
-            self.read_segment_and_next_header()?;
-            self.validate_segment()?;
+            self.read_to_next_header()?;
 
-            if !self.header.is_idat() {
-                self.buffer.set_cursor(0);
-                out(&self.header, &mut self.buffer)?;
-                self.buffer.set_cursor(self.header.len() + 4);
-            }
+            self.buffer.seek_relative(-(self.header.length() as i64)).unwrap();
+            out(&self.header, &mut self.buffer)?;
+            self.buffer.seek_relative(4)?;
 
             self.parse_header()?;
 
-            if reading_idats {
-                self.buffer.seek_relative(-12).unwrap();
+            if self.header.is_idat() {self.handle_idat_chunks(&mut out)?}
 
-                if !self.header.is_idat() {
-                    let idat_len = self.buffer.cursor();
-
-                    self.buffer.set_cursor(0);
-                    out(&ChunkHeader::new(idat_len, ChunkType::Idat), &mut self.buffer)?;
-                    self.buffer.set_cursor(0);
-                }
-            } else {
-                self.buffer.set_cursor(0);
-            }
-
-           reading_idats = self.header.is_idat();
+            self.buffer.set_cursor(0);
         };
 
         let crc = self.reader.read_be::<u32>()?;
         self.validate_crc(crc)?;
-
-        self.buffer.set_cursor(0);
 
         Ok(())
     }

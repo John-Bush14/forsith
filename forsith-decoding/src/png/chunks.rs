@@ -87,7 +87,7 @@ impl ChunkData for ZlibDataStream {
     where
         Self: Sized,
     {
-        data.get_mut().shrink_to(chunk_header.len() + 4);
+        data.get_mut().shrink_to(chunk_header.len());
 
         std::mem::swap(&mut *decoder.compressed_data, data);
         let reader = &mut decoder.compressed_data;

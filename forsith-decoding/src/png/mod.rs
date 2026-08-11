@@ -226,7 +226,7 @@ impl<'a, C: Channel, const F: u8> PngDecoder<'a, C, F> {
 
     pub fn update_with_chunk(&mut self, chunk_header: &ChunkHeader, chunk_data: &mut CursorVec<u8>) -> Result<(), DecodingError> {
         let result = match chunk_header.r#type() {
-            ChunkType::Iend | ChunkType::UnkownAncillerary => return Ok(()),
+            ChunkType::Iend | ChunkType::UnkownAncillerary => chunk_data.seek_relative(chunk_header.len() as i64).map_err(|e| e.into()),
             ChunkType::Ihdr => Err(DecodingError::MultipleChunks(ChunkType::Ihdr)),
             ChunkType::Idat => ZlibDataStream::update_decoder(self, chunk_header, chunk_data),
             ChunkType::Plte => ColorPalette::update_decoder(self, chunk_header, chunk_data),

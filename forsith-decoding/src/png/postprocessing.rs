@@ -74,11 +74,7 @@ impl<C: Channel, const F: u8> PostProcessor<C, F> {
             2 => {self.filter_scanline_inplace::<2>(scanlines, i)},
             3 => {self.filter_scanline_inplace::<3>(scanlines, i)},
             4 => {self.filter_scanline_inplace::<4>(scanlines, i)},
-            _ => {
-                println!("{:?} \n\n {:?}", &scanlines[..i-1], &scanlines[i-1..]);
-
-                return Err(DecodingError::InvalidFilter(filter))
-            },
+            _ => return Err(DecodingError::InvalidFilter(filter)),
         }
 
         self.emit_filtered_scanline(&scanlines[cur_scanline_range], dest);

@@ -58,15 +58,11 @@ pub trait SegmentParser<R: Read> {
     }
 
     fn parse_first_chunk(&mut self) -> Result<(Self::Header, &[u8]), DecodingError> {
-        let (buffer, reader, _) = self.context();
-
-        buffer.fill_from(reader, Self::Header::SIZE)?;
+        self.read_bytes(Self::Header::SIZE)?;
         self.parse_header()?;
         let prev_header = self.header().clone();
 
-        self.read_segment_and_next_header()?;
-        self.validate_segment()?;
-
+        self.read_to_next_header()?;
         self.parse_header()?;
 
         self.buffer().set_cursor(0);
@@ -78,9 +74,16 @@ pub trait SegmentParser<R: Read> {
     fn parse_chunks<F>(&mut self, out: F) -> Result<(), DecodingError>
         where F: FnMut(&Self::Header, &mut CursorVec<u8>) -> Result<(), DecodingError>;
 
-    fn read_segment_and_next_header(&mut self) -> Result<(), DecodingError> {
-        let (buffer, reader, header) = self.context();
-        let len = header.length() + Self::Header::SIZE;
+    fn read_to_next_header(&mut self) -> Result<(), DecodingError> {
+        let len = self.header().length() + Self::Header::SIZE;
+
+        self.read_bytes(len)?;
+
+        self.validate_segment()
+    }
+
+    fn read_bytes(&mut self, len: usize) -> Result<(), DecodingError> {
+        let (buffer, reader, _) = self.context();
 
         if buffer.remaining() <= len {
             buffer.expand(len);
