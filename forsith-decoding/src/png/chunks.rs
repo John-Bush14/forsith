@@ -1,6 +1,6 @@
 use std::{any::Any, fmt::Display, io::{Read, Seek}};
-use crate::{Channel, buffers::CursorVec, DecodingError::{self, InvalidChunk}, PngDecoder, png::{ColorType, checksum::CRC32, postprocessing::MAX_STRIDE}};
-use derive_more::{Deref, IsVariant, Index};
+use crate::{Channel, DecodingError::{self, InvalidChunk}, PngDecoder, buffers::CursorVec, png::{ColorType, parser::ChunkHeader, postprocessing::MAX_STRIDE}};
+use derive_more::{IsVariant, Index};
 use num_enum::{TryFromPrimitive, IntoPrimitive};
 
 #[repr(u32)]
@@ -24,41 +24,6 @@ impl ChunkType {
     pub fn is_critical(&self) -> bool {
         *self as u32 & 0x20000000 == 0
     }
-}
-pub fn is_chunk_type_critical(chunk_type_buffer: &[u8; 4]) -> bool {
-    chunk_type_buffer[0] & 0x20 == 0
-}
-
-#[derive(Default, Debug, Clone, Deref)]
-pub struct ChunkHeader {
-    len: usize,
-    #[deref]
-    r#type: ChunkType
-}
-impl ChunkHeader {
-    pub fn read<R: Read>(reader: &mut R) -> Result<(Self, CRC32), DecodingError> {
-        let len = reader.read_be::<u32>()? as usize;
-
-        let chunk_type_buf = reader.read_array::<4>()?;
-        let mut crc = CRC32::default(); crc.update(&chunk_type_buf);
-
-        let r#type = match u32::from_be_bytes(chunk_type_buf).try_into() {
-            Ok(t) => t,
-            Err(_) => {
-                if is_chunk_type_critical(&chunk_type_buf) {return Err(DecodingError::UnkownChunk(chunk_type_buf))}
-
-                ChunkType::UnkownAncillerary
-            }
-        };
-
-        Ok((Self::new(len, r#type), crc))
-    }
-
-    pub fn new(len: usize, r#type: ChunkType) -> Self {Self {len, r#type}}
-
-    pub fn len(&self) -> usize {self.len}
-
-    pub fn r#type(&self) -> ChunkType {self.r#type}
 }
 
 #[derive(Debug)]

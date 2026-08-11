@@ -1,4 +1,3 @@
-use std::io::Read;
 use const_for::const_for;
 use derive_more::Not;
 use crate::{DecodingError};

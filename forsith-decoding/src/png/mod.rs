@@ -1,5 +1,5 @@
-use std::io::{Read, Seek, Write};
-use crate::{Channel, DecodingError, ImageDecoder, buffers::OutputWriter, PixelFormat, bitspp, buffers::{BitCursorVec, CursorVec}, png::{checksum::Adler32, chunks::{ChunkHeader, ColorPalette, Ihdr, ZlibDataStream, tRNS}, deflate::{BlockType, MAX_BACKREF_LEN, STATIC_DISTANCE_TREE, STATIC_LITLEN_TREE, decode_distance, decode_length}, postprocessing::{MAX_STRIDE, PostProcessor}}};
+use std::io::{Read, Seek};
+use crate::{Channel, DecodingError, ImageDecoder, PixelFormat, bitspp, buffers::{BitCursorVec, CursorVec, OutputWriter}, parsing::SegmentParser, png::{checksum::Adler32, chunks::{ColorPalette, Ihdr, ZlibDataStream, tRNS}, deflate::{BlockType, MAX_BACKREF_LEN, STATIC_DISTANCE_TREE, STATIC_LITLEN_TREE, decode_distance, decode_length}, postprocessing::{MAX_STRIDE, PostProcessor}}};
 use derive_more::IsVariant;
 use num_enum::TryFromPrimitive;
 
@@ -7,7 +7,7 @@ mod chunks;
 pub use chunks::{ChunkType, ChunkData};
 
 mod parser;
-pub use parser::ChunkParser;
+pub(crate) use parser::{ChunkParser, ChunkHeader};
 
 pub(crate) use crate::checksums as checksum;
 
@@ -77,7 +77,7 @@ impl<'a, C: Channel, const F: u8> ImageDecoder<'a, C, F> for PngDecoder<'a, C, F
             adler: Default::default()
         };
 
-        chunk_parser.parse_chunks(&mut decoder)?;
+        chunk_parser.parse_chunks(|h, d| decoder.update_with_chunk(h, d))?;
 
         if decoder.postprocessor.palette().is_none() && decoder.ihdr.color_type.is_indexed() {
             return Err(DecodingError::NoPallete);

@@ -1,5 +1,5 @@
 use derive_more::IsVariant;
-use num_enum::{IntoPrimitive, TryFromPrimitive};
+use num_enum::IntoPrimitive;
 use crate::{DecodingError, parsing::BitReader};
 
 

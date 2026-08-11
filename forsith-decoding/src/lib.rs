@@ -26,7 +26,6 @@ pub use jpeg::JpegDecoder;
 
 mod utils;
 pub(crate) use utils::*;
-use int::Int;
 
 mod decoding_error;
 pub use decoding_error::DecodingError;
@@ -83,6 +82,8 @@ pub enum ChannelType {
     // Float,
     // NormalizedFloat
 }
+
+use int::Int;
 
 pub trait Channel
 where
