@@ -36,14 +36,16 @@ impl<R: BitReader, const BITS: u8> Iterator for BitIterator<'_, R, BITS> {
 }
 
 pub trait SegmentHeader: Clone {
-    const SIZE: usize;
+    const MAX_SIZE: usize;
 
     fn length(&self) -> usize;
     fn read<R: Read>(reader: &mut R) -> Result<Self, DecodingError> where Self: Sized;
+    fn size(&self) -> usize {Self::MAX_SIZE}
 }
 
 pub trait SegmentParser<R: Read> {
     type Header: SegmentHeader;
+    type ExtraOut;
 
     fn context<'s, 'a, 'b, 'c>(&'s mut self) -> (&'a mut CursorVec<u8>, &'b mut R, &'c mut Self::Header)
         where 's: 'a, 's: 'b, 's: 'c;
@@ -58,31 +60,48 @@ pub trait SegmentParser<R: Read> {
     }
 
     fn parse_first_chunk(&mut self) -> Result<(Self::Header, &[u8]), DecodingError> {
-        self.read_bytes(Self::Header::SIZE)?;
+        self.read_bytes_exact(Self::Header::MAX_SIZE)?;
         self.parse_header()?;
         let prev_header = self.header().clone();
 
         self.read_to_next_header()?;
         self.parse_header()?;
 
-        self.buffer().set_cursor(0);
+        self.clear_buffer();
 
-        let chunk_data = &self.buffer().get_ref()[Self::Header::SIZE..Self::Header::SIZE + prev_header.length()];
+        let chunk_data = &self.buffer().get_ref()[prev_header.size()..prev_header.size() + prev_header.length()];
         Ok((prev_header, chunk_data))
     }
 
+    fn clear_buffer(&mut self) {self.buffer().set_cursor(0);}
+
     fn parse_chunks<F>(&mut self, out: F) -> Result<(), DecodingError>
-        where F: FnMut(&Self::Header, &mut CursorVec<u8>) -> Result<(), DecodingError>;
+        where F: FnMut(&Self::Header, &mut CursorVec<u8>, Self::ExtraOut) -> Result<(), DecodingError>;
 
     fn read_to_next_header(&mut self) -> Result<(), DecodingError> {
-        let len = self.header().length() + Self::Header::SIZE;
+        let len = self.header().length() + Self::Header::MAX_SIZE;
 
-        self.read_bytes(len)?;
+        self.read_bytes_exact(len)?;
 
         self.validate_segment()
     }
 
-    fn read_bytes(&mut self, len: usize) -> Result<(), DecodingError> {
+    fn read_bytes_exact(&mut self, len: usize) -> Result<(), DecodingError> {self.read_bytes_exact_default(len)}
+
+    fn read_bytes(&mut self, len: usize) -> Result<usize, DecodingError> {self.read_bytes_default(len)}
+
+    fn read_bytes_default(&mut self, len: usize) -> Result<usize, DecodingError> {
+        let (buffer, reader, _) = self.context();
+
+        if buffer.remaining() <= len {
+            buffer.expand(len);
+        }
+
+        let cursor = buffer.cursor();
+        reader.read(&mut buffer.get_mut()[cursor..cursor + len]).map_err(|e| e.into())
+    }
+
+    fn read_bytes_exact_default(&mut self, len: usize) -> Result<(), DecodingError> {
         let (buffer, reader, _) = self.context();
 
         if buffer.remaining() <= len {

@@ -1,14 +1,37 @@
-use std::io::Read;
-use crate::{Channel, DecodingError, ImageDecoder, PixelFormat};
+use std::io::{Read, Seek};
+use crate::{Channel, DecodingError, ImageDecoder, PixelFormat, parsing::{SegmentParser, SegmentHeader}};
+
+mod parser;
+use parser::JpegParser;
+
+const JPEG_HEADER: [u8; 2] = [0xFF, 0xD8];
 
 #[derive(Debug)]
-pub struct JpegDecoder<'a, R: Read, C: Channel, const F: u8> {
-    phantom: std::marker::PhantomData<&'a (R, C)>,
+pub struct JpegDecoder<'a, C: Channel, const F: u8> {
+    phantom: std::marker::PhantomData<&'a C>,
 }
 
-impl<'a, R: Read, C: Channel, const F: u8> ImageDecoder<'a, C, F> for JpegDecoder<'a, R, C, F> {
-    fn open_validated<R2: Read>(_data: R2) -> Result<Self, DecodingError> where Self: Sized {
-        todo!()
+impl<'a, C: Channel, const F: u8> ImageDecoder<'a, C, F> for JpegDecoder<'a, C, F> {
+    fn open_validated<R: Read>(mut reader: R) -> Result<Self, DecodingError> where Self: Sized {
+        check_header(&mut reader)?;
+
+        let mut parser = JpegParser::new(reader)?;
+
+        let _ = parser.parse_first_chunk()?;
+
+        let mut decoder = Self {
+            phantom: std::marker::PhantomData,
+        };
+
+        parser.parse_chunks(|h, b, d| {
+            println!("{:?}", d);
+
+            b.seek_relative(h.length() as _).map_err(|e| e.into())
+        })?;
+
+        Ok(Self {
+            phantom: std::marker::PhantomData,
+        })
     }
 
     fn read(&mut self, _buf: &mut [<C as Channel>::StorageType]) -> Result<usize, DecodingError> {
@@ -32,15 +55,11 @@ impl<'a, R: Read, C: Channel, const F: u8> ImageDecoder<'a, C, F> for JpegDecode
     }
 }
 
-enum _JpegMarker {
-    Soi,
-    Sof(u8, usize),
-    Dht(usize),
-    Dqt(usize),
-    Dri,
-    Sos(usize),
-    Rst(u8),
-    App(u8, usize),
-    Com(usize),
-    Eoi,
+fn check_header<R: Read>(reader: &mut R) -> Result<(), DecodingError> {
+    let mut header = [0u8; 2];
+    reader.read_exact(&mut header)?;
+    if header != JPEG_HEADER {
+        return Err(DecodingError::InccorectHeader(header.to_vec()))
+    }
+    Ok(())
 }

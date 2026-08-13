@@ -77,7 +77,7 @@ impl<'a, C: Channel, const F: u8> ImageDecoder<'a, C, F> for PngDecoder<'a, C, F
             adler: Default::default()
         };
 
-        chunk_parser.parse_chunks(|h, d| decoder.update_with_chunk(h, d))?;
+        chunk_parser.parse_chunks(|h, d, _| decoder.update_with_chunk(h, d))?;
 
         if decoder.postprocessor.palette().is_none() && decoder.ihdr.color_type.is_indexed() {
             return Err(DecodingError::NoPallete);

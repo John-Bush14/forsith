@@ -66,7 +66,7 @@ impl CRC32 {
     pub(crate) fn validate(&self, stored_crc: u32) -> Result<(), DecodingError> {
         let stored_crc = CRC32(stored_crc);
 
-        let calculated_crc = !self.clone();
+        let calculated_crc = !*self;
 
         if calculated_crc != stored_crc {
             return Err(DecodingError::CRCMismatch(calculated_crc, stored_crc));

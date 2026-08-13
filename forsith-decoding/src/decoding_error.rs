@@ -18,6 +18,16 @@ pub enum DecodingError {
     #[error("Provided dest buf of size less than min_buf_size ({0})")]
     TinyDestBuf(usize),
 
+    // JPEG specific
+    #[error("No marker found in expected position")]
+    NoMarker,
+    #[error("No EOI marker found")]
+    NoEOI,
+    #[error("Invalid marker length (<2)")]
+    InvalidMarkerLen,
+    #[error("Invalid marker code ({0:#04X})")]
+    InvalidMarkerCode(u8),
+
     // PNG specific
     #[error("Critical chunk '{0}' contains invalid data")]
     InvalidChunk(ChunkType),

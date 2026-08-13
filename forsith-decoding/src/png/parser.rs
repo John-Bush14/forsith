@@ -34,7 +34,7 @@ impl<R: Read> ChunkParser<R> {
     }
 
     fn handle_idat_chunks<F>(&mut self, out: &mut F) -> Result<(), DecodingError>
-        where F: FnMut(&ChunkHeader, &mut CursorVec<u8>) -> Result<(), DecodingError>
+        where F: FnMut(&ChunkHeader, &mut CursorVec<u8>, ()) -> Result<(), DecodingError>
     {
         let idat_start = self.buffer.cursor();
 
@@ -43,12 +43,13 @@ impl<R: Read> ChunkParser<R> {
         let idat_len = self.buffer.cursor() - idat_start;
 
         self.buffer.seek_relative(-(idat_len as i64)).unwrap();
-        out(&ChunkHeader::new(idat_len, ChunkType::Idat), &mut self.buffer)
+        out(&ChunkHeader::new(idat_len, ChunkType::Idat), &mut self.buffer, ())
     }
 }
 
 impl<R: Read> SegmentParser<R> for ChunkParser<R> {
     type Header = ChunkHeader;
+    type ExtraOut = ();
 
     fn context<'s, 'a, 'b, 'c>(&'s mut self) -> (&'a mut CursorVec<u8>, &'b mut R, &'c mut Self::Header)
         where 's: 'a, 's: 'b, 's: 'c
@@ -67,7 +68,7 @@ impl<R: Read> SegmentParser<R> for ChunkParser<R> {
 
     /// out should ensure whole chunk is read before returing, for cursor alignment.
     fn parse_chunks<F>(&mut self, mut out: F) -> Result<(), DecodingError>
-        where F: FnMut(&Self::Header, &mut CursorVec<u8>) -> Result<(), DecodingError>
+        where F: FnMut(&Self::Header, &mut CursorVec<u8>, ()) -> Result<(), DecodingError>
     {
         if self.header.is_idat() {self.handle_idat_chunks(&mut out)?}
 
@@ -75,14 +76,14 @@ impl<R: Read> SegmentParser<R> for ChunkParser<R> {
             self.read_to_next_header()?;
 
             self.buffer.seek_relative(-(self.header.length() as i64)).unwrap();
-            out(&self.header, &mut self.buffer)?;
+            out(&self.header, &mut self.buffer, ())?;
             self.buffer.seek_relative(4)?;
 
             self.parse_header()?;
 
             if self.header.is_idat() {self.handle_idat_chunks(&mut out)?}
 
-            self.buffer.set_cursor(0);
+            self.clear_buffer();
         };
 
         let crc = self.reader.read_be::<u32>()?;
@@ -107,7 +108,7 @@ impl ChunkHeader {
     pub fn r#type(&self) -> ChunkType {self.r#type}
 }
 impl SegmentHeader for ChunkHeader {
-    const SIZE: usize = 8;
+    const MAX_SIZE: usize = 8;
 
     fn length(&self) -> usize {self.len + 4}
 
