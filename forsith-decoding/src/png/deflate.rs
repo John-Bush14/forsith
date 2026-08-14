@@ -53,7 +53,7 @@ pub const STATIC_LITLEN_TREE: LitLenTree = {
     const_for!(i in 256..280 => {lengths[i] = 7;});
     const_for!(i in 280..288 => {lengths[i] = 8;});
 
-    if let Err(_e) = tree.load(&lengths) { panic!("loading static litlen tree failed") };
+    if let Err(_e) = tree.load(&lengths) { panic!("loading static litlen tree failed") }
 
     tree
 };
@@ -62,18 +62,20 @@ pub const STATIC_DISTANCE_TREE: DistanceTree = {
 
     let lengths = [5u8; 30];
 
-    if let Err(_e) = tree.load(&lengths) { panic!("loading static distance tree failed") };
+    if let Err(_e) = tree.load(&lengths) { panic!("loading static distance tree failed") }
 
     tree
 };
 
 #[inline(always)]
+#[allow(clippy::cast_possible_truncation)]
 pub fn decode_length<R: BitReader>(symbol: u16, reader: &mut R) -> u16 {
     let (base, extra) = LENGTH_TABLE[(symbol - 257) as usize];
     base + reader.read_bits_nobranch(extra) as u16
 }
 
 #[inline(always)]
+#[allow(clippy::cast_possible_truncation)]
 pub fn decode_distance<R: BitReader>(code: u16, reader: &mut R) -> u16 {
     let (base, extra) = DISTANCE_TABLE[code as usize];
     base + reader.read_bits_nobranch(extra) as u16
@@ -97,7 +99,7 @@ pub struct Block {
 }
 impl Default for Block {
     fn default() -> Self {
-        Self { last: Default::default(), r#type: Default::default(), litlen_tree: HuffmanTree::default(), distance_tree: HuffmanTree::default(), codlen_tree: HuffmanTree::default() }
+        Self { last: Default::default(), r#type: BlockType::default(), litlen_tree: HuffmanTree::default(), distance_tree: HuffmanTree::default(), codlen_tree: HuffmanTree::default() }
     }
 }
 impl Block {
@@ -112,8 +114,9 @@ impl Block {
         Ok(())
     }
 
+    #[allow(clippy::cast_possible_truncation)]
     fn load_trees<R: BitReader>(&mut self, reader: &mut R) -> Result<(), DecodingError> {
-        let hlit: u16 = reader.read_bits(5) as u16 + 257;
+        let hlit: usize = reader.read_bits(5) as usize + 257;
         let hdist: u16 = reader.read_bits(5) as u16 + 1;
         let hclen: u16 = reader.read_bits(4) as u16 + 4;
 
@@ -125,36 +128,36 @@ impl Block {
         self.codlen_tree.load(&codlen_codelengths)?;
 
         // Decode hlit + hdist code lengths, expanding RLE symbols 16/17/18
-        let total = hlit as usize + hdist as usize;
+        let total = hlit + hdist as usize;
         let mut all_codelengths = Vec::with_capacity(total);
 
         while all_codelengths.len() < total {
-            let symbol = self.codlen_tree.decode_symbol(reader) as u8;
+            let symbol = u8::try_from(self.codlen_tree.decode_symbol(reader)).unwrap();
 
-            match symbol {
-                0..=15 => {all_codelengths.push(symbol);},
-                _ => {
-                    let (extra_bits, base, use_prev) = match symbol {
-                        16 => (2, 3, true),
-                        17 => (3, 3, false),
-                        18 => (7, 11, false),
-                        _ => unreachable!(),
-                    };
+            if let 0..=15 = symbol {
+                all_codelengths.push(symbol);
+            } else {
+                let (extra_bits, base, use_prev) = match symbol {
+                    16 => (2, 3, true),
+                    17 => (3, 3, false),
+                    18 => (7, 11, false),
+                    _ => unreachable!(),
+                };
 
-                    let prev = if !use_prev {0} else {*all_codelengths.last().unwrap()};
+                let prev = if use_prev {*all_codelengths.last().unwrap()} else {0};
 
-                    let repeat = base + reader.read_bits(extra_bits) as usize;
-                    all_codelengths.resize(all_codelengths.len() + repeat, prev);
-                }
+                let repeat = base + reader.read_bits(extra_bits) as usize;
+                all_codelengths.resize(all_codelengths.len() + repeat, prev);
             }
         }
 
-        self.litlen_tree.load(&all_codelengths[..hlit as usize])?;
-        self.distance_tree.load(&all_codelengths[hlit as usize..])?;
+        self.litlen_tree.load(&all_codelengths[..hlit])?;
+        self.distance_tree.load(&all_codelengths[hlit..])?;
 
         Ok(())
     }
 
+    #[allow(clippy::cast_possible_truncation)]
     fn load_compression_type<R: BitReader>(&mut self, reader: &mut R) -> Result<(), DecodingError> {
         match reader.read_bits(2) {
             0 => {
@@ -168,7 +171,7 @@ impl Block {
                     return Err(DecodingError::BlockLengthMismatch(len, nlen));
                 }
 
-                self.r#type = BlockType::Uncompressed(len)
+                self.r#type = BlockType::Uncompressed(len);
             },
             1 => self.r#type = BlockType::CompressedFixed,
             2 => self.r#type = BlockType::CompressedDynamic,

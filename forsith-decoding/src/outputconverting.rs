@@ -34,9 +34,9 @@ pub fn get_out_writer_func<C: Channel, const F: u8>(sample_size: u8, format: u8,
         1 => packed!(1, format),
         2 => packed!(2, format),
         4 => packed!(4, format),
-        8 => match signed {false => aligned!(u8, format), true => aligned!(i8, format)}
-        16 => match signed {false => aligned!(u16, format), true => aligned!(i16, format)}
-        32 => match signed {false => aligned!(u32, format), true => aligned!(i32, format)}
+        8 => if signed { aligned!(i8, format) } else { aligned!(u8, format) }
+        16 => if signed { aligned!(i16, format) } else { aligned!(u16, format) }
+        32 => {if signed { aligned!(i32, format) } else { aligned!(u32, format) }}
         _ => todo!()
     }
 }
@@ -82,6 +82,7 @@ where
 }
 
 #[inline(always)]
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::cast_precision_loss, clippy::cast_possible_wrap)]
 fn convert_channel<SC: Channel, DC: Channel>(value: SC::StorageType) -> DC::StorageType {
     let value: i64 = value.into();
 
@@ -112,19 +113,17 @@ fn convert_pixel<C: Channel, const DF: u8, const SF: u8>(samples: &mut impl Iter
             let g = samples.next().unwrap();
             &[g, g, g]
         };
-        rgb.iter().for_each(|c| out(*c));
+        for c in rgb {out(*c);}
 
         (rgb[0].into(), rgb[1].into(), rgb[2].into())
     };
 
     if has_alpha(DF) {
         if has_alpha(SF) {out(samples.next().unwrap())}
-        else {
-            if Some(color) == alpha_color {
-                out(C::StorageType::try_from(C::MIN).unwrap())
-            } else {
-                out(C::StorageType::try_from(C::MAX).unwrap())
-            }
+        else if Some(color) == alpha_color {
+            out(C::StorageType::try_from(C::MIN).unwrap());
+        } else {
+            out(C::StorageType::try_from(C::MAX).unwrap());
         }
     }
 }

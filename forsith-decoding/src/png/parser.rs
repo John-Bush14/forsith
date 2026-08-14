@@ -1,7 +1,7 @@
 use std::io::{Read, Seek};
 use derive_more::Deref;
 
-use crate::{DecodingError, buffers::CursorVec, parsing::{SegmentHeader, SegmentParser}, png::{ChunkType::{self}, checksum::CRC32}};
+use crate::{DecodingError, buffers::CursorVec, parsing::{SegmentHeader, SegmentParser}, png::{ChunkType::{self}, checksums::CRC32}};
 
 const BASE_ALLOC: usize = 1 << 12;
 
@@ -13,15 +13,15 @@ pub struct ChunkParser<R: Read> {
 }
 
 impl<R: Read> ChunkParser<R> {
-    pub fn new(reader: R) -> Result<Self, DecodingError> {
-        Ok(Self {
+    pub fn new(reader: R) -> Self {
+        Self {
             reader,
             buffer: CursorVec::<u8>::new(BASE_ALLOC),
-            header: Default::default(),
-        })
+            header: ChunkHeader::default(),
+        }
     }
 
-    fn validate_crc(&mut self, stored_crc: u32) -> Result<(), DecodingError> {
+    fn validate_crc(&self, stored_crc: u32) -> Result<(), DecodingError> {
         self.header.crc.validate(stored_crc)
     }
 
@@ -42,7 +42,7 @@ impl<R: Read> ChunkParser<R> {
 
         let idat_len = self.buffer.cursor() - idat_start;
 
-        self.buffer.seek_relative(-(idat_len as i64)).unwrap();
+        self.buffer.unconsume(idat_len);
         out(&ChunkHeader::new(idat_len, ChunkType::Idat), &mut self.buffer, ())
     }
 }
@@ -75,7 +75,7 @@ impl<R: Read> SegmentParser<R> for ChunkParser<R> {
         while !self.header.is_iend() {
             self.read_to_next_header()?;
 
-            self.buffer.seek_relative(-(self.header.length() as i64)).unwrap();
+            self.buffer.unconsume(self.header.length());
             out(&self.header, &mut self.buffer, ())?;
             self.buffer.seek_relative(4)?;
 
@@ -103,9 +103,9 @@ pub struct ChunkHeader {
 impl ChunkHeader {
     pub fn new(len: usize, r#type: ChunkType) -> Self {Self {len, r#type, crc: CRC32::default()}}
 
-    pub fn len(&self) -> usize {self.len}
+    pub const fn len(&self) -> usize {self.len}
 
-    pub fn r#type(&self) -> ChunkType {self.r#type}
+    pub const fn r#type(&self) -> ChunkType {self.r#type}
 }
 impl SegmentHeader for ChunkHeader {
     const MAX_SIZE: usize = 8;
@@ -118,19 +118,18 @@ impl SegmentHeader for ChunkHeader {
         let chunk_type_buf = reader.read_array::<4>()?;
         let mut crc = CRC32::default(); crc.update(&chunk_type_buf);
 
-        let r#type = match u32::from_be_bytes(chunk_type_buf).try_into() {
-            Ok(t) => t,
-            Err(_) => {
-                if is_chunk_type_critical(&chunk_type_buf) {return Err(DecodingError::UnkownChunk(chunk_type_buf))}
+        let r#type = if let Ok(t) = u32::from_be_bytes(chunk_type_buf).try_into() {
+            t
+        } else {
+            if is_chunk_type_critical(chunk_type_buf) {return Err(DecodingError::UnkownChunk(chunk_type_buf))}
 
-                ChunkType::UnkownAncillerary
-            }
+            ChunkType::UnkownAncillerary
         };
 
         Ok(Self {len, r#type, crc})
     }
 }
 
-pub fn is_chunk_type_critical(chunk_type_buffer: &[u8; 4]) -> bool {
+pub const fn is_chunk_type_critical(chunk_type_buffer: [u8; 4]) -> bool {
     chunk_type_buffer[0] & 0x20 == 0
 }

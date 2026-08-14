@@ -16,6 +16,7 @@ macro_rules! int_types {
         }
 
         $(
+        #[allow(clippy::cast_possible_truncation)]
         impl Int for $num {
             const BYTE_DEPTH: u8 = std::mem::size_of::<Self>() as u8;
             const BIT_DEPTH: u8 = Self::BYTE_DEPTH * 8;
@@ -33,34 +34,31 @@ macro_rules! int_types {
 
 int_types!(u32, u16, u8, i8, i16, i32);
 
-pub(crate) fn unpack<const UPSAMPLE: bool>(slice: &[u8], bits: u8, padding: u8, callback: impl FnMut(&[u8])) {
+pub fn unpack<const UPSAMPLE: bool>(slice: &[u8], bits: u8, padding: u8, callback: impl FnMut(&[u8])) {
     (match bits {
        1 => unpack_constant::<1, UPSAMPLE>,
        2 => unpack_constant::<2, UPSAMPLE>,
        4 => unpack_constant::<4, UPSAMPLE>,
        _ => unreachable!()
-    })(slice, padding, callback)
+    })(slice, padding, callback);
 }
 
 #[inline(always)]
-pub(crate) fn unpack_constant<const BITS: u8, const UPSAMPLE: bool>(slice: &[u8], padding: u8, mut callback: impl FnMut(&[u8])) {
+pub fn unpack_constant<const BITS: u8, const UPSAMPLE: bool>(slice: &[u8], padding: u8, mut callback: impl FnMut(&[u8])) {
     let mut i = 0; loop {
         let b = slice[i] as usize;
 
-        let bytes = match UPSAMPLE {
-            true => match BITS {
-                1 => {UPSAMPLE_1BIT[b].as_slice()},
-                2 => {UPSAMPLE_2BIT[b].as_slice()},
-                4 => {UPSAMPLE_4BIT[b].as_slice()},
-                _ => unreachable!()
-            },
-            false => match BITS {
-                1 => {UNPACK_1BIT[b].as_slice()},
-                2 => {UNPACK_2BIT[b].as_slice()},
-                4 => {UNPACK_4BIT[b].as_slice()},
-                _ => unreachable!()
-            },
-        };
+        let bytes = if UPSAMPLE { match BITS {
+            1 => {UPSAMPLE_1BIT[b].as_slice()},
+            2 => {UPSAMPLE_2BIT[b].as_slice()},
+            4 => {UPSAMPLE_4BIT[b].as_slice()},
+            _ => unreachable!()
+        } } else { match BITS {
+            1 => {UNPACK_1BIT[b].as_slice()},
+            2 => {UNPACK_2BIT[b].as_slice()},
+            4 => {UNPACK_4BIT[b].as_slice()},
+            _ => unreachable!()
+        } };
 
         if i == slice.len() - 1 {
             callback(&bytes[..bytes.len() - (padding/BITS) as usize]);
@@ -74,6 +72,7 @@ pub(crate) fn unpack_constant<const BITS: u8, const UPSAMPLE: bool>(slice: &[u8]
     }
 }
 
+#[allow(clippy::cast_possible_truncation)]
 const fn make_unpack_lut<const BITS: usize, const SAMPLES: usize, const UPSAMPLE: bool>() -> [[u8; SAMPLES]; 256] {
     let mut lut = [[0u8; SAMPLES]; 256];
 

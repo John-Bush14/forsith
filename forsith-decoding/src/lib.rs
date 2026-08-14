@@ -5,13 +5,15 @@
 #![feature(const_trait_impl)]
 #![feature(const_cmp)]
 #![feature(const_precise_live_drops)]
-#![feature(const_try)]
 #![feature(generic_const_items)]
 #![feature(likely_unlikely)]
 #![feature(read_array)]
 #![feature(read_le)]
+#![feature(integer_widen_truncate)]
 
 #![forbid(unsafe_code)]
+#![warn(clippy::all, clippy::pedantic, clippy::nursery)]
+#![allow(clippy::missing_errors_doc, clippy::inline_always)]
 
 use std::io::Read;
 use std::fmt::Debug;
@@ -25,7 +27,7 @@ mod jpeg;
 pub use jpeg::JpegDecoder;
 
 mod utils;
-pub(crate) use utils::*;
+pub(crate) use utils::{buffers, int, simd};
 
 mod decoding_error;
 pub use decoding_error::DecodingError;
@@ -107,10 +109,7 @@ where
     const MAX: u64 = I::MAX;
     const MIN: i64 = I::MIN;
     const TYPE: ChannelType = {
-        match I::SIGNED {
-            true => ChannelType::Signed,
-            false => ChannelType::Unsigned
-        }
+        if I::SIGNED { ChannelType::Signed } else { ChannelType::Unsigned }
     };
 }
 

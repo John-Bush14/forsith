@@ -4,12 +4,12 @@ use crate::{DecodingError};
 use crate::simd::SIMD_WIDTH;
 use core::simd::prelude::*;
 
-pub const POLY: u32 = 0xedb88320;
+pub const POLY: u32 = 0xedb8_8320;
 const CRC_TABLES: [[u32; 256]; 8] = const {
     let mut tables = [[0u32; 256]; 8];
 
-    const_for!(n in 0..255+1 => {
-        let mut c = n as u32;
+    const_for!(n in 0u32..255+1 => {
+        let mut c = n;
         const_for!(_ in 0..8 => {
             if c & 1 == 1 {
                 c = POLY ^ (c >> 1);
@@ -17,7 +17,7 @@ const CRC_TABLES: [[u32; 256]; 8] = const {
             }
             c >>= 1;
         });
-        tables[0][n as usize] = c
+        tables[0][n as usize] = c;
     });
 
     const_for!(n in 1..8 => {
@@ -35,7 +35,7 @@ const CRC_INIT: u32 = 0xFFFF_FFFF;
 pub struct CRC32(u32);
 impl Default for CRC32 {
     fn default() -> Self {
-        CRC32(CRC_INIT)
+        Self(CRC_INIT)
     }
 }
 
@@ -46,7 +46,7 @@ impl CRC32 {
         for chunk in chunks {
             let chunk: u64 = u64::from_le_bytes(*chunk);
 
-            let x = self.0 as u64 ^ chunk;
+            let x = u64::from(self.0) ^ chunk;
 
             self.0 = CRC_TABLES[7][(x & 0xff) as usize]
                 ^ CRC_TABLES[6][((x >> 8) & 0xff) as usize]
@@ -59,14 +59,14 @@ impl CRC32 {
         }
 
         for b in remainder {
-            self.0 = CRC_TABLES[0][((self.0 ^ *b as u32) & 0xff) as usize] ^ (self.0 >> 8);
+            self.0 = CRC_TABLES[0][((self.0 ^ u32::from(*b)) & 0xff) as usize] ^ (self.0 >> 8);
         }
     }
 
-    pub(crate) fn validate(&self, stored_crc: u32) -> Result<(), DecodingError> {
-        let stored_crc = CRC32(stored_crc);
+    pub(crate) fn validate(self, stored_crc: u32) -> Result<(), DecodingError> {
+        let stored_crc = Self(stored_crc);
 
-        let calculated_crc = !*self;
+        let calculated_crc = !self;
 
         if calculated_crc != stored_crc {
             return Err(DecodingError::CRCMismatch(calculated_crc, stored_crc));
@@ -83,10 +83,11 @@ pub struct Adler32{
 }
 impl Default for Adler32 {
     fn default() -> Self {
-        Adler32{ a: 1, b: 0}
+        Self { a: 1, b: 0}
     }
 }
 const ADLER_MOD: u32 = 65521;
+#[allow(clippy::cast_possible_truncation)]
 const ADLER_CHUNK_SIZE: u16 = 5552 - (5552 % SIMD_WIDTH as u16);
 
 impl Adler32 {
@@ -98,8 +99,8 @@ impl Adler32 {
         let unaligned_bytes = remainder.len() % SIMD_WIDTH;
         self.compute_chunk::<false>(&remainder[..remainder.len()-unaligned_bytes]);
 
-        for b in remainder[remainder.len()-unaligned_bytes..].iter() {
-            self.a += *b as u32;
+        for b in &remainder[remainder.len()-unaligned_bytes..] {
+            self.a += u32::from(*b);
             self.b += self.a;
         }
 
@@ -119,7 +120,7 @@ impl Adler32 {
         }
     }
 
-    pub fn validate(&mut self, stored: u32) -> Result<(), DecodingError> {
+    pub const fn validate(&self, stored: u32) -> Result<(), DecodingError> {
         let computed = (self.b << 16) | self.a;
 
         if computed != stored {
@@ -130,6 +131,7 @@ impl Adler32 {
     }
 }
 
+#[allow(clippy::cast_possible_truncation)]
 const POSITIONS: Simd<AdlerLaneSize, SIMD_WIDTH> = {
     let mut arr = [0; SIMD_WIDTH];
     let mut i = 0;
@@ -156,9 +158,10 @@ pub fn compute_alder32_chunk_simd(chunk: &[u8], mut a: u32) -> (u32, u32) {
         let weightedv = chunkv * POSITIONS;
         let weighted_sum = weightedv.reduce_sum();
 
-        let delta_b = weighted_sum as u32 + a * SIMD_WIDTH as u32;
+        #[allow(clippy::cast_possible_truncation)]
+        let delta_b = u32::from(weighted_sum) + a * SIMD_WIDTH as u32;
 
-        a += sum as u32;
+        a += u32::from(sum);
         b += delta_b;
     }
 

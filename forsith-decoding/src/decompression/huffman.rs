@@ -47,6 +47,7 @@ impl Entry {
 
     /// `index` is the offset from the end of the root table.
     #[inline(always)]
+    #[allow(clippy::cast_possible_truncation)]
     const fn new_subtable(index: usize, bits: u8) -> Self {
         Self(
             index as u32
@@ -124,14 +125,17 @@ where
 
         let first_codes = self.generate_first_codes(&colen_counts);
 
-        self.generate_table(code_lengths, first_codes)?;
+        self.generate_table(code_lengths, first_codes);
 
         Ok(())
     }
 
-    const fn generate_table(&mut self, code_lengths: &[u8], mut next_code: [u32; MAX_COLEN as usize + 1]) -> Result<(), DecodingError> {
+    #[allow(clippy::cast_possible_truncation)]
+    const fn generate_table(&mut self, code_lengths: &[u8], mut next_code: [u16; MAX_COLEN as usize + 1]) {
         let mut longcodes = [Entry::EMPTY; MAX_SUBTABLE_ENTRIES];
         self.next_subtable = 0;
+
+        assert!(code_lengths.len() <= u16::MAX as usize);
 
         let mut i = 0usize;
         while i < code_lengths.len() {
@@ -167,11 +171,11 @@ where
                 self.table[root] = Entry::new_subtable(self.generation, self.table[root].subtable_bits().max(subcolen));
             }
 
-            longcodes[self.next_subtable] = Entry::new_longcode(symbol, code as u16);
+            longcodes[self.next_subtable] = Entry::new_longcode(symbol, code);
             self.next_subtable += 1;
         }
 
-        if MAX_SUBTABLE_ENTRIES == 0 {return Ok(());}
+        if MAX_SUBTABLE_ENTRIES == 0 {return}
 
         let longcodes_len = self.next_subtable;
         self.next_subtable = 1 << MAX_ROOT_COLEN;
@@ -207,8 +211,6 @@ where
                 i += 1;
             }
         }
-
-        Ok(())
     }
 
     const fn get_colen_counts(colens: &[u8]) -> ([u16; MAX_COLEN as usize + 1], u8) {
@@ -230,20 +232,21 @@ where
         (colen_count, max_colen)
     }
 
-    const fn generate_first_codes(&self, colen_counts: &[u16; MAX_COLEN as usize + 1]) -> [u32; MAX_COLEN as usize + 1] {
-        let mut first_codes = [0u32; MAX_COLEN as usize + 1];
+    const fn generate_first_codes(&self, colen_counts: &[u16; MAX_COLEN as usize + 1]) -> [u16; MAX_COLEN as usize + 1] {
+        let mut first_codes = [0u16; MAX_COLEN as usize + 1];
 
         let mut i = 0;
         while i < (self.root_bits + self.sub_bits) as usize {
             i += 1;
 
-            first_codes[i] = (first_codes[i - 1] + colen_counts[i - 1] as u32) << 1;
+            first_codes[i] = (first_codes[i - 1] + colen_counts[i - 1]) << 1;
         }
 
         first_codes
     }
 
     #[inline(always)]
+    #[allow(clippy::cast_possible_truncation)]
     pub fn decode_symbol<R: BitReader>(&self, reader: &mut R) -> u16 {
         let code = reader.peek_bits(self.root_bits);
 
@@ -260,6 +263,6 @@ where
 }
 
 #[inline(always)]
-const fn reverse_bits(value: u32, bits: usize) -> u32 {
-    value.reverse_bits() >> (32 - bits)
+const fn reverse_bits(value: u16, bits: usize) -> u16 {
+    value.reverse_bits() >> (16 - bits)
 }

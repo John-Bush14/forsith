@@ -1,4 +1,4 @@
-use std::{fmt::Debug, io::{Cursor, Read, Seek}, marker::PhantomData};
+use std::{fmt::Debug, io::{Cursor, Read}, marker::PhantomData};
 use crate::{Channel, Int, parsing::BitReader};
 use derive_more::{Deref, DerefMut};
 
@@ -9,15 +9,15 @@ pub struct BitBuffer {
 }
 impl BitBuffer {
     #[inline(always)]
-    pub fn bits_remaining(&self) -> u8 {self.bits_remaining}
+    pub const fn bits_remaining(&self) -> u8 {self.bits_remaining}
 
     #[inline(always)]
-    pub fn peek(&self, n: u8) -> u64 {
+    pub const fn peek(&self, n: u8) -> u64 {
         self.buf & ((1 << n as usize) - 1)
     }
 
     #[inline(always)]
-    pub fn consume(&mut self, n: u8) {
+    pub const fn consume(&mut self, n: u8) {
         self.buf >>= n as usize;
         self.bits_remaining -= n;
     }
@@ -26,7 +26,7 @@ impl BitBuffer {
     pub fn push<T: Int>(&mut self, value: T) {
         assert!(T::MIN == 0, "BitBuffer.push should only be called with unsigned ints");
 
-        let value: u64 = match value.try_into() {Ok(v) => v, _ => unreachable!()};
+        let value: u64 = value.try_into().unwrap_or_else(|_| unreachable!());
 
         self.buf |= value << self.bits_remaining as usize;
         self.bits_remaining += T::BIT_DEPTH;
@@ -42,48 +42,48 @@ pub struct OutputWriter<'a, C: Channel, const F: u8> {
 }
 
 impl<'a, C: Channel, const F: u8> OutputWriter<'a, C, F> {
-    pub fn new(buffer: &'a mut [C::StorageType]) -> Self {
+    pub const fn new(buffer: &'a mut [C::StorageType]) -> Self {
         Self {
             buffer,
             index: 0,
             full: false,
             stride: 1,
-            _phantom: Default::default()
+            _phantom: PhantomData
         }
     }
 
     #[inline(always)]
-    pub fn push_channel(&mut self, c: C::StorageType) {
+    pub const fn push_channel(&mut self, c: C::StorageType) {
         self.buffer[self.index] = c;
         self.index += 1;
     }
 
-    pub fn remaining(&self) -> usize {self.buffer.len().saturating_sub(self.index)}
+    pub const fn remaining(&self) -> usize {self.buffer.len().saturating_sub(self.index)}
     #[inline(always)]
-    pub fn remaining_bytes(&self) -> usize {self.remaining() * C::StorageType::BYTE_DEPTH as usize}
+    pub const fn remaining_bytes(&self) -> usize {self.remaining() * C::StorageType::BYTE_DEPTH as usize}
 
-    pub fn set_stride(&mut self, pixels: usize) {self.stride = (pixels - 1) * F as usize;}
+    pub const fn set_stride(&mut self, pixels: usize) {self.stride = (pixels - 1) * F as usize;}
     #[inline(always)]
-    pub fn pushed_pixel(&mut self) {self.index += self.stride}
+    pub const fn pushed_pixel(&mut self) {self.index += self.stride}
     #[inline(always)]
-    pub fn advance(&mut self, pixels: usize) {
+    pub const fn advance(&mut self, pixels: usize) {
         self.index += pixels * F as usize;
     }
-    pub fn reset(&mut self) {self.index = 0;}
+    pub const fn reset(&mut self) {self.index = 0;}
 
-    pub fn len(&self) -> usize {self.index}
-    pub fn bytes_len(&self) -> usize {self.index * C::StorageType::BYTE_DEPTH as usize}
+    pub const fn len(&self) -> usize {self.index}
+    pub const fn bytes_len(&self) -> usize {self.index * C::StorageType::BYTE_DEPTH as usize}
 
-    pub fn is_full(&self) -> bool {self.full}
-    pub fn set_full(&mut self) {self.full = true;}
+    pub const fn is_full(&self) -> bool {self.full}
+    pub const fn set_full(&mut self) {self.full = true;}
 
     #[must_use]
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
-    pub fn capacity(&self) -> usize {self.buffer.len()}
-    pub fn bytes_capacity(&self) -> usize {self.buffer.len() * C::StorageType::BYTE_DEPTH as usize}
+    pub const fn capacity(&self) -> usize {self.buffer.len()}
+    pub const fn bytes_capacity(&self) -> usize {self.buffer.len() * C::StorageType::BYTE_DEPTH as usize}
 
     pub fn remaining_mut_slice(&mut self) -> &mut [C::StorageType] {&mut self.buffer[self.index..]}
 }
@@ -95,8 +95,10 @@ impl<T: Default + Clone> CursorVec<T> {
 
     pub fn remaining(&self) -> usize {self.capacity() - self.cursor()}
     pub fn capacity(&self) -> usize {self.get_ref().len()}
-    pub fn cursor(&self) -> usize {self.position() as usize}
+    pub fn cursor(&self) -> usize {usize::try_from(self.position()).unwrap()}
     pub fn set_cursor(&mut self, cursor: usize) {self.set_position(cursor as u64);}
+    pub fn consume(&mut self, len: usize) {self.set_cursor(self.cursor() + len);}
+    pub fn unconsume(&mut self, len: usize) {self.set_cursor(self.cursor().saturating_sub(len));}
     pub fn is_empty(&self) -> bool {self.cursor() == 0}
     pub fn is_full(&self) -> bool {self.cursor() == self.capacity()}
 
@@ -133,7 +135,7 @@ impl CursorVec<u8> {
     }
     pub fn read_from(&mut self, reader: &mut impl Read, len: usize) -> std::io::Result<()> {
         self.fill_from(reader, len)?;
-        self.seek_relative(len as _)?;
+        self.consume(len);
         Ok(())
     }
 }
@@ -163,9 +165,9 @@ impl BitCursorVec {
     }
 
     pub fn unconsume_bitbuf(&mut self) {
-        let bitbuf_bytes = self.bit_buf.bits_remaining().div_euclid(8) as usize;
+        let bitbuf_bytes = self.bit_buf.bits_remaining().div_euclid(8);
 
-        self.buffer.seek_relative(-(bitbuf_bytes as i64)).unwrap();
+        self.buffer.unconsume(bitbuf_bytes as _);
         self.bit_buf.consume(self.bit_buf.bits_remaining());
     }
 }

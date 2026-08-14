@@ -1,4 +1,4 @@
-use std::{io::{Read, Seek}, ops::Range};
+use std::{io::Read, ops::Range};
 use derive_more::{Deref, IsVariant};
 use crate::{DecodingError, buffers::CursorVec, parsing::{SegmentHeader, SegmentParser}};
 
@@ -12,13 +12,13 @@ pub struct JpegParser<R: Read> {
 }
 
 impl <R: Read> JpegParser<R> {
-    pub fn new(reader: R) -> Result<Self, crate::DecodingError> {
-        Ok(Self {
+    pub fn new(reader: R) -> Self {
+        Self {
             reader,
             marker: Marker { ty: MarkerType::Stuffing, len: 0 },
             buffer: CursorVec::<u8>::new(1 << 12),
             excess_bytes: 0,
-        })
+        }
 
     }
 }
@@ -39,7 +39,7 @@ impl<R: Read> SegmentParser<R> for JpegParser<R> {
         while !self.marker.is_eoi() {
             self.read_to_next_header()?;
 
-            self.buffer.seek_relative(-(self.marker.length() as i64)).unwrap();
+            self.buffer.unconsume(self.marker.length());
             out(&self.marker, &mut self.buffer, None)?;
 
             self.parse_header()?;
@@ -63,7 +63,7 @@ impl<R: Read> SegmentParser<R> for JpegParser<R> {
                     let mut stuffing: Vec<usize> = vec![];
                     stuffing_offset = 0;
 
-                    while self.buffer.get_ref()[(start + len.saturating_sub(4)).max(start)..=start + len - 1].iter().position(|x| x == &0xFF).is_some() {
+                    while self.buffer.get_ref()[(start + len.saturating_sub(4)).max(start)..(start + len)].iter().any(|x| x == &0xFF) {
                         self.buffer.set_cursor(start + len);
                         len += self.read_bytes(1)?;
 
@@ -85,27 +85,27 @@ impl<R: Read> SegmentParser<R> for JpegParser<R> {
                         self.parse_header()?;
                         if !self.marker.has_length_field() {self.excess_bytes -= 2;}
 
-                        if !self.marker.is_stuffing() {
+                        if self.marker.is_stuffing() {
+                            stuffing.push(i);
+                            stuffing_offset += 2;
+                        } else {
                             let i = i - stuffing_offset;
 
                             if range_start < i {
-                                data_ranges.push(range_start..i)
-                            };
+                                data_ranges.push(range_start..i);
+                            }
                             range_start = i + 2;
 
                             if !(self.marker.is_rst() || self.marker.is_fill() || self.marker.is_stuffing()) {
                                 break;
                             }
-                        } else {
-                            stuffing.push(i);
-                            stuffing_offset += 2;
                         }
                     }
 
                     for (stuffing_i, &i) in stuffing.iter().enumerate().rev() {
                         let end = *stuffing.get(stuffing_i + 1).unwrap_or(&end);
 
-                        println!("Removing stuffing at index: {}, end: {}", i, end);
+                        println!("Removing stuffing at index: {i}, end: {end}");
                         self.buffer.get_mut().copy_within((i + 2).min(end)..end, i);
                     }
                     end -= stuffing_offset;
@@ -115,7 +115,7 @@ impl<R: Read> SegmentParser<R> for JpegParser<R> {
                     }
                 }
 
-                self.buffer.seek_relative(-(stuffing_offset as i64)).unwrap();
+                self.buffer.unconsume(stuffing_offset);
                 self.excess_bytes += end - self.buffer.cursor();
 
                 out(&sos_marker, &mut self.buffer, Some(data_ranges))?;
@@ -137,9 +137,9 @@ impl<R: Read> SegmentParser<R> for JpegParser<R> {
         let len = raw_len.saturating_sub(self.excess_bytes);
         let excess_read = raw_len - len;
 
-        self.buffer.seek_relative(excess_read as i64).unwrap();
+        self.buffer.consume(excess_read);
         let ret = Ok(self.read_bytes_default(len)? + excess_read);
-        self.buffer.seek_relative(-(excess_read as i64)).unwrap();
+        self.buffer.unconsume(excess_read);
 
         self.excess_bytes -= excess_read;
 
@@ -150,9 +150,9 @@ impl<R: Read> SegmentParser<R> for JpegParser<R> {
         let len = raw_len.saturating_sub(self.excess_bytes);
         let excess_read = raw_len - len;
 
-        self.buffer.seek_relative(excess_read as i64).unwrap();
+        self.buffer.consume(excess_read);
         let ret = self.read_bytes_exact_default(len);
-        self.buffer.seek_relative(-(excess_read as i64)).unwrap();
+        self.buffer.unconsume(excess_read);
 
         self.excess_bytes -= excess_read;
 
@@ -194,7 +194,8 @@ pub enum MarkerType {
 }
 
 impl MarkerType {
-    fn from_markercode(code: u8) -> Result<Self, DecodingError> {
+    #[allow(clippy::enum_glob_use)]
+    const fn from_markercode(code: u8) -> Result<Self, DecodingError> {
         use MarkerType::*;
         Ok(match code {
             0x00 => Stuffing,
@@ -220,7 +221,8 @@ impl MarkerType {
         })
     }
 
-    fn has_length_field(&self) -> bool {
+    #[allow(clippy::enum_glob_use)]
+    const fn has_length_field(self) -> bool {
         use MarkerType::*;
         !matches!(self, Stuffing | Fill | Soi | Rst(_) | Eoi | Tem)
     }
@@ -246,8 +248,8 @@ impl SegmentHeader for Marker {
         let ty = MarkerType::from_markercode(reader.read_le::<u8>()?)?;
         let len = if ty.has_length_field() {reader.read_be::<u16>()?.checked_sub(2).ok_or(DecodingError::InvalidMarkerLen)?} else {0};
 
-        println!("Read marker: {:?}, length: {}", ty, len);
+        println!("Read marker: {ty:?}, length: {len}");
 
-        Ok(Marker { ty, len })
+        Ok(Self { ty, len })
     }
 }

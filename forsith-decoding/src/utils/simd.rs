@@ -4,7 +4,7 @@ use core::simd::prelude::*;
 pub const SIMD_WIDTH: usize = 16;
 
 #[inline(always)]
-pub fn open_simd(slice: &[u8]) -> Simd::<u8, {SIMD_WIDTH}> {
+pub const fn open_simd(slice: &[u8]) -> Simd::<u8, {SIMD_WIDTH}> {
     Simd::from_slice(slice)
 }
 

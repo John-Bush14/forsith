@@ -1,4 +1,4 @@
-use std::io::{Read, Seek};
+use std::io::Read;
 use crate::{DecodingError, buffers::CursorVec};
 
 pub trait BitReader {
@@ -56,7 +56,7 @@ pub trait SegmentParser<R: Read> {
     fn validate_segment(&mut self) -> Result<(), DecodingError> {
         let (buffer, _, header) = self.context();
 
-        buffer.seek_relative(header.length() as i64).map_err(|e| e.into())
+        buffer.consume(header.length()); Ok(())
     }
 
     fn parse_first_chunk(&mut self) -> Result<(Self::Header, &[u8]), DecodingError> {
@@ -98,7 +98,7 @@ pub trait SegmentParser<R: Read> {
         }
 
         let cursor = buffer.cursor();
-        reader.read(&mut buffer.get_mut()[cursor..cursor + len]).map_err(|e| e.into())
+        reader.read(&mut buffer.get_mut()[cursor..cursor + len]).map_err(std::convert::Into::into)
     }
 
     fn read_bytes_exact_default(&mut self, len: usize) -> Result<(), DecodingError> {
@@ -108,7 +108,7 @@ pub trait SegmentParser<R: Read> {
             buffer.expand(len);
         }
 
-        buffer.fill_from(reader, len).map_err(|e| e.into())
+        buffer.fill_from(reader, len).map_err(std::convert::Into::into)
     }
 
     fn parse_header(&mut self) -> Result<(), DecodingError> {

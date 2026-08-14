@@ -1,4 +1,4 @@
-use std::io::{Read, Seek};
+use std::io::Read;
 use crate::{Channel, DecodingError, ImageDecoder, PixelFormat, parsing::{SegmentParser, SegmentHeader}};
 
 mod parser;
@@ -15,7 +15,7 @@ impl<'a, C: Channel, const F: u8> ImageDecoder<'a, C, F> for JpegDecoder<'a, C, 
     fn open_validated<R: Read>(mut reader: R) -> Result<Self, DecodingError> where Self: Sized {
         check_header(&mut reader)?;
 
-        let mut parser = JpegParser::new(reader)?;
+        let mut parser = JpegParser::new(reader);
 
         let _ = parser.parse_first_chunk()?;
 
@@ -24,9 +24,9 @@ impl<'a, C: Channel, const F: u8> ImageDecoder<'a, C, F> for JpegDecoder<'a, C, 
         };
 
         parser.parse_chunks(|h, b, d| {
-            println!("{:?}", d);
+            println!("{d:?}");
 
-            b.seek_relative(h.length() as _).map_err(|e| e.into())
+            b.consume(h.length() as _); Ok(())
         })?;
 
         Ok(Self {

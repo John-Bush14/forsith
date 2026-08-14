@@ -64,6 +64,6 @@ pub enum DecodingError {
 }
 impl From<DecodingError> for io::Error {
     fn from(err: DecodingError) -> Self {
-        io::Error::other(err)
+        Self::other(err)
     }
 }

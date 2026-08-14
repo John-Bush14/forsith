@@ -1,4 +1,4 @@
-use std::{any::Any, fmt::Display, io::{Read, Seek}};
+use std::{any::Any, fmt::Display, io::Read};
 use crate::{Channel, DecodingError::{self, InvalidChunk}, PngDecoder, buffers::CursorVec, png::{ColorType, parser::ChunkHeader, postprocessing::MAX_STRIDE}};
 use derive_more::{IsVariant, Index};
 use num_enum::{TryFromPrimitive, IntoPrimitive};
@@ -7,11 +7,11 @@ use num_enum::{TryFromPrimitive, IntoPrimitive};
 #[allow(non_camel_case_types)]
 #[derive(TryFromPrimitive, IntoPrimitive, Clone, Copy, Debug, PartialEq, Eq, Default, IsVariant)]
 pub enum ChunkType {
-    Ihdr = 0x49484452,
-    Plte = 0x504C5445,
-    Idat = 0x49444154,
-    Iend = 0x49454E44,
-    tRNS = 0x74524E53,
+    Ihdr = 0x4948_4452,
+    Plte = 0x504C_5445,
+    Idat = 0x4944_4154,
+    Iend = 0x4945_4E44,
+    tRNS = 0x7452_4E53,
     #[default]
     UnkownAncillerary = 0
 }
@@ -21,8 +21,8 @@ impl Display for ChunkType {
     }
 }
 impl ChunkType {
-    pub fn is_critical(&self) -> bool {
-        *self as u32 & 0x20000000 == 0
+    pub const fn is_critical(self) -> bool {
+        self as u32 & 0x2000_0000 == 0
     }
 }
 
@@ -38,17 +38,15 @@ pub struct Ihdr {
 }
 
 impl Ihdr {
-    pub fn validate(&self) -> Result<(), DecodingError> {
+    pub const fn validate(&self) -> Result<(), DecodingError> {
         if !matches!((self.compression_method, self.filter_method, self.interlace_method), (0, 0, 0 | 1)) {
             return Err(DecodingError::InvalidChunk(ChunkType::Ihdr));
         }
 
         match (&self.channel_depth, &self.color_type) {
             (1 | 2 | 4 | 8 | 16, ColorType::Grayscale)
-            | (8 | 16, ColorType::Truecolor)
-            | (1 | 2 | 4 | 8, ColorType::Indexed)
-            | (8 | 16, ColorType::GrayscaleAlpha)
-            | (8 | 16, ColorType::TruecolorAlpha) => Ok(()),
+            | (8 | 16, ColorType::Truecolor | ColorType::GrayscaleAlpha | ColorType::TruecolorAlpha)
+            | (1 | 2 | 4 | 8, ColorType::Indexed) => Ok(()),
             _ => Err(DecodingError::InvalidChunk(ChunkType::Ihdr)),
         }
     }
@@ -74,7 +72,7 @@ pub trait ChunkData: Any {
     #[allow(unused)]
     fn chunk_type(&self) -> ChunkType; // &self needed for Box
 
-    fn update_decoder<'a, C: Channel, const F: u8>(decoder: &mut PngDecoder<'a, C, F>, chunk_header: &ChunkHeader, data: &mut CursorVec<u8>) -> Result<(), DecodingError>
+    fn update_decoder<C: Channel, const F: u8>(decoder: &mut PngDecoder<'_, C, F>, chunk_header: &ChunkHeader, data: &mut CursorVec<u8>) -> Result<(), DecodingError>
     where Self: Sized;
 }
 
@@ -83,7 +81,7 @@ pub struct ZlibDataStream {}
 impl ChunkData for ZlibDataStream {
     fn chunk_type(&self) -> ChunkType {ChunkType::Idat}
 
-    fn update_decoder<'a, C: Channel, const F: u8>(decoder: &mut PngDecoder<'a, C, F>, chunk_header: &ChunkHeader, data: &mut CursorVec<u8>) -> Result<(), DecodingError>
+    fn update_decoder<C: Channel, const F: u8>(decoder: &mut PngDecoder<'_, C, F>, chunk_header: &ChunkHeader, data: &mut CursorVec<u8>) -> Result<(), DecodingError>
     where
         Self: Sized,
     {
@@ -96,14 +94,14 @@ impl ChunkData for ZlibDataStream {
         let flg = reader.read_le::<u8>()?;
         reader.align()?;
 
-        let compression_method = cmf & 0b00001111;
-        let compression_info = (cmf & 0b11110000) >> 4;
-        let dict = flg & 0b00100000 == 0b00100000;
+        let compression_method = cmf & 0b0000_1111;
+        let compression_info = (cmf & 0b1111_0000) >> 4;
+        let dict = flg & 0b0010_0000 == 0b0010_0000;
 
         if compression_method != 8
             || compression_info > 7
             || dict
-            || !(cmf as u16 * 256 + flg as u16).is_multiple_of(31)
+            || !(u16::from(cmf) * 256 + u16::from(flg)).is_multiple_of(31)
         {
             return Err(DecodingError::InvalidChunk(ChunkType::Idat));
         }
@@ -113,7 +111,7 @@ impl ChunkData for ZlibDataStream {
         let scanline_padding = decoder.max_scanline_bytes() + MAX_STRIDE;
         decoder.deflate_buffer = CursorVec::new(scanline_padding + lz77_buffer_size + lz77_buffer_size.next_multiple_of(decoder.max_scanline_bytes()));
 
-        decoder.deflate_buffer.seek_relative(scanline_padding as _).unwrap();
+        decoder.deflate_buffer.consume(scanline_padding);
         decoder.deflate_buffer_tail = scanline_padding;
         decoder.last_adler_update_i = scanline_padding;
 
@@ -132,7 +130,7 @@ pub struct ColorPalette {
 }
 
 impl ColorPalette {
-    fn set_pixel_alpha(&mut self, i: usize, a: u8) {
+    const fn set_pixel_alpha(&mut self, i: usize, a: u8) {
         let pixel = &mut self.palette[i];
 
         *pixel = (*pixel & 0x00FF_FFFF) | ((a as u32) << 24);
@@ -142,7 +140,7 @@ impl ColorPalette {
 impl ChunkData for ColorPalette {
     fn chunk_type(&self) -> ChunkType {ChunkType::Plte}
 
-    fn update_decoder<'a, C: Channel, const F: u8>(decoder: &mut PngDecoder<'a, C, F>, chunk_header: &ChunkHeader, reader: &mut CursorVec<u8>) -> Result<(), DecodingError>
+    fn update_decoder<C: Channel, const F: u8>(decoder: &mut PngDecoder<'_, C, F>, chunk_header: &ChunkHeader, reader: &mut CursorVec<u8>) -> Result<(), DecodingError>
     where
         Self: Sized
     {
@@ -150,7 +148,7 @@ impl ChunkData for ColorPalette {
 
         if len == 0 || len > 256*3 || !len.is_multiple_of(3) {return Err(InvalidChunk(ChunkType::Plte))}
 
-        let mut palette = ColorPalette {palette: [0u32; 256], len: (len / 3) as u16};
+        let mut palette = Self {palette: [0u32; 256], len: u16::try_from(len / 3).unwrap()};
 
         // default alpha value should be 255
         let mut rgba = [255u8; 4];
@@ -169,18 +167,19 @@ pub struct tRNS {}
 impl ChunkData for tRNS {
     fn chunk_type(&self) -> ChunkType {ChunkType::tRNS}
 
-    fn update_decoder<'a, C: Channel, const F: u8>(decoder: &mut PngDecoder<'a, C, F>, chunk_header: &ChunkHeader, reader: &mut CursorVec<u8>) -> Result<(), DecodingError>
+    #[allow(clippy::cast_possible_truncation)]
+    fn update_decoder<C: Channel, const F: u8>(decoder: &mut PngDecoder<'_, C, F>, chunk_header: &ChunkHeader, reader: &mut CursorVec<u8>) -> Result<(), DecodingError>
     where
         Self: Sized,
     {
         let len = chunk_header.len();
 
         if decoder.postprocessor.color_type() != ColorType::Indexed {
-            let mask = ((1 << decoder.postprocessor.stored_channel_depth() as u32) - 1) as u16;
+            let mask = ((1u32 << u32::from(decoder.postprocessor.stored_channel_depth())) - 1) as u16;
 
             let channel_max = (1 << decoder.postprocessor.stored_channel_depth()) - 1;
             let mut read_val = || -> Result<i64, DecodingError> {
-                let d = (reader.read_be::<u16>()? & mask) as i64;
+                let d = i64::from(reader.read_be::<u16>()? & mask);
 
                 Ok(if decoder.postprocessor.stored_channel_depth() < 8 {
                     d * 255 / channel_max

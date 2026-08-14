@@ -1,5 +1,5 @@
-use std::io::{Read, Seek};
-use crate::{Channel, DecodingError, ImageDecoder, PixelFormat, bitspp, buffers::{BitCursorVec, CursorVec, OutputWriter}, parsing::SegmentParser, png::{checksum::Adler32, chunks::{ColorPalette, Ihdr, ZlibDataStream, tRNS}, deflate::{BlockType, MAX_BACKREF_LEN, STATIC_DISTANCE_TREE, STATIC_LITLEN_TREE, decode_distance, decode_length}, postprocessing::{MAX_STRIDE, PostProcessor}}};
+use std::io::Read;
+use crate::{Channel, DecodingError, ImageDecoder, PixelFormat, bitspp, buffers::{BitCursorVec, CursorVec, OutputWriter}, parsing::SegmentParser, png::{checksums::Adler32, chunks::{ColorPalette, Ihdr, ZlibDataStream, tRNS}, deflate::{BlockType, MAX_BACKREF_LEN, STATIC_DISTANCE_TREE, STATIC_LITLEN_TREE, decode_distance, decode_length}, postprocessing::{MAX_STRIDE, PostProcessor}}};
 use derive_more::IsVariant;
 use num_enum::TryFromPrimitive;
 
@@ -7,9 +7,9 @@ mod chunks;
 pub use chunks::{ChunkType, ChunkData};
 
 mod parser;
-pub(crate) use parser::{ChunkParser, ChunkHeader};
+pub use parser::{ChunkParser, ChunkHeader};
 
-pub(crate) use crate::checksums as checksum;
+use crate::checksums;
 
 mod deflate;
 
@@ -31,11 +31,10 @@ enum ColorType {
 impl From<ColorType> for PixelFormat {
     fn from(f: ColorType) -> Self {
         match f {
-            ColorType::Grayscale => PixelFormat::Grayscale,
-            ColorType::Truecolor => PixelFormat::Truecolor,
-            ColorType::Indexed => PixelFormat::Truecolor,
-            ColorType::GrayscaleAlpha => PixelFormat::GrayscaleAlpha,
-            ColorType::TruecolorAlpha => PixelFormat::TruecolorAlpha,
+            ColorType::Grayscale => Self::Grayscale,
+            ColorType::Truecolor | ColorType::Indexed => Self::Truecolor,
+            ColorType::GrayscaleAlpha => Self::GrayscaleAlpha,
+            ColorType::TruecolorAlpha => Self::TruecolorAlpha,
         }
     }
 }
@@ -58,15 +57,15 @@ impl<'a, C: Channel, const F: u8> ImageDecoder<'a, C, F> for PngDecoder<'a, C, F
     fn open_validated<R: Read>(mut reader: R) -> Result<Self, DecodingError> {
         check_header(&mut reader)?;
 
-        let mut chunk_parser = ChunkParser::new(reader)?;
+        let mut chunk_parser = ChunkParser::new(reader);
 
         let ihdr = read_ihdr(&mut chunk_parser)?;
 
         let postprocessor = PostProcessor::new(ihdr.width, ihdr.color_type, ihdr.channel_depth);
 
         let mut decoder = Self {
-            compressed_data: Default::default(),
-            deflate_buffer: Default::default(),
+            compressed_data: BitCursorVec::default(),
+            deflate_buffer: CursorVec::default(),
             scanline_multiples: 0,
             phantom: std::marker::PhantomData,
             postprocessor,
@@ -74,10 +73,10 @@ impl<'a, C: Channel, const F: u8> ImageDecoder<'a, C, F> for PngDecoder<'a, C, F
             cur_block: deflate::Block::default(),
             deflate_buffer_tail: 0,
             last_adler_update_i: 0,
-            adler: Default::default()
+            adler: Adler32::default()
         };
 
-        chunk_parser.parse_chunks(|h, d, _| decoder.update_with_chunk(h, d))?;
+        chunk_parser.parse_chunks(|h, d, ()| decoder.update_with_chunk(h, d))?;
 
         if decoder.postprocessor.palette().is_none() && decoder.ihdr.color_type.is_indexed() {
             return Err(DecodingError::NoPallete);
@@ -105,7 +104,7 @@ impl<'a, C: Channel, const F: u8> ImageDecoder<'a, C, F> for PngDecoder<'a, C, F
                 BlockType::CompressedFixed => {self.read_compressed_chunk::<true>(&mut dest)?;},
                 BlockType::CompressedDynamic => {self.read_compressed_chunk::<false>(&mut dest)?;},
                 BlockType::Finished => {
-                    while self.can_drain_scanline(&mut dest) && self.deflate_buffer.cursor() - self.deflate_buffer_tail >= self.scanline_bytes() {
+                    while self.can_drain_scanline(&dest) && self.deflate_buffer.cursor() - self.deflate_buffer_tail >= self.scanline_bytes() {
                         let consumed_bytes = self.consume_inflated_scanline(self.deflate_buffer_tail, &mut dest)?;
 
                         self.deflate_buffer_tail += consumed_bytes;
@@ -139,14 +138,14 @@ impl<'a, C: Channel, const F: u8> ImageDecoder<'a, C, F> for PngDecoder<'a, C, F
     fn source_pixel_format(&self) -> crate::PixelFormat {self.stored_format()}
 }
 
-impl<'a, C: Channel, const F: u8> PngDecoder<'a, C, F> {
-    fn can_drain_scanline(&self, dest: &mut OutputWriter<'_, C, F>) -> bool {
+impl<C: Channel, const F: u8> PngDecoder<'_, C, F> {
+    fn can_drain_scanline(&self, dest: &OutputWriter<'_, C, F>) -> bool {
         dest.remaining_bytes()*8 / bitspp::<C, F>() as usize * self.stored_bpp() >= self.scanline_pixel_bytes()*8 || self.ihdr.interlace_method == 1
     }
 
     fn stored_bpp(&self) -> usize {self.postprocessor.stored_bpp()}
     fn stored_format(&self) -> PixelFormat {self.postprocessor.stored_format()}
-    fn stored_channel_depth(&self) -> u8 {self.postprocessor.stored_channel_depth()}
+    const fn stored_channel_depth(&self) -> u8 {self.postprocessor.stored_channel_depth()}
 
     #[cold]
     fn next_block(&mut self) -> Result<(), DecodingError> {
@@ -177,7 +176,7 @@ impl<'a, C: Channel, const F: u8> PngDecoder<'a, C, F> {
 
         self.deflate_buffer.get_mut().copy_within(i-distance..i-distance+length, i);
 
-        self.deflate_buffer.seek_relative(length as i64).unwrap();
+        self.deflate_buffer.consume(length);
     }
 
     fn update_adler(&mut self) {
@@ -226,7 +225,7 @@ impl<'a, C: Channel, const F: u8> PngDecoder<'a, C, F> {
 
     pub fn update_with_chunk(&mut self, chunk_header: &ChunkHeader, chunk_data: &mut CursorVec<u8>) -> Result<(), DecodingError> {
         let result = match chunk_header.r#type() {
-            ChunkType::Iend | ChunkType::UnkownAncillerary => chunk_data.seek_relative(chunk_header.len() as i64).map_err(|e| e.into()),
+            ChunkType::Iend | ChunkType::UnkownAncillerary => {chunk_data.consume(chunk_header.len()); Ok(())},
             ChunkType::Ihdr => Err(DecodingError::MultipleChunks(ChunkType::Ihdr)),
             ChunkType::Idat => ZlibDataStream::update_decoder(self, chunk_header, chunk_data),
             ChunkType::Plte => ColorPalette::update_decoder(self, chunk_header, chunk_data),
@@ -244,15 +243,14 @@ impl<'a, C: Channel, const F: u8> PngDecoder<'a, C, F> {
 
     #[cold]
     fn read_uncompressed_chunk(&mut self, len: u16, dest: &mut OutputWriter<'_, C, F>) -> Result<(), DecodingError> {
-        let len = len as usize;
         self.compressed_data.unconsume_bitbuf();
 
         let mut decoded_bytes = 0;
 
         loop {
-            let chunk_len = (len - decoded_bytes).min(self.deflate_buffer.remaining());
+            let chunk_len = (len - decoded_bytes).min(self.deflate_buffer.remaining().saturating_truncate());
 
-            self.deflate_buffer.read_from(&mut **self.compressed_data, chunk_len)?;
+            self.deflate_buffer.read_from(&mut **self.compressed_data, chunk_len as usize)?;
 
             decoded_bytes += chunk_len;
 
@@ -267,7 +265,7 @@ impl<'a, C: Channel, const F: u8> PngDecoder<'a, C, F> {
             self.compressed_data.align()?;
             self.next_block()?;
         } else {
-            self.cur_block.r#type = BlockType::Uncompressed((len - decoded_bytes) as u16);
+            self.cur_block.r#type = BlockType::Uncompressed(len - decoded_bytes);
             dest.set_full();
         } Ok(())
     }
@@ -293,7 +291,7 @@ impl<'a, C: Channel, const F: u8> PngDecoder<'a, C, F> {
             let symbol = litlen_tree.decode_symbol(&mut self.compressed_data);
 
             if symbol < 256 {
-                self.deflate_buffer.write_fast_single(symbol as u8);
+                self.deflate_buffer.write_fast_single(u8::try_from(symbol).unwrap());
             } else if std::hint::unlikely(symbol == 256) {
                 self.next_block()?;
                 break;
