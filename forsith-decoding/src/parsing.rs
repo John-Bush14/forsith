@@ -118,8 +118,6 @@ pub trait SegmentParser<R: Read> {
         self.validate_segment()
     }
 
-    fn read_bytes_exact(&mut self, len: usize) -> Result<(), DecodingError> {self.read_bytes_exact_default(len)}
-
     fn read_bytes(&mut self, len: usize) -> Result<usize, DecodingError> {self.read_bytes_default(len)}
 
     fn read_bytes_default(&mut self, len: usize) -> Result<usize, DecodingError> {
@@ -133,14 +131,12 @@ pub trait SegmentParser<R: Read> {
         reader.read(&mut buffer.get_mut()[cursor..cursor + len]).map_err(std::convert::Into::into)
     }
 
-    fn read_bytes_exact_default(&mut self, len: usize) -> Result<(), DecodingError> {
-        let (buffer, reader, _) = self.context();
-
-        if buffer.remaining() <= len {
-            buffer.expand(len);
+    fn read_bytes_exact(&mut self, len: usize) -> Result<(), DecodingError> {
+        match self.read_bytes(len) {
+            Ok(n) if n == len => Ok(()),
+            Ok(_) => Err(DecodingError::IOError(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "unexpected EOF"))),
+            Err(e) => Err(e),
         }
-
-        buffer.fill_from(reader, len).map_err(std::convert::Into::into)
     }
 
     fn parse_header(&mut self) -> Result<(), DecodingError> {

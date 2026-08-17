@@ -131,19 +131,6 @@ impl<R: Read> SegmentParser<R> for JpegParser<R> {
         ret
     }
 
-    fn read_bytes_exact(&mut self, raw_len: usize) -> Result<(), crate::DecodingError> {
-        let len = raw_len.saturating_sub(self.excess_bytes);
-        let excess_read = raw_len - len;
-
-        self.buffer.consume(excess_read);
-        let ret = self.read_bytes_exact_default(len);
-        self.buffer.unconsume(excess_read);
-
-        self.excess_bytes -= excess_read;
-
-        ret
-    }
-
     fn parse_header(&mut self) -> Result<(), crate::DecodingError> {
         self.marker = Marker::read(&mut *self.buffer)?;
 
