@@ -19,7 +19,69 @@ impl <R: Read> JpegParser<R> {
             buffer: CursorVec::<u8>::new(1 << 12),
             excess_bytes: 0,
         }
+    }
 
+    fn find_marker_indices(&self, start: usize, len: usize) -> Vec<usize> {
+        self.buffer.get_ref()[start..start + len]
+            .iter().enumerate()
+            .filter_map(|(i, &b)| if b == 0xFF {Some(start + i)} else {None})
+            .collect::<Vec<_>>()
+    }
+
+    fn remove_stuffing(&mut self, stuffing_indices: &[usize], end: usize) {
+        for (stuffing_i, &i) in stuffing_indices.iter().enumerate().rev() {
+            let end = *stuffing_indices.get(stuffing_i + 1).unwrap_or(&end);
+
+            self.buffer.get_mut().copy_within((i + 2).min(end)..end, i);
+        }
+
+        self.buffer.unconsume(stuffing_indices.len() * 2);
+    }
+
+    fn ensure_no_border_markers(&mut self, start: usize, len: &mut usize) -> Result<(), crate::DecodingError> {
+        while self.buffer.get_ref()[(start + len.saturating_sub(4)).max(start)..(start + *len)].iter().any(|x| x == &0xFF) {
+            self.buffer.set_cursor(start + *len);
+            *len += self.read_bytes(1)?;
+
+             if self.buffer.cursor() - start == *len {break;}
+        }
+
+        if self.buffer.get_ref()[start + *len - 1] == 0xFF {Err(DecodingError::NoEOI)} else {Ok(())}
+    }
+
+    fn blind_read(&mut self,) -> Result<usize, crate::DecodingError> {
+        let mut len = self.read_bytes(BLIND_LEN)?;
+        if len == 0 {return Err(DecodingError::NoEOI)}
+        self.ensure_no_border_markers(self.buffer.cursor(), &mut len)?; Ok(len)
+    }
+
+    fn handle_markers(&mut self, marker_indices: &Vec<usize>, data_ranges: &mut Vec<Range<usize>>) -> Result<Vec<usize>, crate::DecodingError> {
+        let mut stuffing_indices: Vec<usize> = vec![];
+        let mut stuffing_offset = 0;
+        for i in marker_indices {
+            self.buffer.set_cursor(*i);
+
+            self.parse_header()?;
+            if !self.marker.has_length_field() {self.excess_bytes -= 2;}
+
+            if self.marker.is_stuffing() {
+                stuffing_indices.push(*i);
+                stuffing_offset += 2;
+            } else {
+                let i = i - stuffing_offset;
+
+                let start = data_ranges.last().unwrap().end + 2;
+                if start < i {
+                    data_ranges.push(start..i);
+                }
+
+                if !(self.marker.is_rst() || self.marker.is_fill() || self.marker.is_stuffing()) {
+                    break;
+                }
+            }
+        }
+
+        Ok(stuffing_indices)
     }
 }
 
@@ -38,77 +100,29 @@ impl<R: Read> SegmentParser<R> for JpegParser<R> {
     {
         self.clear_buffer();
 
-        let mut data_ranges = vec![];
-        let mut range_start = self.buffer.cursor();
-        let mut end = range_start;
-        let mut stuffing_offset;
-        let sos_marker = self.marker;
+        self.read_bytes_exact(self.marker.length())?;
+        let mut start = self.buffer.cursor() + self.marker.length();
+        #[allow(clippy::single_range_in_vec_init)]
+        let mut data_ranges = vec![start - self.marker.length()..start];
 
-        self.marker = Marker {ty: MarkerType::Fill, len: 0};
         loop {
-            let start = end;
             self.buffer.set_cursor(start);
-            let mut len = self.read_bytes(BLIND_LEN)?;
-            if len == 0 {return Err(DecodingError::NoEOI)}
+            let len = self.blind_read()?;
 
-            let mut stuffing: Vec<usize> = vec![];
-            stuffing_offset = 0;
+            let marker_indices = self.find_marker_indices(start, len);
+            let stuffing_indices = self.handle_markers(&marker_indices, &mut data_ranges)?;
+            self.remove_stuffing(&stuffing_indices, start + len);
 
-            while self.buffer.get_ref()[(start + len.saturating_sub(4)).max(start)..(start + len)].iter().any(|x| x == &0xFF) {
-                self.buffer.set_cursor(start + len);
-                len += self.read_bytes(1)?;
-
-                if self.buffer.cursor() - start == len {break;}
-            }
-
-            if self.buffer.get_ref()[start + len - 1] == 0xFF {return Err(DecodingError::NoEOI);}
-
-            end += len;
-
-            let markers = self.buffer.get_ref()[start..start + len]
-                .iter().enumerate()
-                .filter_map(|(i, &b)| if b == 0xFF {Some(start + i)} else {None})
-                .collect::<Vec<_>>();
-
-            for i in markers {
-                self.buffer.set_cursor(i);
-
-                self.parse_header()?;
-                if !self.marker.has_length_field() {self.excess_bytes -= 2;}
-
-                if self.marker.is_stuffing() {
-                    stuffing.push(i);
-                    stuffing_offset += 2;
-                } else {
-                    let i = i - stuffing_offset;
-
-                    if range_start < i {
-                        data_ranges.push(range_start..i);
-                    }
-                    range_start = i + 2;
-
-                    if !(self.marker.is_rst() || self.marker.is_fill() || self.marker.is_stuffing()) {
-                        break;
-                    }
-                }
-            }
-
-            for (stuffing_i, &i) in stuffing.iter().enumerate().rev() {
-                let end = *stuffing.get(stuffing_i + 1).unwrap_or(&end);
-
-                println!("Removing stuffing at index: {i}, end: {end}");
-                self.buffer.get_mut().copy_within((i + 2).min(end)..end, i);
-            }
-            end -= stuffing_offset;
+            start += len - stuffing_indices.len()*2;
 
             if !(self.marker.is_rst() || self.marker.is_fill() || self.marker.is_stuffing()) {
                 break;
             }
         }
 
-        self.buffer.unconsume(stuffing_offset);
-        self.excess_bytes += end - self.buffer.cursor();
+        self.excess_bytes += start - self.buffer.cursor();
 
+        let sos_marker = Marker {ty: MarkerType::Sos, len: u16::try_from(data_ranges.first().unwrap().len()).unwrap()};
         out(&sos_marker, &mut self.buffer, Some(data_ranges))
     }
 
