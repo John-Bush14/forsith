@@ -32,19 +32,6 @@ impl<R: Read> ChunkParser<R> {
             self.buffer.seek_relative(-12).unwrap();
         } Ok(())
     }
-
-    fn handle_idat_chunks<F>(&mut self, out: &mut F) -> Result<(), DecodingError>
-        where F: FnMut(&ChunkHeader, &mut CursorVec<u8>, ()) -> Result<(), DecodingError>
-    {
-        let idat_start = self.buffer.cursor();
-
-        self.coalesce_idat_chunks()?;
-
-        let idat_len = self.buffer.cursor() - idat_start;
-
-        self.buffer.unconsume(idat_len);
-        out(&ChunkHeader::new(idat_len, ChunkType::Idat), &mut self.buffer, ())
-    }
 }
 
 impl<R: Read> SegmentParser<R> for ChunkParser<R> {
@@ -66,30 +53,17 @@ impl<R: Read> SegmentParser<R> for ChunkParser<R> {
         Ok(())
     }
 
-    /// out should ensure whole chunk is read before returing, for cursor alignment.
-    fn parse_chunks<F>(&mut self, mut out: F) -> Result<(), DecodingError>
-        where F: FnMut(&Self::Header, &mut CursorVec<u8>, ()) -> Result<(), DecodingError>
+    fn handle_special_segment<F>(&mut self, out: &mut F) -> Result<(), DecodingError>
+        where F: FnMut(&ChunkHeader, &mut CursorVec<u8>, ()) -> Result<(), DecodingError>
     {
-        if self.header.is_idat() {self.handle_idat_chunks(&mut out)?}
+        let idat_start = self.buffer.cursor();
 
-        while !self.header.is_iend() {
-            self.read_to_next_header()?;
+        self.coalesce_idat_chunks()?;
 
-            self.buffer.unconsume(self.header.length());
-            out(&self.header, &mut self.buffer, ())?;
-            self.buffer.seek_relative(4)?;
+        let idat_len = self.buffer.cursor() - idat_start;
 
-            self.parse_header()?;
-
-            if self.header.is_idat() {self.handle_idat_chunks(&mut out)?}
-
-            self.clear_buffer();
-        };
-
-        let crc = self.reader.read_be::<u32>()?;
-        self.validate_crc(crc)?;
-
-        Ok(())
+        self.buffer.unconsume(idat_len);
+        out(&ChunkHeader::new(idat_len, ChunkType::Idat), &mut self.buffer, ())
     }
 }
 
@@ -128,6 +102,9 @@ impl SegmentHeader for ChunkHeader {
 
         Ok(Self {len, r#type, crc})
     }
+
+    fn is_final(&self) -> bool {self.is_iend()}
+    fn is_special(&self) -> bool {self.is_idat()}
 }
 
 pub const fn is_chunk_type_critical(chunk_type_buffer: [u8; 4]) -> bool {

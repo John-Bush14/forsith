@@ -33,98 +33,83 @@ impl<R: Read> SegmentParser<R> for JpegParser<R> {
         (&mut self.buffer, &mut self.reader, &mut self.marker)
     }
 
-    fn parse_chunks<F>(&mut self, mut out: F) -> Result<(), crate::DecodingError>
-        where F: FnMut(&Self::Header, &mut CursorVec<u8>, Self::ExtraOut) -> Result<(), crate::DecodingError>
+    fn handle_special_segment<F>(&mut self, out: &mut F) -> Result<(), crate::DecodingError>
+        where F: FnMut(&Marker, &mut CursorVec<u8>, Option<Vec<Range<usize>>>) -> Result<(), crate::DecodingError>
     {
-        while !self.marker.is_eoi() {
-            self.read_to_next_header()?;
+        self.clear_buffer();
 
-            self.buffer.unconsume(self.marker.length());
-            out(&self.marker, &mut self.buffer, None)?;
+        let mut data_ranges = vec![];
+        let mut range_start = self.buffer.cursor();
+        let mut end = range_start;
+        let mut stuffing_offset;
+        let sos_marker = self.marker;
 
-            self.parse_header()?;
+        self.marker = Marker {ty: MarkerType::Fill, len: 0};
+        loop {
+            let start = end;
+            self.buffer.set_cursor(start);
+            let mut len = self.read_bytes(BLIND_LEN)?;
+            if len == 0 {return Err(DecodingError::NoEOI)}
 
-            if self.marker.is_sos() {
-                self.clear_buffer();
+            let mut stuffing: Vec<usize> = vec![];
+            stuffing_offset = 0;
 
-                let mut data_ranges = vec![];
-                let mut range_start = self.buffer.cursor();
-                let mut end = range_start;
-                let mut stuffing_offset;
-                let sos_marker = self.marker;
+            while self.buffer.get_ref()[(start + len.saturating_sub(4)).max(start)..(start + len)].iter().any(|x| x == &0xFF) {
+                self.buffer.set_cursor(start + len);
+                len += self.read_bytes(1)?;
 
-                self.marker = Marker {ty: MarkerType::Fill, len: 0};
-                loop {
-                    let start = end;
-                    self.buffer.set_cursor(start);
-                    let mut len = self.read_bytes(BLIND_LEN)?;
-                    if len == 0 {return Err(DecodingError::NoEOI)}
+                if self.buffer.cursor() - start == len {break;}
+            }
 
-                    let mut stuffing: Vec<usize> = vec![];
-                    stuffing_offset = 0;
+            if self.buffer.get_ref()[start + len - 1] == 0xFF {return Err(DecodingError::NoEOI);}
 
-                    while self.buffer.get_ref()[(start + len.saturating_sub(4)).max(start)..(start + len)].iter().any(|x| x == &0xFF) {
-                        self.buffer.set_cursor(start + len);
-                        len += self.read_bytes(1)?;
+            end += len;
 
-                        if self.buffer.cursor() - start == len {break;}
+            let markers = self.buffer.get_ref()[start..start + len]
+                .iter().enumerate()
+                .filter_map(|(i, &b)| if b == 0xFF {Some(start + i)} else {None})
+                .collect::<Vec<_>>();
+
+            for i in markers {
+                self.buffer.set_cursor(i);
+
+                self.parse_header()?;
+                if !self.marker.has_length_field() {self.excess_bytes -= 2;}
+
+                if self.marker.is_stuffing() {
+                    stuffing.push(i);
+                    stuffing_offset += 2;
+                } else {
+                    let i = i - stuffing_offset;
+
+                    if range_start < i {
+                        data_ranges.push(range_start..i);
                     }
-
-                    if self.buffer.get_ref()[start + len - 1] == 0xFF {return Err(DecodingError::NoEOI);}
-
-                    end += len;
-
-                    let markers = self.buffer.get_ref()[start..start + len]
-                        .iter().enumerate()
-                        .filter_map(|(i, &b)| if b == 0xFF {Some(start + i)} else {None})
-                        .collect::<Vec<_>>();
-
-                    for i in markers {
-                        self.buffer.set_cursor(i);
-
-                        self.parse_header()?;
-                        if !self.marker.has_length_field() {self.excess_bytes -= 2;}
-
-                        if self.marker.is_stuffing() {
-                            stuffing.push(i);
-                            stuffing_offset += 2;
-                        } else {
-                            let i = i - stuffing_offset;
-
-                            if range_start < i {
-                                data_ranges.push(range_start..i);
-                            }
-                            range_start = i + 2;
-
-                            if !(self.marker.is_rst() || self.marker.is_fill() || self.marker.is_stuffing()) {
-                                break;
-                            }
-                        }
-                    }
-
-                    for (stuffing_i, &i) in stuffing.iter().enumerate().rev() {
-                        let end = *stuffing.get(stuffing_i + 1).unwrap_or(&end);
-
-                        println!("Removing stuffing at index: {i}, end: {end}");
-                        self.buffer.get_mut().copy_within((i + 2).min(end)..end, i);
-                    }
-                    end -= stuffing_offset;
+                    range_start = i + 2;
 
                     if !(self.marker.is_rst() || self.marker.is_fill() || self.marker.is_stuffing()) {
                         break;
                     }
                 }
-
-                self.buffer.unconsume(stuffing_offset);
-                self.excess_bytes += end - self.buffer.cursor();
-
-                out(&sos_marker, &mut self.buffer, Some(data_ranges))?;
             }
 
-            self.clear_buffer();
-        };
+            for (stuffing_i, &i) in stuffing.iter().enumerate().rev() {
+                let end = *stuffing.get(stuffing_i + 1).unwrap_or(&end);
 
-        Ok(())
+                println!("Removing stuffing at index: {i}, end: {end}");
+                self.buffer.get_mut().copy_within((i + 2).min(end)..end, i);
+            }
+            end -= stuffing_offset;
+
+            if !(self.marker.is_rst() || self.marker.is_fill() || self.marker.is_stuffing()) {
+                break;
+            }
+        }
+
+        self.buffer.unconsume(stuffing_offset);
+        self.excess_bytes += end - self.buffer.cursor();
+
+        out(&sos_marker, &mut self.buffer, Some(data_ranges))
     }
 
     fn clear_buffer(&mut self) {
@@ -252,4 +237,7 @@ impl SegmentHeader for Marker {
 
         Ok(Self { ty, len })
     }
+
+    fn is_final(&self) -> bool {self.is_eoi()}
+    fn is_special(&self) -> bool {self.is_sos()}
 }

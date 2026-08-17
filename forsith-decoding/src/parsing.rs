@@ -41,11 +41,14 @@ pub trait SegmentHeader: Clone {
     fn length(&self) -> usize;
     fn read<R: Read>(reader: &mut R) -> Result<Self, DecodingError> where Self: Sized;
     fn size(&self) -> usize {Self::MAX_SIZE}
+
+    fn is_final(&self) -> bool;
+    fn is_special(&self) -> bool {false}
 }
 
 pub trait SegmentParser<R: Read> {
     type Header: SegmentHeader;
-    type ExtraOut;
+    type ExtraOut: Default;
 
     fn context<'s, 'a, 'b, 'c>(&'s mut self) -> (&'a mut CursorVec<u8>, &'b mut R, &'c mut Self::Header)
         where 's: 'a, 's: 'b, 's: 'c;
@@ -75,8 +78,37 @@ pub trait SegmentParser<R: Read> {
 
     fn clear_buffer(&mut self) {self.buffer().set_cursor(0);}
 
-    fn parse_chunks<F>(&mut self, out: F) -> Result<(), DecodingError>
-        where F: FnMut(&Self::Header, &mut CursorVec<u8>, Self::ExtraOut) -> Result<(), DecodingError>;
+    fn handle_special_segment<F>(&mut self, _out: &mut F) -> Result<(), DecodingError>
+        where F: FnMut(&Self::Header, &mut CursorVec<u8>, Self::ExtraOut) -> Result<(), DecodingError> {unreachable!()}
+
+    fn parse_chunks<F>(&mut self, mut out: F) -> Result<(), DecodingError>
+        where F: FnMut(&Self::Header, &mut CursorVec<u8>, Self::ExtraOut) -> Result<(), DecodingError>
+    {
+        if self.header().is_special() {self.handle_special_segment(&mut out)?}
+
+        while !self.header().is_final() {
+            self.read_to_next_header()?;
+
+            let (buffer, _, header) = self.context();
+
+            let end = buffer.cursor();
+            buffer.unconsume(header.length());
+            out(header, buffer, Default::default())?;
+            buffer.set_cursor(end);
+
+            self.parse_header()?;
+
+            if self.header().is_special() {self.handle_special_segment(&mut out)?}
+
+            self.clear_buffer();
+        };
+
+        let len = self.header().length();
+        self.read_bytes_exact(len)?;
+        self.validate_segment()?;
+
+        Ok(())
+    }
 
     fn read_to_next_header(&mut self) -> Result<(), DecodingError> {
         let len = self.header().length() + Self::Header::MAX_SIZE;
