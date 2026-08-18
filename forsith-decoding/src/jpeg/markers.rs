@@ -72,6 +72,17 @@ impl ScanMetadata {
 pub struct FrameHeader;
 impl FrameHeader {
     pub fn update_decoder<C: Channel, const F: u8>(decoder: &mut JpegDecoder<'_, C, F>, marker: Marker, data: impl BufRead) -> Result<(), DecodingError> {
+        let id = match *marker {MarkerType::Sof(t) => t, _ => panic!("FrameHeader::update_decoder called with non-SOF marker")};
+
+        let huffman = id <= 7; let arithmetic = !huffman;
+
+        let differential = id & 4 != 0;
+
+        let baseline = matches!(id % 4, 0);
+        let sequential = matches!(id % 4, 1);
+        let progressive = matches!(id % 4, 2);
+        let lossless = matches!(id % 4, 3);
+
         todo!();
     }
 }
