@@ -69,9 +69,6 @@ impl Ihdr {
 
 
 pub trait ChunkData: Any {
-    #[allow(unused)]
-    fn chunk_type(&self) -> ChunkType; // &self needed for Box
-
     fn update_decoder<C: Channel, const F: u8>(decoder: &mut PngDecoder<'_, C, F>, chunk_header: &ChunkHeader, data: &mut CursorVec<u8>) -> Result<(), DecodingError>
     where Self: Sized;
 }
@@ -79,8 +76,6 @@ pub trait ChunkData: Any {
 // Will be read as IDAT chunk data
 pub struct ZlibDataStream {}
 impl ChunkData for ZlibDataStream {
-    fn chunk_type(&self) -> ChunkType {ChunkType::Idat}
-
     fn update_decoder<C: Channel, const F: u8>(decoder: &mut PngDecoder<'_, C, F>, chunk_header: &ChunkHeader, data: &mut CursorVec<u8>) -> Result<(), DecodingError>
     where
         Self: Sized,
@@ -138,8 +133,6 @@ impl ColorPalette {
 }
 
 impl ChunkData for ColorPalette {
-    fn chunk_type(&self) -> ChunkType {ChunkType::Plte}
-
     fn update_decoder<C: Channel, const F: u8>(decoder: &mut PngDecoder<'_, C, F>, chunk_header: &ChunkHeader, reader: &mut CursorVec<u8>) -> Result<(), DecodingError>
     where
         Self: Sized
@@ -165,8 +158,6 @@ impl ChunkData for ColorPalette {
 #[allow(non_camel_case_types)]
 pub struct tRNS {}
 impl ChunkData for tRNS {
-    fn chunk_type(&self) -> ChunkType {ChunkType::tRNS}
-
     #[allow(clippy::cast_possible_truncation)]
     fn update_decoder<C: Channel, const F: u8>(decoder: &mut PngDecoder<'_, C, F>, chunk_header: &ChunkHeader, reader: &mut CursorVec<u8>) -> Result<(), DecodingError>
     where
