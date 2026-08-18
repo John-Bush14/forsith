@@ -1,6 +1,6 @@
 use std::{io::Read, ops::Range};
 use derive_more::{Deref, IsVariant};
-use crate::{DecodingError, buffers::CursorVec, parsing::{SegmentHeader, SegmentParser}};
+use crate::{DecodingError, buffers::CursorVec, jpeg::markers::MarkerType, parsing::{SegmentHeader, SegmentParser}};
 
 const BLIND_LEN: usize = 1 << 10;
 
@@ -157,64 +157,6 @@ impl<R: Read> SegmentParser<R> for JpegParser<R> {
         if !self.marker.has_length_field() {self.excess_bytes += 2;}
 
         Ok(())
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant)]
-pub enum MarkerType {
-    Stuffing,
-    Fill,
-    Soi,
-    Sof(u8),
-    Jpg,
-    Dht,
-    Dqt,
-    Dri,
-    Sos,
-    Rst(u8),
-    Dac,
-    Dnl,
-    Dhp,
-    Exp,
-    Jpgn(u8),
-    Tem,
-    App(u8),
-    Com,
-    Eoi,
-}
-
-impl MarkerType {
-    #[allow(clippy::enum_glob_use)]
-    const fn from_markercode(code: u8) -> Result<Self, DecodingError> {
-        use MarkerType::*;
-        Ok(match code {
-            0x00 => Stuffing,
-            0x01 => Tem,
-            0xC4 => Dht,
-            0xC8 => Jpg,
-            0xCC => Dac,
-            0xC0..=0xCF => Sof(code - 0xC0),
-            0xD0..=0xD7 => Rst(code - 0xD0),
-            0xD8 => Soi,
-            0xD9 => Eoi,
-            0xDA => Sos,
-            0xDB => Dqt,
-            0xDC => Dnl,
-            0xDD => Dri,
-            0xDE => Dhp,
-            0xDF => Exp,
-            0xE0..=0xEF => App(code - 0xE0),
-            0xF0..=0xFD => Jpgn(code - 0xF0),
-            0xFE => Com,
-            0xFF => Fill, // Fill byte
-            _ => return Err(DecodingError::InvalidMarkerCode(code)),
-        })
-    }
-
-    #[allow(clippy::enum_glob_use)]
-    const fn has_length_field(self) -> bool {
-        use MarkerType::*;
-        !matches!(self, Stuffing | Fill | Soi | Rst(_) | Eoi | Tem)
     }
 }
 

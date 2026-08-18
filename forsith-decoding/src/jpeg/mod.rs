@@ -1,5 +1,7 @@
-use std::io::Read;
-use crate::{Channel, DecodingError, ImageDecoder, PixelFormat, parsing::{SegmentParser, SegmentHeader}};
+use std::{io::Read, ops::Range};
+use crate::{Channel, DecodingError, ImageDecoder, PixelFormat, buffers::CursorVec, jpeg::{markers::{FrameHeader, HuffmanTables, MarkerType, QuantizationTables, RestartInterval, ScanMetadata}, parser::Marker}, parsing::{SegmentHeader, SegmentParser}};
+
+mod markers;
 
 mod parser;
 use parser::JpegParser;
@@ -23,11 +25,7 @@ impl<'a, C: Channel, const F: u8> ImageDecoder<'a, C, F> for JpegDecoder<'a, C, 
             phantom: std::marker::PhantomData,
         };
 
-        parser.parse_chunks(|h, b, d| {
-            println!("{d:?}");
-
-            b.consume(h.length() as _); Ok(())
-        })?;
+        parser.parse_chunks(|header, data, data_ranges| decoder.update_with_marker(header.clone(), data, data_ranges))?;
 
         Ok(Self {
             phantom: std::marker::PhantomData,
@@ -52,6 +50,29 @@ impl<'a, C: Channel, const F: u8> ImageDecoder<'a, C, F> for JpegDecoder<'a, C, 
 
     fn source_pixel_format(&self) -> PixelFormat {
         todo!()
+    }
+}
+
+impl<C: Channel, const F: u8> JpegDecoder<'_, C, F> {
+    fn update_with_marker(&mut self, marker: Marker, data: &mut CursorVec<u8>, data_ranges: Option<Vec<Range<usize>>>) -> Result<(), DecodingError> {
+        assert!(data_ranges.is_none() || marker.is_sos(), "Data ranges should only be provided for SOS markers");
+
+        match *marker {
+            MarkerType::Sos => {
+                let mut data_ranges = CursorVec::from(data_ranges.expect("Data ranges should be provided for SOS markers"));
+                assert_ne!(data_ranges.capacity(), 0, "Data ranges should not be empty for SOS markers");
+
+                let metadata = &data.get_ref()[data_ranges.read_single()];
+                ScanMetadata::update_decoder(self, marker, metadata)?;
+            },
+            MarkerType::Sof(_) => {FrameHeader::update_decoder(self, marker, &mut **data)?;},
+            MarkerType::Dqt => {QuantizationTables::update_decoder(self, marker, &mut **data)?;},
+            MarkerType::Dht => {HuffmanTables::update_decoder(self, marker, &mut **data)?;},
+            MarkerType::Dri => {RestartInterval::update_decoder(self, marker, &mut **data)?;},
+            _ => (),
+        }
+
+        Ok(())
     }
 }
 

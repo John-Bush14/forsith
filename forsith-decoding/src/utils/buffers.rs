@@ -1,4 +1,4 @@
-use std::{fmt::Debug, io::{Cursor, Read}, marker::PhantomData};
+use std::{fmt::Debug, io::{BufRead, Cursor, Read}, marker::PhantomData};
 use crate::{Channel, Int, parsing::BitReader};
 use derive_more::{Deref, DerefMut};
 
@@ -101,6 +101,7 @@ impl<T: Default + Clone> CursorVec<T> {
     pub fn unconsume(&mut self, len: usize) {self.set_cursor(self.cursor().saturating_sub(len));}
     pub fn is_empty(&self) -> bool {self.cursor() == 0}
     pub fn is_full(&self) -> bool {self.cursor() == self.capacity()}
+    pub fn read_single(&mut self) -> T {self.take_slice(1)[0].clone()}
 
     #[inline(always)]
     pub fn write_fast_single(&mut self, data: T) {
@@ -137,6 +138,12 @@ impl CursorVec<u8> {
         self.fill_from(reader, len)?;
         self.consume(len);
         Ok(())
+    }
+}
+
+impl<T> From<Vec<T>> for CursorVec<T> where T: Default + Clone {
+    fn from(vec: Vec<T>) -> Self {
+        Self(Cursor::new(vec))
     }
 }
 
