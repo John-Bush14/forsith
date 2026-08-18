@@ -1,7 +1,7 @@
 use std::{io::Read, ops::Range};
 use crate::{Channel, DecodingError, ImageDecoder, PixelFormat, buffers::CursorVec, jpeg::{markers::{FrameHeader, HuffmanTables, MarkerType, QuantizationTables, RestartInterval, ScanMetadata}, parser::Marker}, parsing::{SegmentHeader, SegmentParser}};
 
-mod markers;
+pub(crate) mod markers;
 
 mod parser;
 use parser::JpegParser;
@@ -11,6 +11,7 @@ const JPEG_HEADER: [u8; 2] = [0xFF, 0xD8];
 #[derive(Debug)]
 pub struct JpegDecoder<'a, C: Channel, const F: u8> {
     phantom: std::marker::PhantomData<&'a C>,
+    frames: Vec<FrameHeader>,
 }
 
 impl<'a, C: Channel, const F: u8> ImageDecoder<'a, C, F> for JpegDecoder<'a, C, F> {
@@ -23,13 +24,12 @@ impl<'a, C: Channel, const F: u8> ImageDecoder<'a, C, F> for JpegDecoder<'a, C, 
 
         let mut decoder = Self {
             phantom: std::marker::PhantomData,
+            frames: Vec::new(),
         };
 
         parser.parse_chunks(|header, data, data_ranges| decoder.update_with_marker(header.clone(), data, data_ranges))?;
 
-        Ok(Self {
-            phantom: std::marker::PhantomData,
-        })
+        Ok(decoder)
     }
 
     fn read(&mut self, _buf: &mut [<C as Channel>::StorageType]) -> Result<usize, DecodingError> {
@@ -74,6 +74,10 @@ impl<C: Channel, const F: u8> JpegDecoder<'_, C, F> {
 
         Ok(())
     }
+
+    pub fn push_frame(&mut self, frame: FrameHeader) {self.frames.push(frame);}
+    pub fn cur_frame(&self) -> Option<&FrameHeader> {self.frames.first()}
+    pub fn consume_frame(&mut self) {self.frames.remove(0);}
 }
 
 fn check_header<R: Read>(reader: &mut R) -> Result<(), DecodingError> {

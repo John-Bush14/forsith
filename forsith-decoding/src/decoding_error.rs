@@ -1,6 +1,6 @@
 use std::io;
 
-use crate::{checksums::CRC32, png::ChunkType};
+use crate::{checksums::CRC32, jpeg::markers::MarkerType, png::ChunkType};
 use derive_more::IsVariant;
 use thiserror::Error;
 
@@ -27,6 +27,8 @@ pub enum DecodingError {
     InvalidMarkerLen,
     #[error("Invalid marker code ({0:#04X})")]
     InvalidMarkerCode(u8),
+    #[error("Marker contained invalid data ({0:?})")]
+    InvalidMarker(MarkerType),
 
     // PNG specific
     #[error("Critical chunk '{0}' contains invalid data")]
