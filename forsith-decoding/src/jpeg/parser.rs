@@ -122,6 +122,10 @@ impl<R: Read> SegmentParser<R> for JpegParser<R> {
 
         self.excess_bytes += start - self.buffer.cursor();
 
+        let mut data = CursorVec::<u8>::new(0);
+        std::mem::swap(&mut self.buffer, &mut data);
+        *self.buffer.get_mut() = data.get_mut().drain(self.buffer.cursor()..).collect();
+
         let sos_marker = Marker {ty: MarkerType::Sos, len: u16::try_from(data_ranges.first().unwrap().len()).unwrap()};
         out(&sos_marker, &mut self.buffer, Some(data_ranges))
     }
