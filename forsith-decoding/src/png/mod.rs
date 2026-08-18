@@ -4,10 +4,10 @@ use derive_more::IsVariant;
 use num_enum::TryFromPrimitive;
 
 mod chunks;
-pub use chunks::{ChunkType, ChunkData};
+pub(crate) use chunks::{ChunkType, ChunkData};
 
 mod parser;
-pub use parser::{ChunkParser, ChunkHeader};
+pub(crate) use parser::{ChunkParser, ChunkHeader};
 
 use crate::checksums;
 
@@ -232,13 +232,7 @@ impl<C: Channel, const F: u8> PngDecoder<'_, C, F> {
             ChunkType::tRNS => tRNS::update_decoder(self, chunk_header, chunk_data),
         };
 
-        if let Err(err) = result
-            && (chunk_header.is_critical() || matches!(err, DecodingError::IOError(_)))
-        {
-            return Err(err);
-        }
-
-        Ok(())
+        if chunk_header.is_critical() {result} else {Ok(())}
     }
 
     #[cold]
