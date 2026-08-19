@@ -1,7 +1,7 @@
 use std::{io::BufRead, simd::Simd};
 
 use derive_more::IsVariant;
-use crate::{Channel, DecodingError, ImageDecoder, JpegDecoder, jpeg::{idct::IdctTable, parser::Marker}, parsing::SegmentHeader};
+use crate::{Channel, DecodingError, ImageDecoder, JpegDecoder, jpeg::{DecodeOp, idct::IdctTable, parser::Marker}, parsing::SegmentHeader};
 use const_for::const_for;
 
 const DEZIGZAG_TABLE: [usize; 64] = [
@@ -157,7 +157,9 @@ impl FrameHeader {
             return Err(DecodingError::InvalidMarker(*marker));
         }
 
-        decoder.frames.push(header); Ok(())
+        decoder.push_frame(header);
+
+        Ok(())
     }
 
     #[allow(dead_code)]
@@ -195,8 +197,7 @@ impl QuantizationTables {
             data.consume(64);
 
             let idct_table = IdctTable::load(quant_table);
-
-            // todo!("Store table in decoder");
+            decoder.decode_timeline.push(DecodeOp::SetQuantizationTable(id as _, Box::new(idct_table)));
         }
 
         Ok(())
