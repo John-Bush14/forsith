@@ -109,57 +109,86 @@ impl FrameComponent {
     }
 }
 
+#[derive(Debug, IsVariant, Clone, Copy)]
+pub enum EntropyCoding {
+    Huffman,
+    Arithmetic,
+}
+
+#[derive(Debug, IsVariant, Clone, Copy)]
+pub enum FrameType {
+    Baseline,
+    Sequential,
+    Progressive,
+    Lossless,
+}
+
 #[derive(Debug)]
 pub struct FrameHeader {
     precision: u8,
     dimensions: (u16, u16),
     components: Vec<FrameComponent>,
+    entropy_coding: EntropyCoding,
+    frame_type: FrameType,
+    differential: bool,
 }
 impl FrameHeader {
     pub fn update_decoder<C: Channel, const F: u8>(decoder: &mut JpegDecoder<'_, C, F>, marker: Marker, data: &mut impl BufRead) -> Result<(), DecodingError> {
         let MarkerType::Sof(id) = *marker else {panic!("FrameHeader::update_decoder called with non-SOF marker")};
 
-        let huffman = id <= 7; let arithmetic = !huffman;
-
+        let entropy_coding = if id <= 7 {EntropyCoding::Huffman} else {EntropyCoding::Arithmetic};
         let differential = id & 4 != 0;
-
-        let baseline = matches!(id % 4, 0);
-        let sequential = matches!(id % 4, 1);
-        let progressive = matches!(id % 4, 2);
-        let lossless = matches!(id % 4, 3);
+        let frame_type = match id % 4 {
+            0 => FrameType::Baseline,
+            1 => FrameType::Sequential,
+            2 => FrameType::Progressive,
+            3 => FrameType::Lossless,
+            _ => unreachable!()
+        };
 
         let precision = data.read_be::<u8>()?;
         let dimensions = (data.read_be::<u16>()?, data.read_be::<u16>()?);
         let component_count = data.read_be::<u8>()?;
 
-        if
-            component_count != u8::try_from((marker.length() - 6) / 3).unwrap()
-            || !(2..=16).contains(&precision)
-            || progressive && component_count > 4
-            || component_count == 0
-            || !lossless && !matches!(precision, 8 | 12)
-            || baseline && precision != 8
-        {
-            return Err(DecodingError::InvalidMarker(*marker));
-        }
+        Self::validate_metadata(marker, precision, frame_type, component_count)?;
 
         let header = Self {
             precision,
             dimensions,
             components: (0..component_count).map(|_| FrameComponent::read(data)).collect::<Result<Vec<_>, _>>()?,
+            entropy_coding,
+            frame_type,
+            differential,
         };
 
-        if header.components.iter().any(|c|
-            !(1..=4).contains(&c.sampling_factors.0) || !(1..=4).contains(&c.sampling_factors.1)
-            || c.quantization_table > 3
-            || lossless && c.quantization_table != 0
-        ) {
-            return Err(DecodingError::InvalidMarker(*marker));
-        }
+        if !header.valid_components() {return Err(DecodingError::InvalidMarker(*marker));}
 
         decoder.push_frame(header);
 
         Ok(())
+    }
+
+    fn validate_metadata(marker: Marker, precision: u8, frame_type: FrameType, component_count: u8) -> Result<(), DecodingError> {
+        if
+            component_count != u8::try_from((marker.length() - 6) / 3).unwrap()
+            || !(2..=16).contains(&precision)
+            || frame_type.is_progressive() && component_count > 4
+            || component_count == 0
+            || !frame_type.is_lossless() && !matches!(precision, 8 | 12)
+            || frame_type.is_baseline() && precision != 8
+        {
+            Err(DecodingError::InvalidMarker(*marker))
+        } else {
+            Ok(())
+        }
+    }
+
+    fn valid_components(&self) -> bool {
+        !self.components.iter().any(|c|
+            !(1..=4).contains(&c.sampling_factors.0) || !(1..=4).contains(&c.sampling_factors.1)
+            || c.quantization_table > 3
+            || self.frame_type.is_lossless() && c.quantization_table != 0
+        )
     }
 
     #[allow(dead_code)]
@@ -168,6 +197,12 @@ impl FrameHeader {
     pub const fn dimensions(&self) -> (u16, u16) {self.dimensions}
     #[allow(dead_code)]
     pub fn components(&self) -> &[FrameComponent] {&self.components}
+    #[allow(dead_code)]
+    pub const fn entropy_coding(&self) -> EntropyCoding {self.entropy_coding}
+    #[allow(dead_code)]
+    pub const fn frame_type(&self) -> FrameType {self.frame_type}
+    #[allow(dead_code)]
+    pub const fn differential(&self) -> bool {self.differential}
 }
 
 pub struct QuantizationTables;
