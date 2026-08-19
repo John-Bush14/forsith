@@ -178,29 +178,39 @@ impl QuantizationTables {
         let mut quant_table = [Simd::splat(0); 8];
 
         while remaining > 0 {
-            let table_info = data.read_be::<u8>()?;
-            let id = table_info & 0x0F;
-            let precision = match table_info >> 4 {
-                0 => 8,
-                1 => 16,
-                _ => return Err(DecodingError::InvalidMarker(*marker)),
-            };
-            assert!(precision == 8, "Currently only 8-bit quantization tables are supported");
-            remaining = remaining.checked_sub(1 + 64 * (precision / 8)).ok_or(DecodingError::InvalidMarker(*marker))?;
+            let (id, precision) = Self::read_table_info(data)?;
+            remaining = remaining.checked_sub(1 + 64 * (precision as usize / 8)).ok_or(DecodingError::InvalidMarker(*marker))?;
 
-            let values = &data.fill_buf()?[..64];
-            #[unroll]
-            for i in 0..64 {
-                let (j, k) = DEZIGZAG_MATRIX_TABLE[i];
-                quant_table[j][k] = i32::from(values[i]);
-            }
-            data.consume(64);
+            Self::read_quant_table(data, precision, &mut quant_table)?;
 
             let idct_table = IdctTable::load(quant_table);
             decoder.decode_timeline.push(DecodeOp::SetQuantizationTable(id as _, Box::new(idct_table)));
         }
 
         Ok(())
+    }
+
+    fn read_quant_table<R: BufRead>(reader: &mut R, _precision: u8, table: &mut [Simd<i32, 8>; 8]) -> Result<(), DecodingError> {
+        let values = &reader.fill_buf()?[..64];
+        #[unroll]
+        for i in 0..64 {
+            let (j, k) = DEZIGZAG_MATRIX_TABLE[i];
+            table[j][k] = i32::from(values[i]);
+        }
+        reader.consume(64);
+        Ok(())
+    }
+
+    fn read_table_info<R: BufRead>(reader: &mut R) -> Result<(u8, u8), DecodingError> {
+        let table_info = reader.read_be::<u8>()?;
+        let id = table_info & 0x0F;
+        let precision = match table_info >> 4 {
+            0 => 8,
+            1 => 16,
+            _ => return Err(DecodingError::InvalidMarker(MarkerType::Dqt)),
+        };
+        assert!(precision == 8, "Currently only 8-bit quantization tables are supported");
+        Ok((id, precision))
     }
 }
 
