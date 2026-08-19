@@ -1,7 +1,7 @@
-use std::{io::BufRead, simd::Simd};
+use std::{io::BufRead, ops::Range, simd::Simd};
 
 use derive_more::IsVariant;
-use crate::{Channel, DecodingError, ImageDecoder, JpegDecoder, jpeg::{DecodeOp, idct::IdctTable, parser::Marker}, parsing::SegmentHeader};
+use crate::{Channel, DecodingError, ImageDecoder, JpegDecoder, buffers::CursorVec, jpeg::{DecodeOp, idct::IdctTable, parser::Marker}, parsing::SegmentHeader};
 use const_for::const_for;
 
 const DEZIGZAG_TABLE: [usize; 64] = [
@@ -82,9 +82,10 @@ impl MarkerType {
     }
 }
 
-pub struct ScanMetadata;
-impl ScanMetadata {
-    pub fn update_decoder<C: Channel, const F: u8>(decoder: &mut JpegDecoder<'_, C, F>, marker: Marker, data: impl BufRead) -> Result<(), DecodingError> {
+#[derive(Debug)]
+pub struct Scan;
+impl Scan {
+    pub fn update_decoder<C: Channel, const F: u8>(decoder: &mut JpegDecoder<'_, C, F>, marker: Marker, data: CursorVec<u8>, data_ranges: CursorVec<Range<usize>>) -> Result<(), DecodingError> {
         todo!();
     }
 }

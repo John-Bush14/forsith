@@ -1,5 +1,5 @@
 use std::{io::Read, ops::Range};
-use crate::{Channel, DecodingError, ImageDecoder, PixelFormat, buffers::CursorVec, decompression::HuffmanTree, jpeg::{idct::IdctTable, markers::{FrameHeader, HuffmanTables, MarkerType, QuantizationTables, RestartInterval, ScanMetadata}, parser::Marker}, parsing::{SegmentHeader, SegmentParser}};
+use crate::{Channel, DecodingError, ImageDecoder, PixelFormat, buffers::CursorVec, decompression::HuffmanTree, jpeg::{idct::IdctTable, markers::{FrameHeader, HuffmanTables, MarkerType, QuantizationTables, RestartInterval, Scan}, parser::Marker}, parsing::{SegmentHeader, SegmentParser}};
 
 pub mod markers;
 
@@ -21,6 +21,7 @@ pub struct JpegDecoder<'a, C: Channel, const F: u8> {
 enum DecodeOp {
     SetFrame(usize),
     SetQuantizationTable(usize, Box<IdctTable>),
+    Scan(Box<Scan>)
 }
 
 impl<'a, C: Channel, const F: u8> ImageDecoder<'a, C, F> for JpegDecoder<'a, C, F> {
@@ -69,11 +70,11 @@ impl<C: Channel, const F: u8> JpegDecoder<'_, C, F> {
 
         match *marker {
             MarkerType::Sos => {
-                let mut data_ranges = CursorVec::from(data_ranges.expect("Data ranges should be provided for SOS markers"));
+                let data_ranges = CursorVec::from(data_ranges.expect("Data ranges should be provided for SOS markers"));
                 assert_ne!(data_ranges.capacity(), 0, "Data ranges should not be empty for SOS markers");
+                let data = std::mem::take(data);
 
-                let metadata = &data.get_ref()[data_ranges.read_single()];
-                ScanMetadata::update_decoder(self, marker, metadata)?;
+                Scan::update_decoder(self, marker, data, data_ranges)?;
             },
             MarkerType::Sof(_) => {FrameHeader::update_decoder(self, marker, &mut **data)?;},
             MarkerType::Dqt => {QuantizationTables::update_decoder(self, marker, &mut **data)?;},
