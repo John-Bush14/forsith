@@ -10,6 +10,7 @@
 #![feature(read_array)]
 #![feature(read_le)]
 #![feature(integer_widen_truncate)]
+#![feature(loop_hints)]
 
 #![forbid(unsafe_code)]
 #![warn(clippy::all, clippy::pedantic, clippy::nursery)]

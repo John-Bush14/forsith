@@ -1,7 +1,9 @@
 use std::{io::Read, ops::Range};
 use crate::{Channel, DecodingError, ImageDecoder, PixelFormat, buffers::CursorVec, jpeg::{markers::{FrameHeader, HuffmanTables, MarkerType, QuantizationTables, RestartInterval, ScanMetadata}, parser::Marker}, parsing::{SegmentHeader, SegmentParser}};
 
-pub(crate) mod markers;
+pub mod markers;
+
+mod idct;
 
 mod parser;
 use parser::JpegParser;
