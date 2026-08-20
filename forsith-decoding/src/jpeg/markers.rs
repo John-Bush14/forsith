@@ -1,4 +1,4 @@
-use std::{io::BufRead, ops::Range, simd::Simd};
+use std::{io::BufRead, ops::Range, simd::Simd, io::Read};
 
 use derive_more::IsVariant;
 use crate::{Channel, DecodingError, ImageDecoder, JpegDecoder, buffers::CursorVec, jpeg::{DecodeOp, idct::IdctTable, parser::Marker}, parsing::SegmentHeader};
@@ -83,10 +83,100 @@ impl MarkerType {
 }
 
 #[derive(Debug)]
-pub struct Scan;
+pub struct ScanComponent {
+    pub id: u8,
+    pub dc_table: u8,
+    pub ac_table: u8,
+}
+impl ScanComponent {
+    pub fn read<R: BufRead>(mut reader: R) -> Result<Self, DecodingError> {
+        let id = reader.read_be::<u8>()?;
+        let table_info = reader.read_be::<u8>()?;
+        let dc_table = table_info >> 4;
+        let ac_table = table_info & 0x0F;
+
+        Ok(Self { id, dc_table, ac_table })
+    }
+}
+
+#[derive(Debug)]
+pub struct Scan {
+    components: Vec<ScanComponent>,
+    spectral_selection: Range<u8>,
+    approximation: u8,
+    prev_approximation: u8,
+    data: CursorVec<u8>,
+    ranges: CursorVec<Range<usize>>,
+}
 impl Scan {
-    pub fn update_decoder<C: Channel, const F: u8>(decoder: &mut JpegDecoder<'_, C, F>, marker: Marker, data: CursorVec<u8>, data_ranges: CursorVec<Range<usize>>) -> Result<(), DecodingError> {
-        todo!();
+    pub fn update_decoder<C: Channel, const F: u8>(decoder: &mut JpegDecoder<'_, C, F>, marker: Marker, mut data: CursorVec<u8>, mut data_ranges: CursorVec<Range<usize>>) -> Result<(), DecodingError> {
+        assert!(data.get_ref().len() >= data_ranges.get_ref().last().unwrap().end, "Data length should be at least as long as the last data range end");
+        if marker.length() < 6 {return Err(DecodingError::InvalidMarker(MarkerType::Sos));}
+
+        let metadata_range = data_ranges.read_single();
+        assert_eq!(metadata_range.len(), marker.length(), "First data range length should match marker length");
+        data.set_cursor(metadata_range.start);
+
+        let component_count = data.read_be::<u8>()?;
+        if !matches!(component_count, 1..=4) || marker.length() != 1 + component_count as usize * 2 + 3 {
+            return Err(DecodingError::InvalidMarker(MarkerType::Sos));
+        }
+
+        let components = (0..component_count).map(|_| ScanComponent::read(&mut *data)).collect::<Result<Vec<_>, _>>()?;
+
+        let spectral_selection = data.read_be::<u8>()?..data.read_be::<u8>()?+1;
+        let approximation = data.read_be::<u8>()?;
+
+        let scan = Self {
+            components,
+            spectral_selection,
+            approximation: approximation >> 4,
+            prev_approximation: approximation & 0x0F,
+            data,
+            ranges: data_ranges,
+        };
+
+        scan.validate(decoder)?;
+
+        decoder.decode_timeline.push(DecodeOp::Scan(Box::new(scan)));
+
+        Ok(())
+    }
+
+    fn validate<C: Channel, const F: u8>(&self, decoder: &JpegDecoder<'_, C, F>) -> Result<(), DecodingError> {
+        let frame = decoder.cur_frame().ok_or(DecodingError::MarkerShouldHaveOccurred(MarkerType::Sof(0), MarkerType::Sos))?;
+
+        if
+            self.components.iter().any(|c| {
+                !frame.components.iter().any(|fc| fc.id == c.id)
+                || c.dc_table > 3 || c.ac_table > 3
+                || frame.frame_type().is_baseline() && (c.dc_table > 1 || c.ac_table > 1)
+                || frame.frame_type().is_lossless() && c.ac_table != 0
+            })
+            || !match frame.frame_type() {
+                FrameType::Lossless if !frame.is_differential() => 1..=7,
+                FrameType::Baseline | FrameType::Extended | FrameType::Lossless => 0..=0,
+                FrameType::Progressive => 0..=63,
+            }.contains(&self.spectral_selection.start)
+            || !match frame.frame_type() {
+                FrameType::Baseline | FrameType::Extended => 63..=63,
+                FrameType::Progressive if self.spectral_selection.start != 0 => self.spectral_selection.start..=63,
+                FrameType::Lossless | FrameType::Progressive => 0..=0,
+            }.contains(&(self.spectral_selection.end-1))
+            || !match frame.frame_type() {
+                FrameType::Baseline | FrameType::Extended => 0..=0,
+                FrameType::Progressive => 0..=13,
+                FrameType::Lossless => 0..=15,
+            }.contains(&self.approximation)
+            || !match frame.frame_type() {
+                FrameType::Baseline | FrameType::Extended | FrameType::Lossless => 0..=0,
+                FrameType::Progressive => (self.approximation + 1)..=13,
+            }.contains(&self.prev_approximation)
+        {
+            return Err(DecodingError::InvalidMarker(MarkerType::Sos));
+        }
+
+        Ok(())
     }
 }
 
@@ -119,9 +209,12 @@ pub enum EntropyCoding {
 #[derive(Debug, IsVariant, Clone, Copy)]
 pub enum FrameType {
     Baseline,
-    Sequential,
+    Extended,
     Progressive,
     Lossless,
+}
+impl FrameType {
+    pub const fn is_sequential(self) -> bool {matches!(self, Self::Extended | Self::Baseline)}
 }
 
 #[derive(Debug)]
@@ -141,7 +234,7 @@ impl FrameHeader {
         let differential = id & 4 != 0;
         let frame_type = match id % 4 {
             0 => FrameType::Baseline,
-            1 => FrameType::Sequential,
+            1 => FrameType::Extended,
             2 => FrameType::Progressive,
             3 => FrameType::Lossless,
             _ => unreachable!()
@@ -203,7 +296,7 @@ impl FrameHeader {
     #[allow(dead_code)]
     pub const fn frame_type(&self) -> FrameType {self.frame_type}
     #[allow(dead_code)]
-    pub const fn differential(&self) -> bool {self.differential}
+    pub const fn is_differential(&self) -> bool {self.differential}
 }
 
 pub struct QuantizationTables;
@@ -253,13 +346,13 @@ impl QuantizationTables {
 pub struct HuffmanTables;
 impl HuffmanTables {
     pub fn update_decoder<C: Channel, const F: u8>(decoder: &mut JpegDecoder<'_, C, F>, marker: Marker, data: impl BufRead) -> Result<(), DecodingError> {
-        todo!();
+        Ok(())
     }
 }
 
 pub struct RestartInterval;
 impl RestartInterval {
     pub fn update_decoder<C: Channel, const F: u8>(decoder: &mut JpegDecoder<'_, C, F>, marker: Marker, data: impl BufRead) -> Result<(), DecodingError> {
-        todo!();
+        Ok(())
     }
 }

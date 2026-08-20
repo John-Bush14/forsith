@@ -29,6 +29,8 @@ pub enum DecodingError {
     InvalidMarkerCode(u8),
     #[error("Marker contained invalid data ({0:?})")]
     InvalidMarker(MarkerType),
+    #[error("Marker '{0:?}' should have occurred before current marker '{1:?}', but did not")]
+    MarkerShouldHaveOccurred(MarkerType, MarkerType),
 
     // PNG specific
     #[error("Critical chunk '{0}' contains invalid data")]
