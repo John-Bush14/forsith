@@ -152,8 +152,6 @@ impl<R: Read> SegmentParser<R> for JpegParser<R> {
     fn parse_header(&mut self) -> Result<(), crate::DecodingError> {
         self.marker = Marker::read(&mut *self.buffer)?;
 
-        println!("Parsed marker: {:?}, length: {}", self.marker.ty, self.marker.len);
-
         if !self.marker.has_length_field() {self.excess_bytes += 2;}
 
         Ok(())
@@ -179,8 +177,6 @@ impl SegmentHeader for Marker {
 
         let ty = MarkerType::from_markercode(reader.read_le::<u8>()?)?;
         let len = if ty.has_length_field() {reader.read_be::<u16>()?.checked_sub(2).ok_or(DecodingError::InvalidMarkerLen)?} else {0};
-
-        println!("Read marker: {ty:?}, length: {len}");
 
         Ok(Self { ty, len })
     }

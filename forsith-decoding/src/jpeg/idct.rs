@@ -19,11 +19,11 @@ const fn scale(x: f64) -> i32 {(x * (1 << 12) as f64 + 0.5f64)as i32}
 #[derive(Clone, Debug)]
 pub struct IdctTable([Simd<i32, 8>; 8]);
 impl Default for IdctTable {
-    fn default() -> Self {Self::default()}
+    fn default() -> Self {Self::DEFAULT}
 }
 
 impl IdctTable {
-const fn default() -> Self {
+    pub const DEFAULT: Self = {
         let mut table = [[0i32; 8]; 8];
         const_for!(u in 0..8 => {
             const_for!(v in 0..8 => {
@@ -41,7 +41,7 @@ const fn default() -> Self {
             Simd::from_array(table[6]),
             Simd::from_array(table[7]),
         ])
-    }
+    };
 
     pub fn load(quant_table: [Simd<i32, 8>; 8]) -> Self {
         let mut table = Self::default();

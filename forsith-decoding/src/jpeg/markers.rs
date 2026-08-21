@@ -138,7 +138,7 @@ impl Scan {
 
         scan.validate(decoder)?;
 
-        decoder.decode_timeline.push(DecodeOp::Scan(Box::new(scan)));
+        decoder.push_decodeop(DecodeOp::Scan(Box::new(scan)));
 
         Ok(())
     }
@@ -313,7 +313,7 @@ impl QuantizationTables {
             Self::read_quant_table(data, precision, &mut quant_table)?;
 
             let idct_table = IdctTable::load(quant_table);
-            decoder.decode_timeline.push(DecodeOp::SetQuantizationTable(id as _, Box::new(idct_table)));
+            decoder.push_decodeop(DecodeOp::SetQuantizationTable(id as _, Box::new(idct_table)));
         }
 
         Ok(())
@@ -382,7 +382,7 @@ impl HuffmanTables {
                 data.consume(*n as usize);
             }
 
-            decoder.decode_timeline.push(DecodeOp::SetHuffmanTree(tree_type, tree_id as _, Box::new(codelengths)));
+            decoder.push_decodeop(DecodeOp::SetHuffmanTree(tree_type, tree_id as _, Box::new(codelengths)));
         }
 
         Ok(())
@@ -394,7 +394,7 @@ impl RestartInterval {
     pub fn update_decoder<C: Channel, const F: u8>(decoder: &mut JpegDecoder<'_, C, F>, marker: Marker, mut data: impl BufRead) -> Result<(), DecodingError> {
         if marker.length() != 2 {return Err(DecodingError::InvalidMarker(*marker));}
 
-        decoder.decode_timeline.push(DecodeOp::SetRestartInterval(data.read_be::<u16>()?));
+        decoder.push_decodeop(DecodeOp::SetRestartInterval(data.read_be::<u16>()?));
 
         Ok(())
     }

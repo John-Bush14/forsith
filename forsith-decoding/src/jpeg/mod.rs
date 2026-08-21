@@ -1,5 +1,5 @@
-use std::{io::Read, ops::Range};
-use crate::{Channel, DecodingError, ImageDecoder, PixelFormat, buffers::CursorVec, jpeg::{idct::IdctTable, markers::{FrameHeader, HuffmanTables, MarkerType, QuantizationTables, RestartInterval, Scan}, parser::Marker}, parsing::{SegmentHeader, SegmentParser}};
+use std::{array, io::Read, ops::Range};
+use crate::{Channel, DecodingError, ImageDecoder, PixelFormat, buffers::{CursorVec, OutputWriter}, jpeg::{idct::IdctTable, markers::{FrameHeader, HuffmanTables, MarkerType, QuantizationTables, RestartInterval, Scan}, parser::Marker}, parsing::{SegmentHeader, SegmentParser}};
 
 pub mod markers;
 
@@ -19,6 +19,9 @@ pub struct JpegDecoder<'a, C: Channel, const F: u8> {
     phantom: std::marker::PhantomData<&'a C>,
     frames: CursorVec<FrameHeader>,
     decode_timeline: Vec<DecodeOp>,
+    huffman_trees: [[Box<HuffmanTree>; 4]; 2],
+    idct_tables: [IdctTable; 4],
+    restart_interval: Option<u16>,
 }
 
 #[repr(u8)]
@@ -28,7 +31,7 @@ enum HuffmanTreeType {
     Ac = 1
 }
 
-#[derive(Debug)]
+#[derive(Debug, IsVariant)]
 enum DecodeOp {
     SetFrame(usize),
     SetQuantizationTable(usize, Box<IdctTable>),
@@ -49,6 +52,9 @@ impl<'a, C: Channel, const F: u8> ImageDecoder<'a, C, F> for JpegDecoder<'a, C, 
             phantom: std::marker::PhantomData,
             frames: CursorVec::default(),
             decode_timeline: Vec::new(),
+            huffman_trees: array::from_fn(|_| array::from_fn(|_| Box::new(HuffmanTree::default()))),
+            idct_tables: [IdctTable::DEFAULT; 4],
+            restart_interval: None,
         };
 
         parser.parse_chunks(|header, data, data_ranges| decoder.update_with_marker(*header, data, data_ranges))?;
@@ -60,16 +66,45 @@ impl<'a, C: Channel, const F: u8> ImageDecoder<'a, C, F> for JpegDecoder<'a, C, 
         Ok(decoder)
     }
 
-    fn read(&mut self, _buf: &mut [<C as Channel>::StorageType]) -> Result<usize, DecodingError> {
-        todo!()
+    fn read(&mut self, buf: &mut [<C as Channel>::StorageType]) -> Result<usize, DecodingError> {
+        let output = OutputWriter::<'_, C, F>::new(buf);
+
+        while let Some(op) = self.get_decodeop() {
+            if op.is_scan() {
+                todo!();
+            }
+
+            let op = self.pop_decodeop();
+
+            match op {
+                DecodeOp::SetFrame(frame_index) => {
+                    self.frames.set_cursor(frame_index);
+                },
+                DecodeOp::SetQuantizationTable(table_index, idct_table) => {
+                    self.idct_tables[table_index] = *idct_table;
+                },
+                DecodeOp::SetHuffmanTree(tree_type, table_index, tree_data) => {
+                    self.huffman_trees[tree_type as u8 as usize][table_index].load(&*tree_data)?;
+                },
+                DecodeOp::SetRestartInterval(interval) => {
+                    self.restart_interval = Some(interval);
+                }
+                DecodeOp::Scan(_) => unreachable!()
+            }
+            self.pop_decodeop();
+        }
+
+        Ok(output.len())
     }
 
     fn image_dimensions(&self) -> (usize, usize) {
-        todo!()
+        let dim = self.cur_frame().unwrap().dimensions();
+        (dim.0 as usize, dim.1 as usize)
     }
 
     fn min_buf_size(&self) -> usize {
-        todo!()
+        let warning = 0;
+        self.max_buf_size()
     }
 
     fn source_bit_depth(&self) -> u8 {
@@ -103,12 +138,16 @@ impl<C: Channel, const F: u8> JpegDecoder<'_, C, F> {
         Ok(())
     }
 
-    pub fn push_frame(&mut self, frame: FrameHeader) {
+    fn push_frame(&mut self, frame: FrameHeader) {
         self.frames.get_mut().push(frame);
         self.decode_timeline.push(DecodeOp::SetFrame(self.frames.capacity() - 1));
     }
     #[must_use]
-    pub fn cur_frame(&self) -> Option<&FrameHeader> {self.frames.current()}
+    fn cur_frame(&self) -> Option<&FrameHeader> {self.frames.current()}
+
+    fn push_decodeop(&mut self, op: DecodeOp) {self.decode_timeline.push(op);}
+    fn get_decodeop(&self) -> Option<&DecodeOp> {self.decode_timeline.first()}
+    fn pop_decodeop(&mut self) -> DecodeOp {self.decode_timeline.remove(0)}
 }
 
 fn check_header<R: Read>(reader: &mut R) -> Result<(), DecodingError> {
