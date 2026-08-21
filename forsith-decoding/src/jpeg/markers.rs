@@ -1,7 +1,7 @@
 use std::{io::BufRead, ops::Range, simd::Simd, io::Read};
 
 use derive_more::IsVariant;
-use crate::{Channel, DecodingError, ImageDecoder, JpegDecoder, buffers::CursorVec, jpeg::{DecodeOp, idct::IdctTable, parser::Marker}, parsing::SegmentHeader};
+use crate::{Channel, DecodingError, ImageDecoder, JpegDecoder, buffers::CursorVec, jpeg::{DecodeOp, HuffmanTree, HuffmanTreeType, idct::IdctTable, parser::Marker}, parsing::SegmentHeader};
 use const_for::const_for;
 
 const DEZIGZAG_TABLE: [usize; 64] = [
@@ -345,7 +345,46 @@ impl QuantizationTables {
 
 pub struct HuffmanTables;
 impl HuffmanTables {
-    pub fn update_decoder<C: Channel, const F: u8>(decoder: &mut JpegDecoder<'_, C, F>, marker: Marker, data: impl BufRead) -> Result<(), DecodingError> {
+    pub fn update_decoder<C: Channel, const F: u8>(decoder: &mut JpegDecoder<'_, C, F>, marker: Marker, mut data: impl BufRead) -> Result<(), DecodingError> {
+        let mut remaining = marker.length();
+
+        let mut codelengths = [0u8; 256];
+        while remaining > 0 {
+            if remaining < 17 {return Err(DecodingError::InvalidMarker(*marker));}
+
+            let tree_info = data.read_be::<u8>()?;
+            let tree_type: HuffmanTreeType = (tree_info >> 4).try_into().map_err(|_| DecodingError::InvalidMarker(*marker))?;
+            let tree_id = tree_info & 0x0F;
+
+            let frame = decoder.cur_frame().ok_or(DecodingError::MarkerShouldHaveOccurred(MarkerType::Sof(0), MarkerType::Dht))?;
+            if
+                frame.frame_type().is_lossless() && tree_type.is_ac()
+                || frame.frame_type().is_baseline() && tree_id > 1
+                || tree_id > 3
+            {
+                return Err(DecodingError::InvalidMarker(*marker));
+            }
+
+            let colen_n = data.read_array::<16>()?;
+
+            let mut codes: usize = 0;
+            for a in colen_n { codes += a as usize; }
+
+            remaining = remaining.checked_sub(17 + codes).ok_or(DecodingError::InvalidMarker(*marker))?;
+
+            for (colen, n) in colen_n.iter().enumerate() {
+                let colen = colen + 1;
+
+                let symbols = &data.fill_buf()?[..*n as usize];
+                for &s in symbols {
+                    codelengths[s as usize] = colen.try_into().unwrap();
+                }
+                data.consume(*n as usize);
+            }
+
+            decoder.decode_timeline.push(DecodeOp::SetHuffmanTree(tree_type, tree_id as _, Box::new(codelengths)));
+        }
+
         Ok(())
     }
 }

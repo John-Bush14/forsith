@@ -1,12 +1,16 @@
 use std::{io::Read, ops::Range};
-use crate::{Channel, DecodingError, ImageDecoder, PixelFormat, buffers::CursorVec, decompression::HuffmanTree, jpeg::{idct::IdctTable, markers::{FrameHeader, HuffmanTables, MarkerType, QuantizationTables, RestartInterval, Scan}, parser::Marker}, parsing::{SegmentHeader, SegmentParser}};
+use crate::{Channel, DecodingError, ImageDecoder, PixelFormat, buffers::CursorVec, jpeg::{idct::IdctTable, markers::{FrameHeader, HuffmanTables, MarkerType, QuantizationTables, RestartInterval, Scan}, parser::Marker}, parsing::{SegmentHeader, SegmentParser}};
 
 pub mod markers;
 
 mod idct;
 
 mod parser;
+use derive_more::IsVariant;
+use num_enum::{FromPrimitive, TryFromPrimitive};
 use parser::JpegParser;
+
+type HuffmanTree = crate::decompression::HuffmanTree<16, 10,  16_384>;
 
 const JPEG_HEADER: [u8; 2] = [0xFF, 0xD8];
 
@@ -17,11 +21,20 @@ pub struct JpegDecoder<'a, C: Channel, const F: u8> {
     decode_timeline: Vec<DecodeOp>,
 }
 
+#[repr(u8)]
+#[derive(Debug, TryFromPrimitive, IsVariant)]
+enum HuffmanTreeType {
+    Dc = 0,
+    Ac = 1
+}
+
 #[derive(Debug)]
 enum DecodeOp {
     SetFrame(usize),
     SetQuantizationTable(usize, Box<IdctTable>),
-    Scan(Box<Scan>)
+    SetHuffmanTree(HuffmanTreeType, usize, Box<[u8; 256]>),
+    Scan(Box<Scan>),
+    SetRestartInterval(u16),
 }
 
 impl<'a, C: Channel, const F: u8> ImageDecoder<'a, C, F> for JpegDecoder<'a, C, F> {
