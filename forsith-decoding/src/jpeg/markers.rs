@@ -391,7 +391,11 @@ impl HuffmanTables {
 
 pub struct RestartInterval;
 impl RestartInterval {
-    pub fn update_decoder<C: Channel, const F: u8>(decoder: &mut JpegDecoder<'_, C, F>, marker: Marker, data: impl BufRead) -> Result<(), DecodingError> {
+    pub fn update_decoder<C: Channel, const F: u8>(decoder: &mut JpegDecoder<'_, C, F>, marker: Marker, mut data: impl BufRead) -> Result<(), DecodingError> {
+        if marker.length() != 2 {return Err(DecodingError::InvalidMarker(*marker));}
+
+        decoder.decode_timeline.push(DecodeOp::SetRestartInterval(data.read_be::<u16>()?));
+
         Ok(())
     }
 }
