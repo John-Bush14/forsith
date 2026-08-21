@@ -17,7 +17,7 @@ const JPEG_HEADER: [u8; 2] = [0xFF, 0xD8];
 #[derive(Debug)]
 pub struct JpegDecoder<'a, C: Channel, const F: u8> {
     phantom: std::marker::PhantomData<&'a C>,
-    frames: Vec<FrameHeader>,
+    frames: CursorVec<FrameHeader>,
     decode_timeline: Vec<DecodeOp>,
 }
 
@@ -47,11 +47,15 @@ impl<'a, C: Channel, const F: u8> ImageDecoder<'a, C, F> for JpegDecoder<'a, C, 
 
         let mut decoder = Self {
             phantom: std::marker::PhantomData,
-            frames: Vec::new(),
+            frames: CursorVec::default(),
             decode_timeline: Vec::new(),
         };
 
         parser.parse_chunks(|header, data, data_ranges| decoder.update_with_marker(*header, data, data_ranges))?;
+
+        if decoder.frames.is_empty() {
+            return Err(DecodingError::NoFrame);
+        }
 
         Ok(decoder)
     }
@@ -84,7 +88,7 @@ impl<C: Channel, const F: u8> JpegDecoder<'_, C, F> {
         match *marker {
             MarkerType::Sos => {
                 let data_ranges = CursorVec::from(data_ranges.expect("Data ranges should be provided for SOS markers"));
-                assert_ne!(data_ranges.capacity(), 0, "Data ranges should not be empty for SOS markers");
+                assert!(!data_ranges.is_empty(), "Data ranges should not be empty for SOS markers");
                 let data = std::mem::take(data);
 
                 Scan::update_decoder(self, marker, data, data_ranges)?;
@@ -100,11 +104,11 @@ impl<C: Channel, const F: u8> JpegDecoder<'_, C, F> {
     }
 
     pub fn push_frame(&mut self, frame: FrameHeader) {
-        self.frames.push(frame);
-        self.decode_timeline.push(DecodeOp::SetFrame(self.frames.len() - 1));
+        self.frames.get_mut().push(frame);
+        self.decode_timeline.push(DecodeOp::SetFrame(self.frames.capacity() - 1));
     }
-    pub fn cur_frame(&self) -> Option<&FrameHeader> {self.frames.first()}
-    pub fn consume_frame(&mut self) {self.frames.remove(0);}
+    #[must_use]
+    pub fn cur_frame(&self) -> Option<&FrameHeader> {self.frames.current()}
 }
 
 fn check_header<R: Read>(reader: &mut R) -> Result<(), DecodingError> {

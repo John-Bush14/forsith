@@ -88,31 +88,38 @@ impl<'a, C: Channel, const F: u8> OutputWriter<'a, C, F> {
     pub fn remaining_mut_slice(&mut self) -> &mut [C::StorageType] {&mut self.buffer[self.index..]}
 }
 
-#[derive(Debug, Default, Deref, DerefMut)]
-pub struct CursorVec<T: Default + Clone>(Cursor<Vec<T>>);
+#[derive(Debug, Deref, DerefMut)]
+pub struct CursorVec<T>(Cursor<Vec<T>>);
+
 impl<T: Default + Clone> CursorVec<T> {
     pub fn new(len: usize) -> Self {Self(Cursor::new(vec![T::default(); len]))}
 
+    pub fn expand(&mut self, len: usize) {
+        let cap = self.capacity();
+        self.get_mut().resize(cap + len, T::default());
+    }
+}
+
+impl<T> Default for CursorVec<T> {fn default() -> Self {Self(Cursor::new(Vec::new()))}}
+
+impl<T> CursorVec<T> {
+    pub fn read_single(&mut self) -> &T {&self.take_slice(1)[0]}
     pub fn remaining(&self) -> usize {self.capacity() - self.cursor()}
     pub fn capacity(&self) -> usize {self.get_ref().len()}
     pub fn cursor(&self) -> usize {usize::try_from(self.position()).unwrap()}
     pub fn set_cursor(&mut self, cursor: usize) {self.set_position(cursor as u64);}
     pub fn consume(&mut self, len: usize) {self.set_cursor(self.cursor() + len);}
     pub fn unconsume(&mut self, len: usize) {self.set_cursor(self.cursor().saturating_sub(len));}
-    pub fn is_empty(&self) -> bool {self.cursor() == 0}
+    #[must_use]
+    pub fn is_empty(&self) -> bool {self.capacity() == 0}
     pub fn is_full(&self) -> bool {self.cursor() == self.capacity()}
-    pub fn read_single(&mut self) -> T {self.take_slice(1)[0].clone()}
+    pub fn current(&self) -> Option<&T> {self.get_ref().get(self.cursor())}
 
     #[inline(always)]
     pub fn write_fast_single(&mut self, data: T) {
         let cursor = self.cursor();
         self.get_mut()[cursor] = data;
         self.set_cursor(cursor + 1);
-    }
-
-    pub fn expand(&mut self, len: usize) {
-        let cap = self.capacity();
-        self.get_mut().resize(cap + len, T::default());
     }
 
     pub fn take_slice(&mut self, len: usize) -> &[T] {

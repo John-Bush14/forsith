@@ -56,7 +56,7 @@ where
         }
     });
 
-    if !pixels.is_empty() {
+    if pixels.position() != 0 {
         push_aligned_slice::<DC, DF, u8, SF>(&pixels.get_ref()[..pixels.cursor()], out, 0, alpha_color);
     }
 }

@@ -23,6 +23,8 @@ pub enum DecodingError {
     NoMarker,
     #[error("No EOI marker found")]
     NoEOI,
+    #[error("No frame found in jpeg")]
+    NoFrame,
     #[error("Invalid marker length (<2)")]
     InvalidMarkerLen,
     #[error("Invalid marker code ({0:#04X})")]
