@@ -1,5 +1,5 @@
 use std::io::Read;
-use crate::{Channel, DecodingError, ImageDecoder, PixelFormat, bitspp, buffers::{BitCursorVec, CursorVec, OutputWriter}, parsing::SegmentParser, png::{checksums::Adler32, chunks::{ColorPalette, Ihdr, ZlibDataStream, tRNS}, deflate::{BlockType, MAX_BACKREF_LEN, STATIC_DISTANCE_TREE, STATIC_LITLEN_TREE, decode_distance, decode_length}, postprocessing::{MAX_STRIDE, PostProcessor}}};
+use crate::{Channel, DecodingError, ImageDecoder, PixelFormat, bitspp, buffers::{BitReader, CursorVec, OutputWriter}, parsing::SegmentParser, png::{checksums::Adler32, chunks::{ColorPalette, Ihdr, ZlibDataStream, tRNS}, deflate::{BlockType, MAX_BACKREF_LEN, STATIC_DISTANCE_TREE, STATIC_LITLEN_TREE, decode_distance, decode_length}, postprocessing::{MAX_STRIDE, PostProcessor}}};
 use derive_more::IsVariant;
 use num_enum::TryFromPrimitive;
 
@@ -39,9 +39,8 @@ impl From<ColorType> for PixelFormat {
     }
 }
 
-#[derive(Debug)]
 pub struct PngDecoder<'a, C: Channel, const F: u8> {
-    compressed_data: BitCursorVec,
+    compressed_data: BitReader<CursorVec<u8>>,
     deflate_buffer: CursorVec<u8>,
     scanline_multiples: usize,
     postprocessor: PostProcessor<C, F>,
@@ -64,7 +63,7 @@ impl<'a, C: Channel, const F: u8> ImageDecoder<'a, C, F> for PngDecoder<'a, C, F
         let postprocessor = PostProcessor::new(ihdr.width, ihdr.color_type, ihdr.channel_depth);
 
         let mut decoder = Self {
-            compressed_data: BitCursorVec::default(),
+            compressed_data: BitReader::default(),
             deflate_buffer: CursorVec::default(),
             scanline_multiples: 0,
             phantom: std::marker::PhantomData,

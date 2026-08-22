@@ -46,7 +46,7 @@ impl IdctTable {
     pub fn load(quant_table: [Simd<i32, 8>; 8]) -> Self {
         let mut table = Self::default();
 
-        #[unroll]
+        #[rustc_unroll]
         for (u, row) in table.0.iter_mut().enumerate() {
             *row *= quant_table[u];
         }

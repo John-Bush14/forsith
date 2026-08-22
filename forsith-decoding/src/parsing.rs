@@ -1,7 +1,7 @@
 use std::io::Read;
 use crate::{DecodingError, buffers::CursorVec};
 
-pub trait BitReader {
+pub trait BitRead {
     fn fill_bitbuf(&mut self);
     fn peek_bits(&mut self, n: u8) -> u64;
     fn peek_bits_nobranch(&mut self, n: u8) -> u64;
@@ -24,10 +24,10 @@ pub trait BitReader {
     }
 }
 
-pub struct BitIterator<'a, R: BitReader, const BITS: u8> {
+pub struct BitIterator<'a, R: BitRead, const BITS: u8> {
     reader: &'a mut R,
 }
-impl<R: BitReader, const BITS: u8> Iterator for BitIterator<'_, R, BITS> {
+impl<R: BitRead, const BITS: u8> Iterator for BitIterator<'_, R, BITS> {
     type Item = u64;
 
     fn next(&mut self) -> Option<Self::Item> {

@@ -85,17 +85,20 @@ impl MarkerType {
 #[derive(Debug)]
 pub struct ScanComponent {
     pub id: u8,
+    pub frame_component_index: usize,
     pub dc_table: u8,
     pub ac_table: u8,
 }
 impl ScanComponent {
-    pub fn read<R: BufRead>(mut reader: R) -> Result<Self, DecodingError> {
+    pub fn read<R: BufRead>(mut reader: R, frame_components: &[FrameComponent]) -> Result<Self, DecodingError> {
         let id = reader.read_be::<u8>()?;
         let table_info = reader.read_be::<u8>()?;
         let dc_table = table_info >> 4;
         let ac_table = table_info & 0x0F;
 
-        Ok(Self { id, dc_table, ac_table })
+        let frame_component_index = frame_components.iter().position(|c| c.id == id).ok_or(DecodingError::InvalidMarker(MarkerType::Sos))?;
+
+        Ok(Self { id, frame_component_index, dc_table, ac_table })
     }
 }
 
@@ -105,27 +108,40 @@ pub struct Scan {
     spectral_selection: Range<u8>,
     approximation: u8,
     prev_approximation: u8,
-    data: CursorVec<u8>,
+    data: Box<[u8]>,
     ranges: CursorVec<Range<usize>>,
 }
 impl Scan {
-    pub fn update_decoder<C: Channel, const F: u8>(decoder: &mut JpegDecoder<'_, C, F>, marker: Marker, mut data: CursorVec<u8>, mut data_ranges: CursorVec<Range<usize>>) -> Result<(), DecodingError> {
-        assert!(data.get_ref().len() >= data_ranges.get_ref().last().unwrap().end, "Data length should be at least as long as the last data range end");
+    pub fn components(&self) -> &[ScanComponent] {&self.components}
+    pub const fn spectral_selection(&self) -> &Range<u8> {&self.spectral_selection}
+    pub const fn approximation(&self) -> u8 {self.approximation}
+    pub const fn data(&self) -> &Box<[u8]> {&self.data}
+    pub const fn ranges(&self) -> &CursorVec<Range<usize>> {&self.ranges}
+    pub fn pop_chunk(&mut self) -> Option<&[u8]> {
+        let range = self.ranges.read_single();
+        Some(&self.data[range.clone()])
+    }
+
+    pub fn update_decoder<C: Channel, const F: u8>(decoder: &mut JpegDecoder<'_, C, F>, marker: Marker, data: CursorVec<u8>, mut data_ranges: CursorVec<Range<usize>>) -> Result<(), DecodingError> {
+        let data = data.into_inner().into_inner().into_boxed_slice();
+
+        assert!(data.len() >= data_ranges.get_ref().last().unwrap().end, "Data length should be at least as long as the last data range end");
         if marker.length() < 6 {return Err(DecodingError::InvalidMarker(MarkerType::Sos));}
 
         let metadata_range = data_ranges.read_single();
         assert_eq!(metadata_range.len(), marker.length(), "First data range length should match marker length");
-        data.set_cursor(metadata_range.start);
+        let mut metadata = std::io::Cursor::new(&data[metadata_range.clone()]);
 
-        let component_count = data.read_be::<u8>()?;
+        let component_count = metadata.read_be::<u8>()?;
         if !matches!(component_count, 1..=4) || marker.length() != 1 + component_count as usize * 2 + 3 {
             return Err(DecodingError::InvalidMarker(MarkerType::Sos));
         }
 
-        let components = (0..component_count).map(|_| ScanComponent::read(&mut *data)).collect::<Result<Vec<_>, _>>()?;
+        let frame = decoder.cur_frame().ok_or(DecodingError::MarkerShouldHaveOccurred(MarkerType::Sof(0), MarkerType::Sos))?;
+        let components = (0..component_count).map(|_| ScanComponent::read(&mut metadata, frame.components())).collect::<Result<Vec<_>, _>>()?;
 
-        let spectral_selection = data.read_be::<u8>()?..data.read_be::<u8>()?+1;
-        let approximation = data.read_be::<u8>()?;
+        let spectral_selection = metadata.read_be::<u8>()?..metadata.read_be::<u8>()?+1;
+        let approximation = metadata.read_be::<u8>()?;
 
         let scan = Self {
             components,
@@ -136,20 +152,17 @@ impl Scan {
             ranges: data_ranges,
         };
 
-        scan.validate(decoder)?;
+        scan.validate(decoder, frame)?;
 
         decoder.push_decodeop(DecodeOp::Scan(Box::new(scan)));
 
         Ok(())
     }
 
-    fn validate<C: Channel, const F: u8>(&self, decoder: &JpegDecoder<'_, C, F>) -> Result<(), DecodingError> {
-        let frame = decoder.cur_frame().ok_or(DecodingError::MarkerShouldHaveOccurred(MarkerType::Sof(0), MarkerType::Sos))?;
-
+    fn validate<C: Channel, const F: u8>(&self, decoder: &JpegDecoder<'_, C, F>, frame: &FrameHeader) -> Result<(), DecodingError> {
         if
             self.components.iter().any(|c| {
-                !frame.components.iter().any(|fc| fc.id == c.id)
-                || c.dc_table > 3 || c.ac_table > 3
+                c.dc_table > 3 || c.ac_table > 3
                 || frame.frame_type().is_baseline() && (c.dc_table > 1 || c.ac_table > 1)
                 || frame.frame_type().is_lossless() && c.ac_table != 0
             })
@@ -321,7 +334,7 @@ impl QuantizationTables {
 
     fn read_quant_table<R: BufRead>(reader: &mut R, _precision: u8, table: &mut [Simd<i32, 8>; 8]) -> Result<(), DecodingError> {
         let values = &reader.fill_buf()?[..64];
-        #[unroll]
+        #[rustc_unroll]
         for i in 0..64 {
             let (j, k) = DEZIGZAG_MATRIX_TABLE[i];
             table[j][k] = i32::from(values[i]);

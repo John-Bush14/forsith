@@ -11,6 +11,8 @@
 #![feature(read_le)]
 #![feature(integer_widen_truncate)]
 #![feature(loop_hints)]
+#![feature(stmt_expr_attributes)]
+#![feature(option_reference_flattening)]
 
 #![forbid(unsafe_code)]
 #![warn(clippy::all, clippy::pedantic, clippy::nursery)]

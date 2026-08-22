@@ -1,7 +1,7 @@
 use const_for::const_for;
 use derive_more::IsVariant;
 
-use crate::{DecodingError, parsing::BitReader, decompression::{HuffmanTree}};
+use crate::{DecodingError, parsing::BitRead, decompression::{HuffmanTree}};
 
 const CODE_LENGTH_ORDER: [u8; 19] = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15];
 
@@ -69,14 +69,14 @@ pub const STATIC_DISTANCE_TREE: DistanceTree = {
 
 #[inline(always)]
 #[allow(clippy::cast_possible_truncation)]
-pub fn decode_length<R: BitReader>(symbol: u16, reader: &mut R) -> u16 {
+pub fn decode_length<R: BitRead>(symbol: u16, reader: &mut R) -> u16 {
     let (base, extra) = LENGTH_TABLE[(symbol - 257) as usize];
     base + reader.read_bits_nobranch(extra) as u16
 }
 
 #[inline(always)]
 #[allow(clippy::cast_possible_truncation)]
-pub fn decode_distance<R: BitReader>(code: u16, reader: &mut R) -> u16 {
+pub fn decode_distance<R: BitRead>(code: u16, reader: &mut R) -> u16 {
     let (base, extra) = DISTANCE_TABLE[code as usize];
     base + reader.read_bits_nobranch(extra) as u16
 }
@@ -103,7 +103,7 @@ impl Default for Block {
     }
 }
 impl Block {
-    pub fn load_block<R: BitReader>(&mut self, reader: &mut R) -> Result<(), DecodingError> {
+    pub fn load_block<R: BitRead>(&mut self, reader: &mut R) -> Result<(), DecodingError> {
         self.last = reader.read_bits(1) == 1;
         self.load_compression_type(reader)?;
 
@@ -115,7 +115,7 @@ impl Block {
     }
 
     #[allow(clippy::cast_possible_truncation)]
-    fn load_trees<R: BitReader>(&mut self, reader: &mut R) -> Result<(), DecodingError> {
+    fn load_trees<R: BitRead>(&mut self, reader: &mut R) -> Result<(), DecodingError> {
         let hlit: usize = reader.read_bits(5) as usize + 257;
         let hdist: u16 = reader.read_bits(5) as u16 + 1;
         let hclen: u16 = reader.read_bits(4) as u16 + 4;
@@ -158,7 +158,7 @@ impl Block {
     }
 
     #[allow(clippy::cast_possible_truncation)]
-    fn load_compression_type<R: BitReader>(&mut self, reader: &mut R) -> Result<(), DecodingError> {
+    fn load_compression_type<R: BitRead>(&mut self, reader: &mut R) -> Result<(), DecodingError> {
         match reader.read_bits(2) {
             0 => {
                 let alignment_bits = reader.remaining_bits() % 8;

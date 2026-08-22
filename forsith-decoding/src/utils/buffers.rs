@@ -1,5 +1,5 @@
-use std::{fmt::Debug, io::{BufRead, Cursor, Read}, marker::PhantomData};
-use crate::{Channel, Int, parsing::BitReader};
+use std::{fmt::Debug, io::{BufRead, Cursor, Read, Seek}, marker::PhantomData, ops::Deref};
+use crate::{Channel, Int, parsing::BitRead};
 use derive_more::{Deref, DerefMut};
 
 #[derive(Debug, Default)]
@@ -103,6 +103,7 @@ impl<T: Default + Clone> CursorVec<T> {
 impl<T> Default for CursorVec<T> {fn default() -> Self {Self(Cursor::new(Vec::new()))}}
 
 impl<T> CursorVec<T> {
+    pub fn into_inner(self) -> Cursor<Vec<T>> {self.0}
     pub fn read_single(&mut self) -> &T {&self.take_slice(1)[0]}
     pub fn remaining(&self) -> usize {self.capacity() - self.cursor()}
     pub fn capacity(&self) -> usize {self.get_ref().len()}
@@ -154,23 +155,31 @@ impl<T> From<Vec<T>> for CursorVec<T> where T: Default + Clone {
     }
 }
 
+impl Read for CursorVec<u8> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {(**self).read(buf)}
+}
+
+impl Seek for CursorVec<u8> {
+    fn seek(&mut self, pos: std::io::SeekFrom) -> std::io::Result<u64> {(**self).seek(pos)}
+}
+
 #[derive(Debug, Default, Deref, DerefMut)]
-pub struct BitCursorVec {
+pub struct BitReader<T: Read + Default + Seek> {
     #[deref]
     #[deref_mut]
-    buffer: CursorVec<u8>,
+    buffer: T,
     bit_buf: BitBuffer,
 }
-impl BitCursorVec {
-    pub fn new(start_len: usize) -> Self {
+impl<T: Read + Default + Seek> BitReader<T> {
+    pub fn new(buffer: T) -> Self {
         Self {
-            buffer: CursorVec::<u8>::new(start_len),
+            buffer,
             bit_buf: BitBuffer::default(),
         }
     }
 
     pub fn align(&mut self) -> Result<(), std::io::Error> {
-        let alignment = 4 - (self.buffer.cursor() % align_of::<u32>());
+        let alignment = 4 - (self.buffer.stream_position().unwrap() as usize % align_of::<u32>());
 
         let mut buf = vec![0u8; alignment];
         self.buffer.read_exact(&mut buf)?;
@@ -181,12 +190,22 @@ impl BitCursorVec {
     pub fn unconsume_bitbuf(&mut self) {
         let bitbuf_bytes = self.bit_buf.bits_remaining().div_euclid(8);
 
-        self.buffer.unconsume(bitbuf_bytes as _);
+        self.buffer.seek_relative(-(bitbuf_bytes as i64)).unwrap();
         self.bit_buf.consume(self.bit_buf.bits_remaining());
     }
 }
 
-impl BitReader for BitCursorVec {
+impl BitReader<CursorVec<u8>> {
+    #[inline(always)]
+    fn fill_bitbuf(&mut self) {
+        // doesn't use read_le for performance reasons
+        let refil = u32::from_le_bytes(self.buffer.take_mut_slice(4).try_into().unwrap());
+
+        self.bit_buf.push(refil);
+    }
+}
+
+impl<T: Read + Default + Seek> BitRead for BitReader<T> {
     #[inline(always)]
     fn peek_bits(&mut self, n: u8) -> u64 {
         if self.bit_buf.bits_remaining() <= 32 {
@@ -198,10 +217,8 @@ impl BitReader for BitCursorVec {
 
     #[inline(always)]
     fn fill_bitbuf(&mut self) {
-        // doesn't use read_le for performance reasons
-        let refil = u32::from_le_bytes(self.buffer.take_mut_slice(4).try_into().unwrap());
-
-        self.bit_buf.push(refil);
+        let refill = self.read_le::<u32>().unwrap();
+        self.bit_buf.push(refill);
     }
 
     #[inline(always)]

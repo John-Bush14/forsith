@@ -1,9 +1,9 @@
 use derive_more::IsVariant;
 use num_enum::IntoPrimitive;
-use crate::{DecodingError, parsing::BitReader};
+use crate::{DecodingError, parsing::BitRead};
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct HuffmanTree<const MAX_COLEN: u8, const MAX_ROOT_COLEN: u8, const MAX_SUBTABLE_ENTRIES: usize>
 where
     [(); (1 << MAX_ROOT_COLEN as usize) + MAX_SUBTABLE_ENTRIES]:,
@@ -225,6 +225,7 @@ where
 
             if colen > max_colen {
                 max_colen = colen;
+
             }
         }
         colen_count[0] = 0;
@@ -247,7 +248,7 @@ where
 
     #[inline(always)]
     #[allow(clippy::cast_possible_truncation)]
-    pub fn decode_symbol<R: BitReader>(&self, reader: &mut R) -> u16 {
+    pub fn decode_symbol<R: BitRead>(&self, reader: &mut R) -> u16 {
         let code = reader.peek_bits(self.root_bits);
 
         let mut entry = self.table[code as usize];

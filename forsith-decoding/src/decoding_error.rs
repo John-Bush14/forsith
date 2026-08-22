@@ -21,6 +21,12 @@ pub enum DecodingError {
     // JPEG specific
     #[error("No marker found in expected position")]
     NoMarker,
+    #[error("Tried to access uninitialized or out of bounds AC huffman tree ({0})")]
+    TriedToAccesInvalidAcTree(usize),
+    #[error("Tried to access uninitialized or out of bounds DC huffman tree ({0})")]
+    TriedToAccesInvalidDcTree(usize),
+    #[error("Tried to access uninitialized or out of bounds quant table ({0})")]
+    TriedToAccesInvalidQuantTable(usize),
     #[error("No EOI marker found")]
     NoEOI,
     #[error("No frame found in jpeg")]
