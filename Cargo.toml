@@ -2,7 +2,7 @@
 resolver = "2"
 
 members = [
-    "forsith-decoding",
+    # "forsith-decoding",
     "forsith-shared",
 ]
 
