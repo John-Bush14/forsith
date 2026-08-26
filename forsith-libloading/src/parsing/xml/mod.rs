@@ -1,4 +1,4 @@
-use std::io::Read;
+use std::{borrow::Cow, io::Read};
 use anyhow::{Result, bail};
 
 pub struct XmlDocument;
@@ -10,7 +10,7 @@ enum Encoding {
 }
 
 impl XmlDocument {
-    pub fn parse(xml: Vec<u8>) -> Result<XmlDocument> {
+    pub fn parse(xml: Cow<'_, [u8]>) -> Result<XmlDocument> {
         let start = &xml[..4.min(xml.len())];
 
         let encoding = match start {
@@ -23,10 +23,15 @@ impl XmlDocument {
             }
         };
 
-        let xml = match encoding {
-            Encoding::Utf8 => String::from_utf8(xml)?,
-            Encoding::Utf16LE => String::from_utf16le(&xml)?,
-            Encoding::Utf16BE => String::from_utf16be(&xml)?,
+        let xml: Cow<'_, str> = match encoding {
+            Encoding::Utf8 => {
+                match xml {
+                    Cow::Borrowed(slice) => str::from_utf8(slice)?.into(),
+                    Cow::Owned(vec) => String::from_utf8(vec)?.into(),
+                }
+            }
+            Encoding::Utf16LE => String::from_utf16le(&xml)?.into(),
+            Encoding::Utf16BE => String::from_utf16be(&xml)?.into(),
         };
 
         todo!()
