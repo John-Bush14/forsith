@@ -24,22 +24,23 @@ impl Encoding {
             Self::Utf16BE => Ok(String::from_utf16be(&data)?.into()),
         }
     }
+
+    fn identify_in_xml(data: &[u8]) -> Self {
+        match &data[..4.min(data.len())] {
+            [0xEF, 0xBB, 0xBF, ..] | [0x3C, 0x3F, 0x78, 0x6D] => Self::Utf8,
+            [0xFF, 0xFE, ..] | [0x3C, 0x00, 0x3F, 0x00] => Self::Utf16LE,
+            [0xFE, 0xFF, ..] | [0x00, 0x3C, 0x00, 0x3F] => Self::Utf16BE,
+            start => {
+                println!("Assuming UTF-8, might be wrong: {start:?}");
+                Self::Utf8
+            }
+        }
+    }
 }
 
 impl XmlDocument {
     pub fn parse(data: Cow<'_, [u8]>) -> Result<XmlDocument> {
-        let start = &data[..4.min(data.len())];
-
-        let encoding = match start {
-            [0xEF, 0xBB, 0xBF, ..] | [0x3C, 0x3F, 0x78, 0x6D] => Encoding::Utf8,
-            [0xFF, 0xFE, ..] | [0x3C, 0x00, 0x3F, 0x00] => Encoding::Utf16LE,
-            [0xFE, 0xFF, ..] | [0x00, 0x3C, 0x00, 0x3F] => Encoding::Utf16BE,
-            _ => {
-                println!("Assuming UTF-8, might be wrong: {start:?}");
-                Encoding::Utf8
-            }
-        };
-
+        let encoding = Encoding::identify_in_xml(&data);
         let data = encoding.decode(data)?;
 
         Ok(XmlDocument {
