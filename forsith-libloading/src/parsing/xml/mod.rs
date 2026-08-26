@@ -1,7 +1,9 @@
 use std::{borrow::Cow, io::Read};
 use anyhow::{Result, bail};
 
-pub struct XmlDocument;
+pub struct XmlDocument {
+    encoding: Encoding,
+}
 
 enum Encoding {
     Utf8,
@@ -9,9 +11,24 @@ enum Encoding {
     Utf16BE,
 }
 
+impl Encoding {
+    fn decode<'a>(&self, data: Cow<'a, [u8]>) -> Result<Cow<'a, str>> {
+        match self {
+            Self::Utf8 => {
+                match data {
+                    Cow::Borrowed(slice) => Ok(str::from_utf8(slice)?.into()),
+                    Cow::Owned(vec) => Ok(String::from_utf8(vec)?.into()),
+                }
+            }
+            Self::Utf16LE => Ok(String::from_utf16le(&data)?.into()),
+            Self::Utf16BE => Ok(String::from_utf16be(&data)?.into()),
+        }
+    }
+}
+
 impl XmlDocument {
-    pub fn parse(xml: Cow<'_, [u8]>) -> Result<XmlDocument> {
-        let start = &xml[..4.min(xml.len())];
+    pub fn parse(data: Cow<'_, [u8]>) -> Result<XmlDocument> {
+        let start = &data[..4.min(data.len())];
 
         let encoding = match start {
             [0xEF, 0xBB, 0xBF, ..] | [0x3C, 0x3F, 0x78, 0x6D] => Encoding::Utf8,
@@ -23,17 +40,10 @@ impl XmlDocument {
             }
         };
 
-        let xml: Cow<'_, str> = match encoding {
-            Encoding::Utf8 => {
-                match xml {
-                    Cow::Borrowed(slice) => str::from_utf8(slice)?.into(),
-                    Cow::Owned(vec) => String::from_utf8(vec)?.into(),
-                }
-            }
-            Encoding::Utf16LE => String::from_utf16le(&xml)?.into(),
-            Encoding::Utf16BE => String::from_utf16be(&xml)?.into(),
-        };
+        let data = encoding.decode(data)?;
 
-        todo!()
+        Ok(XmlDocument {
+            encoding
+        })
     }
 }
