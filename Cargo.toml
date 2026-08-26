@@ -3,6 +3,7 @@ resolver = "2"
 
 members = [
     # "forsith-decoding",
+    "forsith-libloading",
     "forsith-shared",
 ]
 
