@@ -2,9 +2,9 @@ use std::{borrow::Cow, io::Read};
 use anyhow::{Result, bail};
 use forsith_shared::interner::StringInterner;
 
-pub struct XmlDocument {
+pub struct XmlDocument<'a> {
     encoding: Encoding,
-    interner: StringInterner
+    interner: StringInterner<'a>
 }
 
 enum Encoding {
@@ -40,7 +40,7 @@ impl Encoding {
     }
 }
 
-impl XmlDocument {
+impl XmlDocument<'_> {
     pub fn parse(data: Cow<'_, [u8]>) -> Result<Self> {
         let encoding = Encoding::identify_in_xml(&data);
         let data = encoding.decode(data)?;

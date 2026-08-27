@@ -76,6 +76,17 @@ mod arena_tests {
     }
 
     #[test]
+    fn alloc_full_chunk_empty_hello() {
+        let mut arena = Arena::<u8>::default();
+        let full_chunk = "a".repeat(CHUNK_SIZE);
+        let full = arena.asserted_alloc_str(&full_chunk);
+        let empty = arena.asserted_alloc_str("");
+        let _ = arena.asserted_alloc_str("hello");
+        assert_eq!(full, full_chunk);
+        assert_eq!(empty, "");
+    }
+
+    #[test]
     fn alloc_large_string() {
         let mut arena = Arena::<u8>::default();
         let large_string = "a".repeat(CHUNK_SIZE + 1);
@@ -89,6 +100,27 @@ mod arena_tests {
         let large_string = "a".repeat(CHUNK_SIZE + 1);
         let large = arena.asserted_alloc_str(&large_string);
         let _ = arena.asserted_alloc_str("hello");
+        assert_eq!(hello1, "hello");
+        assert_eq!(large, large_string);
+    }
+
+    #[test]
+    fn move_arena_hello_hello() {
+        let mut arena = Arena::<u8>::default();
+        let hello = arena.asserted_alloc_str("hello");
+        let mut moved_arena = std::mem::take(&mut arena);
+        let _ = moved_arena.asserted_alloc_str("world");
+        assert_eq!(hello, "hello");
+    }
+
+    #[test]
+    fn move_arena_hello_large_string_hello() {
+        let mut arena = Arena::<u8>::default();
+        let hello1 = arena.asserted_alloc_str("hello");
+        let mut moved_arena = std::mem::take(&mut arena);
+        let large_string = "a".repeat(CHUNK_SIZE + 1);
+        let large = moved_arena.asserted_alloc_str(&large_string);
+        let _ = moved_arena.asserted_alloc_str("hello");
         assert_eq!(hello1, "hello");
         assert_eq!(large, large_string);
     }
