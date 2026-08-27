@@ -5,4 +5,5 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0.104"
+derive_more = { version = "2.1.1", features = ["is_variant", "deref", "deref_mut"] }
 forsith-shared = { path = "../forsith-shared" }
