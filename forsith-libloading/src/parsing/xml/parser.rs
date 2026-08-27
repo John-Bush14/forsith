@@ -1,7 +1,7 @@
 use std::{io::BufRead};
 use anyhow::{bail, Result};
-use derive_more::{Deref, DerefMut};
-use forsith_shared::{buffers::CursorString, interner::StringInterner};
+use derive_more::{Deref, DerefMut, IsVariant};
+use forsith_shared::{buffers::CursorString, interner::{InternedString, StringInterner}};
 
 use crate::parsing::xml::{Encoding, Prolog, XmlVersion};
 
@@ -12,6 +12,20 @@ impl<'input> From<&'input str> for XmlParser<'input> {
     fn from(s: &'input str) -> Self {
         Self(CursorString::from(s))
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deref)]
+pub struct ParsedTag {
+    pub name: InternedString,
+    pub attributes: Vec<(InternedString, InternedString)>,
+    #[deref]
+    pub kind: TagKind,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant)]
+pub enum TagKind {
+    Opening,
+    Closing,
+    Empty
 }
 
 impl XmlParser<'_> {
@@ -78,6 +92,39 @@ impl XmlParser<'_> {
         Ok(Some(()))
     }
 
+    pub fn name(&mut self, interner: &mut StringInterner) -> Result<InternedString> {
+        let name_end = self.remaining_str().find(|c: char| !c.is_alphanumeric() && c != '-' && c != '_')
+            .unwrap_or_else(|| self.remaining_str().len());
+
+        Ok(interner.interned(self.take(name_end)))
+    }
+
+    pub fn tag(&mut self, interner: &mut StringInterner) -> Result<Option<ParsedTag>> {
+        if self.expect("<").is_err() {return Ok(None);}
+        let mut kind = if self.expect("/").is_ok() {TagKind::Closing} else {TagKind::Opening};
+
+        let name = self.name(interner)?;
+
+        self.whitespaces();
+
+        let mut attributes = Vec::new();
+        while !matches!(self.peek(1), "/" | ">") {
+            let attr_name = self.name(interner)?;
+            self.eq()?;
+            let attr_value = self.qouted_string()?;
+            attributes.push((attr_name, interner.interned(attr_value)));
+
+            self.whitespaces();
+        }
+
+        if kind.is_closing() && !attributes.is_empty() {bail!("Closing tag cannot have attributes")}
+
+        if kind.is_opening() && self.expect("/>").is_ok() {kind = TagKind::Empty;}
+        else {self.expect(">")?;}
+
+        Ok(Some(ParsedTag { name, attributes, kind }))
+    }
+
     pub fn prolog(&mut self, _interner: &mut StringInterner) -> Result<Prolog> {
         let mut prolog = Prolog::default();
 
@@ -90,6 +137,15 @@ impl XmlParser<'_> {
         }
 
         Ok(prolog)
+    }
+
+    pub fn string_until_tag(&mut self) -> Result<Option<&str>> {
+        let tag_start = self.remaining_str().find('<')
+            .unwrap_or_else(|| self.remaining_str().len());
+
+        if tag_start == 0 {return Ok(None)}
+
+        Ok(Some(self.take(tag_start)))
     }
 
     #[allow(clippy::unnecessary_wraps)]

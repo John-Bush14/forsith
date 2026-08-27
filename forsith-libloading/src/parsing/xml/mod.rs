@@ -1,17 +1,42 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, num::NonZero};
 use anyhow::{Result, bail, ensure};
 use derive_more::IsVariant;
-use forsith_shared::interner::StringInterner;
+use forsith_shared::interner::{InternedString, StringInterner};
 
 mod parser;
 use parser::XmlParser;
 
+use crate::parsing::xml::parser::{ParsedTag, TagKind};
+
 #[cfg(test)]
 mod tests;
 
+#[derive(Debug, Default)]
+pub struct Prolog {
+    version: XmlVersion,
+    encoding: Encoding,
+    standalone: bool,
+}
+
+#[derive(Debug)]
+pub enum XmlNode {
+    Tag(XmlTagNode),
+    Attribute(InternedString, InternedString),
+    Text(InternedString),
+}
+
+#[derive(Debug)]
+pub struct XmlTagNode {
+    name: InternedString,
+    attributes: usize,
+    next_sibling: Option<NonZero<usize>>
+}
+
+#[derive(Debug)]
 pub struct XmlDocument<'a> {
     prolog: Prolog,
-    interner: StringInterner<'a>
+    interner: StringInterner<'a>,
+    content: Vec<XmlNode>
 }
 
 #[derive(Debug, Default)]
@@ -28,13 +53,6 @@ impl XmlVersion {
 
     #[allow(dead_code)]
     pub const fn minor(&self) -> usize {self.0}
-}
-
-#[derive(Debug, Default)]
-pub struct Prolog {
-    version: XmlVersion,
-    encoding: Encoding,
-    standalone: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, IsVariant)]
@@ -90,9 +108,74 @@ impl XmlDocument<'_> {
         let prolog = data.prolog(&mut interner)?;
         ensure!(prolog.encoding == encoding, "Encoding mismatch: prolog specifies {:?}, but detected {encoding:?}", prolog.encoding);
 
-        Ok(XmlDocument {
+        let mut doc = XmlDocument {
             prolog,
             interner,
-        })
+            content: Vec::new(),
+        };
+
+        doc.parse_elements(&mut data)?;
+
+        Ok(doc)
+    }
+
+    fn push_tag(&mut self, element: ParsedTag) {
+        self.content.push(XmlNode::Tag(XmlTagNode {
+            name: element.name,
+            attributes: element.attributes.len(),
+            next_sibling: None,
+        }));
+        self.content.extend(element.attributes.into_iter().map(|(name, value)| XmlNode::Attribute(name, value)));
+    }
+
+    fn parse_elements(&mut self, parser: &mut XmlParser) -> Result<()> {
+        let root = parser.tag(&mut self.interner)?.ok_or_else(|| anyhow::anyhow!("No root element found"))?;
+        let root_name = root.name;
+        ensure!(!root.kind.is_closing(), "Root element cannot be a closing tag");
+        self.push_tag(root);
+
+        let closer = self.parse_element_content(parser)?;
+        ensure!(closer == root_name, "Root element not closed properly: expected </{}>, found </{}>", self.interner.resolve(root_name), self.interner.resolve(closer));
+
+        parser.misc()?;
+
+        ensure!(parser.remaining_str().is_empty(), "Unexpected content after root element");
+
+        Ok(())
+    }
+
+    fn parse_element_content(&mut self, parser: &mut XmlParser) -> Result<InternedString> {
+        let mut prev_tag: Option<usize> = None;
+
+        loop {
+            parser.string_until_tag()?.map(|text| {
+                let text_interned = self.interner.interned(text);
+                self.content.push(XmlNode::Text(text_interned));
+            });
+
+            let tag = parser.tag(&mut self.interner)?.ok_or_else(|| anyhow::anyhow!("Unterminated tag"))?;
+
+            if tag.kind.is_closing() {return Ok(tag.name);}
+
+            if let Some(prev_element) = prev_tag {
+                let cur = NonZero::new(self.content.len());
+
+                match self.content[prev_element] {
+                    XmlNode::Tag(ref mut prev) => {
+                        prev.next_sibling = cur;
+                    }
+                    _ => bail!("prev_element in XmlDocument content is not an Element node"),
+                }
+            }
+
+            prev_tag = Some(self.content.len());
+            let (kind, name) = (tag.kind, tag.name);
+            self.push_tag(tag);
+
+            if kind.is_opening() {
+                let closer = self.parse_element_content(parser)?;
+                ensure!(closer == name, "Element not closed properly: expected </{}>, found </{}>", self.interner.resolve(name), self.interner.resolve(closer));
+            }
+        }
     }
 }
