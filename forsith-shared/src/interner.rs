@@ -1,22 +1,18 @@
 use std::collections::HashMap;
 
+use crate::arena::Arena;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct InternedString(usize);
 
-#[derive(Debug, Clone)]
-struct StringEntry {
-    index: usize,
-    len: usize,
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct StringInterner {
+#[derive(Debug, Default)]
+pub struct StringInterner<'a> {
     key_map: HashMap<String, InternedString>,
-    str_map: Vec<StringEntry>, // (index, len)
-    buffer: String
+    str_map: Vec<&'a str>, // (index, len)
+    arena: Arena<'a, u8>
 }
 
-impl StringInterner {
+impl StringInterner<'_> {
     pub fn interned(&mut self, s: &str) -> InternedString {
         match self.key_map.get(s) {
             Some(interned) => *interned,
@@ -27,18 +23,13 @@ impl StringInterner {
     fn intern(&mut self, s: &str) -> InternedString {
         let interned_s = InternedString(self.str_map.len());
         self.key_map.insert(s.to_string(), interned_s);
-        self.str_map.push(StringEntry {
-            index: self.buffer.len(),
-            len: s.len()
-        });
-        self.buffer.push_str(s);
+        self.str_map.push(self.arena.alloc_str(s));
 
         interned_s
     }
 
     pub fn resolve(&self, interned: InternedString) -> &str {
-        let StringEntry {index, len} = self.str_map[interned.0];
-        &self.buffer[index..index + len]
+        self.str_map[interned.0]
     }
 }
 
@@ -46,7 +37,7 @@ impl StringInterner {
 mod string_interner_tests {
     use super::*;
 
-    impl StringInterner {
+    impl StringInterner<'_> {
         fn asserted_interned(&mut self, s: &str) -> InternedString {
             let i = self.interned(s);
             assert_eq!(self.resolve(i), s);
