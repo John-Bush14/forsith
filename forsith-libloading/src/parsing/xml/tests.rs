@@ -25,7 +25,7 @@ macro_rules! expected_nodes {
                     XmlNode::Tag(crate::parsing::xml::XmlTagNode {
                         name: interner.interned($name),
                         attributes: $att,
-                        next_sibling: $sib,
+                        next_sibling: $sib.map(|x: usize| x.try_into().unwrap()),
                     }),
                 )?
                 $(
@@ -39,6 +39,36 @@ macro_rules! expected_nodes {
     }};
 }
 
+#[should_panic(expected = "No root element found")]
+#[test]
+fn no_root() {
+    XmlDocument::parse(b"".into()).unwrap();
+}
+
+#[should_panic(expected = "No root element found")]
+#[test]
+fn prolog_no_root() {
+    XmlDocument::parse(b"<?xml version=\"1.0\"?>".into()).unwrap();
+}
+
+#[test]
+fn simple_nest() {
+    assert_parsed("<root><nested></nested></root>", expected_nodes!(
+        ("root", 0, None),
+        ("nested", 0, None),
+    ));
+}
+
+#[test]
+fn simple_siblings() {
+    assert_parsed("<root><sibling></sibling><sibling></sibling><sibling></sibling></root>", expected_nodes!(
+        ("root", 0, None),
+        ("sibling", 0, Some(2)),
+        ("sibling", 0, Some(3)),
+        ("sibling", 0, None)
+    ));
+}
+
 #[test]
 fn only_root() {
     assert_parsed("<root></root>", expected_nodes!(
@@ -48,15 +78,15 @@ fn only_root() {
 
 #[test]
 fn only_root_attribute() {
-    assert_parsed("<root attribute=\"test\"></root>", expected_nodes!(
+    assert_parsed(r#"<root attribute="test"></root>"#, expected_nodes!(
         ("root", 1, None),
         {"attribute" = "test"}
     ));
 }
 
 #[test]
-fn prolog_root() {
-    assert_parsed("<?xml version=\"1.0\" encoding=\"UTF-8\" ?><root></root>", expected_nodes!(
+fn prolog_only_root() {
+    assert_parsed(r#"<?xml version="1.0" encoding="UTF-8" ?><root></root>"#, expected_nodes!(
         ("root", 0, None)
     ));
 }
