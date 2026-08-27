@@ -6,6 +6,9 @@ use forsith_shared::{buffers::CursorString, interner::{InternedString, StringInt
 mod parser;
 use parser::XmlParser;
 
+#[cfg(test)]
+mod tests;
+
 pub struct XmlDocument<'a> {
     prolog: Prolog,
     interner: StringInterner<'a>
