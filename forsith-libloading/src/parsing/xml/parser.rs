@@ -1,7 +1,7 @@
 use std::{io::BufRead};
-use anyhow::{bail, Result, ensure};
+use anyhow::{bail, Result};
 use derive_more::{Deref, DerefMut};
-use forsith_shared::{buffers::CursorString, interner::{InternedString, StringInterner}};
+use forsith_shared::{buffers::CursorString, interner::StringInterner};
 
 use crate::parsing::xml::{Encoding, Prolog, XmlVersion};
 
@@ -17,7 +17,7 @@ impl<'input> From<&'input str> for XmlParser<'input> {
 impl XmlParser<'_> {
     pub fn expect(&mut self, expected: &str) -> Result<()> {
         let actual = self.peek(expected.len());
-        if actual != expected {bail!("Expected '{expected}', found '{actual}'")};
+        if actual != expected {bail!("Expected '{expected}', found '{actual}'")}
         self.consume(expected.len());
         Ok(())
     }
@@ -50,6 +50,7 @@ impl XmlParser<'_> {
         Ok(Some(()))
     }
 
+    #[allow(unreachable_code)]
     pub fn processing_instruction(&mut self) -> Result<Option<()>> {
         if self.expect("<?").is_err() {return Ok(None)}
 
@@ -77,7 +78,7 @@ impl XmlParser<'_> {
         Ok(Some(()))
     }
 
-    pub fn prolog(&mut self, interner: &mut StringInterner) -> Result<Prolog> {
+    pub fn prolog(&mut self, _interner: &mut StringInterner) -> Result<Prolog> {
         let mut prolog = Prolog::default();
 
         self.xml_decl(&mut prolog)?;
@@ -91,6 +92,7 @@ impl XmlParser<'_> {
         Ok(prolog)
     }
 
+    #[allow(clippy::unnecessary_wraps)]
     pub fn doctype_decl(&mut self) -> Result<Option<()>> {
         if self.expect("<!DOCTYPE").is_ok() {
             todo!("Handle doctype declaration");

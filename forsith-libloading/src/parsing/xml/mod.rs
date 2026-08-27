@@ -1,7 +1,7 @@
-use std::{borrow::Cow, io::{BufRead, Read}};
+use std::borrow::Cow;
 use anyhow::{Result, bail, ensure};
-use derive_more::{Deref, DerefMut, IsVariant};
-use forsith_shared::{buffers::CursorString, interner::{InternedString, StringInterner}};
+use derive_more::IsVariant;
+use forsith_shared::interner::StringInterner;
 
 mod parser;
 use parser::XmlParser;
@@ -26,6 +26,7 @@ impl XmlVersion {
         Ok(Self(version_num))
     }
 
+    #[allow(dead_code)]
     pub const fn minor(&self) -> usize {self.0}
 }
 
@@ -45,7 +46,7 @@ enum Encoding {
 }
 
 impl Encoding {
-    fn decode<'a>(&self, data: Cow<'a, [u8]>) -> Result<Cow<'a, str>> {
+    fn decode(self, data: Cow<'_, [u8]>) -> Result<Cow<'_, str>> {
         match self {
             Self::Utf8 => {
                 match data {
@@ -72,8 +73,7 @@ impl Encoding {
 
     fn from_str(s: &str) -> Result<Self> {
         if s.eq_ignore_ascii_case("utf-8") {return Ok(Self::Utf8);}
-        else if s.eq_ignore_ascii_case("utf-16") {return Ok(Self::Utf16LE);}
-        else if s.eq_ignore_ascii_case("utf-16le") {return Ok(Self::Utf16LE);}
+        else if s.eq_ignore_ascii_case("utf-16") | s.eq_ignore_ascii_case("utf-16le") {return Ok(Self::Utf16LE);}
         else if s.eq_ignore_ascii_case("utf-16be") {return Ok(Self::Utf16BE);}
 
         bail!("Unknown or unsupported encoding: {s}");
