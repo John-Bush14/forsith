@@ -18,14 +18,14 @@ pub struct Prolog {
     standalone: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum XmlNode {
     Tag(XmlTagNode),
     Attribute(InternedString, InternedString),
     Text(InternedString),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct XmlTagNode {
     name: InternedString,
     attributes: usize,
@@ -99,11 +99,12 @@ impl Encoding {
 }
 
 impl XmlDocument<'_> {
-    pub fn parse(data: Cow<'_, [u8]>) -> Result<Self> {
+    pub fn parse(data: Cow<'_, [u8]>) -> Result<Self> {Self::parse_with_interner(data, StringInterner::default())}
+
+    pub fn parse_with_interner<'a>(data: Cow<'_, [u8]>, mut interner: StringInterner<'a>) -> Result<XmlDocument<'a>> {
         let encoding = Encoding::identify_in_xml(&data);
         let data = encoding.decode(data)?;
         let mut data = XmlParser::from(&*data);
-        let mut interner = StringInterner::default();
 
         let prolog = data.prolog(&mut interner)?;
         ensure!(prolog.encoding == encoding, "Encoding mismatch: prolog specifies {:?}, but detected {encoding:?}", prolog.encoding);
