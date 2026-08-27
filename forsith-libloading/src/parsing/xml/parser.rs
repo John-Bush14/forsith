@@ -113,18 +113,18 @@ impl XmlParser<'_> {
         match self.peek(1) {
             "'" | "\"" => {self.consume(1);},
             c => bail!("Expected quote, found '{c:?}'"),
-        };
+        }
 
-        let terminating_qout = self.remaining_str().find(|c| c == '\'' || c == '"')
+        let terminating_qout = self.remaining_str().find(['\'', '"'])
             .ok_or_else(|| anyhow::anyhow!("Unterminated string"))?;
 
-        Ok(&self.remaining_str()[..terminating_qout])
+        Ok(&self.take(terminating_qout + 1)[..terminating_qout])
     }
 
     pub fn declaration(&mut self, key: &'static str) -> Result<Option<&str>> {
         self.whitespaces();
 
-        if let Err(_) = self.expect(key) {return Ok(None)};
+        if self.expect(key).is_err() {return Ok(None)}
 
         self.eq()?;
 
