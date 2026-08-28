@@ -149,7 +149,7 @@ impl XmlDocument<'_> {
         let mut prev_tag: Option<usize> = None;
 
         loop {
-            parser.string_until_tag()?.map(|text| {
+            parser.string_until_tag().map(|text| {
                 let text_interned = self.interner.interned(text);
                 self.content.push(XmlNode::Text(text_interned));
             });

@@ -139,13 +139,15 @@ impl XmlParser<'_> {
         Ok(prolog)
     }
 
-    pub fn string_until_tag(&mut self) -> Result<Option<&str>> {
+    pub fn string_until_tag(&mut self) -> Option<&str> {
         let tag_start = self.remaining_str().find('<')
             .unwrap_or_else(|| self.remaining_str().len());
 
-        if tag_start == 0 {return Ok(None)}
+        if tag_start == 0 {return None}
 
-        Ok(Some(self.take(tag_start)))
+        let str = self.take(tag_start).trim();
+
+        match str {"" => None, str => Some(str)}
     }
 
     #[allow(clippy::unnecessary_wraps)]
