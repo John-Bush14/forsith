@@ -1,5 +1,5 @@
 use std::{borrow::Cow, num::NonZero};
-use anyhow::{Result, bail, ensure};
+use anyhow::{Context, Result, bail, ensure};
 use derive_more::IsVariant;
 use forsith_shared::interner::{InternedString, StringInterner};
 
@@ -135,7 +135,7 @@ impl XmlDocument<'_> {
         ensure!(!root.kind.is_closing(), "Root element cannot be a closing tag");
         self.push_tag(root);
 
-        let closer = self.parse_element_content(parser)?;
+        let closer = self.parse_element_content(parser).with_context(|| format!("Failed to parse content of root <{}>", self.interner.resolve(root_name)))?;
         ensure!(closer == root_name, "Root element not closed properly: expected </{}>, found </{}>", self.interner.resolve(root_name), self.interner.resolve(closer));
 
         parser.misc()?;
@@ -174,7 +174,7 @@ impl XmlDocument<'_> {
             self.push_tag(tag);
 
             if kind.is_opening() {
-                let closer = self.parse_element_content(parser)?;
+                let closer = self.parse_element_content(parser).with_context(|| format!("Failed to parse content of <{}>", self.interner.resolve(name)))?;
                 ensure!(closer == name, "Element not closed properly: expected </{}>, found </{}>", self.interner.resolve(name), self.interner.resolve(closer));
             }
         }
