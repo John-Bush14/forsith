@@ -30,5 +30,13 @@ impl CursorString<'_> {
     pub fn remaining_str(&self) -> &str {
         &self.get_ref()[self.cursor()..]
     }
+
+    pub fn line_col(&self, cursor: usize) -> (usize, usize) {
+        let lines = self.get_ref()[..cursor].lines();
+
+        let (line, last_line) = lines.enumerate().last().unwrap_or((0, ""));
+
+        (line + 1, last_line.len())
+    }
 }
 

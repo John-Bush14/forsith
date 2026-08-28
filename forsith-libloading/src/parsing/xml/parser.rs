@@ -29,6 +29,14 @@ pub enum TagKind {
 }
 
 impl XmlParser<'_> {
+    pub fn current_source_position(&self) -> String {
+        let cursor = self.cursor();
+
+        let (line, col) = self.line_col(cursor);
+
+        format!("{line}:{col}")
+    }
+
     pub fn expect(&mut self, expected: &str) -> Result<()> {
         let actual = self.peek(expected.len());
         if actual != expected {bail!("Expected '{expected}', found '{actual}'")}

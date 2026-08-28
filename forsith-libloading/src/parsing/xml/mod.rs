@@ -106,7 +106,7 @@ impl XmlDocument<'_> {
         let data = encoding.decode(data)?;
         let mut data = XmlParser::from(&*data);
 
-        let prolog = data.prolog(&mut interner)?;
+        let prolog = data.prolog(&mut interner).with_context(|| format!("Failed to parse prolog, error was likely located around {}", data.current_source_position()))?;
         ensure!(prolog.encoding == encoding, "Encoding mismatch: prolog specifies {:?}, but detected {encoding:?}", prolog.encoding);
 
         let mut doc = XmlDocument {
@@ -115,7 +115,7 @@ impl XmlDocument<'_> {
             content: Vec::new(),
         };
 
-        doc.parse_elements(&mut data)?;
+        doc.parse_elements(&mut data).with_context(|| format!("Failed to parse elements, error was likely located around {}", data.current_source_position()))?;
 
         Ok(doc)
     }
