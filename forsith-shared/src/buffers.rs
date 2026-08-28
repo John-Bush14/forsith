@@ -1,6 +1,5 @@
 use std::io::{BufRead, Cursor, Read, Seek};
 use derive_more::{Deref, DerefMut};
-use crate::int::Int;
 
 #[derive(Debug, Deref, DerefMut)]
 pub struct CursorVec<T>(Cursor<Vec<T>>);

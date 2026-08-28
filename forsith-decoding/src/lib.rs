@@ -1,18 +1,21 @@
 #![allow(incomplete_features)]
 #![allow(internal_features)]
-#![feature(portable_simd)]
-#![feature(generic_const_exprs)]
 #![feature(const_trait_impl)]
-#![feature(const_cmp)]
 #![feature(const_precise_live_drops)]
 #![feature(generic_const_items)]
-#![feature(likely_unlikely)]
-#![feature(read_array)]
-#![feature(read_le)]
-#![feature(integer_widen_truncate)]
-#![feature(loop_hints)]
 #![feature(stmt_expr_attributes)]
-#![feature(option_reference_flattening)]
+
+#![cfg_attr(feature = "image", feature(
+    const_cmp,
+    portable_simd,
+    generic_const_exprs,
+    likely_unlikely,
+    read_array,
+    read_le,
+    integer_widen_truncate,
+    loop_hints,
+    option_reference_flattening
+))]
 
 #![forbid(unsafe_code)]
 #![warn(clippy::all, clippy::pedantic, clippy::nursery)]
@@ -26,7 +29,9 @@ pub mod image;
 
 pub mod xml;
 
+#[cfg(feature = "image")]
 pub(crate) use forsith_shared as utils;
+#[cfg(feature = "image")]
 pub(crate) use utils::{buffers, int, bit};
 
 #[cfg(feature = "image")]

@@ -1,10 +1,11 @@
+use std::str::FromStr;
 use std::{borrow::Cow, num::NonZero};
 use anyhow::{Context, Result, bail, ensure};
 use derive_more::IsVariant;
 use forsith_shared::interner::{InternedString, StringInterner};
 
 mod parser;
-pub use parser::XmlParser;
+use parser::XmlParser;
 use parser::{ParsedContentItem, ParsedTag};
 
 #[cfg(test)]
@@ -18,14 +19,14 @@ pub struct Prolog {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum XmlNode {
+enum XmlNode {
     Tag(XmlTagNode),
     Attribute(InternedString, InternedString),
     Text(InternedString),
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct XmlTagNode {
+struct XmlTagNode {
     name: InternedString,
     attributes: usize,
     next_sibling: Option<NonZero<usize>>
@@ -40,8 +41,10 @@ pub struct XmlDocument<'a> {
 
 #[derive(Debug, Default)]
 pub struct XmlVersion(usize);
-impl XmlVersion {
-    pub fn from_str(s: &str) -> Result<Self> {
+impl FromStr for XmlVersion {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self> {
         ensure!(s.starts_with("1."), "Invalid XML version: {s}");
 
         let version_num = s[2..].parse::<usize>()
@@ -49,8 +52,11 @@ impl XmlVersion {
 
         Ok(Self(version_num))
     }
+}
 
+impl XmlVersion {
     #[allow(dead_code)]
+    #[must_use]
     pub const fn minor(&self) -> usize {self.0}
 }
 
@@ -98,6 +104,9 @@ impl Encoding {
 }
 
 impl XmlDocument<'_> {
+    #[must_use]
+    pub const fn prolog(&self) -> &Prolog {&self.prolog}
+
     pub fn parse(data: Cow<'_, [u8]>) -> Result<Self> {Self::parse_with_interner(data, StringInterner::default())}
 
     pub fn parse_with_interner<'a>(data: Cow<'_, [u8]>, mut interner: StringInterner<'a>) -> Result<XmlDocument<'a>> {

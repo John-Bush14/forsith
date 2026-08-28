@@ -1,4 +1,4 @@
-use std::{io::BufRead};
+use std::{io::BufRead, str::FromStr};
 use anyhow::{bail, Result};
 use derive_more::{Deref, DerefMut, IsVariant};
 use forsith_shared::{buffers::CursorString, interner::{InternedString, StringInterner}};
@@ -109,6 +109,8 @@ impl XmlParser<'_> {
     pub fn name(&mut self, interner: &mut StringInterner) -> Result<InternedString> {
         let name_end = self.remaining_str().find(|c: char| !c.is_alphanumeric() && c != '-' && c != '_')
             .unwrap_or_else(|| self.remaining_str().len());
+
+        if name_end == 0 {bail!("Expected name, found '{:?}'", self.peek(1))}
 
         Ok(interner.interned(self.take(name_end)))
     }
