@@ -18,12 +18,15 @@
 #![warn(clippy::all, clippy::pedantic, clippy::nursery)]
 #![allow(clippy::missing_errors_doc, clippy::inline_always, clippy::option_map_unit_fn)]
 
+// make AdlerLaneSize u32 if increasing SIMD_WIDTH above 16, otherwise u16 is enough
+pub const SIMD_WIDTH: usize = 16;
+
 pub mod image;
 
 pub mod xml;
 
-mod utils;
-pub(crate) use utils::{buffers, int, simd};
+pub(crate) use forsith_shared as utils;
+pub(crate) use utils::{buffers, int, bit};
 
 mod decoding_error;
 pub use decoding_error::DecodingError;

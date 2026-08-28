@@ -1,6 +1,6 @@
 use crate::{DecodingError, image::{Channel, PixelFormat, PngDecoder, has_alpha, outputconverting::{OutputConverter, OutputWriter, get_out_writer_func}, png::{ColorType, chunks::{ColorPalette, Ihdr}}}, int::unpack};
 use core::simd::prelude::*;
-pub use crate::simd::{SIMD_WIDTH, open_simd};
+pub use crate::{SIMD_WIDTH};
 
 pub const MAX_STRIDE: usize = 8;
 
@@ -375,6 +375,11 @@ pub const fn should_use_simd<const FILTER: u8>(stride: usize) -> bool {
     // if FILTER == 3 && stride >= 6 {return true}
 
     false
+}
+
+#[inline(always)]
+pub const fn open_simd(slice: &[u8]) -> Simd::<u8, {SIMD_WIDTH}> {
+    Simd::from_slice(slice)
 }
 
 impl<C: Channel, const F: u8> PostProcessor<C, F> {

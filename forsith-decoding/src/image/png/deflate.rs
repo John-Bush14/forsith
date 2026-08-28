@@ -1,7 +1,7 @@
 use const_for::const_for;
 use derive_more::IsVariant;
 
-use crate::{DecodingError, parsing::BitRead, decompression::{HuffmanTree}};
+use crate::{DecodingError, bit::BitRead, decompression::{HuffmanTree}};
 
 const CODE_LENGTH_ORDER: [u8; 19] = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15];
 

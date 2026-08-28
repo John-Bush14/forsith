@@ -1,5 +1,5 @@
 use std::io::Read;
-use crate::{DecodingError, parsing::SegmentParser, buffers::{BitReader, CursorVec}, image::{Channel, ImageDecoder, PixelFormat, bitspp, outputconverting::OutputWriter, png::{checksums::Adler32, chunks::{ColorPalette, Ihdr, ZlibDataStream, tRNS}, deflate::{BlockType, MAX_BACKREF_LEN, STATIC_DISTANCE_TREE, STATIC_LITLEN_TREE, decode_distance, decode_length}, postprocessing::{MAX_STRIDE, PostProcessor}}}};
+use crate::{DecodingError, parsing::SegmentParser, bit::BitReader, buffers::{ CursorVec}, image::{Channel, ImageDecoder, PixelFormat, bitspp, outputconverting::OutputWriter, png::{checksums::Adler32, chunks::{ColorPalette, Ihdr, ZlibDataStream, tRNS}, deflate::{BlockType, MAX_BACKREF_LEN, STATIC_DISTANCE_TREE, STATIC_LITLEN_TREE, decode_distance, decode_length}, postprocessing::{MAX_STRIDE, PostProcessor}}}};
 use derive_more::IsVariant;
 use num_enum::TryFromPrimitive;
 

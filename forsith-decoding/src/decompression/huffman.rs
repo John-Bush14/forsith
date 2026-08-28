@@ -1,6 +1,6 @@
 use derive_more::IsVariant;
 use num_enum::IntoPrimitive;
-use crate::{DecodingError, parsing::BitRead};
+use crate::{DecodingError, bit::BitRead};
 
 #[derive(Debug, Clone)]
 pub struct HuffmanTree<const MAX_COLEN: u8, const MAX_ROOT_COLEN: u8, const MAX_SUBTABLE_ENTRIES: usize>

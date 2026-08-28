@@ -1,7 +1,7 @@
 use const_for::const_for;
 use derive_more::Not;
 use crate::{DecodingError};
-use crate::simd::SIMD_WIDTH;
+use crate::SIMD_WIDTH;
 use core::simd::prelude::*;
 
 pub const POLY: u32 = 0xedb8_8320;
