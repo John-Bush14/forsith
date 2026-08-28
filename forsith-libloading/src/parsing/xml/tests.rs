@@ -39,13 +39,13 @@ macro_rules! expected_nodes {
     }};
 }
 
-#[should_panic(expected = "No root element found")]
+#[should_panic(expected = "No root tag found")]
 #[test]
 fn no_root() {
     XmlDocument::parse(b"".into()).unwrap();
 }
 
-#[should_panic(expected = "No root element found")]
+#[should_panic(expected = "No root tag found")]
 #[test]
 fn prolog_no_root() {
     XmlDocument::parse(b"<?xml version=\"1.0\"?>".into()).unwrap();

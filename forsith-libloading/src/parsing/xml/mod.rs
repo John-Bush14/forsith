@@ -6,7 +6,7 @@ use forsith_shared::interner::{InternedString, StringInterner};
 mod parser;
 use parser::XmlParser;
 
-use crate::parsing::xml::parser::{ParsedTag, TagKind};
+use crate::parsing::xml::parser::{ParsedContentItem, ParsedTag, TagKind};
 
 #[cfg(test)]
 mod tests;
@@ -130,7 +130,7 @@ impl XmlDocument<'_> {
     }
 
     fn parse_elements(&mut self, parser: &mut XmlParser) -> Result<()> {
-        let root = parser.tag(&mut self.interner)?.ok_or_else(|| anyhow::anyhow!("No root element found"))?;
+        let ParsedContentItem::Tag(root) = parser.content_item(&mut self.interner)? else {bail!("No root tag found")};
         let root_name = root.name;
         ensure!(!root.kind.is_closing(), "Root element cannot be a closing tag");
         self.push_tag(root);
@@ -154,7 +154,11 @@ impl XmlDocument<'_> {
                 self.content.push(XmlNode::Text(text_interned));
             });
 
-            let tag = parser.tag(&mut self.interner)?.ok_or_else(|| anyhow::anyhow!("Unterminated tag"))?;
+            let tag = match parser.content_item(&mut self.interner)? {
+                ParsedContentItem::Misc => continue,
+                ParsedContentItem::Tag(tag) => {tag}
+                ParsedContentItem::None => bail!("Unterminated tag"),
+            };
 
             if tag.kind.is_closing() {return Ok(tag.name);}
 

@@ -14,6 +14,12 @@ impl<'input> From<&'input str> for XmlParser<'input> {
     }
 }
 
+pub enum ParsedContentItem {
+    Tag(ParsedTag),
+    Misc,
+    None
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Deref)]
 pub struct ParsedTag {
     pub name: InternedString,
@@ -25,7 +31,7 @@ pub struct ParsedTag {
 pub enum TagKind {
     Opening,
     Closing,
-    Empty
+    Empty,
 }
 
 impl XmlParser<'_> {
@@ -107,8 +113,12 @@ impl XmlParser<'_> {
         Ok(interner.interned(self.take(name_end)))
     }
 
-    pub fn tag(&mut self, interner: &mut StringInterner) -> Result<Option<ParsedTag>> {
-        if self.expect("<").is_err() {return Ok(None);}
+    pub fn content_item(&mut self, interner: &mut StringInterner) -> Result<ParsedContentItem> {
+        if self.comment()?.is_some() || self.processing_instruction()?.is_some() {
+            return Ok(ParsedContentItem::Misc)
+        }
+
+        if self.expect("<").is_err() {return Ok(ParsedContentItem::None)}
         let mut kind = if self.expect("/").is_ok() {TagKind::Closing} else {TagKind::Opening};
 
         let name = self.name(interner)?;
@@ -130,7 +140,7 @@ impl XmlParser<'_> {
         if kind.is_opening() && self.expect("/>").is_ok() {kind = TagKind::Empty;}
         else {self.expect(">")?;}
 
-        Ok(Some(ParsedTag { name, attributes, kind }))
+        Ok(ParsedContentItem::Tag(ParsedTag { name, attributes, kind }))
     }
 
     pub fn prolog(&mut self, _interner: &mut StringInterner) -> Result<Prolog> {
