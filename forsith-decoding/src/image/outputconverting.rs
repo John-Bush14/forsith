@@ -1,4 +1,4 @@
-use crate::{buffers::{CursorVec}, image::{Channel, bytespp, has_alpha, is_gray, is_rgb}, int::{unpack_constant, Int}};
+use crate::{buffers::{CursorVec}, image::{Channel, bytespp, has_alpha, is_gray, is_rgb}, int::{Int}, bit::unpack_constant};
 use std::{io::{Seek, Write}, marker::PhantomData};
 
 macro_rules! aligned {
