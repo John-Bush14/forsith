@@ -2,4 +2,3 @@
 #![warn(clippy::all, clippy::pedantic, clippy::nursery)]
 #![allow(clippy::option_map_unit_fn)]
 
-pub mod parsing;

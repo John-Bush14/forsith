@@ -16,9 +16,11 @@
 
 #![forbid(unsafe_code)]
 #![warn(clippy::all, clippy::pedantic, clippy::nursery)]
-#![allow(clippy::missing_errors_doc, clippy::inline_always)]
+#![allow(clippy::missing_errors_doc, clippy::inline_always, clippy::option_map_unit_fn)]
 
 pub mod image;
+
+pub mod xml;
 
 mod utils;
 pub(crate) use utils::{buffers, int, simd};

@@ -4,9 +4,8 @@ use derive_more::IsVariant;
 use forsith_shared::interner::{InternedString, StringInterner};
 
 mod parser;
-use parser::XmlParser;
-
-use crate::parsing::xml::parser::{ParsedContentItem, ParsedTag, TagKind};
+pub use parser::XmlParser;
+use parser::{ParsedContentItem, ParsedTag};
 
 #[cfg(test)]
 mod tests;

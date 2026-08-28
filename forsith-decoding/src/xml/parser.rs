@@ -3,7 +3,7 @@ use anyhow::{bail, Result};
 use derive_more::{Deref, DerefMut, IsVariant};
 use forsith_shared::{buffers::CursorString, interner::{InternedString, StringInterner}};
 
-use crate::parsing::xml::{Encoding, Prolog, XmlVersion};
+use super::{Encoding, Prolog, XmlVersion};
 
 #[derive(Debug, Deref, DerefMut)]
 pub struct XmlParser<'input>(CursorString<'input>);

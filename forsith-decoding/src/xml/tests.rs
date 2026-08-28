@@ -1,7 +1,6 @@
-use anyhow::ensure;
 use forsith_shared::interner::StringInterner;
 
-use crate::parsing::{XmlDocument, xml::XmlNode};
+use super::{XmlDocument, XmlNode, XmlTagNode};
 
 fn assert_parsed(xml: &str, expected_nodes: (Vec<XmlNode>, StringInterner)) {
     let (expected, interner) = expected_nodes;
@@ -22,7 +21,7 @@ macro_rules! expected_nodes {
         (vec![
             $(
                 $(
-                    XmlNode::Tag(crate::parsing::xml::XmlTagNode {
+                    XmlNode::Tag(XmlTagNode {
                         name: interner.interned($name),
                         attributes: $att,
                         next_sibling: $sib.map(|x: usize| x.try_into().unwrap()),
