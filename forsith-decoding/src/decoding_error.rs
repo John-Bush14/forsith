@@ -1,6 +1,6 @@
 use std::io;
 
-use crate::{checksums::CRC32, jpeg::markers::MarkerType, png::ChunkType};
+use crate::{checksums::CRC32, image::jpeg::markers::MarkerType, image::png::ChunkType};
 use derive_more::IsVariant;
 use thiserror::Error;
 

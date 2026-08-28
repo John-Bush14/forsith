@@ -1,5 +1,5 @@
 use std::{fmt::Debug, io::{BufRead, Cursor, Read, Seek}, marker::PhantomData, ops::Deref};
-use crate::{Channel, Int, parsing::BitRead};
+use crate::{int::Int, parsing::BitRead};
 use derive_more::{Deref, DerefMut};
 
 #[derive(Debug, Default)]
@@ -31,61 +31,6 @@ impl BitBuffer {
         self.buf |= value << self.bits_remaining as usize;
         self.bits_remaining += T::BIT_DEPTH;
     }
-}
-
-pub struct OutputWriter<'a, C: Channel, const F: u8> {
-    buffer: &'a mut [C::StorageType],
-    index: usize,
-    full: bool,
-    stride: usize,
-    _phantom: PhantomData<C>
-}
-
-impl<'a, C: Channel, const F: u8> OutputWriter<'a, C, F> {
-    pub const fn new(buffer: &'a mut [C::StorageType]) -> Self {
-        Self {
-            buffer,
-            index: 0,
-            full: false,
-            stride: 1,
-            _phantom: PhantomData
-        }
-    }
-
-    #[inline(always)]
-    pub const fn push_channel(&mut self, c: C::StorageType) {
-        self.buffer[self.index] = c;
-        self.index += 1;
-    }
-
-    pub const fn remaining(&self) -> usize {self.buffer.len().saturating_sub(self.index)}
-    #[inline(always)]
-    pub const fn remaining_bytes(&self) -> usize {self.remaining() * C::StorageType::BYTE_DEPTH as usize}
-
-    pub const fn set_stride(&mut self, pixels: usize) {self.stride = (pixels - 1) * F as usize;}
-    #[inline(always)]
-    pub const fn pushed_pixel(&mut self) {self.index += self.stride}
-    #[inline(always)]
-    pub const fn advance(&mut self, pixels: usize) {
-        self.index += pixels * F as usize;
-    }
-    pub const fn reset(&mut self) {self.index = 0;}
-
-    pub const fn len(&self) -> usize {self.index}
-    pub const fn bytes_len(&self) -> usize {self.index * C::StorageType::BYTE_DEPTH as usize}
-
-    pub const fn is_full(&self) -> bool {self.full}
-    pub const fn set_full(&mut self) {self.full = true;}
-
-    #[must_use]
-    pub const fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    pub const fn capacity(&self) -> usize {self.buffer.len()}
-    pub const fn bytes_capacity(&self) -> usize {self.buffer.len() * C::StorageType::BYTE_DEPTH as usize}
-
-    pub fn remaining_mut_slice(&mut self) -> &mut [C::StorageType] {&mut self.buffer[self.index..]}
 }
 
 #[derive(Debug, Deref, DerefMut)]

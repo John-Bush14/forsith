@@ -1,5 +1,5 @@
 use std::{array, io::Read, ops::Range, sync::Arc};
-use crate::{Channel, DecodingError, ImageDecoder, PixelFormat, buffers::{BitReader, CursorVec, OutputWriter}, jpeg::{idct::IdctTable, markers::{FrameHeader, HuffmanTables, MarkerType, QuantizationTables, RestartInterval, Scan}, parser::Marker}, parsing::{SegmentHeader, SegmentParser}};
+use crate::{DecodingError, buffers::{BitReader, CursorVec}, image::{Channel, ImageDecoder, PixelFormat, jpeg::{idct::IdctTable, markers::{FrameHeader, HuffmanTables, MarkerType, QuantizationTables, RestartInterval, Scan}, parser::Marker}, outputconverting::OutputWriter}, parsing::{SegmentHeader, SegmentParser}};
 
 pub mod markers;
 

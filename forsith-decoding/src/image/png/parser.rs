@@ -1,7 +1,7 @@
 use std::io::{Read, Seek};
 use derive_more::Deref;
 
-use crate::{DecodingError, buffers::CursorVec, parsing::{SegmentHeader, SegmentParser}, png::{ChunkType::{self}, checksums::CRC32}};
+use crate::{DecodingError, buffers::CursorVec, image::png::{ChunkType::{self}, checksums::CRC32}, parsing::{SegmentHeader, SegmentParser}};
 
 const BASE_ALLOC: usize = 1 << 12;
 

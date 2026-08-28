@@ -1,5 +1,5 @@
 use std::{any::Any, fmt::Display, io::Read};
-use crate::{Channel, DecodingError::{self, InvalidChunk}, PngDecoder, buffers::CursorVec, png::{ColorType, parser::ChunkHeader, postprocessing::MAX_STRIDE}};
+use crate::{DecodingError::{self, InvalidChunk}, buffers::CursorVec, image::{Channel, PngDecoder, png::{ColorType, parser::ChunkHeader, postprocessing::MAX_STRIDE}}};
 use derive_more::{IsVariant, Index};
 use num_enum::{TryFromPrimitive, IntoPrimitive};
 

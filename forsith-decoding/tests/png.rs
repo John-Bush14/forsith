@@ -1,6 +1,6 @@
 use std::error::Error;
 use std::{fs::File, io::BufReader, path::PathBuf};
-use forsith_decoding::{DecodingError, ImageDecoder, PixelFormat, PngDecoder};
+use forsith_decoding::{DecodingError, image::{ImageDecoder, PixelFormat, PngDecoder}};
 
 include!("generated_png_tests.rs");
 

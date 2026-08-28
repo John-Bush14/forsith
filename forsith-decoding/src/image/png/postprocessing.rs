@@ -1,4 +1,4 @@
-use crate::{Channel, DecodingError, buffers::OutputWriter, PixelFormat, PngDecoder, has_alpha, outputconverting::{OutputConverter, get_out_writer_func}, png::{ColorType, chunks::{ColorPalette, Ihdr}}, int::unpack};
+use crate::{DecodingError, image::{Channel, PixelFormat, PngDecoder, has_alpha, outputconverting::{OutputConverter, OutputWriter, get_out_writer_func}, png::{ColorType, chunks::{ColorPalette, Ihdr}}}, int::unpack};
 use core::simd::prelude::*;
 pub use crate::simd::{SIMD_WIDTH, open_simd};
 

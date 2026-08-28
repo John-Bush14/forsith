@@ -1,7 +1,7 @@
 use std::{io::BufRead, ops::Range, simd::Simd, io::Read};
 
 use derive_more::IsVariant;
-use crate::{Channel, DecodingError, ImageDecoder, JpegDecoder, buffers::CursorVec, jpeg::{DecodeOp, HuffmanTree, HuffmanTreeType, idct::IdctTable, parser::Marker}, parsing::SegmentHeader};
+use crate::{DecodingError, buffers::CursorVec, image::{Channel, JpegDecoder, jpeg::{DecodeOp, HuffmanTreeType, idct::IdctTable, parser::Marker}}, parsing::SegmentHeader};
 use const_for::const_for;
 
 const DEZIGZAG_TABLE: [usize; 64] = [

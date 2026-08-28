@@ -1,5 +1,5 @@
 use std::io::Read;
-use crate::{Channel, DecodingError, ImageDecoder, PixelFormat, bitspp, buffers::{BitReader, CursorVec, OutputWriter}, parsing::SegmentParser, png::{checksums::Adler32, chunks::{ColorPalette, Ihdr, ZlibDataStream, tRNS}, deflate::{BlockType, MAX_BACKREF_LEN, STATIC_DISTANCE_TREE, STATIC_LITLEN_TREE, decode_distance, decode_length}, postprocessing::{MAX_STRIDE, PostProcessor}}};
+use crate::{DecodingError, parsing::SegmentParser, buffers::{BitReader, CursorVec}, image::{Channel, ImageDecoder, PixelFormat, bitspp, outputconverting::OutputWriter, png::{checksums::Adler32, chunks::{ColorPalette, Ihdr, ZlibDataStream, tRNS}, deflate::{BlockType, MAX_BACKREF_LEN, STATIC_DISTANCE_TREE, STATIC_LITLEN_TREE, decode_distance, decode_length}, postprocessing::{MAX_STRIDE, PostProcessor}}}};
 use derive_more::IsVariant;
 use num_enum::TryFromPrimitive;
 
@@ -134,7 +134,7 @@ impl<'a, C: Channel, const F: u8> ImageDecoder<'a, C, F> for PngDecoder<'a, C, F
 
     fn source_bit_depth(&self) -> u8 {self.stored_channel_depth()}
 
-    fn source_pixel_format(&self) -> crate::PixelFormat {self.stored_format()}
+    fn source_pixel_format(&self) -> PixelFormat {self.stored_format()}
 }
 
 impl<C: Channel, const F: u8> PngDecoder<'_, C, F> {
