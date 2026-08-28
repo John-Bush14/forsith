@@ -12,14 +12,25 @@ derive_more = { version = "2.1.1", features = ["not", "is_variant", "index_mut",
 num_enum = "0.7.6"
 thiserror = "2.0.18"
 
+[features]
+default = [
+    # "png",
+    # "jpeg",
+    "xml"
+]
+image = []
+png = ["image"]
+jpeg = ["image"]
+xml = []
+
 [dev-dependencies]
 serde_json = "1.0.150"
 criterion = { version = "0.8", features = ["html_reports"] }
 
-[[test]]
-name = "png"
-path = "tests/png.rs"
+# [[test]]
+# name = "png"
+# path = "tests/png.rs"
 
-[[bench]]
-name = "png_decode"
-harness = false
+# [[bench]]
+# name = "png_decode"
+# harness = false

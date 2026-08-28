@@ -21,6 +21,7 @@
 // make AdlerLaneSize u32 if increasing SIMD_WIDTH above 16, otherwise u16 is enough
 pub const SIMD_WIDTH: usize = 16;
 
+#[cfg(feature = "image")]
 pub mod image;
 
 pub mod xml;
@@ -28,10 +29,14 @@ pub mod xml;
 pub(crate) use forsith_shared as utils;
 pub(crate) use utils::{buffers, int, bit};
 
+#[cfg(feature = "image")]
 mod decoding_error;
+#[cfg(feature = "image")]
 pub use decoding_error::DecodingError;
 
+#[cfg(feature = "image")]
 pub(crate) mod parsing;
+#[cfg(feature = "image")]
 pub(crate) mod checksums;
 pub(crate) mod decompression;
 

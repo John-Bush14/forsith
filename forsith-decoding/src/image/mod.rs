@@ -3,11 +3,16 @@ use std::fmt::Debug;
 use derive_more::IsVariant;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 pub use png::PngDecoder;
-
-pub(crate) mod png;
 use std::io::Read;
 
+#[cfg(feature = "png")]
+pub(crate) mod png;
+#[cfg(feature = "png")]
+pub use png::PngDecoder;
+
+#[cfg(feature = "jpeg")]
 pub(crate) mod jpeg;
+#[cfg(feature = "jpeg")]
 pub use jpeg::JpegDecoder;
 
 mod outputconverting;
