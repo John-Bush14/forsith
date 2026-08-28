@@ -179,14 +179,16 @@ impl XmlParser<'_> {
 
     pub fn qouted_string(&mut self) -> Result<&str> {
         match self.peek(1) {
-            "'" | "\"" => {self.consume(1);},
+            "'" | "\"" => (),
             c => bail!("Expected quote, found '{c:?}'"),
         }
 
-        let terminating_qout = self.remaining_str().find(['\'', '"'])
+        let qoute = self.take(1).chars().next().unwrap();
+
+        let terminating_qoute = self.remaining_str().find(qoute)
             .ok_or_else(|| anyhow::anyhow!("Unterminated string"))?;
 
-        Ok(&self.take(terminating_qout + 1)[..terminating_qout])
+        Ok(&self.take(terminating_qoute + 1)[..terminating_qoute])
     }
 
     pub fn declaration(&mut self, key: &'static str) -> Result<Option<&str>> {
