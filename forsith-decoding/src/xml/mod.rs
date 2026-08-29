@@ -1,12 +1,14 @@
-use std::str::FromStr;
-use std::{borrow::Cow, num::NonZero};
+use core::str::FromStr;
+use std::borrow::Cow;
 use anyhow::{Context, Result, bail, ensure};
 use derive_more::IsVariant;
-use forsith_shared::interner::{InternedString, StringInterner};
+use forsith_shared::interner::StringInterner;
 
 mod parser;
 use parser::XmlParser;
-use parser::{ParsedContentItem, ParsedTag};
+
+mod content;
+use content::XmlTree;
 
 #[cfg(test)]
 mod tests;
@@ -18,25 +20,11 @@ pub struct Prolog {
     standalone: bool,
 }
 
-#[derive(Debug, PartialEq, Eq)]
-enum XmlNode {
-    Tag(XmlTagNode),
-    Attribute(InternedString, InternedString),
-    Text(InternedString),
-}
-
-#[derive(Debug, PartialEq, Eq)]
-struct XmlTagNode {
-    name: InternedString,
-    attributes: usize,
-    next_sibling: Option<NonZero<usize>>
-}
-
 #[derive(Debug)]
 pub struct XmlDocument<'a> {
     prolog: Prolog,
-    interner: StringInterner<'a>,
-    content: Vec<XmlNode>
+    pub interner: StringInterner<'a>,
+    pub content: XmlTree
 }
 
 #[derive(Debug, Default)]
@@ -61,7 +49,7 @@ impl XmlVersion {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, IsVariant)]
-enum Encoding {
+pub enum Encoding {
     #[default]
     Utf8,
     Utf16LE,
@@ -117,78 +105,13 @@ impl XmlDocument<'_> {
         let prolog = data.prolog(&mut interner).with_context(|| format!("Failed to parse prolog, error was likely located around {}", data.current_source_position()))?;
         ensure!(prolog.encoding == encoding, "Encoding mismatch: prolog specifies {:?}, but detected {encoding:?}", prolog.encoding);
 
-        let mut doc = XmlDocument {
+        let tree = XmlTree::parse(&mut data, &mut interner).with_context(|| format!("Failed to parse elements, error was likely located around {}", data.current_source_position()))?;
+
+        Ok(XmlDocument {
             prolog,
             interner,
-            content: Vec::new(),
-        };
-
-        doc.parse_elements(&mut data).with_context(|| format!("Failed to parse elements, error was likely located around {}", data.current_source_position()))?;
-
-        Ok(doc)
+            content: tree,
+        })
     }
 
-    fn push_tag(&mut self, element: ParsedTag) {
-        self.content.push(XmlNode::Tag(XmlTagNode {
-            name: element.name,
-            attributes: element.attributes.len(),
-            next_sibling: None,
-        }));
-        self.content.extend(element.attributes.into_iter().map(|(name, value)| XmlNode::Attribute(name, value)));
-    }
-
-    fn parse_elements(&mut self, parser: &mut XmlParser) -> Result<()> {
-        let ParsedContentItem::Tag(root) = parser.content_item(&mut self.interner)? else {bail!("No root tag found")};
-        let root_name = root.name;
-        ensure!(!root.kind.is_closing(), "Root element cannot be a closing tag");
-        self.push_tag(root);
-
-        let closer = self.parse_element_content(parser).with_context(|| format!("Failed to parse content of root <{}>", self.interner.resolve(root_name)))?;
-        ensure!(closer == root_name, "Root element not closed properly: expected </{}>, found </{}>", self.interner.resolve(root_name), self.interner.resolve(closer));
-
-        parser.misc()?;
-
-        ensure!(parser.remaining_str().is_empty(), "Unexpected content after root element");
-
-        Ok(())
-    }
-
-    fn parse_element_content(&mut self, parser: &mut XmlParser) -> Result<InternedString> {
-        let mut prev_tag: Option<usize> = None;
-
-        loop {
-            parser.string_until_tag().map(|text| {
-                let text_interned = self.interner.interned(text);
-                self.content.push(XmlNode::Text(text_interned));
-            });
-
-            let tag = match parser.content_item(&mut self.interner)? {
-                ParsedContentItem::Misc => continue,
-                ParsedContentItem::Tag(tag) => {tag}
-                ParsedContentItem::None => bail!("Unterminated tag"),
-            };
-
-            if tag.kind.is_closing() {return Ok(tag.name);}
-
-            if let Some(prev_element) = prev_tag {
-                let cur = NonZero::new(self.content.len());
-
-                match self.content[prev_element] {
-                    XmlNode::Tag(ref mut prev) => {
-                        prev.next_sibling = cur;
-                    }
-                    _ => bail!("prev_element in XmlDocument content is not an Element node"),
-                }
-            }
-
-            prev_tag = Some(self.content.len());
-            let (kind, name) = (tag.kind, tag.name);
-            self.push_tag(tag);
-
-            if kind.is_opening() {
-                let closer = self.parse_element_content(parser).with_context(|| format!("Failed to parse content of <{}>", self.interner.resolve(name)))?;
-                ensure!(closer == name, "Element not closed properly: expected </{}>, found </{}>", self.interner.resolve(name), self.interner.resolve(closer));
-            }
-        }
-    }
 }
