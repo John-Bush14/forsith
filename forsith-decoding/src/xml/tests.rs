@@ -2,16 +2,16 @@ use forsith_shared::interner::{InternedString, StringInterner};
 
 use crate::xml::content::{XmlRootNode, XmlTree};
 
-use super::{XmlDocument, content::{XmlNode, XmlTagNode}};
+use super::{XmlDocument, content::{XmlTreeNode, XmlTagNode}};
 
-type ExpectedNodes<'a> = (InternedString, Vec<(InternedString, InternedString)>, Box<[XmlNode]>, StringInterner<'a>);
+type ExpectedNodes<'a> = (InternedString, Vec<(InternedString, InternedString)>, Box<[XmlTreeNode]>, StringInterner<'a>);
 fn assert_parsed(xml: &str, expected_nodes: ExpectedNodes) {
     let (root_name, root_attributes, expected, interner) = expected_nodes;
 
     let expected = XmlTree {
         root: XmlRootNode {
             name: root_name,
-            attributes: root_attributes.into_boxed_slice(),
+            attributes: root_attributes.iter().map(|&a| XmlTreeNode::Attribute(a)).collect(),
         },
         subtree: expected,
     };
@@ -36,7 +36,7 @@ macro_rules! expected_nodes {
         (interner.interned($root), vec![$((interner.interned($rootkey), interner.interned($rootval))),*], Box::new([
             $(
                 $(
-                    XmlNode::Tag(XmlTagNode {
+                    XmlTreeNode::Tag(XmlTagNode {
                         name: interner.interned($name),
                         attributes: $att,
                         next_sibling: $sib.map(|x: usize| x.try_into().unwrap()),

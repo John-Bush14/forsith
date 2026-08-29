@@ -1,11 +1,12 @@
 use core::num::NonZero;
 use std::ops::{Deref};
+use derive_more::Deref;
 use forsith_shared::interner::{InternedString, StringInterner};
 use anyhow::{Result, Context, bail, ensure};
 use crate::xml::parser::{ParsedContentItem, ParsedTag, XmlParser};
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum XmlNode {
+pub enum XmlTreeNode {
     Tag(XmlTagNode),
     Attribute(AttributeNode),
     Text(InternedString),
@@ -22,13 +23,84 @@ pub struct XmlTagNode {
 #[derive(Debug, PartialEq, Eq)]
 pub struct XmlRootNode {
     pub(crate) name: InternedString,
-    pub(crate) attributes: Box<[AttributeNode]>,
+    pub(crate) attributes: Box<[XmlTreeNode]>,
+}
+
+#[derive(Deref)]
+#[derive(Debug, PartialEq, Eq)]
+pub struct XmlTag<'a> {
+    name: InternedString,
+    attributes: &'a [XmlTreeNode],
+    #[deref]
+    subtree: XmlSubTree<'a>,
+}
+impl XmlTag<'_> {
+    pub const fn name(&self) -> InternedString {self.name}
+    pub fn attributes(&self) -> impl Iterator<Item = &AttributeNode> {
+        self.attributes.iter().map(|a| match a {XmlTreeNode::Attribute(a) => a, _ => panic!("XmlTag's attributes contained non-attribute")})
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum XmlNode<'a> {
+    Tag(XmlTag<'a>),
+    Text(InternedString),
+}
+
+pub struct XmlDescendants<'a> {
+    tree: XmlSubTree<'a>,
+    current: usize
+}
+
+impl<'a> Iterator for XmlDescendants<'a> {
+    type Item = XmlNode<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current >= self.tree.0.len() {return None}
+
+        let node = match &self.tree.0[self.current] {
+            XmlTreeNode::Tag(tag) => {
+                let attributes = self.tree.slice(self.current + 1, tag.attributes);
+                assert!(attributes.iter().all(|n| matches!(n, XmlTreeNode::Attribute(_))), "Non attributes found in nodes attributes slice");
+
+                let subtree = self.tree.subtree(self.current+1+tag.attributes, tag.next_sibling.map_or(self.current+1+tag.attributes, std::convert::Into::into));
+
+                XmlNode::Tag(XmlTag {
+                    name: tag.name,
+                    attributes,
+                    subtree
+                })
+            }
+            XmlTreeNode::Text(text) => XmlNode::Text(*text),
+            XmlTreeNode::Attribute(_) => panic!("Unexpected attribute node in XmlDescendants iterator"),
+        };
+
+        self.current += 1;
+
+        Some(node)
+    }
+}
+
+impl<'a> XmlSubTree<'a> {
+    pub const fn descendants(self) -> XmlDescendants<'a> {
+        XmlDescendants {
+            tree: self,
+            current: 0
+        }
+    }
+
+    fn slice(self, start: usize, length: usize) -> &'a [XmlTreeNode] {
+        &self.0[start..start + length]
+    }
+    fn subtree(self, start: usize, end: usize) -> Self {
+        XmlSubTree(&self.0[start..end])
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
 struct XmlTreeBuilder {
     root: XmlRootNode,
-    subtree: Vec<XmlNode>
+    subtree: Vec<XmlTreeNode>
 }
 impl From<XmlTreeBuilder> for XmlTree {
     fn from(builder: XmlTreeBuilder) -> Self {
@@ -41,34 +113,32 @@ impl From<XmlTreeBuilder> for XmlTree {
 #[derive(Debug, PartialEq, Eq)]
 pub struct XmlTree {
     pub(crate) root: XmlRootNode,
-    pub(crate) subtree: Box<[XmlNode]>
+    pub(crate) subtree: Box<[XmlTreeNode]>
 }
 
-impl Deref for XmlTree {
-    type Target = [XmlNode];
-
-    fn deref(&self) -> &Self::Target {&self.subtree}
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct XmlSubTree<'a>(&'a [XmlNode]);
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+pub struct XmlSubTree<'a>(&'a [XmlTreeNode]);
 
 impl XmlTree {
-    pub fn as_subtree(&self) -> XmlSubTree<'_> {XmlSubTree(&self.subtree)}
+    pub fn root_subtree(&self) -> XmlSubTree<'_> {XmlSubTree(&self.subtree)}
 
-    pub fn parse(parser: &mut XmlParser, interner: &mut StringInterner) -> Result<Self> {
+    pub fn root(&self) -> XmlTag<'_> {
+        XmlTag { name: self.root.name, attributes: &self.root.attributes, subtree: self.root_subtree()}
+    }
+
+    pub(crate) fn parse(parser: &mut XmlParser, interner: &mut StringInterner) -> Result<Self> {
         XmlTreeBuilder::parse(parser, interner).map(std::convert::Into::into)
     }
 }
 
 impl XmlTreeBuilder {
     fn push_tag(&mut self, element: ParsedTag) {
-        self.subtree.push(XmlNode::Tag(XmlTagNode {
+        self.subtree.push(XmlTreeNode::Tag(XmlTagNode {
             name: element.name,
             attributes: element.attributes.len(),
             next_sibling: None,
         }));
-        self.subtree.extend(element.attributes.into_iter().map(|(name, value)| XmlNode::Attribute((name, value))));
+        self.subtree.extend(element.attributes.into_iter().map(|(name, value)| XmlTreeNode::Attribute((name, value))));
     }
 
     fn parse(parser: &mut XmlParser, interner: &mut StringInterner) -> Result<Self> {
@@ -78,7 +148,7 @@ impl XmlTreeBuilder {
         let mut builder = Self {
             root: XmlRootNode {
                 name: root.name,
-                attributes: root.attributes.into_boxed_slice(),
+                attributes: root.attributes.iter().map(|&a| XmlTreeNode::Attribute(a)).collect(),
             },
             subtree: Vec::new(),
         };
@@ -97,7 +167,7 @@ impl XmlTreeBuilder {
     fn handle_chardata(&mut self, parser: &mut XmlParser, interner: &mut StringInterner) {
         parser.string_until_tag().map(|text| {
             let text_interned = interner.interned(text);
-            self.subtree.push(XmlNode::Text(text_interned));
+            self.subtree.push(XmlTreeNode::Text(text_interned));
         });
     }
 
@@ -105,7 +175,7 @@ impl XmlTreeBuilder {
         let cur = NonZero::new(self.subtree.len());
 
         match self.subtree[prev_sibling] {
-            XmlNode::Tag(ref mut prev) => {
+            XmlTreeNode::Tag(ref mut prev) => {
                 prev.next_sibling = cur;
             }
             _ => panic!("prev_sibling in XmlDocument content is not an Element node"),
@@ -141,7 +211,4 @@ impl XmlTreeBuilder {
             }
         }})().with_context(|| format!("Failed to parse content of <{}>", interner.resolve(parent)))
     }
-}
-
-impl XmlSubTree<'_> {
 }
