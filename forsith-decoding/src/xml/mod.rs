@@ -7,8 +7,8 @@ use forsith_shared::interner::StringInterner;
 mod parser;
 use parser::XmlParser;
 
-mod content;
-use content::XmlTree;
+mod tree;
+use tree::XmlTree;
 
 #[cfg(test)]
 mod tests;
@@ -24,7 +24,7 @@ pub struct Prolog {
 pub struct XmlDocument<'a> {
     prolog: Prolog,
     pub interner: StringInterner<'a>,
-    pub content: XmlTree
+    pub tree: XmlTree
 }
 
 #[derive(Debug, Default)]
@@ -110,7 +110,7 @@ impl XmlDocument<'_> {
         Ok(XmlDocument {
             prolog,
             interner,
-            content: tree,
+            tree,
         })
     }
 

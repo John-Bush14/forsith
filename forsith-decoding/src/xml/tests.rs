@@ -1,8 +1,8 @@
 use forsith_shared::interner::{InternedString, StringInterner};
 
-use crate::xml::content::{XmlRootNode, XmlTree};
+use crate::xml::tree::{XmlRootNode, XmlTree};
 
-use super::{XmlDocument, content::{XmlTreeNode, XmlTagNode}};
+use super::{XmlDocument, tree::{XmlTreeNode, XmlTagNode}};
 
 type ExpectedNodes<'a> = (InternedString, Vec<(InternedString, InternedString)>, Box<[XmlTreeNode]>, StringInterner<'a>);
 fn assert_parsed(xml: &str, expected_nodes: ExpectedNodes) {
@@ -18,7 +18,7 @@ fn assert_parsed(xml: &str, expected_nodes: ExpectedNodes) {
 
     let document = XmlDocument::parse_with_interner(xml.as_bytes().into(), interner).expect("Failed to parse XML");
 
-    assert_eq!(document.content, expected, "Parsed document does not match expected structure: {:?} != {:?}", document.content, expected);
+    assert_eq!(document.tree, expected, "Parsed document does not match expected structure: {:?} != {:?}", document.tree, expected);
 }
 
 macro_rules! expected_nodes {
