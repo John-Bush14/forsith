@@ -84,9 +84,7 @@ impl XmlTreeBuilder {
         };
 
         if root.kind.is_opening() {
-            let closer = builder.parse_element_content(parser, interner).with_context(|| format!("Failed to parse content of root <{}>", interner.resolve(root.name)))?;
-
-            ensure!(closer == root.name, "Root element not closed properly: expected </{}>, found </{}>", interner.resolve(root.name), interner.resolve(closer));
+            builder.parse_element_content(parser, interner, root.name)?;
         }
 
         parser.misc()?;
@@ -96,14 +94,29 @@ impl XmlTreeBuilder {
         Ok(builder)
     }
 
-    fn parse_element_content(&mut self, parser: &mut XmlParser, interner: &mut StringInterner) -> Result<InternedString> {
+    fn handle_chardata(&mut self, parser: &mut XmlParser, interner: &mut StringInterner) {
+        parser.string_until_tag().map(|text| {
+            let text_interned = interner.interned(text);
+            self.subtree.push(XmlNode::Text(text_interned));
+        });
+    }
+
+    fn update_prev_sibling(&mut self, prev_sibling: usize) {
+        let cur = NonZero::new(self.subtree.len());
+
+        match self.subtree[prev_sibling] {
+            XmlNode::Tag(ref mut prev) => {
+                prev.next_sibling = cur;
+            }
+            _ => panic!("prev_sibling in XmlDocument content is not an Element node"),
+        }
+    }
+
+    fn parse_element_content(&mut self, parser: &mut XmlParser, interner: &mut StringInterner, parent: InternedString) -> Result<()> {
         let mut prev_tag: Option<usize> = None;
 
-        loop {
-            parser.string_until_tag().map(|text| {
-                let text_interned = interner.interned(text);
-                self.subtree.push(XmlNode::Text(text_interned));
-            });
+        (|| {loop {
+            self.handle_chardata(parser, interner);
 
             let tag = match parser.content_item(interner)? {
                 ParsedContentItem::Misc => continue,
@@ -111,28 +124,22 @@ impl XmlTreeBuilder {
                 ParsedContentItem::None => bail!("Unterminated tag"),
             };
 
-            if tag.kind.is_closing() {return Ok(tag.name);}
+            if tag.kind.is_closing() {
+                ensure!(tag.name == parent, "Element not closed properly: expected </{}>, found </{}>", interner.resolve(parent), interner.resolve(tag.name));
 
-            if let Some(prev_element) = prev_tag {
-                let cur = NonZero::new(self.subtree.len());
-
-                match self.subtree[prev_element] {
-                    XmlNode::Tag(ref mut prev) => {
-                        prev.next_sibling = cur;
-                    }
-                    _ => bail!("prev_element in XmlDocument content is not an Element node"),
-                }
+                return Ok(());
             }
 
+            if let Some(prev_sibling) = prev_tag {self.update_prev_sibling(prev_sibling)}
             prev_tag = Some(self.subtree.len());
+
             let (kind, name) = (tag.kind, tag.name);
             self.push_tag(tag);
 
             if kind.is_opening() {
-                let closer = self.parse_element_content(parser, interner).with_context(|| format!("Failed to parse content of <{}>", interner.resolve(name)))?;
-                ensure!(closer == name, "Element not closed properly: expected </{}>, found </{}>", interner.resolve(name), interner.resolve(closer));
+                self.parse_element_content(parser, interner, name)?;
             }
-        }
+        }})().with_context(|| format!("Failed to parse content of <{}>", interner.resolve(parent)))
     }
 }
 
