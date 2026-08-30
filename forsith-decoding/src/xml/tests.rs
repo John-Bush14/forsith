@@ -1,17 +1,17 @@
 use forsith_shared::interner::{InternedString, StringInterner};
 
-use crate::xml::tree::{XmlRootNode, XmlTree};
+use crate::xml::tree::{AttributeNode, XmlRootNode, XmlTree};
 
 use super::{XmlDocument, tree::{XmlTreeNode, XmlTagNode}};
 
-type ExpectedNodes<'a> = (InternedString, Vec<(InternedString, InternedString)>, Box<[XmlTreeNode]>, StringInterner<'a>);
+type ExpectedNodes<'a> = (InternedString, Vec<AttributeNode>, Box<[XmlTreeNode]>, StringInterner<'a>);
 fn assert_parsed(xml: &str, expected_nodes: ExpectedNodes) {
     let (root_name, root_attributes, expected, interner) = expected_nodes;
 
     let expected = XmlTree {
         root: XmlRootNode {
             name: root_name,
-            attributes: root_attributes.iter().map(|&a| XmlTreeNode::Attribute(a)).collect(),
+            attributes: root_attributes.into_iter().map(XmlTreeNode::Attribute).collect(),
         },
         root_subtree: expected,
     };
@@ -33,7 +33,7 @@ macro_rules! expected_nodes {
         #[allow(unused_mut)]
         let mut interner = forsith_shared::interner::StringInterner::default();
 
-        (interner.interned($root), vec![$((interner.interned($rootkey), interner.interned($rootval))),*], Box::new([
+        (interner.interned($root), vec![$(AttributeNode::new(interner.interned($rootkey), interner.interned($rootval))),*], Box::new([
             $(
                 $(
                     XmlTreeNode::Tag(XmlTagNode {

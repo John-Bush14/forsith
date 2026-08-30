@@ -25,7 +25,7 @@ impl XmlTreeBuilder {
             attributes: element.attributes.len(),
             next_sibling: None,
         }));
-        self.subtree.extend(element.attributes.into_iter().map(|(name, value)| XmlTreeNode::Attribute((name, value))));
+        self.subtree.extend(element.attributes.into_iter().map(XmlTreeNode::Attribute));
     }
 
     pub fn parse(parser: &mut XmlParser, interner: &mut StringInterner) -> Result<Self> {
@@ -35,7 +35,7 @@ impl XmlTreeBuilder {
         let mut builder = Self {
             root: XmlRootNode {
                 name: root.name,
-                attributes: root.attributes.iter().map(|&a| XmlTreeNode::Attribute(a)).collect(),
+                attributes: root.attributes.into_iter().map(XmlTreeNode::Attribute).collect(),
             },
             subtree: Vec::new(),
         };

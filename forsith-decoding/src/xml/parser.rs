@@ -3,6 +3,8 @@ use anyhow::{bail, Result};
 use derive_more::{Deref, DerefMut, IsVariant};
 use forsith_shared::{buffers::CursorString, interner::{InternedString, StringInterner}};
 
+use crate::xml::tree::AttributeNode;
+
 use super::{Encoding, Prolog, XmlVersion};
 
 #[derive(Debug, Deref, DerefMut)]
@@ -23,7 +25,7 @@ pub enum ParsedContentItem {
 #[derive(Debug, Clone, PartialEq, Eq, Deref)]
 pub struct ParsedTag {
     pub name: InternedString,
-    pub attributes: Vec<(InternedString, InternedString)>,
+    pub attributes: Vec<AttributeNode>,
     #[deref]
     pub kind: TagKind,
 }
@@ -132,7 +134,7 @@ impl XmlParser<'_> {
             let attr_name = self.name(interner)?;
             self.eq()?;
             let attr_value = self.qouted_string()?;
-            attributes.push((attr_name, interner.interned(attr_value)));
+            attributes.push(AttributeNode::new(attr_name, interner.interned(attr_value)));
 
             self.whitespaces();
         }

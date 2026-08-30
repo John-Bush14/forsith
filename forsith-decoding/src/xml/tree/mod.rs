@@ -1,11 +1,13 @@
 use std::num::NonZero;
 use forsith_shared::interner::{InternedString, StringInterner};
-use crate::xml::{parser::XmlParser, tree::traversal::XmlSubTree};
+use crate::xml::parser::XmlParser;
 use anyhow::Result;
 
 mod creation;
 use creation::XmlTreeBuilder;
+
 mod traversal;
+use traversal::XmlTag;
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct XmlRootNode {
@@ -20,7 +22,16 @@ pub enum XmlTreeNode {
     Text(InternedString),
 }
 
-type AttributeNode = (InternedString, InternedString);
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct AttributeNode {
+    key: InternedString,
+    val: InternedString
+}
+impl AttributeNode {
+    pub const fn key(&self) -> InternedString {self.key}
+    pub const fn val(&self) -> InternedString {self.val}
+    pub(crate) const fn new(key: InternedString, val: InternedString) -> Self {Self {key, val}}
+}
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct XmlTagNode {
@@ -40,5 +51,5 @@ impl XmlTree {
         XmlTreeBuilder::parse(parser, interner).map(std::convert::Into::into)
     }
 
-    pub fn root(&self) -> traversal::XmlTag<'_> {self.root_tag()}
+    pub fn root(&self) -> XmlTag<'_> {self.root_tag()}
 }
