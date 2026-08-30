@@ -20,8 +20,13 @@ pub struct XmlTag<'a> {
 }
 impl XmlTag<'_> {
     pub const fn name(&self) -> InternedString {self.name}
+
     pub fn attributes(&self) -> impl Iterator<Item = &AttributeNode> {
         self.attributes.iter().map(|a| match a {XmlTreeNode::Attribute(a) => a, _ => panic!("XmlTag's attributes contained non-attribute")})
+    }
+
+    pub fn attribute(&self, key: InternedString) -> Option<InternedString> {
+        self.attributes().find(|a| a.key() == key).map(AttributeNode::val)
     }
 }
 
