@@ -8,13 +8,13 @@ use creation::XmlTreeBuilder;
 mod traversal;
 use traversal::XmlTag;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct XmlRootNode {
     pub(crate) name: InternedString,
     pub(crate) attributes: Box<[XmlTreeNode]>,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum XmlTreeNode {
     Tag(XmlTagNode),
     Attribute(AttributeNode),
@@ -32,7 +32,7 @@ impl AttributeNode {
     pub(crate) const fn new(key: InternedString, val: InternedString) -> Self {Self {key, val}}
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct XmlTagNode {
     pub(crate) name: InternedString,
     pub(crate) attributes: usize,
@@ -40,7 +40,7 @@ pub struct XmlTagNode {
     pub(crate) len: usize
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct XmlTree {
     pub(crate) root: XmlRootNode,
     pub(crate) root_subtree: Box<[XmlTreeNode]>

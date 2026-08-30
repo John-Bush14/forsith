@@ -8,7 +8,7 @@ pub struct InternedString(usize);
 #[derive(Debug, Default)]
 pub struct StringInterner<'a> {
     key_map: HashMap<String, InternedString>,
-    str_map: Vec<&'a str>, // (index, len)
+    str_map: Vec<&'a str>,
     arena: Arena<'a, u8>
 }
 

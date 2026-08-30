@@ -13,7 +13,7 @@ use tree::XmlTree;
 #[cfg(test)]
 mod tests;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq, Eq, Clone)]
 pub struct Prolog {
     version: XmlVersion,
     encoding: Encoding,
@@ -27,7 +27,7 @@ pub struct XmlDocument<'a> {
     pub tree: XmlTree
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq, Eq, Clone, PartialOrd, Ord)]
 pub struct XmlVersion(usize);
 impl FromStr for XmlVersion {
     type Err = anyhow::Error;

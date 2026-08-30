@@ -11,7 +11,7 @@ impl<'a> From<&'a [XmlTreeNode]> for XmlSubTree<'a> {
 }
 
 #[derive(Deref)]
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct XmlTag<'a> {
     name: InternedString,
     attributes: &'a [XmlTreeNode],
@@ -38,12 +38,13 @@ impl XmlTree {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum XmlNode<'a> {
     Tag(XmlTag<'a>),
     Text(InternedString),
 }
 
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct XmlChildren<'a> {
     tree: XmlSubTree<'a>,
     current: usize
@@ -74,6 +75,7 @@ impl<'a> Iterator for XmlChildren<'a> {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct XmlDescendants<'a> {
     tree: XmlSubTree<'a>,
     current: usize
