@@ -13,7 +13,7 @@ fn assert_parsed(xml: &str, expected_nodes: ExpectedNodes) {
             name: root_name,
             attributes: root_attributes.iter().map(|&a| XmlTreeNode::Attribute(a)).collect(),
         },
-        subtree: expected,
+        root_subtree: expected,
     };
 
     let document = XmlDocument::parse_with_interner(xml.as_bytes().into(), interner).expect("Failed to parse XML");
