@@ -39,7 +39,7 @@ macro_rules! expected_nodes {
                     XmlTreeNode::Tag(XmlTagNode {
                         name: interner.interned($name),
                         attributes: $att,
-                        next_sibling: $sib.map(|x: usize| x.try_into().unwrap()),
+                        len: $sib,
                     }),
                 )?
                 $(
@@ -69,7 +69,7 @@ fn prolog_no_root() {
 fn simple_nest() {
     assert_parsed("<root><nested></nested></root>", expected_nodes!(
         "root": []:
-        ("nested", 0, None),
+        ("nested", 0, 0),
     ));
 }
 
@@ -77,9 +77,9 @@ fn simple_nest() {
 fn simple_siblings() {
     assert_parsed("<root><sibling></sibling><sibling></sibling><sibling></sibling></root>", expected_nodes!(
         "root": []:
-        ("sibling", 0, Some(1)),
-        ("sibling", 0, Some(2)),
-        ("sibling", 0, None),
+        ("sibling", 0, 0),
+        ("sibling", 0, 0),
+        ("sibling", 0, 0),
     ));
 }
 

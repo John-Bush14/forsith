@@ -39,6 +39,36 @@ pub enum XmlNode<'a> {
     Text(InternedString),
 }
 
+pub struct XmlChildren<'a> {
+    tree: XmlSubTree<'a>,
+    current: usize
+}
+
+impl<'a> Iterator for XmlChildren<'a> {
+    type Item = XmlNode<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current >= self.tree.0.len() {return None}
+
+        let node = match &self.tree.0[self.current] {
+            XmlTreeNode::Text(text) => {
+                self.current += 1;
+                XmlNode::Text(*text)
+            },
+            XmlTreeNode::Tag(treetag) => {
+                let tag = self.tree.tag(self.current);
+
+                self.current += 1 + treetag.attributes + treetag.len;
+
+                XmlNode::Tag(tag)
+            },
+            XmlTreeNode::Attribute(_) => panic!("Unexpected attribute node in XmlChildren iterator"),
+        };
+
+        Some(node)
+    }
+}
+
 pub struct XmlDescendants<'a> {
     tree: XmlSubTree<'a>,
     current: usize
@@ -51,24 +81,19 @@ impl<'a> Iterator for XmlDescendants<'a> {
         if self.current >= self.tree.0.len() {return None}
 
         let node = match &self.tree.0[self.current] {
-            XmlTreeNode::Tag(tag) => {
-                let attributes = self.tree.slice(self.current + 1, tag.attributes);
-                assert!(attributes.iter().all(|n| matches!(n, XmlTreeNode::Attribute(_))), "Non attributes found in nodes attributes slice");
+            XmlTreeNode::Tag(_) => {
+                let tag = self.tree.tag(self.current);
 
-                let tree_start = self.current + 1 + tag.attributes;
-                let subtree = self.tree.subtree(tree_start, tag.next_sibling.map_or(tree_start, std::convert::Into::into));
+                self.current += 1 + tag.attributes.len();
 
-                XmlNode::Tag(XmlTag {
-                    name: tag.name,
-                    attributes,
-                    subtree
-                })
+                XmlNode::Tag(tag)
             }
-            XmlTreeNode::Text(text) => XmlNode::Text(*text),
+            XmlTreeNode::Text(text) => {
+                self.current += 1;
+                XmlNode::Text(*text)
+            },
             XmlTreeNode::Attribute(_) => panic!("Unexpected attribute node in XmlDescendants iterator"),
         };
-
-        self.current += 1;
 
         Some(node)
     }
@@ -82,11 +107,33 @@ impl<'a> XmlSubTree<'a> {
         }
     }
 
+    pub const fn children(self) -> XmlChildren<'a> {
+        XmlChildren {
+            tree: self,
+            current: 0
+        }
+    }
+
     fn slice(self, start: usize, length: usize) -> &'a [XmlTreeNode] {
         &self.0[start..start + length]
     }
-    fn subtree(self, start: usize, end: usize) -> Self {
-        XmlSubTree(&self.0[start..end])
+    fn subtree(self, start: usize, length: usize) -> Self {
+        XmlSubTree(self.slice(start, length))
+    }
+
+    fn tag(self, index: usize) -> XmlTag<'a> {
+        let XmlTreeNode::Tag(tag) = &self.0[index] else {panic!("tree.tag(index) called for index containing non-tag node")};
+
+        let attributes = self.slice(index + 1, tag.attributes);
+
+        let start = index + 1 + tag.attributes;
+        let subtree = self.subtree(start, tag.len);
+
+        XmlTag {
+            name: tag.name,
+            attributes,
+            subtree
+        }
     }
 }
 

@@ -1,4 +1,3 @@
-use std::num::NonZero;
 use forsith_shared::interner::{InternedString, StringInterner};
 use anyhow::{Result, bail, ensure, Context};
 use crate::xml::{parser::{ParsedContentItem, ParsedTag, XmlParser}, tree::{XmlRootNode, XmlTagNode, XmlTree, XmlTreeNode}};
@@ -23,7 +22,7 @@ impl XmlTreeBuilder {
         self.subtree.push(XmlTreeNode::Tag(XmlTagNode {
             name: element.name,
             attributes: element.attributes.len(),
-            next_sibling: None,
+            len: 0
         }));
         self.subtree.extend(element.attributes.into_iter().map(XmlTreeNode::Attribute));
     }
@@ -58,20 +57,18 @@ impl XmlTreeBuilder {
         });
     }
 
-    fn update_prev_sibling(&mut self, prev_sibling: usize) {
-        let cur = NonZero::new(self.subtree.len());
+    fn update_len(&mut self, tag_index: usize) {
+        let len = self.subtree.len() - tag_index;
 
-        match self.subtree[prev_sibling] {
+        match self.subtree[tag_index] {
             XmlTreeNode::Tag(ref mut prev) => {
-                prev.next_sibling = cur;
+                prev.len = len - prev.attributes - 1;
             }
-            _ => panic!("prev_sibling in XmlDocument content is not an Element node"),
+            _ => panic!("tag_index in XmlDocument content is not an Element node"),
         }
     }
 
     fn parse_element_content(&mut self, parser: &mut XmlParser, interner: &mut StringInterner, parent: InternedString) -> Result<()> {
-        let mut prev_tag: Option<usize> = None;
-
         (|| {loop {
             self.handle_chardata(parser, interner);
 
@@ -87,15 +84,15 @@ impl XmlTreeBuilder {
                 return Ok(());
             }
 
-            if let Some(prev_sibling) = prev_tag {self.update_prev_sibling(prev_sibling)}
-            prev_tag = Some(self.subtree.len());
-
             let (kind, name) = (tag.kind, tag.name);
+            let tag_index = self.subtree.len();
             self.push_tag(tag);
 
             if kind.is_opening() {
                 self.parse_element_content(parser, interner, name)?;
             }
+
+            self.update_len(tag_index);
         }})().with_context(|| format!("Failed to parse content of <{}>", interner.resolve(parent)))
     }
 }

@@ -1,4 +1,3 @@
-use std::num::NonZero;
 use forsith_shared::interner::{InternedString, StringInterner};
 use crate::xml::parser::XmlParser;
 use anyhow::Result;
@@ -37,7 +36,8 @@ impl AttributeNode {
 pub struct XmlTagNode {
     pub(crate) name: InternedString,
     pub(crate) attributes: usize,
-    pub(crate) next_sibling: Option<NonZero<usize>>
+    /// excluding attributes and the index of the next non-child node
+    pub(crate) len: usize
 }
 
 #[derive(Debug, PartialEq, Eq)]
