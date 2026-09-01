@@ -6,13 +6,13 @@ use crate::arena::Arena;
 pub struct InternedString(usize);
 
 #[derive(Debug, Default)]
-pub struct StringInterner<'a> {
+pub struct StringInterner<'arena> {
     key_map: HashMap<String, InternedString>,
-    str_map: Vec<&'a mut str>,
-    arena: Arena<'a, u8>
+    str_map: Vec<&'arena mut str>,
+    arena: Arena<'arena, u8>
 }
 
-impl StringInterner<'_> {
+impl<'arena> StringInterner<'arena> {
     pub fn interned(&mut self, s: &str) -> InternedString {
         match self.key_map.get(s) {
             Some(interned) => *interned,
@@ -34,6 +34,10 @@ impl StringInterner<'_> {
 
     pub fn resolve_mut(&mut self, interned: InternedString) -> &mut str {
         self.str_map[interned.0]
+    }
+
+    pub fn resolve_mut_entry(&mut self, interned: InternedString) -> &mut &'arena mut str {
+        &mut self.str_map[interned.0]
     }
 }
 
