@@ -6,7 +6,7 @@ use super::{XmlDocument, tree::{XmlTreeNode, XmlTagNode}};
 
 type ExpectedNodes<'a> = (InternedString, Vec<AttributeNode>, Box<[XmlTreeNode]>, StringInterner<'a>);
 fn assert_parsed(xml: &str, expected_nodes: ExpectedNodes) {
-    let (root_name, root_attributes, expected, interner) = expected_nodes;
+    let (root_name, root_attributes, expected, mut interner) = expected_nodes;
 
     let expected = XmlTree {
         root: XmlRootNode {
@@ -16,7 +16,7 @@ fn assert_parsed(xml: &str, expected_nodes: ExpectedNodes) {
         root_subtree: expected,
     };
 
-    let document = XmlDocument::parse_with_interner(xml.as_bytes().into(), interner).expect("Failed to parse XML");
+    let document = XmlDocument::parse_with_interner(xml.as_bytes().into(), &mut interner).expect("Failed to parse XML");
 
     assert_eq!(document.tree, expected, "Parsed document does not match expected structure: {:?} != {:?}", document.tree, expected);
 }

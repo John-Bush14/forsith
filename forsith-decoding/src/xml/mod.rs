@@ -1,7 +1,7 @@
 use core::str::FromStr;
 use std::borrow::Cow;
 use anyhow::{Context, Result, bail, ensure};
-use derive_more::IsVariant;
+use derive_more::{Deref, IsVariant};
 use forsith_shared::interner::StringInterner;
 
 mod parser;
@@ -20,11 +20,11 @@ pub struct Prolog {
     standalone: bool,
 }
 
-#[derive(Debug)]
-pub struct XmlDocument<'a> {
+#[derive(Debug, Deref)]
+pub struct XmlDocument {
     prolog: Prolog,
-    pub interner: StringInterner<'a>,
-    pub tree: XmlTree
+    #[deref]
+    tree: XmlTree
 }
 
 #[derive(Debug, Default, PartialEq, Eq, Clone, PartialOrd, Ord)]
@@ -91,25 +91,29 @@ impl Encoding {
     }
 }
 
-impl XmlDocument<'_> {
+impl XmlDocument {
     #[must_use]
     pub const fn prolog(&self) -> &Prolog {&self.prolog}
+    #[must_use]
+    pub const fn tree(&self) -> &XmlTree {&self.tree}
 
-    pub fn parse(data: Cow<'_, [u8]>) -> Result<Self> {Self::parse_with_interner(data, StringInterner::default())}
+    pub fn parse(data: Cow<'_, [u8]>) -> Result<(Self, StringInterner<'_>)> {
+        let mut interner = StringInterner::default();
+        Self::parse_with_interner(data, &mut interner).map(|doc| (doc, interner))
+    }
 
-    pub fn parse_with_interner<'a>(data: Cow<'_, [u8]>, mut interner: StringInterner<'a>) -> Result<XmlDocument<'a>> {
+    pub fn parse_with_interner(data: Cow<'_, [u8]>, interner: &mut StringInterner<'_>) -> Result<Self> {
         let encoding = Encoding::identify_in_xml(&data);
         let data = encoding.decode(data)?;
         let mut data = XmlParser::from(&*data);
 
-        let prolog = data.prolog(&mut interner).with_context(|| format!("Failed to parse prolog, error was likely located around {}", data.current_source_position()))?;
+        let prolog = data.prolog(interner).with_context(|| format!("Failed to parse prolog, error was likely located around {}", data.current_source_position()))?;
         ensure!(prolog.encoding == encoding, "Encoding mismatch: prolog specifies {:?}, but detected {encoding:?}", prolog.encoding);
 
-        let tree = XmlTree::parse(&mut data, &mut interner).with_context(|| format!("Failed to parse elements, error was likely located around {}", data.current_source_position()))?;
+        let tree = XmlTree::parse(&mut data, interner).with_context(|| format!("Failed to parse elements, error was likely located around {}", data.current_source_position()))?;
 
-        Ok(XmlDocument {
+        Ok(Self {
             prolog,
-            interner,
             tree,
         })
     }
