@@ -8,7 +8,7 @@ pub struct InternedString(usize);
 #[derive(Debug, Default)]
 pub struct StringInterner<'a> {
     key_map: HashMap<String, InternedString>,
-    str_map: Vec<&'a str>,
+    str_map: Vec<&'a mut str>,
     arena: Arena<'a, u8>
 }
 
@@ -29,6 +29,10 @@ impl StringInterner<'_> {
     }
 
     pub fn resolve(&self, interned: InternedString) -> &str {
+        self.str_map[interned.0]
+    }
+
+    pub fn resolve_mut(&mut self, interned: InternedString) -> &mut str {
         self.str_map[interned.0]
     }
 }

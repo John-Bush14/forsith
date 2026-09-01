@@ -18,7 +18,7 @@ impl<T: Default + Copy> Default for Arena<'_, T> {
 }
 
 impl<'arena, T: Default + Copy> Arena<'arena, T> {
-    pub fn alloc(&mut self, buf: &[T]) -> &'arena [T] {
+    pub fn alloc(&mut self, buf: &[T]) -> &'arena mut [T] {
         if self.index + buf.len() > CHUNK_SIZE {
             self.chunks.push(vec![T::default(); CHUNK_SIZE.max(buf.len())].into_boxed_slice());
             self.index = 0;
@@ -31,16 +31,16 @@ impl<'arena, T: Default + Copy> Arena<'arena, T> {
         self.index = end;
 
         unsafe {
-            std::slice::from_raw_parts(chunk.as_ptr().add(start), buf.len())
+            std::slice::from_raw_parts_mut(chunk.as_mut_ptr().add(start), buf.len())
         }
     }
 }
 
 impl<'arena> Arena<'arena, u8> {
-    pub fn alloc_str(&mut self, s: &str) -> &'arena str {
+    pub fn alloc_str(&mut self, s: &str) -> &'arena mut str {
         let bytes = self.alloc(s.as_bytes());
         unsafe {
-            std::str::from_utf8_unchecked(bytes)
+            std::str::from_utf8_unchecked_mut(bytes)
         }
     }
 }
