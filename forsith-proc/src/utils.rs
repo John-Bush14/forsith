@@ -1,4 +1,49 @@
-use proc_macro::{Delimiter, Group, Ident, Punct, Span, TokenStream, TokenTree};
+use proc_macro::{Group, Ident, TokenStream, TokenTree};
+
+macro_rules! quote {
+    ($($tt:tt)*) => {{
+        #[allow(unused_mut)]
+        let mut tokens = TokenStream::new();
+        $(
+            tokens.extend(quote_tree!($tt));
+        )*
+        tokens
+    }};
+}
+
+macro_rules! quote_tree {
+    ((@ $($tt:tt)*)) => {[$($tt)*]};
+    ($ident:ident) => {{
+        use proc_macro::{Ident, Span};
+        [Ident::new(stringify!($ident), Span::call_site())]
+    }};
+    (($($tt:tt)*)) => {{
+        use proc_macro::{Group, Delimiter};
+        [Group::new(Delimiter::Parenthesis, quote!($($tt)*))]
+    }};
+    ({$($tt:tt)*}) => {{
+        use proc_macro::{Group, Delimiter};
+        [Group::new(Delimiter::Brace, quote!($($tt)*))]
+    }};
+    ([$($tt:tt)*]) => {{
+        use proc_macro::{Group, Delimiter};
+        [Group::new(Delimiter::Bracket, quote!($($tt)*))]
+    }};
+    ($lit:literal) => {{
+        use std::any::Any;
+        use proc_macro::Literal;
+        if ($lit).type_id() == "".type_id() {[Literal::string($lit)]}
+        else {panic!("Unsupported literal type: {:?}", stringify!($lit))}
+    }};
+    ($punct:tt) => {{
+        use proc_macro::{Punct, Spacing};
+        let puncts = stringify!($punct);
+        puncts
+            .chars()
+            .enumerate()
+            .map(|(i, c)| Punct::new(c, if i == puncts.len() - 1 {Spacing::Alone} else {Spacing::Joint}))
+    }};
+}
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum ItemType {
@@ -58,41 +103,11 @@ pub fn parse_enum_variants(input: &mut impl Iterator<Item = TokenTree>) -> Vec<(
 }
 
 pub fn impl_item(item: &Item, body: TokenStream) -> TokenStream {
-    let mut output = TokenStream::from_iter([
-        Ident::new("impl", Span::call_site()),
-        item.name().clone(),
-    ].into_iter().map(TokenTree::Ident));
-
-    output.extend_one(TokenTree::Group(Group::new(Delimiter::Brace, body)));
-
-    output
-}
-
-pub fn function_item(
-    public: bool,
-    name: Ident,
-    body: TokenStream,
-    args: Group,
-    ret: TokenTree
-) -> TokenStream {
-    let mut output = if public {
-        TokenStream::from(TokenTree::Ident(Ident::new("pub", Span::call_site())))
-    } else {
-        TokenStream::new()
-    };
-
-    output.extend_one(TokenTree::Ident(Ident::new("fn", Span::call_site())));
-    output.extend(TokenStream::from_iter([
-        TokenTree::Ident(name),
-        TokenTree::Group(args),
-        TokenTree::Punct(Punct::new('-', proc_macro::Spacing::Joint)),
-        TokenTree::Punct(Punct::new('>', proc_macro::Spacing::Alone)),
-        ret,
-    ]));
-
-    output.extend_one(TokenTree::Group(Group::new(Delimiter::Brace, body)));
-
-    output
+    quote!(
+        impl (@ item.name().clone()) {
+            (@ body)
+        }
+    )
 }
 
 pub fn parse_item(input: &mut impl Iterator<Item = TokenTree>) -> Item {

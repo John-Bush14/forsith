@@ -1,8 +1,7 @@
-#![feature(extend_one)]
-
 extern crate proc_macro;
 use proc_macro::TokenStream;
 
+#[macro_use]
 pub(crate) mod utils;
 
 mod derive_more;
