@@ -1,9 +1,9 @@
 use forsith_shared::casing::{Casing, change_casing};
-use proc_macro::{Delimiter, Group, Ident, Punct, Span, TokenStream, TokenTree};
+use proc_macro::{Ident, Span, TokenStream};
 use crate::utils::{ItemType, impl_item, parse_enum_variants, parse_item,};
 
 pub fn derive_is_variant(input: TokenStream) -> TokenStream {
-    let mut input = input.into_iter();
+    let mut input = input.into_iter().peekable();
 
     let item = parse_item(&mut input);
     assert_eq!(item.ty(), &ItemType::Enum, "IsVariant can only be derived for enums, found {:?}", item.ty());

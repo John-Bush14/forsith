@@ -1,4 +1,6 @@
-use proc_macro::{Group, Ident, TokenStream, TokenTree};
+use std::iter::{Peekable, once};
+
+use proc_macro::{Delimiter::Parenthesis, Group, Ident, TokenStream, TokenTree};
 
 macro_rules! quote {
     ($($tt:tt)*) => {{
@@ -62,6 +64,7 @@ pub enum ItemType {
 pub struct Item {
     ty: ItemType,
     name: Ident,
+    generics: Vec<(Ident, TokenStream)>,
 }
 
 impl Item {
@@ -103,31 +106,32 @@ pub fn parse_enum_variants(input: &mut impl Iterator<Item = TokenTree>) -> Vec<(
 }
 
 pub fn impl_item(item: &Item, body: TokenStream) -> TokenStream {
+    let generic_def = item.generics.iter().map(|(name, constraints)| {
+        quote!(
+            (@ name.clone()): (@ constraints.clone()),
+        )
+    }).collect::<TokenStream>();
+
+    let generic_use = item.generics.iter().map(|(name, _)|
+        quote!((@ name.clone()),)
+    ).collect::<TokenStream>();
+
     quote!(
-        impl (@ item.name().clone()) {
+        impl<(@ generic_def)> (@ item.name().clone())<(@ generic_use)> {
             (@ body)
         }
     )
 }
 
-pub fn parse_item(input: &mut impl Iterator<Item = TokenTree>) -> Item {
-    let item_ident = match input.next() {
-        None => panic!("Empty tokenstream?"),
-        Some(TokenTree::Ident(ident)) => match ident {
-            ident if ident.to_string() == "pub" => {
-                match input.next() {
-                    Some(TokenTree::Ident(ident)) => ident,
-                    Some(TokenTree::Group(_)) => match input.next() {
-                        Some(TokenTree::Ident(ident)) => ident,
-                        _ => panic!("Expected item after `pub(...)`"),
-                    },
-                    _ => panic!("Expected something after `pub`"),
-                }
-            },
-            ident => ident,
+pub fn parse_item(input: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Item {
+    if let Some(TokenTree::Ident(ident)) = input.peek() && ident.to_string() == "pub" {
+        let _ = input.next();
+        if let Some(TokenTree::Group(group)) = input.peek() && group.delimiter() == Parenthesis {
+            let _ = input.next();
         }
-        Some(t) => panic!("Expected first token to be ident, found `{:?}`", t),
-    };
+    }
+
+    let item_ident = input.next().expect("Expected item type, found None");
 
     let ty = match item_ident.to_string().as_str() {
         "struct" => ItemType::Struct,
@@ -141,11 +145,37 @@ pub fn parse_item(input: &mut impl Iterator<Item = TokenTree>) -> Item {
         "type" => ItemType::TypeAlias,
         _ => panic!("Expected item type, found `{}`", item_ident),
     };
+
     let name = match input.next() {
         Some(TokenTree::Ident(ident)) => ident,
         t => panic!("Expected item name after `{}`, found `{:?}`", item_ident, t),
     };
 
-    Item { ty, name }
+    let mut generics: Vec<(Ident, TokenStream)> = Vec::new();
+    if let Some(TokenTree::Punct(punct)) = input.peek() && punct.as_char() == '<' {
+        let _ = input.next();
+
+        loop {
+            let generic_ident = match input.next() {
+                Some(TokenTree::Ident(ident)) => ident,
+                Some(TokenTree::Punct(punct)) if punct.as_char() == '>' => break,
+                None => panic!("Expected Some after `<` in generics, found None"),
+                tt => panic!("Expected ident or `>` in generics, found `{:?}`", tt),
+            };
+
+            let mut constraints = TokenStream::new();
+            if let Some(TokenTree::Punct(punct)) = input.peek() && punct.as_char() == ':' {
+                while let Some(item) = input.peek() {
+                    if let TokenTree::Punct(punct) = item && punct.as_char() == '>' {
+                        break;
+                    }
+                    constraints.extend(once(input.next().unwrap()));
+                }
+            }
+            generics.push((generic_ident, constraints));
+        }
+    };
+
+    Item { ty, name, generics }
 }
 
