@@ -8,7 +8,8 @@ autotests = false
 forsith-shared = { path = "../forsith-shared" }
 anyhow = "1.0.104"
 const_for = "0.1.5"
-derive_more = { version = "2.1.1", features = ["not", "is_variant", "index_mut", "index", "deref", "deref_mut"] }
+derive_more = { version = "2.1.1", features = ["not", "index_mut", "index", "deref", "deref_mut"] }
+forsith-proc = { path = "../forsith-proc" }
 num_enum = "0.7.6"
 thiserror = "2.0.18"
 

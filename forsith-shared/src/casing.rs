@@ -1,12 +1,16 @@
-use derive_more::IsVariant;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, IsVariant)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Casing {
     Snake,
     UpperSnake,
     Kebab,
     Dromedary,
     Pascal,
+}
+
+pub fn change_casing(source: &str, casing: Casing) -> String {
+    let mut dest = String::new();
+    write_changed_casing(source, &mut dest, casing);
+    dest
 }
 
 pub fn write_changed_casing(source: &str, dest: &mut String, casing: Casing) {
