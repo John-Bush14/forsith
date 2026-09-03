@@ -1,8 +1,7 @@
 use core::str::FromStr;
 use std::borrow::Cow;
 use anyhow::{Context, Result, bail, ensure};
-use derive_more::{Deref};
-use forsith_proc::IsVariant;
+use forsith_proc::{IsVariant, Deref};
 use forsith_shared::interner::StringInterner;
 
 mod parser;

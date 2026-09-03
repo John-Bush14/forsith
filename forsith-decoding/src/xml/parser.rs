@@ -1,7 +1,6 @@
 use std::{io::BufRead, str::FromStr};
 use anyhow::{bail, Result};
-use derive_more::{Deref, DerefMut};
-use forsith_proc::IsVariant;
+use forsith_proc::{IsVariant, Deref, DerefMut};
 use forsith_shared::{buffers::CursorString, interner::{InternedString, StringInterner}};
 
 use crate::xml::tree::AttributeNode;
