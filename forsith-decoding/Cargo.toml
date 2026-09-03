@@ -6,11 +6,7 @@ autotests = false
 
 [dependencies]
 forsith-shared = { path = "../forsith-shared" }
-anyhow = "1.0.104"
-const_for = "0.1.5"
 forsith-proc = { path = "../forsith-proc" }
-num_enum = "0.7.6"
-thiserror = "2.0.18"
 
 [features]
 default = [

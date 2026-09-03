@@ -1,7 +1,6 @@
 use std::{io::BufRead, str::FromStr};
-use anyhow::{bail, Result};
 use forsith_proc::{IsVariant, Deref, DerefMut};
-use forsith_shared::{buffers::CursorString, interner::{InternedString, StringInterner}};
+use forsith_shared::{buffers::CursorString, interner::{InternedString, StringInterner}, bail, error::Result, errmsg};
 
 use crate::xml::tree::AttributeNode;
 
@@ -73,7 +72,7 @@ impl XmlParser<'_> {
         if self.expect("<!--").is_err() {return Ok(None)}
 
         let comment_end = self.remaining_str().find("-->")
-            .ok_or_else(|| anyhow::anyhow!("Unterminated comment"))?;
+            .ok_or_else(|| errmsg!("Unterminated comment"))?;
 
         self.consume(comment_end + 3);
 
@@ -85,7 +84,7 @@ impl XmlParser<'_> {
         if self.expect("<?").is_err() {return Ok(None)}
 
         let pi_end = self.remaining_str().find("?>")
-            .ok_or_else(|| anyhow::anyhow!("Unterminated processing instruction"))?;
+            .ok_or_else(|| errmsg!("Unterminated processing instruction"))?;
 
         let instruction = self.take(pi_end);
         todo!("Handle processing instruction: {instruction:?}");
@@ -200,7 +199,7 @@ impl XmlParser<'_> {
         let qoute = self.take(1).chars().next().unwrap();
 
         let terminating_qoute = self.remaining_str().find(qoute)
-            .ok_or_else(|| anyhow::anyhow!("Unterminated string"))?;
+            .ok_or_else(|| errmsg!("Unterminated string"))?;
 
         Ok(&self.take(terminating_qoute + 1)[..terminating_qoute])
     }
@@ -217,7 +216,7 @@ impl XmlParser<'_> {
 
     pub fn version_info(&mut self) -> Result<XmlVersion> {
         let s = self.declaration("version")?
-            .ok_or_else(|| anyhow::anyhow!("Missing version declaration"))?;
+            .ok_or_else(|| errmsg!("Missing version declaration"))?;
 
         XmlVersion::from_str(s)
     }

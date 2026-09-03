@@ -1,8 +1,7 @@
 use core::str::FromStr;
 use std::borrow::Cow;
-use anyhow::{Context, Result, bail, ensure};
 use forsith_proc::{IsVariant, Deref};
-use forsith_shared::interner::StringInterner;
+use forsith_shared::{bail, ensure, errmsg, error::{Error, Result, ResultContext}, interner::StringInterner};
 
 mod parser;
 use parser::XmlParser;
@@ -30,13 +29,13 @@ pub struct XmlDocument {
 #[derive(Debug, Default, PartialEq, Eq, Clone, PartialOrd, Ord)]
 pub struct XmlVersion(usize);
 impl FromStr for XmlVersion {
-    type Err = anyhow::Error;
+    type Err = Error;
 
     fn from_str(s: &str) -> Result<Self> {
         ensure!(s.starts_with("1."), "Invalid XML version: {s}");
 
         let version_num = s[2..].parse::<usize>()
-            .map_err(|_| anyhow::anyhow!("Too large minor XML version: {s}"))?;
+            .map_err(|_| errmsg!("Too large minor XML version: {s}"))?;
 
         Ok(Self(version_num))
     }

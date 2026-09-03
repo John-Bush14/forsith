@@ -1,6 +1,5 @@
-use forsith_shared::interner::{InternedString, StringInterner};
+use forsith_shared::{error::Result, interner::{InternedString, StringInterner}};
 use crate::xml::parser::XmlParser;
-use anyhow::Result;
 
 mod creation;
 use creation::XmlTreeBuilder;

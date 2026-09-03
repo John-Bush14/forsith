@@ -9,3 +9,5 @@ pub mod int;
 pub mod bit;
 
 pub mod casing;
+
+pub mod error;
