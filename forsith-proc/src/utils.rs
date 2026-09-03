@@ -82,6 +82,28 @@ impl Item {
     pub fn name(&self) -> &Ident {&self.name}
 }
 
+pub fn parse_attribute_group(input: &mut impl Iterator<Item = TokenTree>) -> Attribute {
+    let att = match input.next() {
+        Some(TokenTree::Group(group)) if group.delimiter() == Delimiter::Bracket => group,
+        t => panic!("Expected [...] after `#` in enum variants, found `{:?}`", t),
+    };
+
+    let mut att = att.stream().into_iter().peekable();
+
+    let name = match att.next() {
+        Some(TokenTree::Ident(ident)) => ident,
+        t => panic!("Expected ident after `#` in attribute, found `{:?}`", t),
+    };
+
+    let args = match att.next() {
+        Some(TokenTree::Group(group)) if group.delimiter() == Delimiter::Parenthesis => Some(group),
+        None => None,
+        t => panic!("Expected (...) after `#ident` in attribute, found `{:?}`", t),
+    };
+
+    Attribute { name, args }
+}
+
 pub fn parse_enum_variants(input: &mut impl Iterator<Item = TokenTree>) -> Vec<(Ident, Option<Group>, Vec<Attribute>)> {
     let mut variants = Vec::new();
 
@@ -101,25 +123,7 @@ pub fn parse_enum_variants(input: &mut impl Iterator<Item = TokenTree>) -> Vec<(
                 variants.push((variant.0.take().expect("Expected ident before comma"), variant.1.take(), std::mem::take(&mut variant.2)));
             },
             TokenTree::Punct(punct) if punct.as_char() == '#' => {
-                let att = match iter.next() {
-                    Some(TokenTree::Group(group)) if group.delimiter() == Delimiter::Bracket => group,
-                    t => panic!("Expected [...] after `#` in enum variants, found `{:?}`", t),
-                };
-
-                let mut att_iter = att.stream().into_iter().peekable();
-
-                let att_name = match att_iter.next() {
-                    Some(TokenTree::Ident(ident)) => ident,
-                    t => panic!("Expected ident after `#` in enum variants, found `{:?}`", t),
-                };
-
-                let att_args = match att_iter.next() {
-                    Some(TokenTree::Group(group)) if group.delimiter() == Delimiter::Parenthesis => Some(group),
-                    None => None,
-                    t => panic!("Expected (...) after `#ident` in enum variants, found `{:?}`", t),
-                };
-
-                variant.2.push(Attribute { name: att_name, args: att_args });
+                variant.2.push(parse_attribute_group(&mut iter));
             },
             t => panic!("Expected ident or comma in enum variants, found `{:?}`", t),
         }
