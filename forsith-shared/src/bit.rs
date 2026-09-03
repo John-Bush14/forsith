@@ -1,6 +1,4 @@
-use std::io::{Read, Seek};
-
-use derive_more::{Deref, DerefMut};
+use std::{io::{Read, Seek}, ops::{Deref, DerefMut}};
 
 use crate::{buffers::CursorVec, int::Int};
 
@@ -69,13 +67,25 @@ impl BitBuffer {
     }
 }
 
-#[derive(Debug, Default, Deref, DerefMut)]
+#[derive(Debug, Default)]
 pub struct BitReader<T: Read + Default + Seek> {
-    #[deref]
-    #[deref_mut]
     buffer: T,
     bit_buf: BitBuffer,
 }
+
+impl<T: Read + Default + Seek> Deref for BitReader<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.buffer
+    }
+}
+impl<T: Read + Default + Seek> DerefMut for BitReader<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.buffer
+    }
+}
+
 impl<T: Read + Default + Seek> BitReader<T> {
     pub fn new(buffer: T) -> Self {
         Self {

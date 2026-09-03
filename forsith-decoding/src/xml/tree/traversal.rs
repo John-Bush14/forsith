@@ -1,5 +1,5 @@
-use derive_more::Deref;
 use forsith_shared::interner::InternedString;
+use forsith_proc::Deref;
 
 use crate::xml::tree::{AttributeNode, XmlTree, XmlTreeNode};
 
@@ -10,8 +10,7 @@ impl<'a> From<&'a [XmlTreeNode]> for XmlSubTree<'a> {
     fn from(slice: &'a [XmlTreeNode]) -> Self {Self(slice)}
 }
 
-#[derive(Deref)]
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Deref)]
 pub struct XmlTag<'a> {
     name: InternedString,
     attributes: &'a [XmlTreeNode],
