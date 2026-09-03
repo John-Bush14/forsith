@@ -11,7 +11,7 @@ pub fn derive_is_variant(input: TokenStream) -> TokenStream {
     let variants = parse_enum_variants(&mut input);
 
     let mut functions = TokenStream::new();
-    for (variant_ident, _) in variants.into_iter() {
+    for (variant_ident, _, _) in variants.into_iter() {
         let func_name = Ident::new(&format!("is_{}", change_casing(&variant_ident.to_string(), Casing::Snake)), Span::call_site());
 
         functions.extend(quote!(

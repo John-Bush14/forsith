@@ -1,6 +1,6 @@
 use std::iter::{Peekable, once};
 
-use proc_macro::{Delimiter::Parenthesis, Group, Ident, TokenStream, TokenTree};
+use proc_macro::{Delimiter::{self, Parenthesis}, Group, Ident, TokenStream, TokenTree};
 
 macro_rules! quote {
     ($($tt:tt)*) => {{
@@ -67,12 +67,22 @@ pub struct Item {
     generics: Vec<(Ident, TokenStream)>,
 }
 
+pub struct Attribute {
+    pub name: Ident,
+    pub args: Option<Group>,
+}
+
+impl Attribute {
+    pub fn name(&self) -> &Ident {&self.name}
+    pub fn args(&self) -> Option<&Group> {self.args.as_ref()}
+}
+
 impl Item {
     pub fn ty(&self) -> &ItemType {&self.ty}
     pub fn name(&self) -> &Ident {&self.name}
 }
 
-pub fn parse_enum_variants(input: &mut impl Iterator<Item = TokenTree>) -> Vec<(Ident, Option<Group>)> {
+pub fn parse_enum_variants(input: &mut impl Iterator<Item = TokenTree>) -> Vec<(Ident, Option<Group>, Vec<Attribute>)> {
     let mut variants = Vec::new();
 
     let group = match input.next() {
@@ -80,7 +90,7 @@ pub fn parse_enum_variants(input: &mut impl Iterator<Item = TokenTree>) -> Vec<(
         t => panic!("Expected group of enum variants, found `{:?}`", t),
     };
 
-    let mut variant = (None, None);
+    let mut variant = (None, None, Vec::new());
 
     let mut iter = group.stream().into_iter();
     while let Some(token) = iter.next() {
@@ -88,18 +98,35 @@ pub fn parse_enum_variants(input: &mut impl Iterator<Item = TokenTree>) -> Vec<(
             TokenTree::Ident(ident) => variant.0 = Some(ident),
             TokenTree::Group(group) => variant.1 = Some(group),
             TokenTree::Punct(punct) if punct.as_char() == ',' => {
-                variants.push((variant.0.take().expect("Expected ident before comma"), variant.1.take()))
+                variants.push((variant.0.take().expect("Expected ident before comma"), variant.1.take(), std::mem::take(&mut variant.2)));
             },
             TokenTree::Punct(punct) if punct.as_char() == '#' => {
-                let att = iter.next();
-                assert!(matches!(att, Some(TokenTree::Group(_))), "Expected group after `#` in enum variants, found `{:?}`", att);
+                let att = match iter.next() {
+                    Some(TokenTree::Group(group)) if group.delimiter() == Delimiter::Bracket => group,
+                    t => panic!("Expected [...] after `#` in enum variants, found `{:?}`", t),
+                };
+
+                let mut att_iter = att.stream().into_iter().peekable();
+
+                let att_name = match att_iter.next() {
+                    Some(TokenTree::Ident(ident)) => ident,
+                    t => panic!("Expected ident after `#` in enum variants, found `{:?}`", t),
+                };
+
+                let att_args = match att_iter.next() {
+                    Some(TokenTree::Group(group)) if group.delimiter() == Delimiter::Parenthesis => Some(group),
+                    None => None,
+                    t => panic!("Expected (...) after `#ident` in enum variants, found `{:?}`", t),
+                };
+
+                variant.2.push(Attribute { name: att_name, args: att_args });
             },
             t => panic!("Expected ident or comma in enum variants, found `{:?}`", t),
         }
     }
 
-    if !matches!(variant, (None, None)) {
-        variants.push((variant.0.take().expect("varant group without variant ident?"), variant.1.take()))
+    if !matches!(variant, (None, None, _)) || !variant.2.is_empty() {
+        variants.push((variant.0.take().expect("No variant Ident?"), variant.1.take(), std::mem::take(&mut variant.2)));
     }
 
     variants
