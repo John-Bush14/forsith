@@ -20,6 +20,35 @@ pub enum FFIItem<'a> {
     Struct(FFIStruct<'a>),
     Function(FFIFunction<'a>),
     Mod(FFIMod<'a>),
+    Use(UseItem<'a>),
+    TypeAlias(TypeAlias<'a>),
+    Constant(Constant<'a>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Constant<'a> {
+    pub name: &'a str,
+    pub ty: FFIValueType<'a>,
+    pub value: &'a str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TypeAlias<'a> {
+    pub name: &'a str,
+    pub ty: FFIType<'a>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UseItem<'a> {
+    pub path: &'a str,
+    pub visibility: Visibility<'a>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Visibility<'a> {
+    Pub,
+    Priv,
+    CustomPub(&'a str)
 }
 
 #[derive(Debug)]

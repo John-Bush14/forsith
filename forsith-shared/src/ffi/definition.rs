@@ -1,13 +1,20 @@
-use crate::ffi::{FFIField, FFIFieldMetadata, FFIFunction, FFIItem, FFIItems, FFILib, FFILibConfig, FFIMod, FFIPrimitive, FFIStruct, FFIType, FFIValueType, Indirection};
+use crate::ffi::{Constant, FFIField, FFIFieldMetadata, FFIFunction, FFIItem, FFIItems, FFILib, FFILibConfig, FFIMod, FFIPrimitive, FFIStruct, FFIType, FFIValueType, Indirection, TypeAlias, UseItem, Visibility};
 
 
 impl<'a> FFILib<'a> {
-    pub fn def_struct(&mut self, s: FFIStruct<'a>) {
-        self.items.0.push(FFIItem::Struct(s));
+    pub fn def_struct(&mut self, name: &'a str, fields: Vec<FFIField<'a>>) {
+        self.items.0.push(FFIItem::Struct(FFIStruct {
+            name,
+            fields,
+        }));
     }
 
-    pub fn def_function(&mut self, f: FFIFunction<'a>) {
-        self.items.0.push(FFIItem::Function(f));
+    pub fn def_function(&mut self, name: &'a str, params: Vec<FFIField<'a>>, ret_ty: FFIType<'a>) {
+        self.items.0.push(FFIItem::Function(FFIFunction {
+            name,
+            params,
+            ret_ty,
+        }));
     }
 
     pub fn def_mod<R>(&mut self, name: &'a str, def: impl FnOnce(&mut FFIItems<'a>) -> R) -> R {
@@ -21,6 +28,28 @@ impl<'a> FFILib<'a> {
         }));
 
         r
+    }
+
+    pub fn def_use(&mut self, path: &'a str, visibility: Visibility<'a>) {
+        self.items.0.push(FFIItem::Use(UseItem {
+            path,
+            visibility,
+        }));
+    }
+
+    pub fn def_type_alias(&mut self, name: &'a str, ty: FFIType<'a>) {
+        self.items.0.push(FFIItem::TypeAlias(TypeAlias {
+            name,
+            ty,
+        }));
+    }
+
+    pub fn def_constant(&mut self, name: &'a str, ty: FFIValueType<'a>, value: &'a str) {
+        self.items.0.push(FFIItem::Constant(Constant {
+            name,
+            ty,
+            value,
+        }));
     }
 }
 
@@ -42,24 +71,6 @@ impl<'a> FFILib<'a> {
         Self {
             items: FFIItems::default(),
             config,
-        }
-    }
-}
-
-impl<'a> FFIStruct<'a> {
-    #[must_use]
-    pub fn new(name: &'a str, fields: Vec<FFIField<'a>>) -> Self {
-        Self { name, fields }
-    }
-}
-
-impl<'a> FFIFunction<'a> {
-    #[must_use]
-    pub fn new(name: &'a str, params: Vec<FFIField<'a>>, ret_ty: FFIType<'a>) -> Self {
-        Self {
-            name,
-            params,
-            ret_ty,
         }
     }
 }
