@@ -150,9 +150,15 @@ pub fn parse_struct_fields(input: &mut impl Iterator<Item = TokenTree>) -> Vec<(
             TokenTree::Ident(ident) => field.0 = Some(ident),
             TokenTree::Punct(punct) if punct.as_char() == ':' => {
                 let mut ty_tokens = TokenStream::new();
+                let mut nested = 0;
                 while let Some(item) = iter.peek() {
-                    if let TokenTree::Punct(punct) = item && punct.as_char() == ',' {
-                        break;
+                    if let TokenTree::Punct(punct) = item {
+                        match punct.as_char() {
+                            '<' => nested += 1,
+                            '>' => nested -= 1,
+                            ',' if nested == 0 => break,
+                            _ => {}
+                        };
                     }
                     ty_tokens.extend(once(iter.next().unwrap()));
                 }
@@ -211,14 +217,14 @@ pub fn impl_item(item: &Item, r#trait: Option<TokenStream>, body: TokenStream) -
     let generic_def = item.generics.iter().map(|generic| {
         match generic {
             Generic::Type(name, constraints) => quote!((@ name.clone()): (@ constraints.clone()),),
-            Generic::Lifetime(name) => TokenStream::from_iter([TokenTree::Punct(Punct::new('\'', Spacing::Joint)), TokenTree::Ident(name.clone())].into_iter()),
+            Generic::Lifetime(name) => TokenStream::from_iter([TokenTree::Punct(Punct::new('\'', Spacing::Joint)), TokenTree::Ident(name.clone()), TokenTree::Punct(Punct::new(',', Spacing::Alone))].into_iter()),
         }
     }).collect::<TokenStream>();
 
     let generic_use = item.generics.iter().map(|generic|
         match generic {
             Generic::Type(name, _) => quote!((@ name.clone()),),
-            Generic::Lifetime(name) => TokenStream::from_iter([TokenTree::Punct(Punct::new('\'', Spacing::Joint)), TokenTree::Ident(name.clone())].into_iter()),
+            Generic::Lifetime(name) => TokenStream::from_iter([TokenTree::Punct(Punct::new('\'', Spacing::Joint)), TokenTree::Ident(name.clone()), TokenTree::Punct(Punct::new(',', Spacing::Alone))].into_iter()),
         }
     ).collect::<TokenStream>();
 
@@ -279,6 +285,11 @@ pub fn parse_item(input: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Item
                         t => panic!("Expected lifetime name after `'`, found `{:?}`", t),
                     };
                     generics.push(Generic::Lifetime(lifetime_ident));
+
+                    if let Some(TokenTree::Punct(punct)) = input.peek() && punct.as_char() == ',' {
+                        let _ = input.next();
+                    }
+
                     continue
                 },
                 None => panic!("Expected Some after `<` in generics, found None"),
@@ -286,10 +297,19 @@ pub fn parse_item(input: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Item
             };
 
             let mut constraints = TokenStream::new();
-            if let Some(TokenTree::Punct(punct)) = input.peek() && punct.as_char() == ':' {
+            if let Some(TokenTree::Punct(punct)) = input.next() && punct.as_char() == ':' {
+                let mut nested = 0;
                 while let Some(item) = input.peek() {
-                    if let TokenTree::Punct(punct) = item && punct.as_char() == '>' {
-                        break;
+                    if let TokenTree::Punct(punct) = item {
+                        match punct.as_char() {
+                            '<' => nested += 1,
+                            '>' => {
+                                if nested == 0 {break;}
+                                nested -= 1;
+                            },
+                            ',' if nested == 0 => {let _ = input.next(); break},
+                            _ => {}
+                        };
                     }
                     constraints.extend(once(input.next().unwrap()));
                 }
