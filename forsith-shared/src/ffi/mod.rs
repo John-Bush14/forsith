@@ -12,41 +12,56 @@ pub struct FFILibConfig {
     pub header: Cow<'static, str>,
 }
 
+#[derive(Default, Debug)]
 pub struct FFIItems<'a>(Vec<FFIItem<'a>>);
 
+#[derive(Debug)]
 pub enum FFIItem<'a> {
-    Struct(FFIStruct<'a>)
+    Struct(FFIStruct<'a>),
+    Function(FFIFunction<'a>),
+    Mod(FFIMod<'a>),
 }
 
+#[derive(Debug)]
+pub struct FFIMod<'a> {
+    name: &'a str,
+    items: FFIItems<'a>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FFIStruct<'a> {
     name: &'a str,
     fields: Vec<FFIField<'a>>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FFIFunction<'a> {
     name: &'a str,
     params: Vec<FFIField<'a>>,
     ret_ty: FFIType<'a>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FFIField<'a> {
     ty: FFIType<'a>,
     meta: FFIFieldMetadata,
     optional: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FFIFieldMetadata {
     None,
     Len(usize),
     LenField(&'static str),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FFIType<'a> {
     value_type: FFIValueType<'a>,
     indirection: Indirection,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FFIValueType<'a> {
     Void,
     Primitive(FFIPrimitive),
@@ -69,6 +84,7 @@ pub enum FFIPrimitive {
     F64,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Indirection {
     None,
     Ptr,
