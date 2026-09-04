@@ -1,10 +1,13 @@
 use std::borrow::Cow;
 
-mod definition;
+use crate::interner::{InternedString, StringInterner};
 
-pub struct FFILib<'a> {
-    items: FFIItems<'a>,
-    config: FFILibConfig
+mod definition;
+pub use definition::InternedFFISymbols;
+
+pub struct FFILib {
+    items: FFIItems,
+    config: FFILibConfig,
 }
 
 pub struct FFILibConfig {
@@ -13,66 +16,66 @@ pub struct FFILibConfig {
 }
 
 #[derive(Default, Debug)]
-pub struct FFIItems<'a>(Vec<FFIItem<'a>>);
+pub struct FFIItems(Vec<FFIItem>);
 
 #[derive(Debug)]
-pub enum FFIItem<'a> {
-    Struct(FFIStruct<'a>),
-    Function(FFIFunction<'a>),
-    Mod(FFIMod<'a>),
-    Use(UseItem<'a>),
-    TypeAlias(TypeAlias<'a>),
-    Constant(Constant<'a>),
+pub enum FFIItem {
+    Struct(FFIStruct),
+    Function(FFIFunction),
+    Mod(FFIMod),
+    Use(UseItem),
+    TypeAlias(TypeAlias),
+    Constant(Constant),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Constant<'a> {
-    pub name: &'a str,
-    pub ty: FFIValueType<'a>,
-    pub value: &'a str,
+pub struct Constant {
+    pub name: InternedString,
+    pub ty: FFIValueType,
+    pub value: InternedString,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TypeAlias<'a> {
-    pub name: &'a str,
-    pub ty: FFIType<'a>,
+pub struct TypeAlias {
+    pub name: InternedString,
+    pub ty: FFIType,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UseItem<'a> {
-    pub path: &'a str,
-    pub visibility: Visibility<'a>,
+pub struct UseItem {
+    pub path: InternedString,
+    pub visibility: Visibility,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Visibility<'a> {
+pub enum Visibility {
     Pub,
     Priv,
-    CustomPub(&'a str)
+    CustomPub(InternedString)
 }
 
 #[derive(Debug)]
-pub struct FFIMod<'a> {
-    name: &'a str,
-    items: FFIItems<'a>,
+pub struct FFIMod {
+    name: InternedString,
+    items: FFIItems,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FFIStruct<'a> {
-    name: &'a str,
-    fields: Vec<FFIField<'a>>,
+pub struct FFIStruct {
+    name: InternedString,
+    fields: Vec<FFIField>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FFIFunction<'a> {
-    name: &'a str,
-    params: Vec<FFIField<'a>>,
-    ret_ty: FFIType<'a>,
+pub struct FFIFunction {
+    name: InternedString,
+    params: Vec<FFIField>,
+    ret_ty: FFIType,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FFIField<'a> {
-    ty: FFIType<'a>,
+pub struct FFIField {
+    ty: FFIType,
     meta: FFIFieldMetadata,
     optional: bool,
 }
@@ -85,16 +88,16 @@ pub enum FFIFieldMetadata {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FFIType<'a> {
-    value_type: FFIValueType<'a>,
+pub struct FFIType {
+    value_type: FFIValueType,
     indirection: Indirection,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum FFIValueType<'a> {
+pub enum FFIValueType {
     Void,
     Primitive(FFIPrimitive),
-    Custom(&'a str),
+    Custom(InternedString),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
