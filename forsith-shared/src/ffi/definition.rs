@@ -1,20 +1,12 @@
-use crate::{ffi::{Constant, FFIField, FFIFieldMetadata, FFIFunction, FFIItem, FFIItems, FFILib, FFILibConfig, FFIMod, FFIPrimitive, FFIStruct, FFIType, FFIValueType, Indirection, TypeAlias, UseItem, Visibility}, interner::{InternedString, StringInterner}};
-
+use crate::{ffi::{Constant, FFIFunction, FFIItem, FFIItems, FFILib, FFILibConfig, FFIMod, FFIPrimitive, FFIStruct, FFIType, FFIValueType, Indirection, TypeAlias, UseItem}, interner::{InternedString, StringInterner}};
 
 impl FFILib {
-    pub fn def_struct(&mut self, name: InternedString, fields: Vec<FFIField>) {
-        self.items.0.push(FFIItem::Struct(FFIStruct {
-            name,
-            fields,
-        }));
+    pub fn def_struct(&mut self, r#struct: FFIStruct) {
+        self.items.0.push(FFIItem::Struct(r#struct));
     }
 
-    pub fn def_function(&mut self, name: InternedString, params: Vec<FFIField>, ret_ty: FFIType) {
-        self.items.0.push(FFIItem::Function(FFIFunction {
-            name,
-            params,
-            ret_ty,
-        }));
+    pub fn def_function(&mut self, function: FFIFunction) {
+        self.items.0.push(FFIItem::Function(function));
     }
 
     pub fn def_mod<R>(&mut self, name: InternedString, def: impl FnOnce(&mut FFIItems) -> R) -> R {
@@ -30,26 +22,16 @@ impl FFILib {
         r
     }
 
-    pub fn def_use(&mut self, path: InternedString, visibility: Visibility) {
-        self.items.0.push(FFIItem::Use(UseItem {
-            path,
-            visibility,
-        }));
+    pub fn def_use(&mut self, use_item: UseItem) {
+        self.items.0.push(FFIItem::Use(use_item));
     }
 
-    pub fn def_type_alias(&mut self, name: InternedString, ty: FFIType) {
-        self.items.0.push(FFIItem::TypeAlias(TypeAlias {
-            name,
-            ty,
-        }));
+    pub fn def_type_alias(&mut self, type_alias: TypeAlias) {
+        self.items.0.push(FFIItem::TypeAlias(type_alias));
     }
 
-    pub fn def_constant(&mut self, name: InternedString, ty: FFIValueType, value: InternedString) {
-        self.items.0.push(FFIItem::Constant(Constant {
-            name,
-            ty,
-            value,
-        }));
+    pub fn def_constant(&mut self, constant: Constant) {
+        self.items.0.push(FFIItem::Constant(constant));
     }
 
     #[must_use]
@@ -72,47 +54,6 @@ impl FFILib {
     }
 }
 
-
-impl FFIField {
-    #[must_use]
-    pub fn new(ty: FFIType, meta: FFIFieldMetadata, optional: bool) -> FFIField {
-        Self {
-            ty,
-            meta,
-            optional,
-        }
-    }
-}
-
-impl FFILib  {
-    #[must_use]
-    pub fn new(config: FFILibConfig) -> Self {
-        Self {
-            items: FFIItems::default(),
-            config,
-        }
-    }
-}
-
-impl FFIType {
-    #[must_use]
-    pub fn new(value_type: FFIValueType, indirection: Indirection) -> Self {
-        Self {
-            value_type,
-            indirection,
-        }
-    }
-
-    #[must_use]
-    pub fn from_c_value_type(s: InternedString, indirection: Indirection, table: &InternedFFISymbols) -> Self {
-        let value_type = FFIValueType::from_c_type(s, table);
-        Self {
-            value_type,
-            indirection,
-        }
-    }
-}
-
 pub struct InternedFFISymbols {
     void: InternedString,
     bool: InternedString,
@@ -127,6 +68,27 @@ pub struct InternedFFISymbols {
     u64: InternedString,
     f32: InternedString,
     f64: InternedString,
+}
+
+impl FFILib  {
+    #[must_use]
+    pub fn new(config: FFILibConfig) -> Self {
+        Self {
+            items: FFIItems::default(),
+            config,
+        }
+    }
+}
+
+impl FFIType {
+    #[must_use]
+    pub fn from_c_value_type(s: InternedString, indirection: Indirection, table: &InternedFFISymbols) -> Self {
+        let value_type = FFIValueType::from_c_type(s, table);
+        Self {
+            value_type,
+            indirection,
+        }
+    }
 }
 
 impl FFIValueType {

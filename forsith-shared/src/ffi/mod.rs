@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use crate::interner::{InternedString, StringInterner};
+use crate::interner::InternedString;
 
 mod definition;
 pub use definition::InternedFFISymbols;
@@ -19,7 +19,7 @@ pub struct FFILibConfig {
 pub struct FFIItems(Vec<FFIItem>);
 
 #[derive(Debug)]
-pub enum FFIItem {
+enum FFIItem {
     Struct(FFIStruct),
     Function(FFIFunction),
     Mod(FFIMod),
@@ -55,29 +55,29 @@ pub enum Visibility {
 }
 
 #[derive(Debug)]
-pub struct FFIMod {
+struct FFIMod {
     name: InternedString,
     items: FFIItems,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FFIStruct {
-    name: InternedString,
-    fields: Vec<FFIField>,
+    pub name: InternedString,
+    pub fields: Vec<FFIField>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FFIFunction {
-    name: InternedString,
-    params: Vec<FFIField>,
-    ret_ty: FFIType,
+    pub name: InternedString,
+    pub params: Vec<FFIField>,
+    pub ret_ty: FFIType,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FFIField {
-    ty: FFIType,
-    meta: FFIFieldMetadata,
-    optional: bool,
+    pub ty: FFIType,
+    pub meta: FFIFieldMetadata,
+    pub optional: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -89,8 +89,8 @@ pub enum FFIFieldMetadata {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FFIType {
-    value_type: FFIValueType,
-    indirection: Indirection,
+    pub value_type: FFIValueType,
+    pub indirection: Indirection,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
