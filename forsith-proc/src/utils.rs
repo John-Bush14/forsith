@@ -71,6 +71,7 @@ pub fn parse_struct_fields(input: &mut impl Iterator<Item = TokenTree>) -> Vec<(
 
     let group = match input.next() {
         Some(TokenTree::Group(group)) => group,
+        Some(TokenTree::Punct(punct)) if punct.char() == PunctChar::Semicolon => return fields,
         t => panic!("Expected group of struct fields, found `{:?}`", t),
     };
 
