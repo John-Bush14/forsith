@@ -1,5 +1,4 @@
-use forsith_shared::casing::{Casing, change_casing};
-use proc_macro::{Ident, Span, TokenStream};
+use forsith_shared::{proc_macro::{TokenStream, Ident}, casing::{Casing, change_casing}};
 use crate::utils::{ItemType, impl_item, parse_enum_variants, parse_item, parse_struct_fields,};
 
 pub fn derive_is_variant(input: TokenStream) -> TokenStream {
@@ -12,7 +11,7 @@ pub fn derive_is_variant(input: TokenStream) -> TokenStream {
 
     let mut functions = TokenStream::new();
     for (variant_ident, _, _) in variants.into_iter() {
-        let func_name = Ident::new(&format!("is_{}", change_casing(&variant_ident.to_string(), Casing::Snake)), Span::call_site());
+        let func_name = Ident::new(&format!("is_{}", change_casing(&variant_ident.to_string(), Casing::Snake)));
 
         functions.extend(quote!(
             #[doc = concat!("Returns `true` if the enum is the variant `", stringify!(#variant_ident), "`.")]
