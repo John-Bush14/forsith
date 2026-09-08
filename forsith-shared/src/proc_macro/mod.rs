@@ -1,33 +1,69 @@
-use std::ffi::CString;
+use std::{ffi::CString, ops::{Deref, Index, IndexMut}};
 
 #[cfg(feature = "in_proc_macro")]
 extern crate proc_macro;
 
-#[derive(Clone, Debug)]
-pub struct TokenStream {
-    pub tokens: Vec<TokenTree>
+#[derive(Clone, Debug, Default)]
+pub struct TokenStream(Vec<TokenTree>);
+
+impl TokenStream {
+    pub fn new() -> Self {Self::default()}
+
+    pub fn is_empty(&self) -> bool {self.0.is_empty()}
+    pub fn len(&self) -> usize {self.0.len()}
+
+    pub fn inner(&self) -> &[TokenTree] {&self.0}
+    pub fn inner_mut(&mut self) -> &mut Vec<TokenTree> {&mut self.0}
+}
+
+impl Index<usize> for TokenStream {
+    type Output = TokenTree;
+
+    fn index(&self, index: usize) -> &Self::Output {&self.0[index]}
+}
+
+impl IndexMut<usize> for TokenStream {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {&mut self.0[index]}
 }
 
 #[cfg(feature = "in_proc_macro")]
 impl From<proc_macro::TokenStream> for TokenStream {
     fn from(ts: proc_macro::TokenStream) -> Self {
-        let mut tokens = Vec::new();
-
-        for token in ts {
-            tokens.push(token.into());
-        }
-
-        Self { tokens }
+        Self(ts.into_iter().map(Into::into).collect())
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct Ident(String);
-
 #[cfg(feature = "in_proc_macro")]
-impl From<proc_macro::Ident> for Ident {
-    fn from(i: proc_macro::Ident) -> Self {
-        Self(i.to_string())
+impl From<TokenStream> for proc_macro::TokenStream {
+    fn from(sts: TokenStream) -> Self {
+        let mut pcts =  proc_macro::TokenStream::new();
+        pcts.extend(sts.0.into_iter().map(Into::<proc_macro::TokenTree>::into));
+        pcts
+    }
+}
+
+impl From<Vec<TokenTree>> for TokenStream {
+    fn from(value: Vec<TokenTree>) -> Self {Self(value)}
+}
+
+impl FromIterator<TokenStream> for TokenStream {
+    fn from_iter<I: IntoIterator<Item = TokenStream>>(iter: I) -> Self {
+        let mut ts = TokenStream::default();
+        ts.extend(iter);
+        ts
+    }
+}
+
+impl IntoIterator for TokenStream {
+    type Item = TokenTree;
+    type IntoIter = std::vec::IntoIter<TokenTree>;
+
+    fn into_iter(self) -> Self::IntoIter {self.0.into_iter()}
+}
+
+impl Extend<TokenStream> for TokenStream {
+    fn extend<I: IntoIterator<Item = TokenStream>>(&mut self, iter: I) {
+        for ts in iter {self.0.extend(ts);}
     }
 }
 
@@ -51,7 +87,58 @@ impl From<proc_macro::TokenTree> for TokenTree {
     }
 }
 
+#[cfg(feature = "in_proc_macro")]
+impl From<TokenTree> for proc_macro::TokenTree {
+    fn from(tt: TokenTree) -> Self {
+        match tt {
+            TokenTree::Group(g) => proc_macro::TokenTree::Group(g.into()),
+            TokenTree::Ident(i) => proc_macro::TokenTree::Ident(i.into()),
+            TokenTree::Punct(p) => proc_macro::TokenTree::Punct(p.into()),
+            TokenTree::Literal(l) => proc_macro::TokenTree::Literal(l.into()),
+        }
+    }
+}
+
+impl Extend<TokenTree> for TokenStream {
+    fn extend<T: IntoIterator<Item = TokenTree>>(&mut self, iter: T) {
+        self.0.extend(iter);
+    }
+}
+
+impl FromIterator<TokenTree> for TokenStream {
+    fn from_iter<I: IntoIterator<Item = TokenTree>>(iter: I) -> Self {
+        Self(iter.into_iter().collect())
+    }
+}
+
 #[derive(Clone, Debug)]
+pub struct Ident(String);
+
+#[cfg(feature = "in_proc_macro")]
+impl From<proc_macro::Ident> for Ident {
+    fn from(i: proc_macro::Ident) -> Self {
+        Self(i.to_string())
+    }
+}
+
+#[cfg(feature = "in_proc_macro")]
+impl From<Ident> for proc_macro::Ident {
+    fn from(i: Ident) -> Self {
+        proc_macro::Ident::new(&i.0, proc_macro::Span::call_site())
+    }
+}
+
+impl Ident {
+    pub fn new(name: &str) -> Self {Self(name.to_string())}
+}
+
+impl Deref for Ident {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {&self.0}
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Punct {
     char: PunctChar,
     joint: bool,
@@ -67,7 +154,22 @@ impl From<proc_macro::Punct> for Punct {
     }
 }
 
-#[derive(Clone, Debug)]
+#[cfg(feature = "in_proc_macro")]
+impl From<Punct> for proc_macro::Punct {
+    fn from(p: Punct) -> Self {
+        let spacing = if p.joint {proc_macro::Spacing::Joint} else {proc_macro::Spacing::Alone};
+        proc_macro::Punct::new(p.char.into(), spacing)
+    }
+}
+
+impl Punct {
+    pub const fn new(char: PunctChar, joint: bool) -> Self {Self {char, joint}}
+
+    pub const fn char(&self) -> PunctChar {self.char}
+    pub const fn joint(&self) -> bool {self.joint}
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Copy)]
 pub enum PunctChar {
     Comma,
     Semicolon,
@@ -119,33 +221,127 @@ impl From<char> for PunctChar {
     }
 }
 
-#[derive(Clone, Debug)]
+impl From<PunctChar> for char {
+    fn from(pc: PunctChar) -> Self {
+        use PunctChar::*;
+        match pc {
+            Comma => ',',
+            Semicolon => ';',
+            Colon => ':',
+            Dot => '.',
+            Plus => '+',
+            Minus => '-',
+            Star => '*',
+            Slash => '/',
+            Percent => '%',
+            Caret => '^',
+            Ampersand => '&',
+            Pipe => '|',
+            Bang => '!',
+            Tilde => '~',
+            Hash => '#',
+            Equal => '=',
+            LessThan => '<',
+            GreaterThan => '>',
+            GreaterEqual => '>',
+            LessEqual => '<',
+            NotEqual => '!',
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub enum Literal {
     Char(char),
-    Integer(usize, Option<String>),
-    Float(f64, Option<String>),
+    Integer(usize, Option<IntegerSuffix>),
+    Float(f64, Option<FloatSuffix>),
     Str(String),
     ByteStr(Vec<u8>),
     CStr(CString),
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Copy)]
+pub enum IntegerSuffix {
+    U8,
+    U16,
+    U32,
+    U64,
+    Usize,
+    I8,
+    I16,
+    I32,
+    I64,
+    Isize,
+}
+
+impl IntegerSuffix {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            IntegerSuffix::U8 => "u8",
+            IntegerSuffix::U16 => "u16",
+            IntegerSuffix::U32 => "u32",
+            IntegerSuffix::U64 => "u64",
+            IntegerSuffix::Usize => "usize",
+            IntegerSuffix::I8 => "i8",
+            IntegerSuffix::I16 => "i16",
+            IntegerSuffix::I32 => "i32",
+            IntegerSuffix::I64 => "i64",
+            IntegerSuffix::Isize => "isize",
+        }
+    }
+
+    pub fn variants() -> &'static [IntegerSuffix] {
+        &[
+            IntegerSuffix::U8,
+            IntegerSuffix::U16,
+            IntegerSuffix::U32,
+            IntegerSuffix::U64,
+            IntegerSuffix::Usize,
+            IntegerSuffix::I8,
+            IntegerSuffix::I16,
+            IntegerSuffix::I32,
+            IntegerSuffix::I64,
+            IntegerSuffix::Isize,
+        ]
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Copy)]
+pub enum FloatSuffix {
+    F32,
+    F64,
+}
+
+impl FloatSuffix {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            FloatSuffix::F32 => "f32",
+            FloatSuffix::F64 => "f64",
+        }
+    }
+
+    pub fn variants() -> &'static [FloatSuffix] {
+        &[FloatSuffix::F32, FloatSuffix::F64]
+    }
+}
+
 #[cfg(feature = "in_proc_macro")]
 impl From<proc_macro::Literal> for Literal {
     fn from(l: proc_macro::Literal) -> Self {
-        for suffix in &["u8", "u16", "u32", "u64", "usize", "i8", "i16", "i32", "i64", "isize"] {
-            if l.to_string().ends_with(suffix) {
-                let value = l.to_string()[..l.to_string().len() - suffix.len()].to_string();
+        for suffix in IntegerSuffix::variants() {
+            if l.to_string().ends_with(suffix.as_str()) {
+                let value = l.to_string()[..l.to_string().len() - suffix.as_str().len()].to_string();
                 if let Ok(i) = value.parse::<usize>() {
-                    return Literal::Integer(i, Some(suffix.to_string()));
+                    return Literal::Integer(i, Some(*suffix));
                 }
             }
         }
 
-        for suffix in &["f32", "f64"] {
-            if l.to_string().ends_with(suffix) {
-                let value = l.to_string()[..l.to_string().len() - suffix.len()].to_string();
+        for suffix in FloatSuffix::variants() {
+            if l.to_string().ends_with(suffix.as_str()) {
+                let value = l.to_string()[..l.to_string().len() - suffix.as_str().len()].to_string();
                 if let Ok(i) = value.parse::<f64>() {
-                    return Literal::Float(i, Some(suffix.to_string()));
+                    return Literal::Float(i, Some(*suffix));
                 }
             }
         }
@@ -170,6 +366,43 @@ impl From<proc_macro::Literal> for Literal {
     }
 }
 
+#[cfg(feature = "in_proc_macro")]
+impl From<Literal> for proc_macro::Literal {
+    fn from(l: Literal) -> Self {
+        match l {
+            Literal::Char(c) => proc_macro::Literal::character(c),
+            Literal::Integer(i, Some(suffix)) => {
+                match suffix {
+                    IntegerSuffix::U8 => proc_macro::Literal::u8_suffixed(i as u8),
+                    IntegerSuffix::U16 => proc_macro::Literal::u16_suffixed(i as u16),
+                    IntegerSuffix::U32 => proc_macro::Literal::u32_suffixed(i as u32),
+                    IntegerSuffix::U64 => proc_macro::Literal::u64_suffixed(i as u64),
+                    IntegerSuffix::Usize => proc_macro::Literal::usize_suffixed(i),
+                    IntegerSuffix::I8 => proc_macro::Literal::i8_suffixed(i as i8),
+                    IntegerSuffix::I16 => proc_macro::Literal::i16_suffixed(i as i16),
+                    IntegerSuffix::I32 => proc_macro::Literal::i32_suffixed(i as i32),
+                    IntegerSuffix::I64 => proc_macro::Literal::i64_suffixed(i as i64),
+                    IntegerSuffix::Isize => proc_macro::Literal::isize_suffixed(i as isize),
+                }
+            }
+            Literal::Integer(i, None) => proc_macro::Literal::usize_unsuffixed(i),
+            Literal::Float(f, Some(suffix)) => {
+                match suffix {
+                    FloatSuffix::F32 => proc_macro::Literal::f32_suffixed(f as f32),
+                    FloatSuffix::F64 => proc_macro::Literal::f64_suffixed(f),
+                }
+            }
+            Literal::Float(f, None) => proc_macro::Literal::f64_unsuffixed(f),
+            Literal::Str(s) => proc_macro::Literal::string(&s),
+            Literal::ByteStr(bs) => proc_macro::Literal::byte_string(&bs),
+            Literal::CStr(cstr) => {
+                let s = cstr.to_str().expect("Failed to convert CString to str");
+                proc_macro::Literal::string(s)
+            }
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Group {
     pub delimiter: Delimiter,
@@ -186,7 +419,23 @@ impl From<proc_macro::Group> for Group {
     }
 }
 
-#[derive(Clone, Debug)]
+#[cfg(feature = "in_proc_macro")]
+impl From<Group> for proc_macro::Group {
+    fn from(g: Group) -> Self {
+        let mut group = proc_macro::Group::new(g.delimiter().into(), g.stream.into());
+        group.set_span(proc_macro::Span::call_site());
+        group
+    }
+}
+
+impl Group {
+    pub const fn new(delimiter: Delimiter, stream: TokenStream) -> Self {Self {delimiter, stream}}
+
+    pub const fn stream(&self) -> &TokenStream {&self.stream}
+    pub const fn delimiter(&self) -> Delimiter {self.delimiter}
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Copy)]
 pub enum Delimiter {
     Parenthesis,
     Brace,
@@ -202,6 +451,18 @@ impl From<proc_macro::Delimiter> for Delimiter {
             proc_macro::Delimiter::Brace => Delimiter::Brace,
             proc_macro::Delimiter::Bracket => Delimiter::Bracket,
             proc_macro::Delimiter::None => Delimiter::None,
+        }
+    }
+}
+
+#[cfg(feature = "in_proc_macro")]
+impl From<Delimiter> for proc_macro::Delimiter {
+    fn from(d: Delimiter) -> Self {
+        match d {
+            Delimiter::Parenthesis => proc_macro::Delimiter::Parenthesis,
+            Delimiter::Brace => proc_macro::Delimiter::Brace,
+            Delimiter::Bracket => proc_macro::Delimiter::Bracket,
+            Delimiter::None => proc_macro::Delimiter::None,
         }
     }
 }
