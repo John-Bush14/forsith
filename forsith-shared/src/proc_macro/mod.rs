@@ -1,4 +1,4 @@
-use std::{ffi::CString, ops::{Deref, Index, IndexMut}};
+use std::{ffi::CString, fmt::Display, ops::{Deref, Index, IndexMut}};
 
 #[cfg(feature = "in_proc_macro")]
 extern crate proc_macro;
@@ -44,6 +44,13 @@ impl From<TokenStream> for proc_macro::TokenStream {
 
 impl From<Vec<TokenTree>> for TokenStream {
     fn from(value: Vec<TokenTree>) -> Self {Self(value)}
+}
+
+impl Display for TokenStream {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for tt in &self.0 {write!(f, "{}", tt)?;}
+        Ok(())
+    }
 }
 
 impl FromIterator<TokenStream> for TokenStream {
@@ -99,6 +106,17 @@ impl From<TokenTree> for proc_macro::TokenTree {
     }
 }
 
+impl Display for TokenTree {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TokenTree::Group(g) => write!(f, "{}", g),
+            TokenTree::Ident(i) => write!(f, "{}", i),
+            TokenTree::Punct(p) => write!(f, "{}", p),
+            TokenTree::Literal(l) => write!(f, "{}", l),
+        }
+    }
+}
+
 impl Extend<TokenTree> for TokenStream {
     fn extend<T: IntoIterator<Item = TokenTree>>(&mut self, iter: T) {
         self.0.extend(iter);
@@ -136,6 +154,12 @@ impl Extend<Ident> for TokenStream {
 
 impl Ident {
     pub fn new(name: &str) -> Self {Self(name.to_string())}
+}
+
+impl Display for Ident {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
 }
 
 impl Deref for Ident {
@@ -184,6 +208,7 @@ impl Punct {
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
 pub enum PunctChar {
     Comma,
+    Qoute,
     Semicolon,
     Colon,
     Dot,
@@ -202,8 +227,6 @@ pub enum PunctChar {
     LessThan,
     GreaterThan,
     GreaterEqual,
-    LessEqual,
-    NotEqual,
 }
 
 impl From<char> for PunctChar {
@@ -217,6 +240,7 @@ impl From<char> for PunctChar {
             '+' => Plus,
             '-' => Minus,
             '*' => Star,
+            '\'' => Qoute,
             '/' => Slash,
             '%' => Percent,
             '^' => Caret,
@@ -256,8 +280,17 @@ impl From<PunctChar> for char {
             LessThan => '<',
             GreaterThan => '>',
             GreaterEqual => '>',
-            LessEqual => '<',
-            NotEqual => '!',
+            Qoute => '\'',
+        }
+    }
+}
+
+impl Display for Punct {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.joint {
+            write!(f, "{}", char::from(self.char))
+        } else {
+            write!(f, "{} ", char::from(self.char))
         }
     }
 }
@@ -415,6 +448,21 @@ impl From<Literal> for proc_macro::Literal {
     }
 }
 
+impl Display for Literal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Literal::Char(c) => write!(f, "'{}'", c),
+            Literal::Integer(i, Some(suffix)) => write!(f, "{}{}", i, suffix.as_str()),
+            Literal::Integer(i, None) => write!(f, "{}", i),
+            Literal::Float(fl, Some(suffix)) => write!(f, "{}{}", fl, suffix.as_str()),
+            Literal::Float(fl, None) => write!(f, "{}", fl),
+            Literal::Str(s) => write!(f, "\"{}\"", s),
+            Literal::ByteStr(bs) => write!(f, "b\"{}\"", String::from_utf8_lossy(bs)),
+            Literal::CStr(cstr) => write!(f, "c\"{}\"", cstr.to_str().expect("Failed to convert CString to str")),
+        }
+    }
+}
+
 impl Extend<Literal> for TokenStream {
     fn extend<T: IntoIterator<Item = Literal>>(&mut self, iter: T) {
         self.0.extend(iter.into_iter().map(TokenTree::Literal));
@@ -446,6 +494,18 @@ impl From<Group> for proc_macro::Group {
     }
 }
 
+impl  Display for Group {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let (open, close) = match self.delimiter {
+            Delimiter::Parenthesis => ('(', ')'),
+            Delimiter::Brace => ('{', '}'),
+            Delimiter::Bracket => ('[', ']'),
+            Delimiter::None => (' ', ' '),
+        };
+        write!(f, "{}{}{}", open, self.stream, close)
+    }
+}
+
 impl Extend<Group> for TokenStream {
     fn extend<T: IntoIterator<Item = Group>>(&mut self, iter: T) {
         self.0.extend(iter.into_iter().map(TokenTree::Group));
@@ -456,6 +516,7 @@ impl Group {
     pub const fn new(delimiter: Delimiter, stream: TokenStream) -> Self {Self {delimiter, stream}}
 
     pub const fn stream(&self) -> &TokenStream {&self.stream}
+    pub fn take_stream(self) -> TokenStream {self.stream}
     pub const fn delimiter(&self) -> Delimiter {self.delimiter}
 }
 
