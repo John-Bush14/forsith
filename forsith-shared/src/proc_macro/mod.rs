@@ -3,6 +3,8 @@ use std::{ffi::CString, fmt::Display, ops::{Deref, Index, IndexMut}};
 #[cfg(feature = "in_proc_macro")]
 extern crate proc_macro;
 
+pub mod quote;
+
 #[derive(Clone, Debug, Default)]
 pub struct TokenStream(Vec<TokenTree>);
 

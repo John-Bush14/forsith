@@ -1,50 +1,5 @@
 use std::iter::{Peekable, once};
-use forsith_shared::proc_macro::{Delimiter, Group, Ident, Literal, Punct, PunctChar, TokenStream, TokenTree};
-
-macro_rules! quote {
-    ($($tt:tt)*) => {{
-        #[allow(unused_mut)]
-        let mut tokens = TokenStream::new();
-        $(
-            tokens.extend(quote_tree!($tt));
-        )*
-        tokens
-    }};
-}
-
-macro_rules! quote_tree {
-    ((@ $($tt:tt)*)) => {[$($tt)*]};
-    ($ident:ident) => {{
-        use forsith_shared::proc_macro::{Ident};
-        [Ident::new(stringify!($ident))]
-    }};
-    (($($tt:tt)*)) => {{
-        use forsith_shared::proc_macro::{Group, Delimiter};
-        [Group::new(Delimiter::Parenthesis, quote!($($tt)*))]
-    }};
-    ({$($tt:tt)*}) => {{
-        use forsith_shared::proc_macro::{Group, Delimiter};
-        [Group::new(Delimiter::Brace, quote!($($tt)*))]
-    }};
-    ([$($tt:tt)*]) => {{
-        use forsith_shared::proc_macro::{Group, Delimiter};
-        [Group::new(Delimiter::Bracket, quote!($($tt)*))]
-    }};
-    ($lit:literal) => {{
-        use std::any::Any;
-        use forsith_shared::proc_macro::Literal;
-        if ($lit).type_id() == "".type_id() {[Literal::Str(String::from($lit))]}
-        else {panic!("Unsupported literal type: {:?}", stringify!($lit))}
-    }};
-    ($punct:tt) => {{
-        use forsith_shared::proc_macro::{Punct};
-        let puncts = stringify!($punct);
-        puncts
-            .chars()
-            .enumerate()
-            .map(|(i, c)| Punct::new(c.into(), i != puncts.len() - 1))
-    }};
-}
+use forsith_shared::{proc_macro::{Delimiter, Group, Ident, Literal, Punct, PunctChar, TokenStream, TokenTree}, quote};
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum ItemType {
