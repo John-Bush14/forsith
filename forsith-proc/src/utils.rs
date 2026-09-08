@@ -192,19 +192,15 @@ pub fn impl_item(item: &Item, r#trait: Option<TokenStream>, body: TokenStream) -
     }
     ).collect::<TokenStream>();
 
-    let mut impl_item = quote!(impl<(@ generic_def)>);
+    let trait_impl = if let Some(r#trait) = r#trait {
+        quote!( (@ r#trait) for)
+    } else {TokenStream::new()};
 
-    if let Some(r#trait) = r#trait {
-        impl_item.extend(quote!( (@ r#trait) for));
-    }
-
-    impl_item.extend(quote!(
-        (@ item.name().clone())<(@ generic_use)> {
+    quote!(
+        impl<(@ generic_def)> (@ trait_impl) (@ item.name().clone())<(@ generic_use)> {
             (@ body)
         }
-    ));
-
-    impl_item
+    )
 }
 
 pub fn parse_item(input: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Item {
@@ -240,8 +236,28 @@ pub fn parse_item(input: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Item
         let _ = input.next();
 
         loop {
-            let generic_ident = match input.next() {
-                Some(TokenTree::Ident(ident)) => ident,
+            match input.next() {
+                Some(TokenTree::Ident(ident)) => {
+                    let mut constraints = TokenStream::new();
+                    if let Some(TokenTree::Punct(punct)) = input.next() && punct.char() == PunctChar::Colon {
+                        let mut nested = 0;
+                        while let Some(item) = input.peek() {
+                            if let TokenTree::Punct(punct) = item {
+                                match punct.char() {
+                                    PunctChar::LessThan => nested += 1,
+                                    PunctChar::GreaterThan => {
+                                        if nested == 0 {break;}
+                                        nested -= 1;
+                                    },
+                                    PunctChar::Comma if nested == 0 => {let _ = input.next(); break},
+                                    _ => {}
+                                };
+                            }
+                            constraints.extend(once(input.next().unwrap()));
+                        }
+                    }
+                    generics.push(Generic::Type(ident, constraints));
+                },
                 Some(TokenTree::Punct(punct)) if punct.char() == PunctChar::GreaterThan => break,
                 Some(TokenTree::Punct(punct)) if punct.char() == PunctChar::Qoute => {
                     let lifetime_ident = match input.next() {
@@ -257,28 +273,8 @@ pub fn parse_item(input: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Item
                     continue
                 },
                 None => panic!("Expected Some after `<` in generics, found None"),
-                tt => panic!("Expected ident or `>` in generics, found `{:?}`", tt),
+                tt => panic!("Expected ident or `>` or \"'\" in generics, found `{:?}`", tt),
             };
-
-            let mut constraints = TokenStream::new();
-            if let Some(TokenTree::Punct(punct)) = input.next() && punct.char() == PunctChar::Colon {
-                let mut nested = 0;
-                while let Some(item) = input.peek() {
-                    if let TokenTree::Punct(punct) = item {
-                        match punct.char() {
-                            PunctChar::LessThan => nested += 1,
-                            PunctChar::GreaterThan => {
-                                if nested == 0 {break;}
-                                nested -= 1;
-                            },
-                            PunctChar::Comma if nested == 0 => {let _ = input.next(); break},
-                            _ => {}
-                        };
-                    }
-                    constraints.extend(once(input.next().unwrap()));
-                }
-            }
-            generics.push(Generic::Type(generic_ident, constraints));
         }
     };
 
