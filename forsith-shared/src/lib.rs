@@ -13,3 +13,5 @@ pub mod casing;
 pub mod error;
 
 pub mod ffi;
+
+pub mod proc_macro;
