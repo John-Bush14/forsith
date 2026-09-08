@@ -128,6 +128,12 @@ impl From<Ident> for proc_macro::Ident {
     }
 }
 
+impl Extend<Ident> for TokenStream {
+    fn extend<T: IntoIterator<Item = Ident>>(&mut self, iter: T) {
+        self.0.extend(iter.into_iter().map(TokenTree::Ident));
+    }
+}
+
 impl Ident {
     pub fn new(name: &str) -> Self {Self(name.to_string())}
 }
@@ -159,6 +165,12 @@ impl From<Punct> for proc_macro::Punct {
     fn from(p: Punct) -> Self {
         let spacing = if p.joint {proc_macro::Spacing::Joint} else {proc_macro::Spacing::Alone};
         proc_macro::Punct::new(p.char.into(), spacing)
+    }
+}
+
+impl Extend<Punct> for TokenStream {
+    fn extend<T: IntoIterator<Item = Punct>>(&mut self, iter: T) {
+        self.0.extend(iter.into_iter().map(TokenTree::Punct));
     }
 }
 
@@ -403,6 +415,12 @@ impl From<Literal> for proc_macro::Literal {
     }
 }
 
+impl Extend<Literal> for TokenStream {
+    fn extend<T: IntoIterator<Item = Literal>>(&mut self, iter: T) {
+        self.0.extend(iter.into_iter().map(TokenTree::Literal));
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Group {
     pub delimiter: Delimiter,
@@ -425,6 +443,12 @@ impl From<Group> for proc_macro::Group {
         let mut group = proc_macro::Group::new(g.delimiter().into(), g.stream.into());
         group.set_span(proc_macro::Span::call_site());
         group
+    }
+}
+
+impl Extend<Group> for TokenStream {
+    fn extend<T: IntoIterator<Item = Group>>(&mut self, iter: T) {
+        self.0.extend(iter.into_iter().map(TokenTree::Group));
     }
 }
 
