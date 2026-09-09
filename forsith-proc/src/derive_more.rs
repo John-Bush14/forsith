@@ -1,4 +1,4 @@
-use forsith_shared::{quote, proc_macro::{TokenStream, Ident}, casing::{Casing, change_casing}};
+use forsith_base::{quote, proc_macro::{TokenStream, Ident}, casing::{Casing, change_casing}};
 use crate::utils::{ItemType, impl_item, parse_enum_variants, parse_item, parse_struct_fields,};
 
 pub fn derive_is_variant(input: TokenStream) -> TokenStream {

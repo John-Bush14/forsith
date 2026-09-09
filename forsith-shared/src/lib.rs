@@ -8,10 +8,11 @@ pub mod int;
 
 pub mod bit;
 
-pub mod casing;
-
 pub mod error;
 
 pub mod ffi;
 
-pub mod proc_macro;
+pub use forsith_base::{
+    casing,
+    proc_macro,
+};

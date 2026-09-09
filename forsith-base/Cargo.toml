@@ -1,0 +1,8 @@
+[package]
+name = "forsith-base"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+in_proc_macro = []
+default = []

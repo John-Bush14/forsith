@@ -3,6 +3,6 @@ name = "forsith-shared"
 version = "0.1.0"
 edition = "2024"
 
-[features]
-in_proc_macro = []
-default = []
+[dependencies]
+forsith-base = { path = "../forsith-base" }
+forsith-proc = { path = "../forsith-proc" }

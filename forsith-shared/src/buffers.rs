@@ -1,15 +1,8 @@
-use std::{io::{BufRead, Cursor, Read, Seek}, ops::{Deref, DerefMut}};
+use std::{io::{BufRead, Cursor, Read, Seek}};
+use forsith_proc::{Deref, DerefMut};
 
-#[derive(Debug)]
+#[derive(Debug, Deref, DerefMut, Default)]
 pub struct CursorVec<T>(Cursor<Vec<T>>);
-
-impl<T> Deref for CursorVec<T> {
-    type Target = Cursor<Vec<T>>;
-    fn deref(&self) -> &Self::Target {&self.0}
-}
-impl<T> DerefMut for CursorVec<T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {&mut self.0}
-}
 
 impl<T: Default + Clone> CursorVec<T> {
     pub fn new(len: usize) -> Self {Self(Cursor::new(vec![T::default(); len]))}
@@ -19,8 +12,6 @@ impl<T: Default + Clone> CursorVec<T> {
         self.get_mut().resize(cap + len, T::default());
     }
 }
-
-impl<T> Default for CursorVec<T> {fn default() -> Self {Self(Cursor::new(Vec::new()))}}
 
 impl<T> CursorVec<T> {
     pub fn into_inner(self) -> Cursor<Vec<T>> {self.0}
@@ -83,20 +74,12 @@ impl Seek for CursorVec<u8> {
     fn seek(&mut self, pos: std::io::SeekFrom) -> std::io::Result<u64> {(**self).seek(pos)}
 }
 
-#[derive(Debug)]
+#[derive(Debug, Deref, DerefMut)]
 pub struct CursorString<'input>(std::io::Cursor<&'input str>);
 impl<'input> From<&'input str> for CursorString<'input> {
     fn from(s: &'input str) -> Self {
         Self(std::io::Cursor::new(s))
     }
-}
-
-impl<'a> Deref for CursorString<'a> {
-    type Target = std::io::Cursor<&'a str>;
-    fn deref(&self) -> &Self::Target {&self.0}
-}
-impl DerefMut for CursorString<'_> {
-    fn deref_mut(&mut self) -> &mut Self::Target {&mut self.0}
 }
 
 impl CursorString<'_> {

@@ -7,4 +7,4 @@ edition = "2024"
 proc-macro = true
 
 [dependencies]
-forsith-shared = { path = "../forsith-shared", package = "forsith-shared", features = ["in_proc_macro"] }
+forsith-base = { path = "../forsith-base", features = ["in_proc_macro"] }

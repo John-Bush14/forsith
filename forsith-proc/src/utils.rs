@@ -1,5 +1,5 @@
 use std::iter::{Peekable, once};
-use forsith_shared::{proc_macro::{Delimiter, Group, Ident, Literal, Punct, PunctChar, TokenStream, TokenTree}, quote};
+use forsith_base::{proc_macro::{Delimiter, Group, Ident, Literal, Punct, PunctChar, TokenStream, TokenTree}, quote};
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum ItemType {
@@ -239,7 +239,9 @@ pub fn parse_item(input: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Item
             match input.next() {
                 Some(TokenTree::Ident(ident)) => {
                     let mut constraints = TokenStream::new();
-                    if let Some(TokenTree::Punct(punct)) = input.next() && punct.char() == PunctChar::Colon {
+                    if let Some(TokenTree::Punct(punct)) = input.peek() && punct.char() == PunctChar::Colon {
+                        let _ = input.next();
+
                         let mut nested = 0;
                         while let Some(item) = input.peek() {
                             if let TokenTree::Punct(punct) = item {
