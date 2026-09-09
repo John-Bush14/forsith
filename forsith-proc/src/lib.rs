@@ -1,3 +1,5 @@
+#![warn(clippy::all, clippy::pedantic, clippy::nursery)]
+
 extern crate proc_macro;
 use proc_macro::TokenStream;
 

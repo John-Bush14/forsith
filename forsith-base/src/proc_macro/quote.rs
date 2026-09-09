@@ -34,6 +34,6 @@ macro_rules! quote_tree {
         puncts
             .chars()
             .enumerate()
-            .map(|(i, c)| $crate::proc_macro::Punct::new(c.into(), i != puncts.len() - 1))
+            .map(|(i, c)| $crate::proc_macro::Punct::new(c.try_into().expect("qoute! contained punctuation PunctChar can't contain?"), i != puncts.len() - 1))
     }};
 }

@@ -45,9 +45,11 @@ pub struct BitBuffer {
 }
 impl BitBuffer {
     #[inline(always)]
+    #[must_use]
     pub const fn bits_remaining(&self) -> u8 {self.bits_remaining}
 
     #[inline(always)]
+    #[must_use]
     pub const fn peek(&self, n: u8) -> u64 {
         self.buf & ((1 << n as usize) - 1)
     }
@@ -59,6 +61,7 @@ impl BitBuffer {
     }
 
     #[inline(always)]
+    #[allow(clippy::missing_panics_doc)] // constant assertion, will never (or always) panic
     pub fn push<T: Int>(&mut self, value: T) {
         assert!(T::MIN == 0, "BitBuffer.push should only be called with unsigned ints");
 
@@ -85,25 +88,30 @@ impl<T: Read + Default + Seek> BitReader<T> {
         }
     }
 
+    /// # Panics
+    /// Panics if the `stream_position` can't be obtained
     pub fn align(&mut self) -> Result<(), std::io::Error> {
-        let alignment = 4 - (self.buffer.stream_position().unwrap() as usize % align_of::<u32>());
+        let alignment = 4 - (self.buffer.stream_position().unwrap() % align_of::<u32>() as u64);
 
-        let mut buf = vec![0u8; alignment];
+        let mut buf = vec![0u8; usize::try_from(alignment).unwrap()];
         self.buffer.read_exact(&mut buf)?;
 
         for b in buf {self.bit_buf.push(b)}; Ok(())
     }
 
+    /// # Panics
+    /// Panics if `seek_relative` fails
     pub fn unconsume_bitbuf(&mut self) {
         let bitbuf_bytes = self.bit_buf.bits_remaining().div_euclid(8);
 
-        self.buffer.seek_relative(-(bitbuf_bytes as i64)).unwrap();
+        self.buffer.seek_relative(-i64::from(bitbuf_bytes)).unwrap();
         self.bit_buf.consume(self.bit_buf.bits_remaining());
     }
 }
 
 impl BitReader<CursorVec<u8>> {
     #[inline(always)]
+    #[allow(clippy::missing_panics_doc)] // Slice will always be 4 bytes, so this will never panic
     pub fn fill_bitbuf(&mut self) {
         // performance reasons
         let refil = u32::from_le_bytes(self.buffer.take_mut_slice(4).try_into().unwrap());

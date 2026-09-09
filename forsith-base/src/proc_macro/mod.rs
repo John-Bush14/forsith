@@ -9,13 +9,13 @@ pub mod quote;
 pub struct TokenStream(Vec<TokenTree>);
 
 impl TokenStream {
+    #[must_use]
     pub fn new() -> Self {Self::default()}
 
-    pub fn is_empty(&self) -> bool {self.0.is_empty()}
-    pub fn len(&self) -> usize {self.0.len()}
-
-    pub fn inner(&self) -> &[TokenTree] {&self.0}
-    pub fn inner_mut(&mut self) -> &mut Vec<TokenTree> {&mut self.0}
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {self.0.is_empty()}
+    #[must_use]
+    pub const fn len(&self) -> usize {self.0.len()}
 }
 
 impl Index<usize> for TokenStream {
@@ -38,7 +38,7 @@ impl From<proc_macro::TokenStream> for TokenStream {
 #[cfg(feature = "in_proc_macro")]
 impl From<TokenStream> for proc_macro::TokenStream {
     fn from(sts: TokenStream) -> Self {
-        let mut pcts =  proc_macro::TokenStream::new();
+        let mut pcts =  Self::new();
         pcts.extend(sts.0.into_iter().map(Into::<proc_macro::TokenTree>::into));
         pcts
     }
@@ -50,14 +50,14 @@ impl From<Vec<TokenTree>> for TokenStream {
 
 impl Display for TokenStream {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for tt in &self.0 {write!(f, "{}", tt)?;}
+        for tt in &self.0 {write!(f, "{tt}")?;}
         Ok(())
     }
 }
 
-impl FromIterator<TokenStream> for TokenStream {
-    fn from_iter<I: IntoIterator<Item = TokenStream>>(iter: I) -> Self {
-        let mut ts = TokenStream::default();
+impl FromIterator<Self> for TokenStream {
+    fn from_iter<I: IntoIterator<Item = Self>>(iter: I) -> Self {
+        let mut ts = Self::default();
         ts.extend(iter);
         ts
     }
@@ -70,8 +70,8 @@ impl IntoIterator for TokenStream {
     fn into_iter(self) -> Self::IntoIter {self.0.into_iter()}
 }
 
-impl Extend<TokenStream> for TokenStream {
-    fn extend<I: IntoIterator<Item = TokenStream>>(&mut self, iter: I) {
+impl Extend<Self> for TokenStream {
+    fn extend<I: IntoIterator<Item = Self>>(&mut self, iter: I) {
         for ts in iter {self.0.extend(ts);}
     }
 }
@@ -88,10 +88,10 @@ pub enum TokenTree {
 impl From<proc_macro::TokenTree> for TokenTree {
     fn from(tt: proc_macro::TokenTree) -> Self {
         match tt {
-            proc_macro::TokenTree::Group(g) => TokenTree::Group(g.into()),
-            proc_macro::TokenTree::Ident(i) => TokenTree::Ident(i.into()),
-            proc_macro::TokenTree::Punct(p) => TokenTree::Punct(p.into()),
-            proc_macro::TokenTree::Literal(l) => TokenTree::Literal(l.into()),
+            proc_macro::TokenTree::Group(g) => Self::Group(g.into()),
+            proc_macro::TokenTree::Ident(i) => Self::Ident(i.into()),
+            proc_macro::TokenTree::Punct(p) => Self::Punct(p.into()),
+            proc_macro::TokenTree::Literal(l) => Self::Literal(l.into()),
         }
     }
 }
@@ -100,10 +100,10 @@ impl From<proc_macro::TokenTree> for TokenTree {
 impl From<TokenTree> for proc_macro::TokenTree {
     fn from(tt: TokenTree) -> Self {
         match tt {
-            TokenTree::Group(g) => proc_macro::TokenTree::Group(g.into()),
-            TokenTree::Ident(i) => proc_macro::TokenTree::Ident(i.into()),
-            TokenTree::Punct(p) => proc_macro::TokenTree::Punct(p.into()),
-            TokenTree::Literal(l) => proc_macro::TokenTree::Literal(l.into()),
+            TokenTree::Group(g) => Self::Group(g.into()),
+            TokenTree::Ident(i) => Self::Ident(i.into()),
+            TokenTree::Punct(p) => Self::Punct(p.into()),
+            TokenTree::Literal(l) => Self::Literal(l.into()),
         }
     }
 }
@@ -111,10 +111,10 @@ impl From<TokenTree> for proc_macro::TokenTree {
 impl Display for TokenTree {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            TokenTree::Group(g) => write!(f, "{}", g),
-            TokenTree::Ident(i) => write!(f, "{}", i),
-            TokenTree::Punct(p) => write!(f, "{}", p),
-            TokenTree::Literal(l) => write!(f, "{}", l),
+            Self::Group(g) => write!(f, "{g}"),
+            Self::Ident(i) => write!(f, "{i}"),
+            Self::Punct(p) => write!(f, "{p}"),
+            Self::Literal(l) => write!(f, "{l}"),
         }
     }
 }
@@ -144,7 +144,7 @@ impl From<proc_macro::Ident> for Ident {
 #[cfg(feature = "in_proc_macro")]
 impl From<Ident> for proc_macro::Ident {
     fn from(i: Ident) -> Self {
-        proc_macro::Ident::new(&i.0, proc_macro::Span::call_site())
+        Self::new(&i.0, proc_macro::Span::call_site())
     }
 }
 
@@ -155,6 +155,7 @@ impl Extend<Ident> for TokenStream {
 }
 
 impl Ident {
+    #[must_use]
     pub fn new(name: &str) -> Self {Self(name.to_string())}
 }
 
@@ -177,10 +178,11 @@ pub struct Punct {
 }
 
 #[cfg(feature = "in_proc_macro")]
+#[allow(clippy::fallible_impl_from)]
 impl From<proc_macro::Punct> for Punct {
     fn from(p: proc_macro::Punct) -> Self {
         Self {
-            char: p.as_char().into(),
+            char: p.as_char().try_into().expect("Failed to convert proc_macro::Punct to PunctChar"),
             joint: p.spacing() == proc_macro::Spacing::Joint,
         }
     }
@@ -190,7 +192,7 @@ impl From<proc_macro::Punct> for Punct {
 impl From<Punct> for proc_macro::Punct {
     fn from(p: Punct) -> Self {
         let spacing = if p.joint {proc_macro::Spacing::Joint} else {proc_macro::Spacing::Alone};
-        proc_macro::Punct::new(p.char.into(), spacing)
+        Self::new(p.char.into(), spacing)
     }
 }
 
@@ -201,9 +203,12 @@ impl Extend<Punct> for TokenStream {
 }
 
 impl Punct {
+    #[must_use]
     pub const fn new(char: PunctChar, joint: bool) -> Self {Self {char, joint}}
 
+    #[must_use]
     pub const fn char(&self) -> PunctChar {self.char}
+    #[must_use]
     pub const fn joint(&self) -> bool {self.joint}
 }
 
@@ -228,13 +233,15 @@ pub enum PunctChar {
     Equal,
     LessThan,
     GreaterThan,
-    GreaterEqual,
 }
 
-impl From<char> for PunctChar {
-    fn from(c: char) -> Self {
+impl TryFrom<char> for PunctChar {
+    type Error = ();
+
+    fn try_from(c: char) -> Result<Self, Self::Error> {
+        #[allow(clippy::enum_glob_use)]
         use PunctChar::*;
-        match c {
+        Ok(match c {
             ',' => Comma,
             ';' => Semicolon,
             ':' => Colon,
@@ -254,13 +261,14 @@ impl From<char> for PunctChar {
             '#' => Hash,
             '<' => LessThan,
             '>' => GreaterThan,
-            _ => panic!("Unsupported punctuation: {}", c),
-        }
+            _ => return Err(()),
+        })
     }
 }
 
 impl From<PunctChar> for char {
     fn from(pc: PunctChar) -> Self {
+        #[allow(clippy::enum_glob_use)]
         use PunctChar::*;
         match pc {
             Comma => ',',
@@ -281,7 +289,6 @@ impl From<PunctChar> for char {
             Equal => '=',
             LessThan => '<',
             GreaterThan => '>',
-            GreaterEqual => '>',
             Qoute => '\'',
         }
     }
@@ -322,33 +329,35 @@ pub enum IntegerSuffix {
 }
 
 impl IntegerSuffix {
-    pub fn as_str(&self) -> &'static str {
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
         match self {
-            IntegerSuffix::U8 => "u8",
-            IntegerSuffix::U16 => "u16",
-            IntegerSuffix::U32 => "u32",
-            IntegerSuffix::U64 => "u64",
-            IntegerSuffix::Usize => "usize",
-            IntegerSuffix::I8 => "i8",
-            IntegerSuffix::I16 => "i16",
-            IntegerSuffix::I32 => "i32",
-            IntegerSuffix::I64 => "i64",
-            IntegerSuffix::Isize => "isize",
+            Self::U8 => "u8",
+            Self::U16 => "u16",
+            Self::U32 => "u32",
+            Self::U64 => "u64",
+            Self::Usize => "usize",
+            Self::I8 => "i8",
+            Self::I16 => "i16",
+            Self::I32 => "i32",
+            Self::I64 => "i64",
+            Self::Isize => "isize",
         }
     }
 
-    pub fn variants() -> &'static [IntegerSuffix] {
+    #[must_use]
+    pub const fn variants() -> &'static [Self] {
         &[
-            IntegerSuffix::U8,
-            IntegerSuffix::U16,
-            IntegerSuffix::U32,
-            IntegerSuffix::U64,
-            IntegerSuffix::Usize,
-            IntegerSuffix::I8,
-            IntegerSuffix::I16,
-            IntegerSuffix::I32,
-            IntegerSuffix::I64,
-            IntegerSuffix::Isize,
+            Self::U8,
+            Self::U16,
+            Self::U32,
+            Self::U64,
+            Self::Usize,
+            Self::I8,
+            Self::I16,
+            Self::I32,
+            Self::I64,
+            Self::Isize,
         ]
     }
 }
@@ -360,26 +369,29 @@ pub enum FloatSuffix {
 }
 
 impl FloatSuffix {
-    pub fn as_str(&self) -> &'static str {
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
         match self {
-            FloatSuffix::F32 => "f32",
-            FloatSuffix::F64 => "f64",
+            Self::F32 => "f32",
+            Self::F64 => "f64",
         }
     }
 
-    pub fn variants() -> &'static [FloatSuffix] {
-        &[FloatSuffix::F32, FloatSuffix::F64]
+    #[must_use]
+    pub const fn variants() -> &'static [Self] {
+        &[Self::F32, Self::F64]
     }
 }
 
 #[cfg(feature = "in_proc_macro")]
+#[allow(clippy::fallible_impl_from)]
 impl From<proc_macro::Literal> for Literal {
     fn from(l: proc_macro::Literal) -> Self {
         for suffix in IntegerSuffix::variants() {
             if l.to_string().ends_with(suffix.as_str()) {
                 let value = l.to_string()[..l.to_string().len() - suffix.as_str().len()].to_string();
                 if let Ok(i) = value.parse::<usize>() {
-                    return Literal::Integer(i, Some(*suffix));
+                    return Self::Integer(i, Some(*suffix));
                 }
             }
         }
@@ -388,27 +400,28 @@ impl From<proc_macro::Literal> for Literal {
             if l.to_string().ends_with(suffix.as_str()) {
                 let value = l.to_string()[..l.to_string().len() - suffix.as_str().len()].to_string();
                 if let Ok(i) = value.parse::<f64>() {
-                    return Literal::Float(i, Some(*suffix));
+                    return Self::Float(i, Some(*suffix));
                 }
             }
         }
 
         let s = l.to_string();
+        #[allow(clippy::option_if_let_else)]
         if let Ok(c) = s.parse::<char>() {
-            Literal::Char(c)
+            Self::Char(c)
         } else if let Ok(i) = l.to_string().parse::<usize>() {
-            Literal::Integer(i, None)
+            Self::Integer(i, None)
         } else if let Ok(f) = l.to_string().parse::<f64>() {
-            Literal::Float(f, None)
+            Self::Float(f, None)
         } else if s.starts_with('"') && s.ends_with('"') {
-            Literal::Str(s[1..s.len() - 1].to_string())
+            Self::Str(s[1..s.len() - 1].to_string())
         } else if s.starts_with("b\"") && s.ends_with('"') {
-            Literal::ByteStr(s.as_bytes()[2..s.len() - 1].to_vec())
+            Self::ByteStr(s.as_bytes()[2..s.len() - 1].to_vec())
         } else if s.starts_with("c\"") && s.ends_with('"') {
             let cstr = CString::new(&s[2..s.len() - 1]).expect("Failed to create CString");
-            Literal::CStr(cstr)
+            Self::CStr(cstr)
         } else {
-            panic!("Unsupported literal: {}", s);
+            panic!("Couldn't parse std proc_macro Literal: {s}");
         }
     }
 }
@@ -417,34 +430,35 @@ impl From<proc_macro::Literal> for Literal {
 impl From<Literal> for proc_macro::Literal {
     fn from(l: Literal) -> Self {
         match l {
-            Literal::Char(c) => proc_macro::Literal::character(c),
+            Literal::Char(c) => Self::character(c),
             Literal::Integer(i, Some(suffix)) => {
                 match suffix {
-                    IntegerSuffix::U8 => proc_macro::Literal::u8_suffixed(i as u8),
-                    IntegerSuffix::U16 => proc_macro::Literal::u16_suffixed(i as u16),
-                    IntegerSuffix::U32 => proc_macro::Literal::u32_suffixed(i as u32),
-                    IntegerSuffix::U64 => proc_macro::Literal::u64_suffixed(i as u64),
-                    IntegerSuffix::Usize => proc_macro::Literal::usize_suffixed(i),
-                    IntegerSuffix::I8 => proc_macro::Literal::i8_suffixed(i as i8),
-                    IntegerSuffix::I16 => proc_macro::Literal::i16_suffixed(i as i16),
-                    IntegerSuffix::I32 => proc_macro::Literal::i32_suffixed(i as i32),
-                    IntegerSuffix::I64 => proc_macro::Literal::i64_suffixed(i as i64),
-                    IntegerSuffix::Isize => proc_macro::Literal::isize_suffixed(i as isize),
+                    IntegerSuffix::U8 => Self::u8_suffixed(i.try_into().expect("Literal with suffix u8 must be valid u8")),
+                    IntegerSuffix::U16 => Self::u16_suffixed(i.try_into().expect("Literal with suffix u16 must be valid u16")),
+                    IntegerSuffix::U32 => Self::u32_suffixed(i.try_into().expect("Literal with suffix u32 must be valid u32")),
+                    IntegerSuffix::U64 => Self::u64_suffixed(i as u64),
+                    IntegerSuffix::Usize => Self::usize_suffixed(i),
+                    IntegerSuffix::I8 => Self::i8_suffixed(i.try_into().expect("Literal with suffix i8 must be valid i8")),
+                    IntegerSuffix::I16 => Self::i16_suffixed(i.try_into().expect("Literal with suffix i16 must be valid i16")),
+                    IntegerSuffix::I32 => Self::i32_suffixed(i.try_into().expect("Literal with suffix i32 must be valid i32")),
+                    IntegerSuffix::I64 => Self::i64_suffixed(i.try_into().expect("Literal with suffix i64 must be valid i64")),
+                    IntegerSuffix::Isize => Self::isize_suffixed(i.try_into().expect("Literal with suffix isize must be valid isize"))
                 }
             }
-            Literal::Integer(i, None) => proc_macro::Literal::usize_unsuffixed(i),
+            Literal::Integer(i, None) => Self::usize_unsuffixed(i),
             Literal::Float(f, Some(suffix)) => {
+                #[allow(clippy::cast_possible_truncation)]
                 match suffix {
-                    FloatSuffix::F32 => proc_macro::Literal::f32_suffixed(f as f32),
-                    FloatSuffix::F64 => proc_macro::Literal::f64_suffixed(f),
+                    FloatSuffix::F32 => Self::f32_suffixed(f as f32),
+                    FloatSuffix::F64 => Self::f64_suffixed(f),
                 }
             }
-            Literal::Float(f, None) => proc_macro::Literal::f64_unsuffixed(f),
-            Literal::Str(s) => proc_macro::Literal::string(&s),
-            Literal::ByteStr(bs) => proc_macro::Literal::byte_string(&bs),
+            Literal::Float(f, None) => Self::f64_unsuffixed(f),
+            Literal::Str(s) => Self::string(&s),
+            Literal::ByteStr(bs) => Self::byte_string(&bs),
             Literal::CStr(cstr) => {
                 let s = cstr.to_str().expect("Failed to convert CString to str");
-                proc_macro::Literal::string(s)
+                Self::string(s)
             }
         }
     }
@@ -453,14 +467,14 @@ impl From<Literal> for proc_macro::Literal {
 impl Display for Literal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Literal::Char(c) => write!(f, "'{}'", c),
-            Literal::Integer(i, Some(suffix)) => write!(f, "{}{}", i, suffix.as_str()),
-            Literal::Integer(i, None) => write!(f, "{}", i),
-            Literal::Float(fl, Some(suffix)) => write!(f, "{}{}", fl, suffix.as_str()),
-            Literal::Float(fl, None) => write!(f, "{}", fl),
-            Literal::Str(s) => write!(f, "\"{}\"", s),
-            Literal::ByteStr(bs) => write!(f, "b\"{}\"", String::from_utf8_lossy(bs)),
-            Literal::CStr(cstr) => write!(f, "c\"{}\"", cstr.to_str().expect("Failed to convert CString to str")),
+            Self::Char(c) => write!(f, "'{c}'"),
+            Self::Integer(i, Some(suffix)) => write!(f, "{}{}", i, suffix.as_str()),
+            Self::Integer(i, None) => write!(f, "{i}"),
+            Self::Float(fl, Some(suffix)) => write!(f, "{}{}", fl, suffix.as_str()),
+            Self::Float(fl, None) => write!(f, "{fl}"),
+            Self::Str(s) => write!(f, "\"{s}\""),
+            Self::ByteStr(bs) => write!(f, "b\"{}\"", String::from_utf8_lossy(bs)),
+            Self::CStr(cstr) => write!(f, "c\"{}\"", cstr.to_str().expect("Failed to convert CString to str")),
         }
     }
 }
@@ -490,7 +504,7 @@ impl From<proc_macro::Group> for Group {
 #[cfg(feature = "in_proc_macro")]
 impl From<Group> for proc_macro::Group {
     fn from(g: Group) -> Self {
-        let mut group = proc_macro::Group::new(g.delimiter().into(), g.stream.into());
+        let mut group = Self::new(g.delimiter().into(), g.stream.into());
         group.set_span(proc_macro::Span::call_site());
         group
     }
@@ -515,10 +529,14 @@ impl Extend<Group> for TokenStream {
 }
 
 impl Group {
+    #[must_use]
     pub const fn new(delimiter: Delimiter, stream: TokenStream) -> Self {Self {delimiter, stream}}
 
+    #[must_use]
     pub const fn stream(&self) -> &TokenStream {&self.stream}
+    #[must_use]
     pub fn take_stream(self) -> TokenStream {self.stream}
+    #[must_use]
     pub const fn delimiter(&self) -> Delimiter {self.delimiter}
 }
 
@@ -534,10 +552,10 @@ pub enum Delimiter {
 impl From<proc_macro::Delimiter> for Delimiter {
     fn from(d: proc_macro::Delimiter) -> Self {
         match d {
-            proc_macro::Delimiter::Parenthesis => Delimiter::Parenthesis,
-            proc_macro::Delimiter::Brace => Delimiter::Brace,
-            proc_macro::Delimiter::Bracket => Delimiter::Bracket,
-            proc_macro::Delimiter::None => Delimiter::None,
+            proc_macro::Delimiter::Parenthesis => Self::Parenthesis,
+            proc_macro::Delimiter::Brace => Self::Brace,
+            proc_macro::Delimiter::Bracket => Self::Bracket,
+            proc_macro::Delimiter::None => Self::None,
         }
     }
 }
@@ -546,10 +564,10 @@ impl From<proc_macro::Delimiter> for Delimiter {
 impl From<Delimiter> for proc_macro::Delimiter {
     fn from(d: Delimiter) -> Self {
         match d {
-            Delimiter::Parenthesis => proc_macro::Delimiter::Parenthesis,
-            Delimiter::Brace => proc_macro::Delimiter::Brace,
-            Delimiter::Bracket => proc_macro::Delimiter::Bracket,
-            Delimiter::None => proc_macro::Delimiter::None,
+            Delimiter::Parenthesis => Self::Parenthesis,
+            Delimiter::Brace => Self::Brace,
+            Delimiter::Bracket => Self::Bracket,
+            Delimiter::None => Self::None,
         }
     }
 }

@@ -8,12 +8,13 @@ pub struct InternedString(usize);
 #[derive(Debug, Default)]
 pub struct StringInterner<'arena> {
     key_map: HashMap<String, InternedString>,
-    str_map: Vec<&'arena mut str>,
+    str_map: Vec<&'arena str>,
     arena: Arena<'arena, u8>
 }
 
-impl<'arena> StringInterner<'arena> {
+impl StringInterner<'_> {
     pub fn interned(&mut self, s: &str) -> InternedString {
+        #[allow(clippy::option_if_let_else)]
         match self.key_map.get(s) {
             Some(interned) => *interned,
             None => self.intern(s),
@@ -28,16 +29,9 @@ impl<'arena> StringInterner<'arena> {
         interned_s
     }
 
+    #[must_use]
     pub fn resolve(&self, interned: InternedString) -> &str {
         self.str_map[interned.0]
-    }
-
-    pub fn resolve_mut(&mut self, interned: InternedString) -> &mut str {
-        self.str_map[interned.0]
-    }
-
-    pub fn resolve_mut_entry(&mut self, interned: InternedString) -> &mut &'arena mut str {
-        &mut self.str_map[interned.0]
     }
 }
 

@@ -26,9 +26,9 @@ pub struct Attribute {
 }
 
 impl Attribute {
-    pub fn name(&self) -> &Ident {&self.name}
+    pub const fn name(&self) -> &Ident {&self.name}
     #[allow(dead_code)]
-    pub fn args(&self) -> Option<&Group> {self.args.as_ref()}
+    pub const fn args(&self) -> Option<&Group> {self.args.as_ref()}
 }
 
 impl Item {
@@ -39,20 +39,20 @@ impl Item {
 fn parse_attribute_group(input: &mut impl Iterator<Item = TokenTree>) -> Attribute {
     let att = match input.next() {
         Some(TokenTree::Group(group)) if group.delimiter() == Delimiter::Bracket => group,
-        t => panic!("Expected [...] after `#` in enum variants, found `{:?}`", t),
+        t => panic!("Expected [...] after `#` in enum variants, found `{t:?}`"),
     };
 
-    let mut att = att.take_stream().into_iter().peekable();
+    let mut att = att.take_stream().into_iter();
 
     let name = match att.next() {
         Some(TokenTree::Ident(ident)) => ident,
-        t => panic!("Expected ident after `#` in attribute, found `{:?}`", t),
+        t => panic!("Expected ident after `#` in attribute, found `{t:?}`"),
     };
 
     let args = match att.next() {
         Some(TokenTree::Group(group)) if group.delimiter() == Delimiter::Parenthesis => Some(group),
         None => None,
-        t => panic!("Expected (...) after `#ident` in attribute, found `{:?}`", t),
+        t => panic!("Expected (...) after `#ident` in attribute, found `{t:?}`"),
     };
 
     Attribute { name, args }
@@ -64,7 +64,7 @@ fn parse_struct_fields(input: &mut impl Iterator<Item = TokenTree>) -> Vec<(Toke
     let group = match input.next() {
         Some(TokenTree::Group(group)) => group,
         Some(TokenTree::Punct(punct)) if punct.char() == PunctChar::Semicolon => return fields,
-        t => panic!("Expected group of struct fields, found `{:?}`", t),
+        t => panic!("Expected group of struct fields, found `{t:?}`"),
     };
 
     let mut field = (None, None, Vec::new());
@@ -106,7 +106,7 @@ fn parse_struct_fields(input: &mut impl Iterator<Item = TokenTree>) -> Vec<(Toke
                             PunctChar::GreaterThan => nested -= 1,
                             PunctChar::Comma if nested == 0 => break,
                             _ => {}
-                        };
+                        }
                     }
                     ty_tokens.extend(once(iter.next().unwrap()));
                 }
@@ -118,7 +118,7 @@ fn parse_struct_fields(input: &mut impl Iterator<Item = TokenTree>) -> Vec<(Toke
             TokenTree::Punct(punct) if punct.char() == PunctChar::Hash => {
                 field.2.push(parse_attribute_group(&mut iter));
             },
-            t => panic!("Expected ident or comma in struct fields, found `{:?}`", t),
+            t => panic!("Expected ident or comma in struct fields, found `{t:?}`"),
         }
     }
 
@@ -134,7 +134,7 @@ fn parse_enum_variants(input: &mut impl Iterator<Item = TokenTree>) -> Vec<(Iden
 
     let group = match input.next() {
         Some(TokenTree::Group(group)) => group,
-        t => panic!("Expected group of enum variants, found `{:?}`", t),
+        t => panic!("Expected group of enum variants, found `{t:?}`"),
     };
 
     let mut variant = (None, None, Vec::new());
@@ -150,7 +150,7 @@ fn parse_enum_variants(input: &mut impl Iterator<Item = TokenTree>) -> Vec<(Iden
             TokenTree::Punct(punct) if punct.char() == PunctChar::Hash => {
                 variant.2.push(parse_attribute_group(&mut iter));
             },
-            t => panic!("Expected ident or comma in enum variants, found `{:?}`", t),
+            t => panic!("Expected ident or comma in enum variants, found `{t:?}`"),
         }
     }
 
@@ -184,9 +184,7 @@ pub fn impl_item(item: &Item, r#trait: Option<TokenStream>, body: TokenStream) -
     }
     ).collect::<TokenStream>();
 
-    let trait_impl = if let Some(r#trait) = r#trait {
-        quote!( (@ r#trait) for)
-    } else {TokenStream::new()};
+    let trait_impl = r#trait.map_or_else(TokenStream::new, |r#trait| quote!( (@ r#trait) for));
 
     quote!(
         impl<(@ generic_def)> (@ trait_impl) (@ item.name().clone())<(@ generic_use)> {
@@ -218,7 +216,7 @@ fn parse_item_generics(input: &mut Peekable<impl Iterator<Item = TokenTree>>) ->
                                     },
                                     PunctChar::Comma if nested == 0 => {let _ = input.next(); break},
                                     _ => {}
-                                };
+                                }
                             }
                             constraints.extend(once(input.next().unwrap()));
                         }
@@ -229,21 +227,19 @@ fn parse_item_generics(input: &mut Peekable<impl Iterator<Item = TokenTree>>) ->
                 Some(TokenTree::Punct(punct)) if punct.char() == PunctChar::Qoute => {
                     let lifetime_ident = match input.next() {
                         Some(TokenTree::Ident(ident)) => ident,
-                        t => panic!("Expected lifetime name after `'`, found `{:?}`", t),
+                        t => panic!("Expected lifetime name after `'`, found `{t:?}`"),
                     };
                     generics.push(Generic::Lifetime(lifetime_ident));
 
                     if let Some(TokenTree::Punct(punct)) = input.peek() && punct.char() == PunctChar::Comma {
                         let _ = input.next();
                     }
-
-                    continue
                 },
                 None => panic!("Expected Some after `<` in generics, found None"),
-                tt => panic!("Expected ident or `>` or \"'\" in generics, found `{:?}`", tt),
-            };
+                tt => panic!("Expected ident or `>` or \"'\" in generics, found `{tt:?}`"),
+            }
         }
-    };
+    }
 
     generics
 }
@@ -259,7 +255,7 @@ pub fn parse_item(input: &mut Peekable<impl Iterator<Item = TokenTree>>) -> (Ite
     let item_ident = input.next().expect("Expected item type, found None");
     let name = match input.next() {
         Some(TokenTree::Ident(ident)) => ident,
-        t => panic!("Expected item name after `{}`, found `{:?}`", item_ident, t),
+        t => panic!("Expected item name after `{item_ident}`, found `{t:?}`"),
     };
     let generics = parse_item_generics(input);
 

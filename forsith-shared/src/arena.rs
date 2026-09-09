@@ -18,6 +18,8 @@ impl<T: Default + Copy> Default for Arena<'_, T> {
 }
 
 impl<'arena, T: Default + Copy> Arena<'arena, T> {
+    // Code is setup so that chunks is never empty when last_mut is called, so unwrap is safe
+    #[allow(clippy::missing_panics_doc)]
     pub fn alloc(&mut self, buf: &[T]) -> &'arena mut [T] {
         if self.index + buf.len() > CHUNK_SIZE {
             self.chunks.push(vec![T::default(); CHUNK_SIZE.max(buf.len())].into_boxed_slice());

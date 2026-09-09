@@ -1,3 +1,6 @@
+#![warn(clippy::all, clippy::pedantic, clippy::nursery)]
+#![allow(clippy::inline_always, clippy::missing_errors_doc)]
+
 pub mod interner;
 
 pub mod arena;

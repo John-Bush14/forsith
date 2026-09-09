@@ -5,6 +5,7 @@ use forsith_proc::{Deref, DerefMut};
 pub struct CursorVec<T>(Cursor<Vec<T>>);
 
 impl<T: Default + Clone> CursorVec<T> {
+    #[must_use]
     pub fn new(len: usize) -> Self {Self(Cursor::new(vec![T::default(); len]))}
 
     pub fn expand(&mut self, len: usize) {
@@ -14,17 +15,24 @@ impl<T: Default + Clone> CursorVec<T> {
 }
 
 impl<T> CursorVec<T> {
+    #[must_use]
     pub fn into_inner(self) -> Cursor<Vec<T>> {self.0}
     pub fn read_single(&mut self) -> &T {&self.take_slice(1)[0]}
+    #[must_use]
     pub fn remaining(&self) -> usize {self.capacity() - self.cursor()}
+    #[must_use]
     pub fn capacity(&self) -> usize {self.get_ref().len()}
-    pub fn cursor(&self) -> usize {usize::try_from(self.position()).unwrap()}
+    #[must_use]
+    #[allow(clippy::cast_possible_truncation)] // Vec len is always less than usize::MAX
+    pub fn cursor(&self) -> usize {self.position() as usize}
     pub fn set_cursor(&mut self, cursor: usize) {self.set_position(cursor as u64);}
     pub fn consume(&mut self, len: usize) {self.set_cursor(self.cursor() + len);}
     pub fn unconsume(&mut self, len: usize) {self.set_cursor(self.cursor().saturating_sub(len));}
     #[must_use]
     pub fn is_empty(&self) -> bool {self.capacity() == 0}
+    #[must_use]
     pub fn is_full(&self) -> bool {self.cursor() == self.capacity()}
+    #[must_use]
     pub fn current(&self) -> Option<&T> {self.get_ref().get(self.cursor())}
 
     #[inline(always)]
@@ -83,6 +91,7 @@ impl<'input> From<&'input str> for CursorString<'input> {
 }
 
 impl CursorString<'_> {
+    #[must_use]
     pub fn peek(&self, len: usize) -> &str {
         let pos = self.cursor();
         let end = (pos + len).min(self.get_ref().len());
@@ -96,14 +105,18 @@ impl CursorString<'_> {
         &self.get_ref()[pos..end]
     }
 
+    #[must_use]
+    #[allow(clippy::cast_possible_truncation)] // Vec len is always less than usize::MAX
     pub fn cursor(&self) -> usize {
-        usize::try_from(self.position()).expect("str len is always less then usize::MAX")
+        self.position() as usize
     }
 
+    #[must_use]
     pub fn remaining_str(&self) -> &str {
         &self.get_ref()[self.cursor()..]
     }
 
+    #[must_use]
     pub fn line_col(&self, cursor: usize) -> (usize, usize) {
         let lines = self.get_ref()[..cursor].lines();
 

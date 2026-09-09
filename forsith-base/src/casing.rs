@@ -7,6 +7,7 @@ pub enum Casing {
     Pascal,
 }
 
+#[must_use]
 pub fn change_casing(source: &str, casing: Casing) -> String {
     let mut dest = String::new();
     write_changed_casing(source, &mut dest, casing);

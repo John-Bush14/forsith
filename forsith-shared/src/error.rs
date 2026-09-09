@@ -35,8 +35,8 @@ enum ErrorKind {
 impl std::fmt::Display for ErrorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ErrorKind::Message(msg) => write!(f, "{msg}"),
-            ErrorKind::Error(err) => write!(f, "{err}"),
+            Self::Message(msg) => write!(f, "{msg}"),
+            Self::Error(err) => write!(f, "{err}"),
         }
     }
 }
@@ -61,6 +61,7 @@ impl<T: std::error::Error + 'static> From<T> for Error {
 }
 
 pub trait ResultContext<T> {
+    #[must_use]
     fn with_context<R: Into<Box<str>>, F: FnOnce() -> R>(self, context: F) -> Self;
 }
 impl<T> ResultContext<T> for std::result::Result<T, Error> {
@@ -73,11 +74,13 @@ impl<T> ResultContext<T> for std::result::Result<T, Error> {
 }
 
 impl Error {
+    #[must_use]
     pub fn with_context(mut self, context: &str) -> Self {
         self.context.push(context.into());
         self
     }
 
+    #[must_use]
     pub fn msg(msg: &str) -> Self {
         Self {
             error: ErrorKind::Message(msg.into()),
