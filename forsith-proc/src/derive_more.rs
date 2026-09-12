@@ -24,10 +24,10 @@ pub fn derive_is_variant(input: TokenStream) -> TokenStream {
 
 pub fn choose_singular_struct_field<'a>(fields: &'a [StructField], attribute: &'static str) -> &'a StructField {
     let mut attributed_fields = fields.iter().filter(|field| field.attributes.iter().any(|a| a.name.to_string() == attribute));
-    assert!(attributed_fields.clone().count() <= 1, "Deref can only be derived for structs with at most one field marked with #[deref_mut]");
+    assert!(attributed_fields.clone().count() <= 1, "Only one field can be marked with #[{attribute}]");
 
     attributed_fields.next().unwrap_or_else(|| {
-        assert!(fields.len() == 1, "Deref can only be derived for structs with a single field if no field is marked with #[deref_mut]");
+        assert!(fields.len() == 1, "Only one field can be present in the struct if no field is marked with #[{attribute}]");
         &fields[0]
     })
 }
