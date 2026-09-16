@@ -8,3 +8,5 @@ pub mod proc_macro;
 pub mod bitvec;
 
 pub mod buffer;
+
+pub mod bitmasks;
