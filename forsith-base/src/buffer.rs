@@ -98,26 +98,6 @@ impl<T: Clone> Buffer<T> {
         unsafe {Self(Box::from_raw(ptr))}
     }
 
-    #[must_use]
-    pub fn as_ptr(&self) -> *const T {
-        self.0.as_ptr()
-    }
-
-    #[must_use]
-    pub fn as_mut_ptr(&mut self) -> *mut T {
-        self.0.as_mut_ptr()
-    }
-
-    #[must_use]
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-
     fn alloc(size: usize) -> *mut T {
         unsafe {
             let layout = Layout::array::<T>(size).expect("could not allocate buffer");
@@ -129,6 +109,15 @@ impl<T: Clone> Buffer<T> {
         }
     }
 
+    unsafe fn init(ptr: *mut T, n: usize, value: T)
+    {
+        unsafe {
+            for i in 0..n {
+                ptr.add(i).write(value.clone());
+            }
+        }
+    }
+
     pub fn from_elem(elem: T, n: usize) -> Self
     {
         unsafe {
@@ -137,15 +126,6 @@ impl<T: Clone> Buffer<T> {
             Self::init(ptr, n, elem);
 
             Self::from_raw_parts(ptr, n)
-        }
-    }
-
-    unsafe fn init(ptr: *mut T, n: usize, value: T)
-    {
-        unsafe {
-            for i in 0..n {
-                ptr.add(i).write(value.clone());
-            }
         }
     }
 
