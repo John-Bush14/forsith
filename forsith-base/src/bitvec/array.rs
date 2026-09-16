@@ -5,6 +5,19 @@ use crate::bitvec::BitSlice;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct BitArray<const BYTES: usize>([u8; BYTES]);
 
+impl<const BYTES: usize> Default for BitArray<BYTES> {
+    fn default() -> Self {
+        Self([0; BYTES])
+    }
+}
+
+impl<const BYTES: usize> From<[u8; BYTES]> for BitArray<BYTES> {
+    fn from(arr: [u8; BYTES]) -> Self {Self(arr)}
+}
+impl<const BYTES: usize> From<BitArray<BYTES>> for [u8; BYTES] {
+    fn from(arr: BitArray<BYTES>) -> Self {arr.into_bytes()}
+}
+
 impl<const BYTES: usize> Deref for BitArray<BYTES> {
     type Target = BitSlice;
 
@@ -25,6 +38,13 @@ impl<const BYTES: usize> BitArray<BYTES> {
         let byte = if value { 0xFF } else { 0x00 };
         Self([byte; BYTES])
     }
+
+    #[must_use]
+    pub const fn bytes(&self) -> &[u8; BYTES] {&self.0}
+    #[must_use]
+    pub const fn bytes_mut(&mut self) -> &mut [u8; BYTES] {&mut self.0}
+    #[must_use]
+    pub const fn into_bytes(self) -> [u8; BYTES] {self.0}
 
     #[must_use]
     pub const fn bits(&self) -> usize {

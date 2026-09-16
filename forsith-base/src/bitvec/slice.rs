@@ -10,6 +10,12 @@ impl Index<usize> for BitSlice {
     fn index(&self, index: usize) -> &Self::Output {self.get(index).expect("index out of bounds")}
 }
 
+impl From<&BitSlice> for Vec<bool> {
+    fn from(slice: &BitSlice) -> Self {
+        slice.iter().collect()
+    }
+}
+
 impl<'a> IntoIterator for &'a BitSlice {
     type Item = bool;
     type IntoIter = BitSliceIter<'a>;
@@ -67,6 +73,12 @@ impl Iterator for BitSliceIter<'_> {
     }
 }
 
+impl ExactSizeIterator for BitSliceIter<'_> {
+    fn len(&self) -> usize {
+        self.slice.bits() - self.index
+    }
+}
+
 pub struct MutBitSliceIter<'a> {
     slice: &'a mut BitSlice,
     index: usize,
@@ -89,6 +101,12 @@ impl<'a> Iterator for MutBitSliceIter<'a> {
     }
 }
 
+impl ExactSizeIterator for MutBitSliceIter<'_> {
+    fn len(&self) -> usize {
+        self.slice.bits() - self.index
+    }
+}
+
 impl BitSlice {
     #[must_use]
     pub fn iter(&self) -> BitSliceIter<'_> {self.into_iter()}
@@ -104,6 +122,9 @@ impl BitSlice {
     pub const fn as_mut_ptr(&mut self) -> *mut u8 {
         self.data.as_mut_ptr().cast()
     }
+
+    #[must_use]
+    pub fn as_bools(&self) -> Vec<bool> {self.into()}
 
     const fn get_byte_bit_index(&self, index: usize) -> Option<(u8, usize)> {
         let index = index / 8;
