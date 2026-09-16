@@ -1,4 +1,4 @@
-use std::ops::Index;
+use std::ops::{Deref, Index};
 
 pub struct BitSlice {
     data: [()],
@@ -7,18 +7,95 @@ pub struct BitSlice {
 impl Index<usize> for BitSlice {
     type Output = bool;
 
-    fn index(&self, index: usize) -> &Self::Output {
-        let (byte, bit_i) = self.get_byte_bit_index(index);
+    fn index(&self, index: usize) -> &Self::Output {self.get(index).expect("index out of bounds")}
+}
 
-        if byte & (1 << bit_i) != 0 {
-            &true
-        } else {
-            &false
-        }
+impl<'a> IntoIterator for &'a BitSlice {
+    type Item = bool;
+    type IntoIter = BitSliceIter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        BitSliceIter { slice: self, index: 0 }
+    }
+}
+
+impl<'a> IntoIterator for &'a mut BitSlice {
+    type Item = MutBit<'a>;
+    type IntoIter = MutBitSliceIter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        MutBitSliceIter { slice: self, index: 0 }
+    }
+}
+
+pub struct MutBit<'a> {
+    slice: &'a mut BitSlice,
+    index: usize,
+}
+
+impl MutBit<'_> {
+    pub const fn set(&mut self, bit: bool) {
+        self.slice.set(self.index, bit);
+    }
+
+    pub fn get(&self) -> bool {
+        *self.slice.get(self.index).expect("MutBit index should always be valid")
+    }
+}
+
+impl Deref for MutBit<'_> {
+    type Target = bool;
+
+    fn deref(&self) -> &Self::Target {
+        self.slice.get(self.index).expect("MutBit index should always be valid")
+    }
+}
+
+#[derive(Clone)]
+pub struct BitSliceIter<'a> {
+    slice: &'a BitSlice,
+    index: usize,
+}
+
+impl Iterator for BitSliceIter<'_> {
+    type Item = bool;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let bit = *self.slice.get(self.index)?;
+        self.index += 1;
+        Some(bit)
+    }
+}
+
+pub struct MutBitSliceIter<'a> {
+    slice: &'a mut BitSlice,
+    index: usize,
+}
+
+impl<'a> Iterator for MutBitSliceIter<'a> {
+    type Item = MutBit<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index >= self.slice.bits() {return None}
+
+        let bit = MutBit {
+            slice: unsafe {self.slice.with_lifetime_mut()},
+            index: self.index,
+        };
+
+        self.index += 1;
+
+        Some(bit)
     }
 }
 
 impl BitSlice {
+    #[must_use]
+    pub fn iter(&self) -> BitSliceIter<'_> {self.into_iter()}
+
+    #[must_use]
+    pub fn iter_mut(&mut self) -> MutBitSliceIter<'_> {self.into_iter()}
+
     #[must_use]
     pub const fn as_ptr(&self) -> *const u8 {
         self.data.as_ptr().cast()
@@ -28,20 +105,20 @@ impl BitSlice {
         self.data.as_mut_ptr().cast()
     }
 
-    const fn get_byte_bit_index(&self, index: usize) -> (u8, usize) {
-        assert!(index < self.bits(), "index out of bounds");
+    const fn get_byte_bit_index(&self, index: usize) -> Option<(u8, usize)> {
         let index = index / 8;
+        if index >= self.bits() {return None}
         let byte = unsafe {*self.as_ptr().add(index)};
 
-        (byte, index % 8)
+        Some((byte, index % 8))
     }
 
-    const fn get_mut_byte_bit_index(&mut self, index: usize) -> (&mut u8, usize) {
-        assert!(index < self.bits(), "index out of bounds");
+    const fn get_mut_byte_bit_index(&mut self, index: usize) -> Option<(&mut u8, usize)> {
+        if index >= self.bits() {return None}
         let index = index / 8;
         let byte = unsafe {&mut *self.as_mut_ptr().add(index)};
 
-        (byte, index % 8)
+        Some((byte, index % 8))
     }
 
     #[must_use]
@@ -78,12 +155,38 @@ impl BitSlice {
     }
 
     pub const fn set(&mut self, index: usize, bit: bool) {
-        let (byte, bit_i) = self.get_mut_byte_bit_index(index);
+        let (byte, bit_i) = self.get_mut_byte_bit_index(index).expect("index out of bounds");
 
         if bit {
             *byte |= 1 << bit_i;
         } else {
              *byte &= !(1 << bit_i);
         }
+    }
+
+    fn get(&self, index: usize) -> Option<&bool> {
+        let (byte, bit_i) = self.get_byte_bit_index(index)?;
+
+        Some(if byte & (1 << bit_i) != 0 {
+            &true
+        } else {
+            &false
+        })
+    }
+
+    /// # Safety
+    /// The caller must ensure that the lifetime of the returned reference does not outlive the
+    /// lifetime of the `BitSlice` reference.
+    #[must_use]
+    pub unsafe fn with_lifetime<'d>(&self) -> &'d Self {
+        unsafe {std::mem::transmute(self)}
+    }
+
+    /// # Safety
+    /// The caller must ensure that the lifetime of the returned reference does not outlive the
+    /// lifetime of the `BitSlice` reference.
+    #[must_use]
+    pub unsafe fn with_lifetime_mut<'d>(&mut self) -> &'d mut Self {
+        unsafe {std::mem::transmute(self)}
     }
 }
