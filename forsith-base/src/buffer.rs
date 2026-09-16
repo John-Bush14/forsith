@@ -9,7 +9,7 @@ macro_rules! buffer {
         $crate::buffer::Buffer::from_elem($elem, $n)
     );
     ($($x:expr),+ $(,)?) => (
-        $crate::buffer:Buffer::from([$($x),+])
+        $crate::buffer::Buffer::from([$($x),+])
     );
 }
 
@@ -51,6 +51,12 @@ impl<T: Clone> From<Buffer<T>> for Vec<T> {
 impl<T: Clone> From<&[T]> for Buffer<T> {
     fn from(slice: &[T]) -> Self {
         unsafe {Self::copy_from_ptr(slice.as_ptr(), slice.len())}
+    }
+}
+
+impl<T: Clone, const N: usize> From<&[T; N]> for Buffer<T> {
+    fn from(array: &[T; N]) -> Self {
+        unsafe {Self::copy_from_ptr(array.as_ptr(), N)}
     }
 }
 
@@ -150,5 +156,129 @@ impl<T: Clone> Buffer<T> {
 
     pub fn clear(&mut self) {
         *self = Self::new();
+    }
+}
+
+#[cfg(test)]
+mod buffer_tests {
+    use super::*;
+
+    #[test]
+    fn test_buffer_conversion_slice() {
+        let slice = &[1, 2, 3, 4, 5] as &[i32];
+        let buffer = Buffer::from(slice);
+        assert_eq!(&*buffer, slice);
+    }
+
+    #[test]
+    fn test_buffer_conversion_array() {
+        let array = [1, 2, 3, 4, 5];
+        let buffer = Buffer::from(array);
+        assert_eq!(&*buffer, &array);
+    }
+
+    #[test]
+    fn test_buffer_conversion_vec() {
+        let vec = vec![1, 2, 3, 4, 5];
+        let buffer = Buffer::from(vec.clone());
+        assert_eq!(&*buffer, &vec[..]);
+    }
+
+    #[test]
+    fn test_buffer_resize_bigger() {
+        let mut buffer = Buffer::from_elem(0, 5);
+        buffer.resize(10, 1);
+        assert_eq!(&*buffer, &[0, 0, 0, 0, 0, 1, 1, 1, 1, 1]);
+    }
+
+    #[test]
+    fn test_buffer_clear() {
+        let mut buffer = Buffer::from_elem(0, 5);
+        buffer.clear();
+        assert_eq!(buffer.len(), 0);
+    }
+
+    #[test]
+    fn test_buffer_from_elem() {
+        let buffer = Buffer::from_elem(42, 5);
+        assert_eq!(&*buffer, &[42, 42, 42, 42, 42]);
+    }
+
+    #[test]
+    fn test_buffer_from_macro() {
+        let buffer = buffer![1, 2, 3, 4, 5];
+        assert_eq!(&*buffer, &[1, 2, 3, 4, 5]);
+
+        let buffer = buffer![0; 5];
+        assert_eq!(&*buffer, &[0, 0, 0, 0, 0]);
+
+        let buffer: Buffer<i32> = buffer![];
+        assert_eq!(buffer.len(), 0);
+    }
+
+    #[test]
+    fn test_buffer_resize_smaller() {
+        let mut buffer = Buffer::from_elem(1, 5);
+        buffer.resize(3, 0);
+        assert_eq!(&*buffer, &[1, 1, 1]);
+    }
+
+    #[test]
+    fn test_buffer_resize_same() {
+        let mut buffer = Buffer::from_elem(1, 5);
+        buffer.resize(5, 0);
+        assert_eq!(buffer, Buffer::from_elem(1, 5));
+    }
+
+    #[test]
+    fn test_buffer_equality() {
+        let buffer1 = Buffer::from_elem(1, 5);
+        let buffer2 = Buffer::from_elem(1, 5);
+        let buffer3 = Buffer::from_elem(2, 5);
+        assert_eq!(buffer1, buffer2);
+        assert_ne!(buffer1, buffer3);
+    }
+
+    #[test]
+    fn test_buffer_clone() {
+        let buffer1 = Buffer::from_elem(1, 5);
+        let buffer2 = buffer1.clone();
+        assert_eq!(buffer1, buffer2);
+    }
+
+    #[test]
+    fn test_buffer_index() {
+        let buffer = Buffer::from_elem(1, 5);
+        assert_eq!(buffer[0], 1);
+        assert_eq!(buffer[4], 1);
+    }
+
+    #[test]
+    fn test_buffer_index_mut() {
+        let mut buffer = Buffer::from_elem(1, 5);
+        buffer[0] = 2;
+        assert_eq!(buffer[0], 2);
+    }
+
+    #[test]
+    fn test_buffer_conversion_boxed_slice() {
+        let boxed_slice: Box<[i32]> = vec![1, 2, 3, 4, 5].into_boxed_slice();
+        let buffer = Buffer::from(boxed_slice.clone());
+        assert_eq!(&*buffer, &boxed_slice[..]);
+    }
+
+    #[test]
+    fn test_buffer_slicing() {
+        let buffer = Buffer::from_elem(1, 5);
+        let slice = &buffer[1..4];
+        assert_eq!(slice, &[1, 1, 1]);
+    }
+
+    #[test]
+    fn test_buffer_mut_slicing() {
+        let mut buffer = Buffer::from_elem(1, 5);
+        let slice = &mut buffer[1..4];
+        slice[0] = 2;
+        assert_eq!(&*buffer, &[1, 2, 1, 1, 1]);
     }
 }
