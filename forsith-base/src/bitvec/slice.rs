@@ -4,6 +4,18 @@ pub struct BitSlice {
     data: [()],
 }
 
+impl PartialEq for BitSlice {
+    fn eq(&self, other: &Self) -> bool {
+        if self.bits() != other.bits() {return false}
+
+        let full_bytes = self.bits() / 8;
+        let remaining_bits_mask = (1 << (self.bits() % 8)) - 1;
+
+        self.bytes()[..full_bytes] == other.bytes()[..full_bytes]
+            && (self.bytes()[full_bytes] & remaining_bits_mask) == (other.bytes()[full_bytes] & remaining_bits_mask)
+    }
+}
+
 impl Index<usize> for BitSlice {
     type Output = bool;
 
@@ -140,6 +152,16 @@ impl BitSlice {
         let byte = unsafe {&mut *self.as_mut_ptr().add(index)};
 
         Some((byte, index % 8))
+    }
+
+    #[must_use]
+    pub const fn bytes(&self) -> &[u8] {
+        unsafe {std::slice::from_raw_parts(self.as_ptr(), self.len_bytes())}
+    }
+
+    #[must_use]
+    pub const fn bytes_mut(&mut self) -> &mut [u8] {
+        unsafe {std::slice::from_raw_parts_mut(self.as_mut_ptr(), self.len_bytes())}
     }
 
     #[must_use]

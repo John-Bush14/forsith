@@ -9,6 +9,10 @@ pub struct BitVec {
     bits: usize,
 }
 
+impl PartialEq for BitVec {
+    fn eq(&self, other: &Self) -> bool {**self == **other}
+}
+
 impl Deref for BitVec {
     type Target = BitSlice;
 

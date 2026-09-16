@@ -22,13 +22,13 @@ impl<const BYTES: usize> Deref for BitArray<BYTES> {
     type Target = BitSlice;
 
     fn deref(&self) -> &Self::Target {
-        BitSlice::from_raw_parts(self.0.as_ptr(), self.bits())
+        BitSlice::from_raw_parts(self.0.as_ptr(), BYTES)
     }
 }
 
 impl<const BYTES: usize> DerefMut for BitArray<BYTES> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        BitSlice::from_raw_parts_mut(self.0.as_mut_ptr(), self.bits())
+        BitSlice::from_raw_parts_mut(self.0.as_mut_ptr(), BYTES)
     }
 }
 
@@ -40,21 +40,7 @@ impl<const BYTES: usize> BitArray<BYTES> {
     }
 
     #[must_use]
-    pub const fn bytes(&self) -> &[u8; BYTES] {&self.0}
-    #[must_use]
-    pub const fn bytes_mut(&mut self) -> &mut [u8; BYTES] {&mut self.0}
-    #[must_use]
     pub const fn into_bytes(self) -> [u8; BYTES] {self.0}
-
-    #[must_use]
-    pub const fn bits(&self) -> usize {
-        BYTES * 8
-    }
-
-    #[must_use]
-    pub const fn len_bytes(&self) -> usize {
-        BYTES
-    }
 
     #[must_use]
     pub const fn is_empty(&self) -> bool {
