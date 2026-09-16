@@ -1,12 +1,33 @@
 use crate::buffer;
 use std::{mem::MaybeUninit, ops::{Deref, DerefMut}};
-
 use crate::{bitvec::{ BitSlice}, buffer::Buffer};
 
-#[derive(Debug, Clone, Default)]
+#[macro_export]
+macro_rules! bitvec {
+    () => (
+        $crate::bitvec::BitVec::new()
+    );
+    ($elem:expr; $n:expr) => (
+        $crate::bitvec::BitVec::filled($elem, $n)
+    );
+    ($($x:expr),+ $(,)?) => (
+        $crate::bitvec::BitVec::from_bools(&[$($x),+])
+    );
+}
+
+#[derive(Clone, Default)]
 pub struct BitVec {
     data: Buffer<MaybeUninit<u8>>,
     bits: usize,
+}
+
+impl std::fmt::Debug for BitVec {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BitVec")
+            .field("bits", &self.bits)
+            .field("data", &self.as_bools())
+            .finish()
+    }
 }
 
 impl PartialEq for BitVec {
@@ -17,13 +38,13 @@ impl Deref for BitVec {
     type Target = BitSlice;
 
     fn deref(&self) -> &Self::Target {
-        BitSlice::from_raw_parts(self.data.as_ptr().cast::<u8>(), self.bits)
+        unsafe { BitSlice::from_raw_parts(self.data.as_ptr().cast::<u8>(), self.bits) }
     }
 }
 
 impl DerefMut for BitVec {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        BitSlice::from_raw_parts_mut(self.data.as_mut_ptr().cast::<u8>(), self.bits)
+        unsafe { BitSlice::from_raw_parts_mut(self.data.as_mut_ptr().cast::<u8>(), self.bits) }
     }
 }
 
@@ -150,13 +171,60 @@ mod bitvec_tests {
     fn test_bitvec_push() {
         let mut bitvec = BitVec::new();
 
-        for i in 0..10 {
-            bitvec.push(i % 2 == 0);
-        }
+        for i in 0..10 {bitvec.push(i % 2 == 0);}
 
         assert_eq!(bitvec.len(), 10);
         assert_eq!(bitvec.capacity(), 16); // Next power of two of 10 bits is 16 bits (2 bytes)
 
         bitvec.iter().eq((0..10).map(|i| i % 2 == 0));
+    }
+
+    #[test]
+    fn test_bitvec_from_bools() {
+        let bits = [true, false, true, true, false];
+        let bitvec = BitVec::from_bools(&bits);
+
+        assert_eq!(bitvec.len(), bits.len());
+        assert!(bitvec.iter().eq(bits.iter().copied()));
+    }
+
+    #[test]
+    fn test_bitvec_from_bitslice() {
+        let bitvec = bitvec![true, false, true, true, false];
+        let bitslice: &BitSlice = &bitvec;
+
+        let new_bitvec = BitVec::from(bitslice);
+        assert_eq!(new_bitvec, bitvec);
+    }
+
+    #[test]
+    fn test_bitvec_from_buffer() {
+        let buffer = buffer![MaybeUninit::new(0b1010_1010), MaybeUninit::new(0b1100_1100)];
+        let bitvec = BitVec::from_buffer(buffer, 14);
+
+        assert_eq!(bitvec, bitvec![false, true, false, true, false, true, false, true, false, false, true, true, false, false]);
+    }
+
+    #[test]
+    fn test_bitvec_macro() {
+        let bitvec1 = bitvec![true, false, true];
+        let bitvec2 = BitVec::from_bools(&[true, false, true]);
+        assert_eq!(bitvec1, bitvec2);
+
+        let bitvec3 = bitvec![false; 5];
+        let bitvec4 = BitVec::filled(false, 5);
+        assert_eq!(bitvec3, bitvec4);
+    }
+
+    #[test]
+    fn test_bitvec_filled() {
+        let bitvec_true = BitVec::filled(true, 10);
+        assert!(bitvec_true.iter().all(|b| b));
+
+        let bitvec_false = BitVec::filled(false, 10);
+        assert!(bitvec_false.iter().all(|b| !b));
+
+        assert_eq!(bitvec_true, bitvec![true; 10]);
+        assert_eq!(bitvec_false, bitvec![false; 10]);
     }
 }

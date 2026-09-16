@@ -22,13 +22,13 @@ impl<const BYTES: usize> Deref for BitArray<BYTES> {
     type Target = BitSlice;
 
     fn deref(&self) -> &Self::Target {
-        BitSlice::from_raw_parts(self.0.as_ptr(), BYTES)
+        unsafe {BitSlice::from_raw_parts(self.0.as_ptr(), BYTES)}
     }
 }
 
 impl<const BYTES: usize> DerefMut for BitArray<BYTES> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        BitSlice::from_raw_parts_mut(self.0.as_mut_ptr(), BYTES)
+        unsafe {BitSlice::from_raw_parts_mut(self.0.as_mut_ptr(), BYTES)}
     }
 }
 

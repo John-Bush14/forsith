@@ -1,7 +1,16 @@
-use std::ops::{Deref, Index};
+use std::{fmt::Debug, ops::{Deref, Index}};
 
 pub struct BitSlice {
     data: [()],
+}
+
+impl Debug for BitSlice {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BitSlice")
+            .field("bits", &self.bits())
+            .field("bytes", &self.as_bools())
+            .finish()
+    }
 }
 
 impl PartialEq for BitSlice {
@@ -136,20 +145,30 @@ impl BitSlice {
     }
 
     #[must_use]
+    pub const fn from_bytes(bytes: &[u8], bits: usize) -> &Self {
+        assert!(bits <= bytes.len() * 8, "new length exceeds capacity");
+        unsafe {Self::from_raw_parts(bytes.as_ptr(), bits)}
+    }
+
+    #[must_use]
+    pub fn from_bytes_mut(bytes: &mut [u8], bits: usize) -> &mut Self {
+        assert!(bits <= bytes.len() * 8, "new length exceeds capacity");
+        unsafe {Self::from_raw_parts_mut(bytes.as_mut_ptr(), bits)}
+    }
+
+    #[must_use]
     pub fn as_bools(&self) -> Vec<bool> {self.into()}
 
     const fn get_byte_bit_index(&self, index: usize) -> Option<(u8, usize)> {
-        let index = index / 8;
         if index >= self.bits() {return None}
-        let byte = unsafe {*self.as_ptr().add(index)};
+        let byte = unsafe {*self.as_ptr().add(index / 8)};
 
         Some((byte, index % 8))
     }
 
     const fn get_mut_byte_bit_index(&mut self, index: usize) -> Option<(&mut u8, usize)> {
         if index >= self.bits() {return None}
-        let index = index / 8;
-        let byte = unsafe {&mut *self.as_mut_ptr().add(index)};
+        let byte = unsafe {&mut *self.as_mut_ptr().add(index / 8)};
 
         Some((byte, index % 8))
     }
@@ -179,8 +198,12 @@ impl BitSlice {
         self.data.is_empty()
     }
 
+    /// # Safety
+    /// The caller must ensure that the pointer is valid for reads of `bits` bits and that the
+    /// lifetime of the returned reference does not outlive the lifetime of the data pointed to by
+    /// `ptr`.
     #[must_use]
-    pub const fn from_raw_parts<'a>(ptr: *const u8, bits: usize) -> &'a Self {
+    pub const unsafe fn from_raw_parts<'a>(ptr: *const u8, bits: usize) -> &'a Self {
         unsafe {
             let wptr = std::ptr::slice_from_raw_parts(ptr, bits);
 
@@ -188,8 +211,12 @@ impl BitSlice {
         }
     }
 
+    /// # Safety
+    /// The caller must ensure that the pointer is valid for read and writes of `bits` bits and that the
+    /// lifetime of the returned reference does not outlive the lifetime of the data pointed to by
+    /// `ptr`.
     #[must_use]
-    pub fn from_raw_parts_mut<'a>(ptr: *mut u8, bits: usize) -> &'a mut Self {
+    pub unsafe fn from_raw_parts_mut<'a>(ptr: *mut u8, bits: usize) -> &'a mut Self {
         unsafe {
             let wptr = std::ptr::slice_from_raw_parts_mut(ptr, bits);
 
@@ -231,5 +258,88 @@ impl BitSlice {
     #[must_use]
     pub unsafe fn with_lifetime_mut<'d>(&mut self) -> &'d mut Self {
         unsafe {std::mem::transmute(self)}
+    }
+}
+
+#[cfg(test)]
+mod bitslice_tests {
+    use super::*;
+
+    #[test]
+    fn test_bitslice_get() {
+        let bytes = [0b1010_1010, 0b1100_1100];
+        let bitslice = BitSlice::from_bytes(&bytes, 16);
+
+        for i in 0..16 {
+            let expected = (bytes[i / 8] >> (i % 8)) & 1 == 1;
+            assert_eq!(bitslice.get(i), Some(&expected));
+        }
+
+        assert_eq!(bitslice.get(16), None);
+    }
+
+    #[test]
+    fn test_bitslice_set() {
+        let mut bytes = [0b0000_0000, 0b0000_0000];
+        let bitslice = BitSlice::from_bytes_mut(&mut bytes, 16);
+
+        for i in 0..16 {
+            bitslice.set(i, i % 2 == 0);
+        }
+
+        assert_eq!(bytes, [0b0101_0101, 0b0101_0101]);
+    }
+
+    #[test]
+    fn test_bitslice_iter() {
+        let bytes = [0b1010_1010, 0b1100_1100];
+        let bitslice = BitSlice::from_bytes(&bytes, 16);
+
+        let expected: Vec<bool> = (0..16).map(|i| (bytes[i / 8] >> (i % 8)) & 1 == 1).collect();
+        let actual: Vec<bool> = bitslice.iter().collect();
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_bitslice_iter_mut() {
+        let mut bytes = [0b0000_0000, 0b0000_0000];
+        let bitslice = BitSlice::from_bytes_mut(&mut bytes, 16);
+
+        for (i, mut mut_bit) in bitslice.iter_mut().enumerate() {
+            mut_bit.set(i % 2 == 0);
+        }
+
+        assert_eq!(bytes, [0b0101_0101, 0b0101_0101]);
+    }
+
+    #[test]
+    fn test_bitslice_partial_eq() {
+        let bytes1 = [0b1010_1010, 0b1100_1100];
+        let bitslice1 = BitSlice::from_bytes(&bytes1, 14);
+
+        let bytes2 = [0b1010_1010, 0b0000_1100];
+        let bitslice2 = BitSlice::from_bytes(&bytes2, 14);
+
+        assert_eq!(bitslice1, bitslice2);
+    }
+
+    #[test]
+    fn test_bitslice_partial_eq_different_lengths() {
+        let bytes1 = [0b1010_1010, 0b1100_1100];
+        let bitslice1 = BitSlice::from_bytes(&bytes1, 14);
+        let bitslice2 = BitSlice::from_bytes(&bytes1, 15);
+        assert_ne!(bitslice1, bitslice2);
+    }
+
+    #[test]
+    fn test_bitslice_partial_eq_different_values() {
+        let bytes1 = [0b1010_1010, 0b1100_1000];
+        let bitslice1 = BitSlice::from_bytes(&bytes1, 14);
+
+        let bytes2 = [0b1010_1010, 0b1100_1111];
+        let bitslice2 = BitSlice::from_bytes(&bytes2, 14);
+
+        assert_ne!(bitslice1, bitslice2);
     }
 }
