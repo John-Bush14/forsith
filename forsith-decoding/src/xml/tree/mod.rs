@@ -59,6 +59,7 @@ impl XmlTree {
         XmlTreeBuilder::parse(parser, interner).map(std::convert::Into::into)
     }
 
+    #[must_use]
     pub fn root(&self) -> XmlTag<'_> {
         self.root_tag()
     }

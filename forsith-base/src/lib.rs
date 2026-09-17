@@ -9,4 +9,4 @@ pub mod bitvec;
 
 pub mod buffer;
 
-pub mod bitmasks;
+pub mod bitflags;
