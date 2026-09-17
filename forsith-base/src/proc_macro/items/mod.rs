@@ -1,7 +1,7 @@
 use crate::proc_macro::{Group, Ident, TokenStream, TokenTree};
 
-pub mod parsing;
 pub mod generating;
+pub mod parsing;
 
 #[derive(Debug, Clone)]
 pub enum ItemContent {
@@ -77,8 +77,12 @@ pub struct StructDefinition {
 }
 
 impl ItemDefinition for StructDefinition {
-    fn name(&self) -> &Ident {&self.name}
-    fn generics(&self) -> &GenericsDefinition {&self.generics}
+    fn name(&self) -> &Ident {
+        &self.name
+    }
+    fn generics(&self) -> &GenericsDefinition {
+        &self.generics
+    }
 }
 
 pub struct EnumVariant {
@@ -97,6 +101,10 @@ pub struct EnumDefinition {
 }
 
 impl ItemDefinition for EnumDefinition {
-    fn name(&self) -> &Ident {&self.name}
-    fn generics(&self) -> &GenericsDefinition {&self.generics}
+    fn name(&self) -> &Ident {
+        &self.name
+    }
+    fn generics(&self) -> &GenericsDefinition {
+        &self.generics
+    }
 }

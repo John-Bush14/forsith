@@ -1,4 +1,8 @@
-use std::{ffi::CString, fmt::Display, ops::{Deref, Index, IndexMut}};
+use std::{
+    ffi::CString,
+    fmt::Display,
+    ops::{Deref, Index, IndexMut},
+};
 
 #[cfg(feature = "in_proc_macro")]
 extern crate proc_macro;
@@ -8,22 +12,32 @@ pub struct TokenStream(Vec<TokenTree>);
 
 impl TokenStream {
     #[must_use]
-    pub fn new() -> Self {Self::default()}
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     #[must_use]
-    pub const fn is_empty(&self) -> bool {self.0.is_empty()}
+    pub const fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
     #[must_use]
-    pub const fn len(&self) -> usize {self.0.len()}
+    pub const fn len(&self) -> usize {
+        self.0.len()
+    }
 }
 
 impl Index<usize> for TokenStream {
     type Output = TokenTree;
 
-    fn index(&self, index: usize) -> &Self::Output {&self.0[index]}
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.0[index]
+    }
 }
 
 impl IndexMut<usize> for TokenStream {
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output {&mut self.0[index]}
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.0[index]
+    }
 }
 
 #[cfg(feature = "in_proc_macro")]
@@ -36,19 +50,23 @@ impl From<proc_macro::TokenStream> for TokenStream {
 #[cfg(feature = "in_proc_macro")]
 impl From<TokenStream> for proc_macro::TokenStream {
     fn from(sts: TokenStream) -> Self {
-        let mut pcts =  Self::new();
+        let mut pcts = Self::new();
         pcts.extend(sts.0.into_iter().map(Into::<proc_macro::TokenTree>::into));
         pcts
     }
 }
 
 impl From<Vec<TokenTree>> for TokenStream {
-    fn from(value: Vec<TokenTree>) -> Self {Self(value)}
+    fn from(value: Vec<TokenTree>) -> Self {
+        Self(value)
+    }
 }
 
 impl Display for TokenStream {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for tt in &self.0 {write!(f, "{tt} ")?;}
+        for tt in &self.0 {
+            write!(f, "{tt} ")?;
+        }
         Ok(())
     }
 }
@@ -65,12 +83,16 @@ impl IntoIterator for TokenStream {
     type Item = TokenTree;
     type IntoIter = std::vec::IntoIter<TokenTree>;
 
-    fn into_iter(self) -> Self::IntoIter {self.0.into_iter()}
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
 }
 
 impl Extend<Self> for TokenStream {
     fn extend<I: IntoIterator<Item = Self>>(&mut self, iter: I) {
-        for ts in iter {self.0.extend(ts);}
+        for ts in iter {
+            self.0.extend(ts);
+        }
     }
 }
 
@@ -154,7 +176,9 @@ impl Extend<Ident> for TokenStream {
 
 impl Ident {
     #[must_use]
-    pub fn new(name: &str) -> Self {Self(name.to_string())}
+    pub fn new(name: &str) -> Self {
+        Self(name.to_string())
+    }
 }
 
 impl Display for Ident {
@@ -166,7 +190,9 @@ impl Display for Ident {
 impl Deref for Ident {
     type Target = str;
 
-    fn deref(&self) -> &Self::Target {&self.0}
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -180,7 +206,10 @@ pub struct Punct {
 impl From<proc_macro::Punct> for Punct {
     fn from(p: proc_macro::Punct) -> Self {
         Self {
-            char: p.as_char().try_into().expect("Failed to convert proc_macro::Punct to PunctChar"),
+            char: p
+                .as_char()
+                .try_into()
+                .expect("Failed to convert proc_macro::Punct to PunctChar"),
             joint: p.spacing() == proc_macro::Spacing::Joint,
         }
     }
@@ -189,7 +218,11 @@ impl From<proc_macro::Punct> for Punct {
 #[cfg(feature = "in_proc_macro")]
 impl From<Punct> for proc_macro::Punct {
     fn from(p: Punct) -> Self {
-        let spacing = if p.joint {proc_macro::Spacing::Joint} else {proc_macro::Spacing::Alone};
+        let spacing = if p.joint {
+            proc_macro::Spacing::Joint
+        } else {
+            proc_macro::Spacing::Alone
+        };
         Self::new(p.char.into(), spacing)
     }
 }
@@ -202,12 +235,18 @@ impl Extend<Punct> for TokenStream {
 
 impl Punct {
     #[must_use]
-    pub const fn new(char: PunctChar, joint: bool) -> Self {Self {char, joint}}
+    pub const fn new(char: PunctChar, joint: bool) -> Self {
+        Self { char, joint }
+    }
 
     #[must_use]
-    pub const fn char(&self) -> PunctChar {self.char}
+    pub const fn char(&self) -> PunctChar {
+        self.char
+    }
     #[must_use]
-    pub const fn joint(&self) -> bool {self.joint}
+    pub const fn joint(&self) -> bool {
+        self.joint
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
@@ -387,7 +426,8 @@ impl From<proc_macro::Literal> for Literal {
     fn from(l: proc_macro::Literal) -> Self {
         for suffix in IntegerSuffix::variants() {
             if l.to_string().ends_with(suffix.as_str()) {
-                let value = l.to_string()[..l.to_string().len() - suffix.as_str().len()].to_string();
+                let value =
+                    l.to_string()[..l.to_string().len() - suffix.as_str().len()].to_string();
                 if let Ok(i) = value.parse::<usize>() {
                     return Self::Integer(i, Some(*suffix));
                 }
@@ -396,7 +436,8 @@ impl From<proc_macro::Literal> for Literal {
 
         for suffix in FloatSuffix::variants() {
             if l.to_string().ends_with(suffix.as_str()) {
-                let value = l.to_string()[..l.to_string().len() - suffix.as_str().len()].to_string();
+                let value =
+                    l.to_string()[..l.to_string().len() - suffix.as_str().len()].to_string();
                 if let Ok(i) = value.parse::<f64>() {
                     return Self::Float(i, Some(*suffix));
                 }
@@ -429,22 +470,45 @@ impl From<Literal> for proc_macro::Literal {
     fn from(l: Literal) -> Self {
         match l {
             Literal::Char(c) => Self::character(c),
-            Literal::Integer(i, Some(suffix)) => {
-                match suffix {
-                    IntegerSuffix::U8 => Self::u8_suffixed(i.try_into().expect("Literal with suffix u8 must be valid u8")),
-                    IntegerSuffix::U16 => Self::u16_suffixed(i.try_into().expect("Literal with suffix u16 must be valid u16")),
-                    IntegerSuffix::U32 => Self::u32_suffixed(i.try_into().expect("Literal with suffix u32 must be valid u32")),
-                    IntegerSuffix::U64 => Self::u64_suffixed(i as u64),
-                    IntegerSuffix::Usize => Self::usize_suffixed(i),
-                    IntegerSuffix::I8 => Self::i8_suffixed(i.try_into().expect("Literal with suffix i8 must be valid i8")),
-                    IntegerSuffix::I16 => Self::i16_suffixed(i.try_into().expect("Literal with suffix i16 must be valid i16")),
-                    IntegerSuffix::I32 => Self::i32_suffixed(i.try_into().expect("Literal with suffix i32 must be valid i32")),
-                    IntegerSuffix::I64 => Self::i64_suffixed(i.try_into().expect("Literal with suffix i64 must be valid i64")),
-                    IntegerSuffix::Isize => Self::isize_suffixed(i.try_into().expect("Literal with suffix isize must be valid isize"))
-                }
-            }
+            Literal::Integer(i, Some(suffix)) => match suffix {
+                IntegerSuffix::U8 => Self::u8_suffixed(
+                    i.try_into()
+                        .expect("Literal with suffix u8 must be valid u8"),
+                ),
+                IntegerSuffix::U16 => Self::u16_suffixed(
+                    i.try_into()
+                        .expect("Literal with suffix u16 must be valid u16"),
+                ),
+                IntegerSuffix::U32 => Self::u32_suffixed(
+                    i.try_into()
+                        .expect("Literal with suffix u32 must be valid u32"),
+                ),
+                IntegerSuffix::U64 => Self::u64_suffixed(i as u64),
+                IntegerSuffix::Usize => Self::usize_suffixed(i),
+                IntegerSuffix::I8 => Self::i8_suffixed(
+                    i.try_into()
+                        .expect("Literal with suffix i8 must be valid i8"),
+                ),
+                IntegerSuffix::I16 => Self::i16_suffixed(
+                    i.try_into()
+                        .expect("Literal with suffix i16 must be valid i16"),
+                ),
+                IntegerSuffix::I32 => Self::i32_suffixed(
+                    i.try_into()
+                        .expect("Literal with suffix i32 must be valid i32"),
+                ),
+                IntegerSuffix::I64 => Self::i64_suffixed(
+                    i.try_into()
+                        .expect("Literal with suffix i64 must be valid i64"),
+                ),
+                IntegerSuffix::Isize => Self::isize_suffixed(
+                    i.try_into()
+                        .expect("Literal with suffix isize must be valid isize"),
+                ),
+            },
             Literal::Integer(i, None) => Self::usize_unsuffixed(i),
-            Literal::Float(f, Some(suffix)) => {
+            Literal::Float(f, Some(suffix)) =>
+            {
                 #[allow(clippy::cast_possible_truncation)]
                 match suffix {
                     FloatSuffix::F32 => Self::f32_suffixed(f as f32),
@@ -472,7 +536,11 @@ impl Display for Literal {
             Self::Float(fl, None) => write!(f, "{fl}"),
             Self::Str(s) => write!(f, "\"{s}\""),
             Self::ByteStr(bs) => write!(f, "b\"{}\"", String::from_utf8_lossy(bs)),
-            Self::CStr(cstr) => write!(f, "c\"{}\"", cstr.to_str().expect("Failed to convert CString to str")),
+            Self::CStr(cstr) => write!(
+                f,
+                "c\"{}\"",
+                cstr.to_str().expect("Failed to convert CString to str")
+            ),
         }
     }
 }
@@ -528,16 +596,26 @@ impl Extend<Group> for TokenStream {
 
 impl Group {
     #[must_use]
-    pub const fn new(delimiter: Delimiter, stream: TokenStream) -> Self {Self {delimiter, stream}}
+    pub const fn new(delimiter: Delimiter, stream: TokenStream) -> Self {
+        Self { delimiter, stream }
+    }
 
     #[must_use]
-    pub fn decompose(self) -> (Delimiter, TokenStream) { (self.delimiter, self.stream) }
+    pub fn decompose(self) -> (Delimiter, TokenStream) {
+        (self.delimiter, self.stream)
+    }
     #[must_use]
-    pub const fn stream(&self) -> &TokenStream {&self.stream}
+    pub const fn stream(&self) -> &TokenStream {
+        &self.stream
+    }
     #[must_use]
-    pub fn take_stream(self) -> TokenStream {self.stream}
+    pub fn take_stream(self) -> TokenStream {
+        self.stream
+    }
     #[must_use]
-    pub const fn delimiter(&self) -> Delimiter {self.delimiter}
+    pub const fn delimiter(&self) -> Delimiter {
+        self.delimiter
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]

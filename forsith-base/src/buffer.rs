@@ -1,4 +1,8 @@
-use std::{alloc::{Layout, alloc}, ops::{Deref, DerefMut}, ptr};
+use std::{
+    alloc::{Layout, alloc},
+    ops::{Deref, DerefMut},
+    ptr,
+};
 
 #[macro_export]
 macro_rules! buffer {
@@ -50,13 +54,13 @@ impl<T: Clone> From<Buffer<T>> for Vec<T> {
 
 impl<T: Clone> From<&[T]> for Buffer<T> {
     fn from(slice: &[T]) -> Self {
-        unsafe {Self::copy_from_ptr(slice.as_ptr(), slice.len())}
+        unsafe { Self::copy_from_ptr(slice.as_ptr(), slice.len()) }
     }
 }
 
 impl<T: Clone, const N: usize> From<&[T; N]> for Buffer<T> {
     fn from(array: &[T; N]) -> Self {
-        unsafe {Self::copy_from_ptr(array.as_ptr(), N)}
+        unsafe { Self::copy_from_ptr(array.as_ptr(), N) }
     }
 }
 
@@ -74,13 +78,15 @@ impl<T: Clone> From<Buffer<T>> for Box<[T]> {
 
 impl<T: Clone, const N: usize> From<[T; N]> for Buffer<T> {
     fn from(array: [T; N]) -> Self {
-        unsafe {Self::copy_from_ptr(array.as_ptr(), N)}
+        unsafe { Self::copy_from_ptr(array.as_ptr(), N) }
     }
 }
 
 impl<T: Clone> Buffer<T> {
     #[must_use]
-    pub fn new() -> Self {Self::default()}
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     /// # Safety
     /// ptr must be a valid pointer to a slice of length `len` and must have been allocated with
@@ -101,7 +107,7 @@ impl<T: Clone> Buffer<T> {
     #[must_use]
     pub unsafe fn from_raw_parts(ptr: *mut T, len: usize) -> Self {
         let ptr = ptr::slice_from_raw_parts_mut(ptr, len);
-        unsafe {Self(Box::from_raw(ptr))}
+        unsafe { Self(Box::from_raw(ptr)) }
     }
 
     fn alloc(size: usize) -> *mut T {
@@ -115,8 +121,7 @@ impl<T: Clone> Buffer<T> {
         }
     }
 
-    unsafe fn init(ptr: *mut T, n: usize, value: T)
-    {
+    unsafe fn init(ptr: *mut T, n: usize, value: T) {
         unsafe {
             for i in 0..n {
                 ptr.add(i).write(value.clone());
@@ -124,8 +129,7 @@ impl<T: Clone> Buffer<T> {
         }
     }
 
-    pub fn from_elem(elem: T, n: usize) -> Self
-    {
+    pub fn from_elem(elem: T, n: usize) -> Self {
         unsafe {
             let ptr = Self::alloc(n);
 
@@ -138,7 +142,9 @@ impl<T: Clone> Buffer<T> {
     pub fn resize(&mut self, new_size: usize, value: T) {
         let old_size = self.len();
 
-        if old_size == new_size {return}
+        if old_size == new_size {
+            return;
+        }
 
         let new_buffer = Self::alloc(new_size);
         unsafe {

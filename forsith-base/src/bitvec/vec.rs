@@ -1,6 +1,9 @@
 use crate::buffer;
-use std::{mem::MaybeUninit, ops::{Deref, DerefMut}};
-use crate::{bitvec::{ BitSlice}, buffer::Buffer};
+use crate::{bitvec::BitSlice, buffer::Buffer};
+use std::{
+    mem::MaybeUninit,
+    ops::{Deref, DerefMut},
+};
 
 #[macro_export]
 macro_rules! bitvec {
@@ -31,7 +34,9 @@ impl std::fmt::Debug for BitVec {
 }
 
 impl PartialEq for BitVec {
-    fn eq(&self, other: &Self) -> bool {**self == **other}
+    fn eq(&self, other: &Self) -> bool {
+        **self == **other
+    }
 }
 
 impl Deref for BitVec {
@@ -50,39 +55,54 @@ impl DerefMut for BitVec {
 
 impl From<&BitSlice> for BitVec {
     fn from(slice: &BitSlice) -> Self {
-        let data = unsafe {Buffer::copy_from_ptr(slice.as_ptr().cast(), slice.len_bytes())};
+        let data = unsafe { Buffer::copy_from_ptr(slice.as_ptr().cast(), slice.len_bytes()) };
 
-        Self { data, bits: slice.bits() }
+        Self {
+            data,
+            bits: slice.bits(),
+        }
     }
 }
 
 impl From<&[bool]> for BitVec {
-    fn from(slice: &[bool]) -> Self {Self::from_bools(slice)}
+    fn from(slice: &[bool]) -> Self {
+        Self::from_bools(slice)
+    }
 }
 
 impl From<Buffer<u8>> for BitVec {
     fn from(buffer: Buffer<u8>) -> Self {
         let bits = buffer.len() * 8;
-        let data = unsafe {std::mem::transmute::<Buffer<u8>, Buffer<MaybeUninit<u8>>>(buffer)};
+        let data = unsafe { std::mem::transmute::<Buffer<u8>, Buffer<MaybeUninit<u8>>>(buffer) };
 
         Self { data, bits }
     }
 }
 
 impl From<BitVec> for Buffer<MaybeUninit<u8>> {
-    fn from(bitvec: BitVec) -> Self {bitvec.into_buffer()}
+    fn from(bitvec: BitVec) -> Self {
+        bitvec.into_buffer()
+    }
 }
 
 impl BitVec {
     #[must_use]
-    pub fn new() -> Self {Self::default()}
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     #[must_use]
-    pub const fn buffer(&self) -> &Buffer<MaybeUninit<u8>> {&self.data}
+    pub const fn buffer(&self) -> &Buffer<MaybeUninit<u8>> {
+        &self.data
+    }
     #[must_use]
-    pub const fn buffer_mut(&mut self) -> &mut Buffer<MaybeUninit<u8>> {&mut self.data}
+    pub const fn buffer_mut(&mut self) -> &mut Buffer<MaybeUninit<u8>> {
+        &mut self.data
+    }
     #[must_use]
-    pub fn into_buffer(self) -> Buffer<MaybeUninit<u8>> {self.data}
+    pub fn into_buffer(self) -> Buffer<MaybeUninit<u8>> {
+        self.data
+    }
     #[must_use]
     pub fn from_buffer(buffer: Buffer<MaybeUninit<u8>>, bits: usize) -> Self {
         assert!(bits <= buffer.len() * 8, "new length exceeds capacity");
@@ -93,7 +113,10 @@ impl BitVec {
     pub fn from_bools(bits: &[bool]) -> Self {
         let mut bitvec = Self::with_capacity(bits.len());
 
-        bitvec.iter_mut().zip(bits.iter()).for_each(|(mut b, &bit)| b.set(bit));
+        bitvec
+            .iter_mut()
+            .zip(bits.iter())
+            .for_each(|(mut b, &bit)| b.set(bit));
 
         bitvec
     }
@@ -149,7 +172,8 @@ impl BitVec {
         let old_bytes = self.data.len();
 
         if new_bytes > old_bytes {
-            self.data.resize(new_bytes.next_power_of_two(), MaybeUninit::uninit());
+            self.data
+                .resize(new_bytes.next_power_of_two(), MaybeUninit::uninit());
         }
     }
 
@@ -171,7 +195,9 @@ mod bitvec_tests {
     fn test_bitvec_push() {
         let mut bitvec = BitVec::new();
 
-        for i in 0..10 {bitvec.push(i % 2 == 0);}
+        for i in 0..10 {
+            bitvec.push(i % 2 == 0);
+        }
 
         assert_eq!(bitvec.len(), 10);
         assert_eq!(bitvec.capacity(), 16); // Next power of two of 10 bits is 16 bits (2 bytes)
@@ -202,7 +228,13 @@ mod bitvec_tests {
         let buffer = buffer![MaybeUninit::new(0b1010_1010), MaybeUninit::new(0b1100_1100)];
         let bitvec = BitVec::from_buffer(buffer, 14);
 
-        assert_eq!(bitvec, bitvec![false, true, false, true, false, true, false, true, false, false, true, true, false, false]);
+        assert_eq!(
+            bitvec,
+            bitvec![
+                false, true, false, true, false, true, false, true, false, false, true, true,
+                false, false
+            ]
+        );
     }
 
     #[test]

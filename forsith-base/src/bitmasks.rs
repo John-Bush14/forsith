@@ -9,7 +9,10 @@ pub struct Bitflags<S: BitStorage, F: BitFlag>(S, PhantomData<F>);
 impl<S: BitStorage, F: BitFlag> Bitflags<S, F> {
     #[must_use]
     pub fn new(flags_slice: &[F]) -> Self {
-        assert!(S::MAX_BITS >= F::MAX_BITS, "BitStorage does not have enough bits to store all flags");
+        assert!(
+            S::MAX_BITS >= F::MAX_BITS,
+            "BitStorage does not have enough bits to store all flags"
+        );
 
         let mut flags = Self::empty();
         flags.set_flags(flags_slice, true);
@@ -17,7 +20,9 @@ impl<S: BitStorage, F: BitFlag> Bitflags<S, F> {
     }
 
     #[must_use]
-    pub fn empty() -> Self {Self(S::default(), PhantomData)}
+    pub fn empty() -> Self {
+        Self(S::default(), PhantomData)
+    }
 
     #[must_use]
     pub fn get(&self, flag: &F) -> bool {
@@ -36,10 +41,18 @@ impl<S: BitStorage, F: BitFlag> Bitflags<S, F> {
         }
     }
 
-    pub const fn storage(&self) -> &S {&self.0}
-    pub const fn storage_mut(&mut self) -> &mut S {&mut self.0}
-    pub fn into_storage(self) -> S {self.0}
-    pub const fn from_storage(storage: S) -> Self {Self(storage, PhantomData)}
+    pub const fn storage(&self) -> &S {
+        &self.0
+    }
+    pub const fn storage_mut(&mut self) -> &mut S {
+        &mut self.0
+    }
+    pub fn into_storage(self) -> S {
+        self.0
+    }
+    pub const fn from_storage(storage: S) -> Self {
+        Self(storage, PhantomData)
+    }
 }
 
 impl<S: BitStorage, F: BitFlag> From<S> for Bitflags<S, F> {
@@ -53,7 +66,9 @@ impl<S: BitStorage, F: BitFlag + BitFlagFromIndex> Bitflags<S, F> {
     pub fn flags(&self, value: bool) -> Vec<F> {
         let mut flags = Vec::new();
         for index in 0..S::MAX_BITS {
-            if self.0.get_bit(index) == value && let Some(flag) = F::from_index(index) {
+            if self.0.get_bit(index) == value
+                && let Some(flag) = F::from_index(index)
+            {
                 flags.push(flag);
             }
         }
@@ -75,7 +90,9 @@ pub trait BitFlag {
 }
 
 pub trait BitFlagFromIndex: BitFlag {
-    fn from_index(index: usize) -> Option<Self> where Self: Sized;
+    fn from_index(index: usize) -> Option<Self>
+    where
+        Self: Sized;
 }
 
 impl BitStorage for u32 {

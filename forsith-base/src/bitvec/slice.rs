@@ -1,4 +1,7 @@
-use std::{fmt::Debug, ops::{Deref, Index}};
+use std::{
+    fmt::Debug,
+    ops::{Deref, Index},
+};
 
 pub struct BitSlice {
     data: [()],
@@ -15,20 +18,27 @@ impl Debug for BitSlice {
 
 impl PartialEq for BitSlice {
     fn eq(&self, other: &Self) -> bool {
-        if self.bits() != other.bits() {return false}
+        if self.bits() != other.bits() {
+            return false;
+        }
 
         let full_bytes = self.bits() / 8;
-        let remaining_bits_mask = (1 << (self.bits() % 8)) - 1;
+        if self.bytes()[..full_bytes] != other.bytes()[..full_bytes] {
+            return false;
+        }
 
-        self.bytes()[..full_bytes] == other.bytes()[..full_bytes]
-            && (self.bytes()[full_bytes] & remaining_bits_mask) == (other.bytes()[full_bytes] & remaining_bits_mask)
+        let remaining_bits_mask = (1 << (self.bits() % 8)) - 1;
+        (self.bytes()[full_bytes] & remaining_bits_mask)
+            == (other.bytes()[full_bytes] & remaining_bits_mask)
     }
 }
 
 impl Index<usize> for BitSlice {
     type Output = bool;
 
-    fn index(&self, index: usize) -> &Self::Output {self.get(index).expect("index out of bounds")}
+    fn index(&self, index: usize) -> &Self::Output {
+        self.get(index).expect("index out of bounds")
+    }
 }
 
 impl From<&BitSlice> for Vec<bool> {
@@ -42,7 +52,10 @@ impl<'a> IntoIterator for &'a BitSlice {
     type IntoIter = BitSliceIter<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
-        BitSliceIter { slice: self, index: 0 }
+        BitSliceIter {
+            slice: self,
+            index: 0,
+        }
     }
 }
 
@@ -51,7 +64,10 @@ impl<'a> IntoIterator for &'a mut BitSlice {
     type IntoIter = MutBitSliceIter<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
-        MutBitSliceIter { slice: self, index: 0 }
+        MutBitSliceIter {
+            slice: self,
+            index: 0,
+        }
     }
 }
 
@@ -66,7 +82,7 @@ impl MutBit<'_> {
     }
 
     pub fn get(&self) -> bool {
-        *self.slice.get(self.index).expect("MutBit index should always be valid")
+        **self
     }
 }
 
@@ -74,7 +90,9 @@ impl Deref for MutBit<'_> {
     type Target = bool;
 
     fn deref(&self) -> &Self::Target {
-        self.slice.get(self.index).expect("MutBit index should always be valid")
+        self.slice
+            .get(self.index)
+            .expect("MutBit index should always be valid")
     }
 }
 
@@ -109,10 +127,12 @@ impl<'a> Iterator for MutBitSliceIter<'a> {
     type Item = MutBit<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.index >= self.slice.bits() {return None}
+        if self.index >= self.slice.bits() {
+            return None;
+        }
 
         let bit = MutBit {
-            slice: unsafe {self.slice.with_lifetime_mut()},
+            slice: unsafe { self.slice.with_lifetime_mut() },
             index: self.index,
         };
 
@@ -130,10 +150,14 @@ impl ExactSizeIterator for MutBitSliceIter<'_> {
 
 impl BitSlice {
     #[must_use]
-    pub fn iter(&self) -> BitSliceIter<'_> {self.into_iter()}
+    pub fn iter(&self) -> BitSliceIter<'_> {
+        self.into_iter()
+    }
 
     #[must_use]
-    pub fn iter_mut(&mut self) -> MutBitSliceIter<'_> {self.into_iter()}
+    pub fn iter_mut(&mut self) -> MutBitSliceIter<'_> {
+        self.into_iter()
+    }
 
     #[must_use]
     pub const fn as_ptr(&self) -> *const u8 {
@@ -147,40 +171,46 @@ impl BitSlice {
     #[must_use]
     pub const fn from_bytes(bytes: &[u8], bits: usize) -> &Self {
         assert!(bits <= bytes.len() * 8, "new length exceeds capacity");
-        unsafe {Self::from_raw_parts(bytes.as_ptr(), bits)}
+        unsafe { Self::from_raw_parts(bytes.as_ptr(), bits) }
     }
 
     #[must_use]
     pub fn from_bytes_mut(bytes: &mut [u8], bits: usize) -> &mut Self {
         assert!(bits <= bytes.len() * 8, "new length exceeds capacity");
-        unsafe {Self::from_raw_parts_mut(bytes.as_mut_ptr(), bits)}
+        unsafe { Self::from_raw_parts_mut(bytes.as_mut_ptr(), bits) }
     }
 
     #[must_use]
-    pub fn as_bools(&self) -> Vec<bool> {self.into()}
+    pub fn as_bools(&self) -> Vec<bool> {
+        self.into()
+    }
 
     const fn get_byte_bit_index(&self, index: usize) -> Option<(u8, usize)> {
-        if index >= self.bits() {return None}
-        let byte = unsafe {*self.as_ptr().add(index / 8)};
+        if index >= self.bits() {
+            return None;
+        }
+        let byte = unsafe { *self.as_ptr().add(index / 8) };
 
         Some((byte, index % 8))
     }
 
     const fn get_mut_byte_bit_index(&mut self, index: usize) -> Option<(&mut u8, usize)> {
-        if index >= self.bits() {return None}
-        let byte = unsafe {&mut *self.as_mut_ptr().add(index / 8)};
+        if index >= self.bits() {
+            return None;
+        }
+        let byte = unsafe { &mut *self.as_mut_ptr().add(index / 8) };
 
         Some((byte, index % 8))
     }
 
     #[must_use]
     pub const fn bytes(&self) -> &[u8] {
-        unsafe {std::slice::from_raw_parts(self.as_ptr(), self.len_bytes())}
+        unsafe { std::slice::from_raw_parts(self.as_ptr(), self.len_bytes()) }
     }
 
     #[must_use]
     pub const fn bytes_mut(&mut self) -> &mut [u8] {
-        unsafe {std::slice::from_raw_parts_mut(self.as_mut_ptr(), self.len_bytes())}
+        unsafe { std::slice::from_raw_parts_mut(self.as_mut_ptr(), self.len_bytes()) }
     }
 
     #[must_use]
@@ -225,12 +255,14 @@ impl BitSlice {
     }
 
     pub const fn set(&mut self, index: usize, bit: bool) {
-        let (byte, bit_i) = self.get_mut_byte_bit_index(index).expect("index out of bounds");
+        let (byte, bit_i) = self
+            .get_mut_byte_bit_index(index)
+            .expect("index out of bounds");
 
         if bit {
             *byte |= 1 << bit_i;
         } else {
-             *byte &= !(1 << bit_i);
+            *byte &= !(1 << bit_i);
         }
     }
 
@@ -249,7 +281,7 @@ impl BitSlice {
     /// lifetime of the `BitSlice` reference.
     #[must_use]
     pub unsafe fn with_lifetime<'d>(&self) -> &'d Self {
-        unsafe {std::mem::transmute(self)}
+        unsafe { std::mem::transmute(self) }
     }
 
     /// # Safety
@@ -257,7 +289,7 @@ impl BitSlice {
     /// lifetime of the `BitSlice` reference.
     #[must_use]
     pub unsafe fn with_lifetime_mut<'d>(&mut self) -> &'d mut Self {
-        unsafe {std::mem::transmute(self)}
+        unsafe { std::mem::transmute(self) }
     }
 }
 
@@ -295,7 +327,9 @@ mod bitslice_tests {
         let bytes = [0b1010_1010, 0b1100_1100];
         let bitslice = BitSlice::from_bytes(&bytes, 16);
 
-        let expected: Vec<bool> = (0..16).map(|i| (bytes[i / 8] >> (i % 8)) & 1 == 1).collect();
+        let expected: Vec<bool> = (0..16)
+            .map(|i| (bytes[i / 8] >> (i % 8)) & 1 == 1)
+            .collect();
         let actual: Vec<bool> = bitslice.iter().collect();
 
         assert_eq!(actual, expected);

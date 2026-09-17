@@ -1,9 +1,18 @@
-use crate::proc_macro::{Delimiter, Literal, PunctChar, TokenStream, TokenTree, items::{Attribute, EnumDefinition, EnumVariant, GenericDefinition, GenericsDefinition, ItemPrefix, ItemType, StructDefinition, StructField, Visibility}};
-use std::{iter::{Peekable, once}};
+use crate::proc_macro::{
+    Delimiter, Literal, PunctChar, TokenStream, TokenTree,
+    items::{
+        Attribute, EnumDefinition, EnumVariant, GenericDefinition, GenericsDefinition, ItemPrefix,
+        ItemType, StructDefinition, StructField, Visibility,
+    },
+};
+use std::iter::{Peekable, once};
 
 impl Attribute {
     fn parse(input: &mut impl Iterator<Item = TokenTree>) -> Self {
-        assert!(matches!(input.next(), Some(TokenTree::Punct(punct)) if punct.char() == PunctChar::Hash), "Tried to parse attribute, but first token was not `#`");
+        assert!(
+            matches!(input.next(), Some(TokenTree::Punct(punct)) if punct.char() == PunctChar::Hash),
+            "Tried to parse attribute, but first token was not `#`"
+        );
 
         let att = match input.next() {
             Some(TokenTree::Group(group)) if group.delimiter() == Delimiter::Bracket => group,
@@ -18,7 +27,9 @@ impl Attribute {
         };
 
         let args = match att.next() {
-            Some(TokenTree::Group(group)) if group.delimiter() == Delimiter::Parenthesis => Some(group),
+            Some(TokenTree::Group(group)) if group.delimiter() == Delimiter::Parenthesis => {
+                Some(group)
+            }
             None => None,
             t => panic!("Expected (...) after `#ident` in attribute, found `{t:?}`"),
         };
@@ -29,10 +40,18 @@ impl Attribute {
 
 impl Visibility {
     fn parse(input: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Self {
-        assert!(matches!(input.next(), Some(TokenTree::Ident(ident)) if ident.to_string() == "pub"), "Tried to parse visibility, but first token was not `pub`");
+        assert!(
+            matches!(input.next(), Some(TokenTree::Ident(ident)) if ident.to_string() == "pub"),
+            "Tried to parse visibility, but first token was not `pub`"
+        );
 
-        if let Some(TokenTree::Group(group)) = input.peek() && group.delimiter() == Delimiter::Parenthesis {
-            let TokenTree::Group(group) = input.next().unwrap() else {unreachable!()};
+        if let Some(TokenTree::Group(group)) = input.peek()
+            && group.delimiter() == Delimiter::Parenthesis
+        {
+            let TokenTree::Group(group) = input.next().unwrap() else {
+                unreachable!()
+            };
+
             Self::SpecializedPublic(group.take_stream())
         } else {
             Self::Public
@@ -40,7 +59,9 @@ impl Visibility {
     }
 
     fn parse_or_default(input: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Self {
-        if let Some(TokenTree::Ident(ident)) = input.peek() && ident.to_string() == "pub" {
+        if let Some(TokenTree::Ident(ident)) = input.peek()
+            && ident.to_string() == "pub"
+        {
             Self::parse(input)
         } else {
             Self::Private
@@ -60,16 +81,24 @@ impl ItemPrefix {
             match token {
                 TokenTree::Punct(punct) if punct.char() == PunctChar::Hash => {
                     attributes.push(Attribute::parse(input));
-                },
+                }
                 TokenTree::Ident(ident) if ident.to_string() == "pub" => {
                     visibility = Visibility::parse(input);
-                },
+                }
                 TokenTree::Ident(ident) if ident.to_string() == "const" => constness = true,
                 TokenTree::Ident(ident) if ident.to_string() == "unsafe" => unsafety = true,
                 TokenTree::Ident(ident) if ident.to_string() == "async" => asyncness = true,
                 TokenTree::Ident(_) => {
-                    let TokenTree::Ident(item_type) = input.next().unwrap() else {unreachable!()};
-                    let TokenTree::Ident(name) = input.next().expect("Expected item name after item type") else {unreachable!()};
+                    let TokenTree::Ident(item_type) = input.next().unwrap() else {
+                        unreachable!()
+                    };
+
+                    let name = match input.next().expect("Expected item name after item type") {
+                        TokenTree::Ident(name) => name,
+                        tt => {
+                            panic!("Expected item name after item type, found `{tt:?}`");
+                        }
+                    };
                     let generics = GenericsDefinition::parse(input);
                     let item_type = match item_type.to_string().as_str() {
                         "struct" => ItemType::Struct,
@@ -77,8 +106,17 @@ impl ItemPrefix {
                         _ => unimplemented!("Item type `{}` is not supported yet", item_type),
                     };
 
-                    return Self { attributes, visibility, constness, unsafety, asyncness, name, generics, item_type };
-                },
+                    return Self {
+                        attributes,
+                        visibility,
+                        constness,
+                        unsafety,
+                        asyncness,
+                        name,
+                        generics,
+                        item_type,
+                    };
+                }
                 t => panic!("Expected item type after attributes and modifiers, found `{t:?}`"),
             }
         }
@@ -115,7 +153,11 @@ impl StructDefinition {
 
     #[must_use]
     pub fn assemble(prefix: ItemPrefix, fields: Vec<StructField>) -> Self {
-        assert!(matches!(prefix.item_type, ItemType::Struct), "Expected struct definition, found {:?}", prefix.item_type);
+        assert!(
+            matches!(prefix.item_type, ItemType::Struct),
+            "Expected struct definition, found {:?}",
+            prefix.item_type
+        );
         assert!(!prefix.constness, "Structs cannot be const");
         assert!(!prefix.unsafety, "Structs cannot be unsafe");
         assert!(!prefix.asyncness, "Structs cannot be async");
@@ -149,7 +191,7 @@ impl StructDefinition {
                     match item {
                         TokenTree::Punct(punct) if punct.char() == PunctChar::Hash => {
                             attributes.push(Attribute::parse(&mut iter));
-                        },
+                        }
                         _ => {
                             let visibility = Visibility::parse_or_default(&mut iter);
 
@@ -158,41 +200,47 @@ impl StructDefinition {
                                 name: TokenTree::Literal(i),
                                 visibility,
                                 ty: parse_type(&mut iter),
-                                attributes: std::mem::take(&mut attributes)
+                                attributes: std::mem::take(&mut attributes),
                             });
                         }
                     }
                 }
 
                 return fields;
-
-            },
+            }
             Delimiter::Brace => {
                 while let Some(token) = iter.peek() {
                     match token {
                         TokenTree::Ident(_) => {
                             let visibility = Visibility::parse_or_default(&mut iter);
 
-                            let TokenTree::Ident(name) = iter.next().unwrap() else {unreachable!()};
+                            let TokenTree::Ident(name) = iter.next().unwrap() else {
+                                unreachable!()
+                            };
 
                             let colon = iter.next().expect("Expected colon after field name");
-                            assert!(matches!(colon, TokenTree::Punct(ref punct) if punct.char() == PunctChar::Colon), "Expected colon after field name, found `{colon:?}`");
+                            assert!(
+                                matches!(colon, TokenTree::Punct(ref punct) if punct.char() == PunctChar::Colon),
+                                "Expected colon after field name, found `{colon:?}`"
+                            );
 
                             fields.push(StructField {
                                 name: TokenTree::Ident(name),
                                 ty: parse_type(&mut iter),
                                 visibility,
-                                attributes: std::mem::take(&mut attributes)
+                                attributes: std::mem::take(&mut attributes),
                             });
-                        },
+                        }
                         TokenTree::Punct(punct) if punct.char() == PunctChar::Hash => {
                             attributes.push(Attribute::parse(&mut iter));
-                        },
+                        }
                         t => panic!("Expected ident or attribute in struct fields, found `{t:?}`"),
                     }
                 }
-            },
-            _ => panic!("Expected struct fields to be in parentheses or braces, found `{delimiter:?}`"),
+            }
+            _ => panic!(
+                "Expected struct fields to be in parentheses or braces, found `{delimiter:?}`"
+            ),
         }
 
         fields
@@ -208,7 +256,11 @@ impl EnumDefinition {
 
     #[must_use]
     pub fn assemble(prefix: ItemPrefix, variants: Vec<EnumVariant>) -> Self {
-        assert!(matches!(prefix.item_type, ItemType::Enum), "Expected enum definition, found {:?}", prefix.item_type);
+        assert!(
+            matches!(prefix.item_type, ItemType::Enum),
+            "Expected enum definition, found {:?}",
+            prefix.item_type
+        );
         assert!(!prefix.constness, "Enums cannot be const");
         assert!(!prefix.unsafety, "Enums cannot be unsafe");
         assert!(!prefix.asyncness, "Enums cannot be async");
@@ -236,7 +288,9 @@ impl EnumDefinition {
         while let Some(token) = iter.peek() {
             match token {
                 TokenTree::Ident(_) => {
-                    let TokenTree::Ident(name) = iter.next().unwrap() else {unreachable!()};
+                    let TokenTree::Ident(name) = iter.next().unwrap() else {
+                        unreachable!()
+                    };
 
                     let mut variant = EnumVariant {
                         ident: name,
@@ -246,29 +300,37 @@ impl EnumDefinition {
                     };
 
                     match iter.peek() {
-                        Some(TokenTree::Group(group)) if group.delimiter() == Delimiter::Parenthesis => {
-                            let TokenTree::Group(group) = iter.next().unwrap() else {unreachable!()};
+                        Some(TokenTree::Group(group))
+                            if group.delimiter() == Delimiter::Parenthesis =>
+                        {
+                            let TokenTree::Group(group) = iter.next().unwrap() else {
+                                unreachable!()
+                            };
                             variant.fields = Some(group);
-                            if let Some(TokenTree::Punct(punct)) = iter.peek() && punct.char() == PunctChar::Comma {
+                            if let Some(TokenTree::Punct(punct)) = iter.peek()
+                                && punct.char() == PunctChar::Comma
+                            {
                                 let _ = iter.next();
                             }
-                        },
+                        }
                         Some(TokenTree::Punct(punct)) if punct.char() == PunctChar::Equal => {
                             let _ = iter.next();
                             variant.discriminant = Some(parse_type(&mut iter));
-                        },
+                        }
                         Some(TokenTree::Punct(punct)) if punct.char() == PunctChar::Comma => {
                             let _ = iter.next();
-                        },
-                        None => {},
-                        token => panic!("Expected `(`, `=`, `,` or end of enum variants after variant name, found `{token:?}`"),
+                        }
+                        None => {}
+                        token => panic!(
+                            "Expected `(`, `=`, `,` or end of enum variants after variant name, found `{token:?}`"
+                        ),
                     }
 
                     variants.push(variant);
-                },
+                }
                 TokenTree::Punct(punct) if punct.char() == PunctChar::Hash => {
                     attributes.push(Attribute::parse(&mut iter));
-                },
+                }
                 t => panic!("Expected ident or attribute in enum variants, found `{t:?}`"),
             }
         }
@@ -280,14 +342,18 @@ impl EnumDefinition {
 impl GenericsDefinition {
     fn parse(input: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Self {
         let mut generics: Vec<GenericDefinition> = Vec::new();
-        if let Some(TokenTree::Punct(punct)) = input.peek() && punct.char() == PunctChar::LessThan {
+        if let Some(TokenTree::Punct(punct)) = input.peek()
+            && punct.char() == PunctChar::LessThan
+        {
             let _ = input.next();
 
             loop {
                 match input.next() {
                     Some(TokenTree::Ident(ident)) => {
                         let mut constraints = TokenStream::new();
-                        if let Some(TokenTree::Punct(punct)) = input.peek() && punct.char() == PunctChar::Colon {
+                        if let Some(TokenTree::Punct(punct)) = input.peek()
+                            && punct.char() == PunctChar::Colon
+                        {
                             let _ = input.next();
 
                             let mut nested = 0;
@@ -296,10 +362,15 @@ impl GenericsDefinition {
                                     match punct.char() {
                                         PunctChar::LessThan => nested += 1,
                                         PunctChar::GreaterThan => {
-                                            if nested == 0 {break;}
+                                            if nested == 0 {
+                                                break;
+                                            }
                                             nested -= 1;
-                                        },
-                                        PunctChar::Comma if nested == 0 => {let _ = input.next(); break},
+                                        }
+                                        PunctChar::Comma if nested == 0 => {
+                                            let _ = input.next();
+                                            break;
+                                        }
                                         _ => {}
                                     }
                                 }
@@ -307,8 +378,10 @@ impl GenericsDefinition {
                             }
                         }
                         generics.push(GenericDefinition::Type(ident, constraints));
-                    },
-                    Some(TokenTree::Punct(punct)) if punct.char() == PunctChar::GreaterThan => break,
+                    }
+                    Some(TokenTree::Punct(punct)) if punct.char() == PunctChar::GreaterThan => {
+                        break;
+                    }
                     Some(TokenTree::Punct(punct)) if punct.char() == PunctChar::Qoute => {
                         let lifetime_ident = match input.next() {
                             Some(TokenTree::Ident(ident)) => ident,
@@ -316,10 +389,12 @@ impl GenericsDefinition {
                         };
                         generics.push(GenericDefinition::Lifetime(lifetime_ident));
 
-                        if let Some(TokenTree::Punct(punct)) = input.peek() && punct.char() == PunctChar::Comma {
+                        if let Some(TokenTree::Punct(punct)) = input.peek()
+                            && punct.char() == PunctChar::Comma
+                        {
                             let _ = input.next();
                         }
-                    },
+                    }
                     None => panic!("Expected Some after `<` in generics, found None"),
                     tt => panic!("Expected ident or `>` or \"'\" in generics, found `{tt:?}`"),
                 }
@@ -339,9 +414,14 @@ pub fn parse_derive_input(input: &mut Peekable<impl Iterator<Item = TokenTree>>)
     let item_prefix = ItemPrefix::parse(input);
 
     match item_prefix.item_type {
-        ItemType::Struct => DeriveInput::Struct(StructDefinition::assemble(item_prefix, StructDefinition::parse_fields(input))),
-        ItemType::Enum => DeriveInput::Enum(EnumDefinition::assemble(item_prefix, EnumDefinition::parse_variants(input))),
+        ItemType::Struct => DeriveInput::Struct(StructDefinition::assemble(
+            item_prefix,
+            StructDefinition::parse_fields(input),
+        )),
+        ItemType::Enum => DeriveInput::Enum(EnumDefinition::assemble(
+            item_prefix,
+            EnumDefinition::parse_variants(input),
+        )),
         item_type => unimplemented!("Item type `{item_type:?}` is not supported yet"),
     }
 }
-

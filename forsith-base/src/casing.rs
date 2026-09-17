@@ -17,24 +17,32 @@ pub fn change_casing(source: &str, casing: Casing) -> String {
 pub fn write_changed_casing(source: &str, dest: &mut String, casing: Casing) {
     let mut chars = source.chars().peekable();
 
-    while let Some(c) = chars.peek() && !c.is_alphanumeric() {
+    while let Some(c) = chars.peek()
+        && !c.is_alphanumeric()
+    {
         dest.push(*c);
         chars.next();
     }
 
     let mut rchars = chars.clone().rev().peekable();
-    while let Some(c) = rchars.peek() && !c.is_alphanumeric() {rchars.next();}
+    while let Some(c) = rchars.peek()
+        && !c.is_alphanumeric()
+    {
+        rchars.next();
+    }
     let mut casing_chars = chars.by_ref().take(rchars.count());
 
     match casing {
         Casing::Snake => {
-            if let Some(c) = casing_chars.next() {dest.push(c.to_ascii_lowercase())}
+            if let Some(c) = casing_chars.next() {
+                dest.push(c.to_ascii_lowercase())
+            }
 
             for c in casing_chars {
                 if c.is_uppercase() {
                     dest.push('_');
                     dest.push(c.to_ascii_lowercase());
-                }  else if c == '-' {
+                } else if c == '-' {
                     dest.push('_');
                 } else {
                     dest.push(c);
@@ -42,7 +50,9 @@ pub fn write_changed_casing(source: &str, dest: &mut String, casing: Casing) {
             }
         }
         Casing::UpperSnake => {
-            if let Some(c) = casing_chars.next() {dest.push(c.to_ascii_uppercase())}
+            if let Some(c) = casing_chars.next() {
+                dest.push(c.to_ascii_uppercase())
+            }
 
             for c in casing_chars {
                 if c.is_uppercase() {
@@ -54,9 +64,11 @@ pub fn write_changed_casing(source: &str, dest: &mut String, casing: Casing) {
                     dest.push(c.to_ascii_uppercase());
                 }
             }
-        },
+        }
         Casing::Kebab => {
-            if let Some(c) = casing_chars.next() {dest.push(c.to_ascii_lowercase())}
+            if let Some(c) = casing_chars.next() {
+                dest.push(c.to_ascii_lowercase())
+            }
 
             for c in casing_chars {
                 if c.is_uppercase() {
@@ -68,26 +80,34 @@ pub fn write_changed_casing(source: &str, dest: &mut String, casing: Casing) {
                     dest.push(c);
                 }
             }
-        },
+        }
         Casing::Dromedary => {
-            if let Some(c) = casing_chars.next() {dest.push(c.to_ascii_lowercase())}
+            if let Some(c) = casing_chars.next() {
+                dest.push(c.to_ascii_lowercase())
+            }
 
             while let Some(c) = casing_chars.next() {
                 if c == '_' || c == '-' {
-                    if let Some(next_c) = casing_chars.next() && next_c.is_alphabetic() {
+                    if let Some(next_c) = casing_chars.next()
+                        && next_c.is_alphabetic()
+                    {
                         dest.push(next_c.to_ascii_uppercase());
                     }
                 } else {
                     dest.push(c);
                 }
             }
-        },
+        }
         Casing::Pascal => {
-            if let Some(c) = casing_chars.next() {dest.push(c.to_ascii_uppercase())}
+            if let Some(c) = casing_chars.next() {
+                dest.push(c.to_ascii_uppercase())
+            }
 
             while let Some(c) = casing_chars.next() {
                 if c == '_' || c == '-' {
-                    if let Some(next_c) = casing_chars.next() && next_c.is_alphabetic() {
+                    if let Some(next_c) = casing_chars.next()
+                        && next_c.is_alphabetic()
+                    {
                         dest.push(next_c.to_ascii_uppercase());
                     }
                 } else {
