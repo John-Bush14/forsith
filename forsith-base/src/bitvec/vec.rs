@@ -259,4 +259,39 @@ mod bitvec_tests {
         assert_eq!(bitvec_true, bitvec![true; 10]);
         assert_eq!(bitvec_false, bitvec![false; 10]);
     }
+
+    #[test]
+    fn test_bitvec_grow_if_needed() {
+        let mut bitvec = BitVec::new();
+        bitvec.grow_if_needed(17);
+
+        assert_eq!(bitvec.capacity(), 32);
+        assert_eq!(bitvec.len(), 0);
+    }
+
+    #[test]
+    fn test_bitvec_set_len_from_buffer() {
+        let buffer = buffer![MaybeUninit::new(0b1010_1010), MaybeUninit::new(0b1100_1100)];
+        let mut bitvec = BitVec::from_buffer(buffer.clone(), 9);
+
+        unsafe { bitvec.set_len(14) };
+        assert_eq!(bitvec.len(), 14);
+        assert_eq!(
+            bitvec.as_bools(),
+            BitVec::from_buffer(buffer, 14).as_bools()
+        );
+    }
+
+    #[test]
+    fn test_bitvec_buffer_roundtrip() {
+        let bitvec = bitvec![
+            true, false, true, false, true, false, true, false, true, false
+        ];
+
+        let buffer: Buffer<MaybeUninit<u8>> = bitvec.clone().into_buffer();
+        let new_bitvec = BitVec::from_buffer(buffer, 10);
+
+        assert_eq!(new_bitvec.len(), 10);
+        assert_eq!(new_bitvec, bitvec);
+    }
 }

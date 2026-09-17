@@ -18,7 +18,7 @@ pub fn write_changed_casing(source: &str, dest: &mut String, casing: Casing) {
     let mut chars = source.chars().peekable();
 
     while let Some(c) = chars.peek()
-        && !c.is_alphanumeric()
+        && !c.is_alphabetic()
     {
         dest.push(*c);
         chars.next();
@@ -26,7 +26,7 @@ pub fn write_changed_casing(source: &str, dest: &mut String, casing: Casing) {
 
     let mut rchars = chars.clone().rev().peekable();
     while let Some(c) = rchars.peek()
-        && !c.is_alphanumeric()
+        && !c.is_alphabetic()
     {
         rchars.next();
     }
@@ -190,5 +190,17 @@ mod tests {
         test_casing("__hello_world__", "__hello-world__", Casing::Kebab);
         test_casing("__hello_world__", "__helloWorld__", Casing::Dromedary);
         test_casing("__hello_world__", "__HelloWorld__", Casing::Pascal);
+    }
+
+    #[test]
+    fn test_mixed_punctuation_and_numbers() {
+        test_casing("123helloWorld456", "123hello_world456", Casing::Snake);
+        test_casing("123helloWorld456", "123HELLO_WORLD456", Casing::UpperSnake);
+        test_casing("123helloWorld456", "123hello-world456", Casing::Kebab);
+        test_casing("123helloWorld456", "123helloWorld456", Casing::Dromedary);
+        test_casing("123helloWorld456", "123HelloWorld456", Casing::Pascal);
+
+        test_casing("---hello-world---", "---hello_world---", Casing::Snake);
+        test_casing("---hello-world---", "---HELLO_WORLD---", Casing::UpperSnake);
     }
 }

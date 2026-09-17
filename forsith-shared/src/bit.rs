@@ -9,7 +9,6 @@ pub trait BitRead {
     fn peek_bits(&mut self, n: u8) -> u64;
     fn peek_bits_nobranch(&mut self, n: u8) -> u64;
     fn consume_bits(&mut self, n: u8);
-    fn remaining_bits(&self) -> u8;
     fn read_bits(&mut self, n: u8) -> u64 {
         let bits = self.peek_bits(n);
         self.consume_bits(n);
@@ -78,34 +77,20 @@ impl BitBuffer {
     }
 }
 
-#[derive(Debug, Default, Deref, DerefMut)]
-pub struct BitReader<T: Read + Default + Seek> {
+#[derive(Debug, Deref, DerefMut)]
+pub struct BitReader<T: Read + Seek> {
     #[deref]
     #[deref_mut]
     buffer: T,
     bit_buf: BitBuffer,
 }
 
-impl<T: Read + Default + Seek> BitReader<T> {
+impl<T: Read + Seek> BitReader<T> {
     pub fn new(buffer: T) -> Self {
         Self {
             buffer,
             bit_buf: BitBuffer::default(),
         }
-    }
-
-    /// # Panics
-    /// Panics if the `stream_position` can't be obtained
-    pub fn align(&mut self) -> Result<(), std::io::Error> {
-        let alignment = 4 - (self.buffer.stream_position().unwrap() % align_of::<u32>() as u64);
-
-        let mut buf = vec![0u8; usize::try_from(alignment).unwrap()];
-        self.buffer.read_exact(&mut buf)?;
-
-        for b in buf {
-            self.bit_buf.push(b)
-        }
-        Ok(())
     }
 
     /// # Panics
@@ -129,7 +114,7 @@ impl BitReader<CursorVec<u8>> {
     }
 }
 
-impl<T: Read + Default + Seek> BitRead for BitReader<T> {
+impl<T: Read + Seek> BitRead for BitReader<T> {
     #[inline(always)]
     fn peek_bits(&mut self, n: u8) -> u64 {
         if self.bit_buf.bits_remaining() <= 32 {
@@ -150,11 +135,6 @@ impl<T: Read + Default + Seek> BitRead for BitReader<T> {
     #[inline(always)]
     fn consume_bits(&mut self, n: u8) {
         self.bit_buf.consume(n);
-    }
-
-    #[inline]
-    fn remaining_bits(&self) -> u8 {
-        self.bit_buf.bits_remaining
     }
 
     #[inline(always)]
@@ -249,3 +229,163 @@ pub const UPSAMPLE_4BIT: [[u8; 2]; 256] = make_unpack_lut::<4, 2, true>();
 pub const UNPACK_1BIT: [[u8; 8]; 256] = make_unpack_lut::<1, 8, false>();
 pub const UNPACK_2BIT: [[u8; 4]; 256] = make_unpack_lut::<2, 4, false>();
 pub const UNPACK_4BIT: [[u8; 2]; 256] = make_unpack_lut::<4, 2, false>();
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_unpack<const BITS: u8, const UPSAMPLE: bool>(
+        input: &[u8],
+        expected: &[u8],
+        padding: u8,
+    ) {
+        let mut output = Vec::new();
+
+        unpack::<UPSAMPLE>(input, BITS, padding, |chunk| {
+            output.extend_from_slice(chunk)
+        });
+
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_unpack_1bit() {
+        test_unpack::<1, false>(
+            &[0b1010_1010, 0b1100_1100],
+            &[1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 0],
+            4,
+        );
+    }
+
+    #[test]
+    fn test_unpack_1bit_upsample() {
+        test_unpack::<1, true>(
+            &[0b1010_1010, 0b1100_1100],
+            &[255, 0, 255, 0, 255, 0, 255, 0, 255, 255, 0, 0, 255, 255],
+            2,
+        );
+    }
+
+    #[test]
+    fn test_unpack_2bit() {
+        test_unpack::<2, false>(&[0b1100_0011, 0b1010_0101], &[3, 0, 0, 3, 2, 2, 1, 1], 0);
+    }
+
+    #[test]
+    fn test_unpack_2bit_upsample() {
+        test_unpack::<2, true>(
+            &[0b1100_0011, 0b1010_0101],
+            &[255, 0, 0, 255, 170, 170, 85, 85],
+            0,
+        );
+    }
+
+    #[test]
+    fn test_unpack_4bit() {
+        test_unpack::<4, false>(&[0b1010_1010, 0b1100_1100], &[10, 10, 12, 12], 0);
+    }
+
+    #[test]
+    fn test_unpack_4bit_upsample() {
+        test_unpack::<4, true>(&[0b1010_1010, 0b1100_1100], &[170, 170, 204, 204], 0);
+    }
+
+    #[test]
+    fn test_bit_buffer_push_and_consume() {
+        let mut bit_buf = BitBuffer::default();
+
+        bit_buf.push(0b1010_1010u8);
+        assert_eq!(bit_buf.bits_remaining(), 8);
+        assert_eq!(bit_buf.peek(8), 0b1010_1010);
+
+        bit_buf.consume(4);
+        assert_eq!(bit_buf.bits_remaining(), 4);
+        assert_eq!(bit_buf.peek(4), 0b1010);
+
+        bit_buf.consume(4);
+        assert_eq!(bit_buf.bits_remaining(), 0);
+        assert_eq!(bit_buf.peek(1), 0);
+    }
+
+    #[test]
+    fn test_bit_reader_reads_bits_in_sequence() {
+        let mut reader = BitReader::new(std::io::Cursor::new(vec![
+            0b1100_0011,
+            0b1010_0101,
+            0b1010_0101,
+            0b1010_0101,
+            0,
+            0,
+            0,
+            0, // padding to ensure we have enough bytes
+        ]));
+
+        assert_eq!(reader.read_bits(2), 0b11);
+        assert_eq!(reader.read_bits(2), 0b00);
+        assert_eq!(reader.read_bits(2), 0b00);
+        assert_eq!(reader.read_bits(2), 0b11);
+        assert_eq!(reader.read_bits(4), 0b0101);
+        assert_eq!(reader.read_bits(4), 0b1010);
+        assert_eq!(reader.read_bits(8), 0b1010_0101);
+        assert_eq!(reader.read_bits(8), 0b1010_0101);
+    }
+
+    #[test]
+    fn test_bit_reader_unconsume_bitbuf() {
+        let mut reader = BitReader::new(std::io::Cursor::new(vec![
+            0b1100_0011,
+            0b1010_0101,
+            0b1010_0101,
+            0b1010_0101,
+            0,
+            0,
+            0,
+            0, // padding to ensure we have enough bytes
+        ]));
+
+        reader.read_bits(16);
+
+        reader.unconsume_bitbuf();
+        let mut rest = [0u8; 6];
+        reader.read_exact(&mut rest).unwrap();
+
+        assert_eq!(rest, [0b1010_0101, 0b1010_0101, 0, 0, 0, 0]);
+    }
+
+    fn test_bit_iterator<const BITS: u8>() {
+        let bytes = vec![
+            0b1100_0011,
+            0b1010_0101,
+            0b1010_0101,
+            0b1010_0101,
+            0,
+            0,
+            0,
+            0,
+        ];
+
+        let mut reader = BitReader::new(std::io::Cursor::new(&bytes));
+        let mut iter = reader.iterate_bits::<BITS>().take(32 / BITS as usize);
+
+        unpack_constant::<BITS, false>(&bytes[..4], 0, |chunk| {
+            for &bit in chunk.iter().rev() {
+                assert_eq!(iter.next().unwrap(), bit.into());
+            }
+        });
+    }
+
+    #[test]
+    fn test_1bit_iterator() {
+        test_bit_iterator::<1>();
+    }
+
+    #[test]
+    fn test_2bit_iterator() {
+        test_bit_iterator::<2>();
+    }
+
+    #[test]
+    fn test_4bit_iterator() {
+        test_bit_iterator::<4>();
+    }
+}

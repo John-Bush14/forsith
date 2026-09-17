@@ -11,7 +11,7 @@ mod parser;
 use parser::XmlParser;
 
 mod tree;
-use tree::XmlTree;
+pub use tree::{XmlNode, XmlTree};
 
 #[cfg(test)]
 mod tests;

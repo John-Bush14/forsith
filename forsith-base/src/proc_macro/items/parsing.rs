@@ -425,3 +425,41 @@ pub fn parse_derive_input(input: &mut Peekable<impl Iterator<Item = TokenTree>>)
         item_type => unimplemented!("Item type `{item_type:?}` is not supported yet"),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::quote;
+
+    #[test]
+    fn parses_public_struct_with_generics() {
+        let input = quote! { pub struct Example<T>(pub T, bool) };
+        let mut iter = input.into_iter().peekable();
+        let definition = StructDefinition::parse(&mut iter);
+
+        assert_eq!(definition.name.to_string(), "Example");
+        assert!(matches!(definition.visibility, Visibility::Public));
+        assert_eq!(definition.fields.len(), 2);
+        assert!(matches!(
+            definition.fields[0].visibility,
+            Visibility::Public
+        ));
+        assert!(matches!(
+            definition.fields[1].visibility,
+            Visibility::Private
+        ));
+    }
+
+    #[test]
+    fn parses_enum_variants_and_discriminants() {
+        let input = quote! { enum Example { A(u8), B, C = u32 } };
+        let mut iter = input.into_iter().peekable();
+        let definition = EnumDefinition::parse(&mut iter);
+
+        assert_eq!(definition.name.to_string(), "Example");
+        assert_eq!(definition.variants.len(), 3);
+        assert!(definition.variants[0].fields.is_some());
+        assert!(definition.variants[1].fields.is_none());
+        assert!(definition.variants[2].discriminant.is_some());
+    }
+}

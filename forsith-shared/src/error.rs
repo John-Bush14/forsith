@@ -88,3 +88,61 @@ impl Error {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn error_msg_creates_message_error() {
+        let err = Error::msg("bad input");
+        assert_eq!(err.to_string(), "bad input");
+    }
+
+    #[test]
+    fn error_with_context_adds_context() {
+        let err = Error::msg("bad input").with_context("during parsing");
+        assert_eq!(err.to_string(), "bad input\n 0. during parsing");
+    }
+
+    #[test]
+    fn result_context_accumulates_multiple_contexts() {
+        let err = Err::<(), _>(Error::msg("bad input"))
+            .with_context(|| "first")
+            .with_context(|| "second")
+            .unwrap_err();
+
+        assert_eq!(err.to_string(), "bad input\n 0. first\n 1. second");
+    }
+
+    #[test]
+    fn ensure_macro_returns_error_for_false_condition() {
+        let result: Result<()> = (|| {
+            ensure!(false, "boom");
+            Ok(())
+        })();
+
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().to_string(), "boom");
+    }
+
+    #[test]
+    fn bail_macro_returns_error_and_can_wrap_format_strings() {
+        let result: Result<()> = (|| -> Result<()> {
+            bail!("unexpected value: {}", 42);
+        })();
+
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().to_string(), "unexpected value: 42");
+    }
+
+    #[test]
+    fn test_error_from_std_error() {
+        (|| -> Result<()> {
+            std::result::Result::Err(std::io::Error::other("test"))?;
+
+            Ok(())
+        })()
+        .unwrap_err();
+    }
+}

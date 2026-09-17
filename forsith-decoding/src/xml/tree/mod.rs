@@ -8,7 +8,7 @@ mod creation;
 use creation::XmlTreeBuilder;
 
 mod traversal;
-use traversal::XmlTag;
+pub use traversal::{XmlNode, XmlTag};
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct XmlRootNode {

@@ -73,4 +73,38 @@ mod string_interner_tests {
         let i2 = interner.asserted_interned("");
         assert_eq!(i, i2);
     }
+
+    #[test]
+    fn duplicate_interns_are_stable() {
+        let mut interner = StringInterner::default();
+
+        let first = interner.interned("hello");
+        let second = interner.interned("hello");
+        let third = interner.interned("world");
+
+        assert_eq!(first, second);
+        assert_ne!(first, third);
+        assert_eq!(interner.resolve(first), "hello");
+        assert_eq!(interner.resolve(third), "world");
+    }
+
+    #[test]
+    fn large_strings_stay_resolved() {
+        let mut interner = StringInterner::default();
+        let large = "a".repeat(10_000);
+
+        let interned = interner.asserted_interned(&large);
+        assert_eq!(interner.resolve(interned), large);
+    }
+
+    #[test]
+    fn punctuation_and_unicode_are_preserved() {
+        let mut interner = StringInterner::default();
+
+        let interned = interner.asserted_interned("Hello, world! 💡");
+        assert_eq!(interner.resolve(interned), "Hello, world! 💡");
+
+        let duplicate = interner.interned("Hello, world! 💡");
+        assert_eq!(duplicate, interned);
+    }
 }

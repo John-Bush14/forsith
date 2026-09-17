@@ -1,72 +1,14 @@
-use forsith_shared::interner::{InternedString, StringInterner};
+use forsith_shared::interner::StringInterner;
 
-use crate::xml::tree::{AttributeNode, XmlRootNode, XmlTree};
+use crate::xml::XmlNode;
 
-use super::{
-    XmlDocument,
-    tree::{XmlTagNode, XmlTreeNode},
-};
+use super::XmlDocument;
 
-type ExpectedNodes<'a> = (
-    InternedString,
-    Vec<AttributeNode>,
-    Box<[XmlTreeNode]>,
-    StringInterner<'a>,
-);
-fn assert_parsed(xml: &str, expected_nodes: ExpectedNodes) {
-    let (root_name, root_attributes, expected, mut interner) = expected_nodes;
-
-    let expected = XmlTree {
-        root: XmlRootNode {
-            name: root_name,
-            attributes: root_attributes
-                .into_iter()
-                .map(XmlTreeNode::Attribute)
-                .collect(),
-        },
-        root_subtree: expected,
-    };
-
+fn parse(xml: &str) -> (XmlDocument, StringInterner<'_>) {
+    let mut interner = StringInterner::default();
     let document = XmlDocument::parse_with_interner(xml.as_bytes().into(), &mut interner)
-        .expect("Failed to parse XML");
-
-    assert_eq!(
-        document.tree, expected,
-        "Parsed document does not match expected structure: {:?} != {:?}",
-        document.tree, expected
-    );
-}
-
-macro_rules! expected_nodes {
-    (
-        $root:literal: [$( $rootkey:literal = $rootval:literal ),*]:
-        $(
-            $(($name:literal, $att:literal, $sib:expr))?
-            $({$key:literal = $val:literal})?
-            $($str:literal)?
-        ,)*
-    ) => {{
-        #[allow(unused_mut)]
-        let mut interner = forsith_shared::interner::StringInterner::default();
-
-        (interner.interned($root), vec![$(AttributeNode::new(interner.interned($rootkey), interner.interned($rootval))),*], Box::new([
-            $(
-                $(
-                    XmlTreeNode::Tag(XmlTagNode {
-                        name: interner.interned($name),
-                        attributes: $att,
-                        len: $sib,
-                    }),
-                )?
-                $(
-                    XmlNode::Attribute((interner.interned($key), interner.interned($val))),
-                )?
-                $(
-                    XmlNode::Text(InternedString::from($str)),
-                )?
-            )*
-        ]), interner)
-    }};
+        .expect("XML should parse successfully");
+    (document, interner)
 }
 
 #[should_panic(expected = "No root tag found")]
@@ -82,55 +24,92 @@ fn prolog_no_root() {
 }
 
 #[test]
-fn simple_nest() {
-    assert_parsed(
-        "<root><nested></nested></root>",
-        expected_nodes!(
-            "root": []:
-            ("nested", 0, 0),
-        ),
+fn parses_simple_nested_elements() {
+    let (document, interner) = parse("<root><child><leaf /></child></root>");
+    let root = document.tree.root();
+
+    assert_eq!(interner.resolve(root.name()), "root");
+    let mut children = root.children();
+
+    match children.next() {
+        Some(XmlNode::Tag(tag)) => {
+            assert_eq!(interner.resolve(tag.name()), "child");
+            let mut descendants = tag.children();
+            match descendants.next() {
+                Some(XmlNode::Tag(leaf)) => assert_eq!(interner.resolve(leaf.name()), "leaf"),
+                other => panic!("Expected a leaf tag, got {other:?}"),
+            }
+            assert!(descendants.next().is_none());
+        }
+        other => panic!("Expected a child tag, got {other:?}"),
+    }
+
+    assert!(children.next().is_none());
+}
+
+#[test]
+fn parses_attributes_and_text_nodes() {
+    let (document, mut interner) =
+        parse(r#"<root id="root-id"><child kind="leaf">value</child></root>"#);
+
+    let root = document.tree.root();
+
+    assert_eq!(
+        root.attribute(interner.interned("id")),
+        Some(interner.interned("root-id"))
+    );
+
+    let children: Vec<_> = root.children().collect();
+    assert_eq!(children.len(), 1);
+
+    match &children[0] {
+        XmlNode::Tag(tag) => {
+            assert_eq!(interner.resolve(tag.name()), "child");
+            assert_eq!(
+                tag.attribute(interner.interned("kind")),
+                Some(interner.interned("leaf"))
+            );
+
+            let descendants: Vec<_> = tag.children().collect();
+            assert_eq!(descendants.len(), 1);
+
+            match &descendants[0] {
+                XmlNode::Text(text) => assert_eq!(interner.resolve(*text), "value"),
+                other @ XmlNode::Tag(_) => panic!("Expected text node, got {other:?}"),
+            }
+        }
+        other @ XmlNode::Text(_) => panic!("Expected child tag, got {other:?}"),
+    }
+}
+
+#[test]
+fn parses_prolog_and_utf8_document() {
+    let (document, mut interner) =
+        parse(r#"<?xml version="1.0" encoding="UTF-8"?><root attr="value"></root>"#);
+
+    let root = document.tree.root();
+
+    assert_eq!(interner.resolve(root.name()), "root");
+    assert_eq!(
+        root.attribute(interner.interned("attr")),
+        Some(interner.interned("value"))
     );
 }
 
 #[test]
-fn simple_siblings() {
-    assert_parsed(
-        "<root><sibling></sibling><sibling></sibling><sibling></sibling></root>",
-        expected_nodes!(
-            "root": []:
-            ("sibling", 0, 0),
-            ("sibling", 0, 0),
-            ("sibling", 0, 0),
-        ),
-    );
-}
+fn parses_utf16_documents() {
+    let xml = "<?xml version=\"1.0\" encoding=\"UTF-16\"?><root attr=\"value\"/>";
+    let bytes: Vec<u8> = xml.encode_utf16().flat_map(u16::to_le_bytes).collect();
 
-#[test]
-fn only_root() {
-    assert_parsed(
-        "<root></root>",
-        expected_nodes!(
-            "root": []:
-        ),
-    );
-}
+    let (document, mut interner) =
+        XmlDocument::parse(bytes.into()).expect("UTF-16 XML should parse");
 
-#[test]
-fn only_root_attribute() {
-    assert_parsed(
-        r#"<root attribute="test"></root>"#,
-        expected_nodes!(
-            "root": ["attribute" = "test"]:
-        ),
-    );
-}
+    let root = document.tree.root();
 
-#[test]
-fn prolog_only_root() {
-    assert_parsed(
-        r#"<?xml version="1.0" encoding="UTF-8" ?><root></root>"#,
-        expected_nodes!(
-            "root": []:
-        ),
+    assert_eq!(interner.resolve(root.name()), "root");
+    assert_eq!(
+        root.attribute(interner.interned("attr")),
+        Some(interner.interned("value"))
     );
+    assert!(root.children().next().is_none());
 }

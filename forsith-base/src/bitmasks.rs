@@ -124,3 +124,64 @@ impl<const N: usize> BitStorage for BitArray<N> {
         self.set(index, value);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    enum TestFlag {
+        A,
+        B,
+        C,
+    }
+
+    impl BitFlag for TestFlag {
+        const MAX_BITS: usize = 3;
+
+        fn bit_index(&self) -> usize {
+            match self {
+                Self::A => 0,
+                Self::B => 1,
+                Self::C => 2,
+            }
+        }
+    }
+
+    impl BitFlagFromIndex for TestFlag {
+        fn from_index(index: usize) -> Option<Self>
+        where
+            Self: Sized,
+        {
+            match index {
+                0 => Some(Self::A),
+                1 => Some(Self::B),
+                2 => Some(Self::C),
+                _ => None,
+            }
+        }
+    }
+
+    #[test]
+    fn bitflags_set_and_get() {
+        let mut flags = Bitflags::<u32, TestFlag>::empty();
+
+        flags.set(&TestFlag::A, true);
+        flags.set(&TestFlag::C, true);
+
+        assert!(flags.get(&TestFlag::A));
+        assert!(!flags.get(&TestFlag::B));
+        assert!(flags.get(&TestFlag::C));
+    }
+
+    #[test]
+    fn bitflags_new_and_flags() {
+        let flags = Bitflags::<u32, TestFlag>::new(&[TestFlag::B, TestFlag::C]);
+
+        assert!(!flags.get(&TestFlag::A));
+        assert!(flags.get(&TestFlag::B));
+        assert!(flags.get(&TestFlag::C));
+        assert_eq!(flags.flags(true), vec![TestFlag::B, TestFlag::C]);
+        assert_eq!(flags.flags(false), vec![TestFlag::A]);
+    }
+}
