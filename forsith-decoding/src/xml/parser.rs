@@ -1,6 +1,12 @@
+use forsith_proc::{Deref, DerefMut, IsVariant};
+use forsith_shared::{
+    bail,
+    buffers::CursorString,
+    errmsg,
+    error::Result,
+    interner::{InternedString, StringInterner},
+};
 use std::{io::BufRead, str::FromStr};
-use forsith_proc::{IsVariant, Deref, DerefMut};
-use forsith_shared::{buffers::CursorString, interner::{InternedString, StringInterner}, bail, error::Result, errmsg};
 
 use crate::xml::tree::AttributeNode;
 
@@ -18,7 +24,7 @@ impl<'input> From<&'input str> for XmlParser<'input> {
 pub enum ParsedContentItem {
     Tag(ParsedTag),
     Misc,
-    None
+    None,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deref)]
@@ -46,15 +52,21 @@ impl XmlParser<'_> {
 
     pub fn expect(&mut self, expected: &str) -> Result<()> {
         let actual = self.peek(expected.len());
-        if actual != expected {bail!("Expected '{expected}', found '{actual}'")}
+
+        if actual != expected {
+            bail!("Expected '{expected}', found '{actual}'")
+        }
+
         self.consume(expected.len());
         Ok(())
     }
 
     pub fn whitespaces(&mut self) {
-        let whitespaces = self.remaining_str()
+        let whitespaces = self
+            .remaining_str()
             .find(|c: char| !c.is_whitespace())
             .unwrap_or_else(|| self.remaining_str().len());
+
         self.consume(whitespaces);
     }
 
@@ -69,9 +81,13 @@ impl XmlParser<'_> {
     }
 
     pub fn comment(&mut self) -> Result<Option<()>> {
-        if self.expect("<!--").is_err() {return Ok(None)}
+        if self.expect("<!--").is_err() {
+            return Ok(None);
+        }
 
-        let comment_end = self.remaining_str().find("-->")
+        let comment_end = self
+            .remaining_str()
+            .find("-->")
             .ok_or_else(|| errmsg!("Unterminated comment"))?;
 
         self.consume(comment_end + 3);
@@ -81,9 +97,13 @@ impl XmlParser<'_> {
 
     #[allow(unreachable_code)]
     pub fn processing_instruction(&mut self) -> Result<Option<()>> {
-        if self.expect("<?").is_err() {return Ok(None)}
+        if self.expect("<?").is_err() {
+            return Ok(None);
+        }
 
-        let pi_end = self.remaining_str().find("?>")
+        let pi_end = self
+            .remaining_str()
+            .find("?>")
             .ok_or_else(|| errmsg!("Unterminated processing instruction"))?;
 
         let instruction = self.take(pi_end);
@@ -94,7 +114,9 @@ impl XmlParser<'_> {
     }
 
     pub fn xml_decl(&mut self, prolog: &mut Prolog) -> Result<Option<()>> {
-        if self.expect("<?xml").is_err() {return Ok(None);}
+        if self.expect("<?xml").is_err() {
+            return Ok(None);
+        }
 
         prolog.version = self.version_info()?;
         self.encoding_decl()?.map(|x| prolog.encoding = x);
@@ -108,21 +130,32 @@ impl XmlParser<'_> {
     }
 
     pub fn name(&mut self, interner: &mut StringInterner) -> Result<InternedString> {
-        let name_end = self.remaining_str().find(|c: char| !c.is_alphanumeric() && c != '-' && c != '_')
+        let name_end = self
+            .remaining_str()
+            .find(|c: char| !c.is_alphanumeric() && c != '-' && c != '_')
             .unwrap_or_else(|| self.remaining_str().len());
 
-        if name_end == 0 {bail!("Expected name, found '{:?}'", self.peek(1))}
+        if name_end == 0 {
+            bail!("Expected name, found '{:?}'", self.peek(1))
+        }
 
         Ok(interner.interned(self.take(name_end)))
     }
 
     pub fn content_item(&mut self, interner: &mut StringInterner) -> Result<ParsedContentItem> {
         if self.comment()?.is_some() || self.processing_instruction()?.is_some() {
-            return Ok(ParsedContentItem::Misc)
+            return Ok(ParsedContentItem::Misc);
         }
 
-        if self.expect("<").is_err() {return Ok(ParsedContentItem::None)}
-        let mut kind = if self.expect("/").is_ok() {TagKind::Closing} else {TagKind::Opening};
+        if self.expect("<").is_err() {
+            return Ok(ParsedContentItem::None);
+        }
+
+        let mut kind = if self.expect("/").is_ok() {
+            TagKind::Closing
+        } else {
+            TagKind::Opening
+        };
 
         let name = self.name(interner)?;
 
@@ -133,17 +166,27 @@ impl XmlParser<'_> {
             let attr_name = self.name(interner)?;
             self.eq()?;
             let attr_value = self.qouted_string()?;
+
             attributes.push(AttributeNode::new(attr_name, interner.interned(attr_value)));
 
             self.whitespaces();
         }
 
-        if kind.is_closing() && !attributes.is_empty() {bail!("Closing tag cannot have attributes")}
+        if kind.is_closing() && !attributes.is_empty() {
+            bail!("Closing tag cannot have attributes")
+        }
 
-        if kind.is_opening() && self.expect("/>").is_ok() {kind = TagKind::Empty;}
-        else {self.expect(">")?;}
+        if kind.is_opening() && self.expect("/>").is_ok() {
+            kind = TagKind::Empty;
+        } else {
+            self.expect(">")?;
+        }
 
-        Ok(ParsedContentItem::Tag(ParsedTag { name, attributes, kind }))
+        Ok(ParsedContentItem::Tag(ParsedTag {
+            name,
+            attributes,
+            kind,
+        }))
     }
 
     pub fn prolog(&mut self, _interner: &mut StringInterner) -> Result<Prolog> {
@@ -161,14 +204,21 @@ impl XmlParser<'_> {
     }
 
     pub fn string_until_tag(&mut self) -> Option<&str> {
-        let tag_start = self.remaining_str().find('<')
+        let tag_start = self
+            .remaining_str()
+            .find('<')
             .unwrap_or_else(|| self.remaining_str().len());
 
-        if tag_start == 0 {return None}
+        if tag_start == 0 {
+            return None;
+        }
 
         let str = self.take(tag_start).trim();
 
-        match str {"" => None, str => Some(str)}
+        match str {
+            "" => None,
+            str => Some(str),
+        }
     }
 
     #[allow(clippy::unnecessary_wraps)]
@@ -198,7 +248,9 @@ impl XmlParser<'_> {
 
         let qoute = self.take(1).chars().next().unwrap();
 
-        let terminating_qoute = self.remaining_str().find(qoute)
+        let terminating_qoute = self
+            .remaining_str()
+            .find(qoute)
             .ok_or_else(|| errmsg!("Unterminated string"))?;
 
         Ok(&self.take(terminating_qoute + 1)[..terminating_qoute])
@@ -207,7 +259,9 @@ impl XmlParser<'_> {
     pub fn declaration(&mut self, key: &'static str) -> Result<Option<&str>> {
         self.whitespaces();
 
-        if self.expect(key).is_err() {return Ok(None)}
+        if self.expect(key).is_err() {
+            return Ok(None);
+        }
 
         self.eq()?;
 
@@ -215,7 +269,8 @@ impl XmlParser<'_> {
     }
 
     pub fn version_info(&mut self) -> Result<XmlVersion> {
-        let s = self.declaration("version")?
+        let s = self
+            .declaration("version")?
             .ok_or_else(|| errmsg!("Missing version declaration"))?;
 
         XmlVersion::from_str(s)

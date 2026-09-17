@@ -1,13 +1,14 @@
-use forsith_shared::interner::InternedString;
 use forsith_proc::Deref;
+use forsith_shared::interner::InternedString;
 
 use crate::xml::tree::{AttributeNode, XmlTree, XmlTreeNode};
-
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub struct XmlSubTree<'a>(&'a [XmlTreeNode]);
 impl<'a> From<&'a [XmlTreeNode]> for XmlSubTree<'a> {
-    fn from(slice: &'a [XmlTreeNode]) -> Self {Self(slice)}
+    fn from(slice: &'a [XmlTreeNode]) -> Self {
+        Self(slice)
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Deref)]
@@ -18,22 +19,35 @@ pub struct XmlTag<'a> {
     subtree: XmlSubTree<'a>,
 }
 impl XmlTag<'_> {
-    pub const fn name(&self) -> InternedString {self.name}
+    pub const fn name(&self) -> InternedString {
+        self.name
+    }
 
     pub fn attributes(&self) -> impl Iterator<Item = &AttributeNode> {
-        self.attributes.iter().map(|a| match a {XmlTreeNode::Attribute(a) => a, _ => panic!("XmlTag's attributes contained non-attribute")})
+        self.attributes.iter().map(|a| match a {
+            XmlTreeNode::Attribute(a) => a,
+            _ => panic!("XmlTag's attributes contained non-attribute"),
+        })
     }
 
     pub fn attribute(&self, key: InternedString) -> Option<InternedString> {
-        self.attributes().find(|a| a.key() == key).map(AttributeNode::val)
+        self.attributes()
+            .find(|a| a.key() == key)
+            .map(AttributeNode::val)
     }
 }
 
 impl XmlTree {
-    fn root_subtree(&self) -> XmlSubTree<'_> {XmlSubTree::from(&*self.root_subtree)}
+    fn root_subtree(&self) -> XmlSubTree<'_> {
+        XmlSubTree::from(&*self.root_subtree)
+    }
 
     pub(crate) fn root_tag(&self) -> XmlTag<'_> {
-        XmlTag { name: self.root.name, attributes: &self.root.attributes, subtree: self.root_subtree()}
+        XmlTag {
+            name: self.root.name,
+            attributes: &self.root.attributes,
+            subtree: self.root_subtree(),
+        }
     }
 }
 
@@ -46,28 +60,32 @@ pub enum XmlNode<'a> {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct XmlChildren<'a> {
     tree: XmlSubTree<'a>,
-    current: usize
+    current: usize,
 }
 
 impl<'a> Iterator for XmlChildren<'a> {
     type Item = XmlNode<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.current >= self.tree.0.len() {return None}
+        if self.current >= self.tree.0.len() {
+            return None;
+        }
 
         let node = match &self.tree.0[self.current] {
             XmlTreeNode::Text(text) => {
                 self.current += 1;
                 XmlNode::Text(*text)
-            },
+            }
             XmlTreeNode::Tag(treetag) => {
                 let tag = self.tree.tag(self.current);
 
                 self.current += 1 + treetag.attributes + treetag.len;
 
                 XmlNode::Tag(tag)
-            },
-            XmlTreeNode::Attribute(_) => panic!("Unexpected attribute node in XmlChildren iterator"),
+            }
+            XmlTreeNode::Attribute(_) => {
+                panic!("Unexpected attribute node in XmlChildren iterator")
+            }
         };
 
         Some(node)
@@ -77,14 +95,16 @@ impl<'a> Iterator for XmlChildren<'a> {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct XmlDescendants<'a> {
     tree: XmlSubTree<'a>,
-    current: usize
+    current: usize,
 }
 
 impl<'a> Iterator for XmlDescendants<'a> {
     type Item = XmlNode<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.current >= self.tree.0.len() {return None}
+        if self.current >= self.tree.0.len() {
+            return None;
+        }
 
         let node = match &self.tree.0[self.current] {
             XmlTreeNode::Tag(_) => {
@@ -97,8 +117,10 @@ impl<'a> Iterator for XmlDescendants<'a> {
             XmlTreeNode::Text(text) => {
                 self.current += 1;
                 XmlNode::Text(*text)
-            },
-            XmlTreeNode::Attribute(_) => panic!("Unexpected attribute node in XmlDescendants iterator"),
+            }
+            XmlTreeNode::Attribute(_) => {
+                panic!("Unexpected attribute node in XmlDescendants iterator")
+            }
         };
 
         Some(node)
@@ -109,14 +131,14 @@ impl<'a> XmlSubTree<'a> {
     pub const fn descendants(self) -> XmlDescendants<'a> {
         XmlDescendants {
             tree: self,
-            current: 0
+            current: 0,
         }
     }
 
     pub const fn children(self) -> XmlChildren<'a> {
         XmlChildren {
             tree: self,
-            current: 0
+            current: 0,
         }
     }
 
@@ -128,7 +150,9 @@ impl<'a> XmlSubTree<'a> {
     }
 
     fn tag(self, index: usize) -> XmlTag<'a> {
-        let XmlTreeNode::Tag(tag) = &self.0[index] else {panic!("tree.tag(index) called for index containing non-tag node")};
+        let XmlTreeNode::Tag(tag) = &self.0[index] else {
+            panic!("tree.tag(index) called for index containing non-tag node")
+        };
 
         let attributes = self.slice(index + 1, tag.attributes);
 
@@ -138,8 +162,7 @@ impl<'a> XmlSubTree<'a> {
         XmlTag {
             name: tag.name,
             attributes,
-            subtree
+            subtree,
         }
     }
 }
-

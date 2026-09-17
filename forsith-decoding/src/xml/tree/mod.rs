@@ -1,5 +1,8 @@
-use forsith_shared::{error::Result, interner::{InternedString, StringInterner}};
 use crate::xml::parser::XmlParser;
+use forsith_shared::{
+    error::Result,
+    interner::{InternedString, StringInterner},
+};
 
 mod creation;
 use creation::XmlTreeBuilder;
@@ -23,12 +26,18 @@ pub enum XmlTreeNode {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct AttributeNode {
     key: InternedString,
-    val: InternedString
+    val: InternedString,
 }
 impl AttributeNode {
-    pub const fn key(&self) -> InternedString {self.key}
-    pub const fn val(&self) -> InternedString {self.val}
-    pub(crate) const fn new(key: InternedString, val: InternedString) -> Self {Self {key, val}}
+    pub const fn key(&self) -> InternedString {
+        self.key
+    }
+    pub const fn val(&self) -> InternedString {
+        self.val
+    }
+    pub(crate) const fn new(key: InternedString, val: InternedString) -> Self {
+        Self { key, val }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -36,13 +45,13 @@ pub struct XmlTagNode {
     pub(crate) name: InternedString,
     pub(crate) attributes: usize,
     /// excluding attributes and the index of the next non-child node
-    pub(crate) len: usize
+    pub(crate) len: usize,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct XmlTree {
     pub(crate) root: XmlRootNode,
-    pub(crate) root_subtree: Box<[XmlTreeNode]>
+    pub(crate) root_subtree: Box<[XmlTreeNode]>,
 }
 
 impl XmlTree {
@@ -50,5 +59,7 @@ impl XmlTree {
         XmlTreeBuilder::parse(parser, interner).map(std::convert::Into::into)
     }
 
-    pub fn root(&self) -> XmlTag<'_> {self.root_tag()}
+    pub fn root(&self) -> XmlTag<'_> {
+        self.root_tag()
+    }
 }

@@ -1,10 +1,17 @@
-use forsith_shared::{bail, ensure, errmsg, error::{Result, ResultContext}, interner::{InternedString, StringInterner}};
-use crate::xml::{parser::{ParsedContentItem, ParsedTag, XmlParser}, tree::{XmlRootNode, XmlTagNode, XmlTree, XmlTreeNode}};
+use crate::xml::{
+    parser::{ParsedContentItem, ParsedTag, XmlParser},
+    tree::{XmlRootNode, XmlTagNode, XmlTree, XmlTreeNode},
+};
+use forsith_shared::{
+    bail, ensure, errmsg,
+    error::{Result, ResultContext},
+    interner::{InternedString, StringInterner},
+};
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct XmlTreeBuilder {
     root: XmlRootNode,
-    subtree: Vec<XmlTreeNode>
+    subtree: Vec<XmlTreeNode>,
 }
 
 impl From<XmlTreeBuilder> for XmlTree {
@@ -21,19 +28,31 @@ impl XmlTreeBuilder {
         self.subtree.push(XmlTreeNode::Tag(XmlTagNode {
             name: element.name,
             attributes: element.attributes.len(),
-            len: 0
+            len: 0,
         }));
-        self.subtree.extend(element.attributes.into_iter().map(XmlTreeNode::Attribute));
+
+        self.subtree
+            .extend(element.attributes.into_iter().map(XmlTreeNode::Attribute));
     }
 
     pub fn parse(parser: &mut XmlParser, interner: &mut StringInterner) -> Result<Self> {
-        let ParsedContentItem::Tag(root) = parser.content_item(interner)? else {bail!("No root tag found")};
-        ensure!(!root.kind.is_closing(), "Root element cannot be a closing tag");
+        let ParsedContentItem::Tag(root) = parser.content_item(interner)? else {
+            bail!("No root tag found")
+        };
+
+        ensure!(
+            !root.kind.is_closing(),
+            "Root element cannot be a closing tag"
+        );
 
         let mut builder = Self {
             root: XmlRootNode {
                 name: root.name,
-                attributes: root.attributes.into_iter().map(XmlTreeNode::Attribute).collect(),
+                attributes: root
+                    .attributes
+                    .into_iter()
+                    .map(XmlTreeNode::Attribute)
+                    .collect(),
             },
             subtree: Vec::new(),
         };
@@ -44,7 +63,10 @@ impl XmlTreeBuilder {
 
         parser.misc()?;
 
-        ensure!(parser.remaining_str().is_empty(), "Unexpected content after root element");
+        ensure!(
+            parser.remaining_str().is_empty(),
+            "Unexpected content after root element"
+        );
 
         Ok(builder)
     }
@@ -67,31 +89,44 @@ impl XmlTreeBuilder {
         }
     }
 
-    fn parse_element_content(&mut self, parser: &mut XmlParser, interner: &mut StringInterner, parent: InternedString) -> Result<()> {
-        (|| {loop {
-            self.handle_chardata(parser, interner);
+    fn parse_element_content(
+        &mut self,
+        parser: &mut XmlParser,
+        interner: &mut StringInterner,
+        parent: InternedString,
+    ) -> Result<()> {
+        (|| {
+            loop {
+                self.handle_chardata(parser, interner);
 
-            let tag = match parser.content_item(interner)? {
-                ParsedContentItem::Misc => continue,
-                ParsedContentItem::Tag(tag) => {tag}
-                ParsedContentItem::None => bail!("Unterminated tag"),
-            };
+                let tag = match parser.content_item(interner)? {
+                    ParsedContentItem::Misc => continue,
+                    ParsedContentItem::Tag(tag) => tag,
+                    ParsedContentItem::None => bail!("Unterminated tag"),
+                };
 
-            if tag.kind.is_closing() {
-                ensure!(tag.name == parent, "Element not closed properly: expected </{}>, found </{}>", interner.resolve(parent), interner.resolve(tag.name));
+                if tag.kind.is_closing() {
+                    ensure!(
+                        tag.name == parent,
+                        "Element not closed properly: expected </{}>, found </{}>",
+                        interner.resolve(parent),
+                        interner.resolve(tag.name)
+                    );
 
-                return Ok(());
+                    return Ok(());
+                }
+
+                let (kind, name) = (tag.kind, tag.name);
+                let tag_index = self.subtree.len();
+                self.push_tag(tag);
+
+                if kind.is_opening() {
+                    self.parse_element_content(parser, interner, name)?;
+                }
+
+                self.update_len(tag_index);
             }
-
-            let (kind, name) = (tag.kind, tag.name);
-            let tag_index = self.subtree.len();
-            self.push_tag(tag);
-
-            if kind.is_opening() {
-                self.parse_element_content(parser, interner, name)?;
-            }
-
-            self.update_len(tag_index);
-        }})().with_context(|| format!("Failed to parse content of <{}>", interner.resolve(parent)))
+        })()
+        .with_context(|| format!("Failed to parse content of <{}>", interner.resolve(parent)))
     }
 }
