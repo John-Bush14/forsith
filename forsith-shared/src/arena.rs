@@ -22,7 +22,8 @@ impl<'arena, T: Default + Copy> Arena<'arena, T> {
     #[allow(clippy::missing_panics_doc)]
     pub fn alloc(&mut self, buf: &[T]) -> &'arena mut [T] {
         if self.index + buf.len() > CHUNK_SIZE {
-            self.chunks.push(vec![T::default(); CHUNK_SIZE.max(buf.len())].into_boxed_slice());
+            self.chunks
+                .push(vec![T::default(); CHUNK_SIZE.max(buf.len())].into_boxed_slice());
             self.index = 0;
         }
 
@@ -32,18 +33,14 @@ impl<'arena, T: Default + Copy> Arena<'arena, T> {
         chunk[start..end].copy_from_slice(buf);
         self.index = end;
 
-        unsafe {
-            std::slice::from_raw_parts_mut(chunk.as_mut_ptr().add(start), buf.len())
-        }
+        unsafe { std::slice::from_raw_parts_mut(chunk.as_mut_ptr().add(start), buf.len()) }
     }
 }
 
 impl<'arena> Arena<'arena, u8> {
     pub fn alloc_str(&mut self, s: &str) -> &'arena mut str {
         let bytes = self.alloc(s.as_bytes());
-        unsafe {
-            std::str::from_utf8_unchecked_mut(bytes)
-        }
+        unsafe { std::str::from_utf8_unchecked_mut(bytes) }
     }
 }
 
@@ -127,4 +124,3 @@ mod arena_tests {
         assert_eq!(large, large_string);
     }
 }
-

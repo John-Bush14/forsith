@@ -51,7 +51,7 @@ pub struct UseItem {
 pub enum Visibility {
     Pub,
     Priv,
-    CustomPub(InternedString)
+    CustomPub(InternedString),
 }
 
 #[derive(Debug)]
@@ -123,6 +123,5 @@ pub enum Indirection {
     MutPtr,
     MutPtrMutPtr,
     MutPtrConstPtr,
-    PtrPtr
+    PtrPtr,
 }
-

@@ -1,4 +1,4 @@
-use std::ops::{BitAnd, BitOr, BitXor, Shl, Shr, Mul, Sub, Div, Add, Rem};
+use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Rem, Shl, Shr, Sub};
 
 macro_rules! int_types {
     ($($num:ty),+) => {

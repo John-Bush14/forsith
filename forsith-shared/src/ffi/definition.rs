@@ -1,4 +1,10 @@
-use crate::{ffi::{Constant, FFIFunction, FFIItem, FFIItems, FFILib, FFILibConfig, FFIMod, FFIPrimitive, FFIStruct, FFIType, FFIValueType, Indirection, TypeAlias, UseItem}, interner::{InternedString, StringInterner}};
+use crate::{
+    ffi::{
+        Constant, FFIFunction, FFIItem, FFIItems, FFILib, FFILibConfig, FFIMod, FFIPrimitive,
+        FFIStruct, FFIType, FFIValueType, Indirection, TypeAlias, UseItem,
+    },
+    interner::{InternedString, StringInterner},
+};
 
 impl FFILib {
     pub fn def_struct(&mut self, r#struct: FFIStruct) {
@@ -14,10 +20,7 @@ impl FFILib {
 
         let r = def(&mut items);
 
-        self.items.0.push(FFIItem::Mod(FFIMod {
-            name,
-            items,
-        }));
+        self.items.0.push(FFIItem::Mod(FFIMod { name, items }));
 
         r
     }
@@ -70,7 +73,7 @@ pub struct InternedFFISymbols {
     f64: InternedString,
 }
 
-impl FFILib  {
+impl FFILib {
     #[must_use]
     pub fn new(config: FFILibConfig) -> Self {
         Self {
@@ -82,7 +85,11 @@ impl FFILib  {
 
 impl FFIType {
     #[must_use]
-    pub fn from_c_value_type(s: InternedString, indirection: Indirection, table: &InternedFFISymbols) -> Self {
+    pub fn from_c_value_type(
+        s: InternedString,
+        indirection: Indirection,
+        table: &InternedFFISymbols,
+    ) -> Self {
         let value_type = FFIValueType::from_c_type(s, table);
         Self {
             value_type,
@@ -136,5 +143,3 @@ impl FFIPrimitive {
         }
     }
 }
-
-

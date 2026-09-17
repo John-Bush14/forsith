@@ -9,7 +9,7 @@ pub struct InternedString(usize);
 pub struct StringInterner<'arena> {
     key_map: HashMap<String, InternedString>,
     str_map: Vec<&'arena str>,
-    arena: Arena<'arena, u8>
+    arena: Arena<'arena, u8>,
 }
 
 impl StringInterner<'_> {
@@ -64,7 +64,6 @@ mod string_interner_tests {
         let i2 = interner.asserted_interned("hello");
         assert_eq!(i, i2);
     }
-
 
     #[test]
     fn empty_equality() {

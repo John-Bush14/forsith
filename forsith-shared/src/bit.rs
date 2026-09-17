@@ -1,4 +1,4 @@
-use std::{io::{Read, Seek}};
+use std::io::{Read, Seek};
 
 use forsith_proc::{Deref, DerefMut};
 
@@ -20,10 +20,11 @@ pub trait BitRead {
         self.consume_bits(n);
         bits
     }
-    fn iterate_bits<const BITS: u8>(&mut self) -> BitIterator<'_, Self, BITS> where Self: Sized {
-        BitIterator {
-            reader: self,
-        }
+    fn iterate_bits<const BITS: u8>(&mut self) -> BitIterator<'_, Self, BITS>
+    where
+        Self: Sized,
+    {
+        BitIterator { reader: self }
     }
 }
 
@@ -41,12 +42,14 @@ impl<R: BitRead, const BITS: u8> Iterator for BitIterator<'_, R, BITS> {
 #[derive(Debug, Default)]
 pub struct BitBuffer {
     buf: u64,
-    bits_remaining: u8
+    bits_remaining: u8,
 }
 impl BitBuffer {
     #[inline(always)]
     #[must_use]
-    pub const fn bits_remaining(&self) -> u8 {self.bits_remaining}
+    pub const fn bits_remaining(&self) -> u8 {
+        self.bits_remaining
+    }
 
     #[inline(always)]
     #[must_use]
@@ -63,7 +66,10 @@ impl BitBuffer {
     #[inline(always)]
     #[allow(clippy::missing_panics_doc)] // constant assertion, will never (or always) panic
     pub fn push<T: Int>(&mut self, value: T) {
-        assert!(T::MIN == 0, "BitBuffer.push should only be called with unsigned ints");
+        assert!(
+            T::MIN == 0,
+            "BitBuffer.push should only be called with unsigned ints"
+        );
 
         let value: u64 = value.try_into().unwrap_or_else(|_| unreachable!());
 
@@ -96,7 +102,10 @@ impl<T: Read + Default + Seek> BitReader<T> {
         let mut buf = vec![0u8; usize::try_from(alignment).unwrap()];
         self.buffer.read_exact(&mut buf)?;
 
-        for b in buf {self.bit_buf.push(b)}; Ok(())
+        for b in buf {
+            self.bit_buf.push(b)
+        }
+        Ok(())
     }
 
     /// # Panics
@@ -149,37 +158,53 @@ impl<T: Read + Default + Seek> BitRead for BitReader<T> {
     }
 
     #[inline(always)]
-    fn peek_bits_nobranch(&mut self, n: u8) -> u64 {self.bit_buf.peek(n)}
+    fn peek_bits_nobranch(&mut self, n: u8) -> u64 {
+        self.bit_buf.peek(n)
+    }
 }
 
-pub fn unpack<const UPSAMPLE: bool>(slice: &[u8], bits: u8, padding: u8, callback: impl FnMut(&[u8])) {
+pub fn unpack<const UPSAMPLE: bool>(
+    slice: &[u8],
+    bits: u8,
+    padding: u8,
+    callback: impl FnMut(&[u8]),
+) {
     (match bits {
-       1 => unpack_constant::<1, UPSAMPLE>,
-       2 => unpack_constant::<2, UPSAMPLE>,
-       4 => unpack_constant::<4, UPSAMPLE>,
-       _ => unreachable!()
+        1 => unpack_constant::<1, UPSAMPLE>,
+        2 => unpack_constant::<2, UPSAMPLE>,
+        4 => unpack_constant::<4, UPSAMPLE>,
+        _ => unreachable!(),
     })(slice, padding, callback);
 }
 
 #[inline(always)]
-pub fn unpack_constant<const BITS: u8, const UPSAMPLE: bool>(slice: &[u8], padding: u8, mut callback: impl FnMut(&[u8])) {
-    let mut i = 0; loop {
+pub fn unpack_constant<const BITS: u8, const UPSAMPLE: bool>(
+    slice: &[u8],
+    padding: u8,
+    mut callback: impl FnMut(&[u8]),
+) {
+    let mut i = 0;
+    loop {
         let b = slice[i] as usize;
 
-        let bytes = if UPSAMPLE { match BITS {
-            1 => {UPSAMPLE_1BIT[b].as_slice()},
-            2 => {UPSAMPLE_2BIT[b].as_slice()},
-            4 => {UPSAMPLE_4BIT[b].as_slice()},
-            _ => unreachable!()
-        } } else { match BITS {
-            1 => {UNPACK_1BIT[b].as_slice()},
-            2 => {UNPACK_2BIT[b].as_slice()},
-            4 => {UNPACK_4BIT[b].as_slice()},
-            _ => unreachable!()
-        } };
+        let bytes = if UPSAMPLE {
+            match BITS {
+                1 => UPSAMPLE_1BIT[b].as_slice(),
+                2 => UPSAMPLE_2BIT[b].as_slice(),
+                4 => UPSAMPLE_4BIT[b].as_slice(),
+                _ => unreachable!(),
+            }
+        } else {
+            match BITS {
+                1 => UNPACK_1BIT[b].as_slice(),
+                2 => UNPACK_2BIT[b].as_slice(),
+                4 => UNPACK_4BIT[b].as_slice(),
+                _ => unreachable!(),
+            }
+        };
 
         if i == slice.len() - 1 {
-            callback(&bytes[..bytes.len() - (padding/BITS) as usize]);
+            callback(&bytes[..bytes.len() - (padding / BITS) as usize]);
 
             break;
         }
@@ -191,7 +216,8 @@ pub fn unpack_constant<const BITS: u8, const UPSAMPLE: bool>(slice: &[u8], paddi
 }
 
 #[allow(clippy::cast_possible_truncation)]
-const fn make_unpack_lut<const BITS: usize, const SAMPLES: usize, const UPSAMPLE: bool>() -> [[u8; SAMPLES]; 256] {
+const fn make_unpack_lut<const BITS: usize, const SAMPLES: usize, const UPSAMPLE: bool>()
+-> [[u8; SAMPLES]; 256] {
     let mut lut = [[0u8; SAMPLES]; 256];
 
     let mut byte = 0;
@@ -202,7 +228,11 @@ const fn make_unpack_lut<const BITS: usize, const SAMPLES: usize, const UPSAMPLE
             let sample = (byte >> shift) & ((1 << BITS) - 1);
 
             // Expand to 8-bit range
-            lut[byte][i] = if UPSAMPLE {(sample * 255 / ((1 << BITS) - 1)) as u8} else {sample as u8};
+            lut[byte][i] = if UPSAMPLE {
+                (sample * 255 / ((1 << BITS) - 1)) as u8
+            } else {
+                sample as u8
+            };
 
             i += 1;
         }

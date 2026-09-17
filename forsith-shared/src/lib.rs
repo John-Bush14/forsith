@@ -15,7 +15,4 @@ pub mod error;
 
 pub mod ffi;
 
-pub use forsith_base::{
-    casing,
-    proc_macro,
-};
+pub use forsith_base::{casing, proc_macro};
