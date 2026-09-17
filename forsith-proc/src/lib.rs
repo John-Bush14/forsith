@@ -15,7 +15,6 @@ pub fn derive_deref(input: TokenStream) -> TokenStream {
     derive_more::derive_deref(input.into()).into()
 }
 
-
 #[proc_macro_derive(DerefMut, attributes(deref_mut))]
 pub fn derive_deref_mut(input: TokenStream) -> TokenStream {
     derive_more::derive_deref_mut(input.into()).into()
