@@ -27,4 +27,6 @@ pub mod error;
 #[cfg(feature = "std")]
 pub mod ffi;
 
+pub mod rng;
+
 pub use forsith_base::{casing, proc_macro};
