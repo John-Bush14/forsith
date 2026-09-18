@@ -16,6 +16,8 @@ pub mod arena;
 #[cfg(feature = "std")]
 pub mod buffers;
 
+pub mod hash;
+
 pub mod int;
 
 #[cfg(feature = "std")]
