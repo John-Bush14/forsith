@@ -1,8 +1,8 @@
-use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Rem, Shl, Shr, Sub};
+use core::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Rem, Shl, Shr, Sub};
 
 macro_rules! int_types {
     ($($num:ty),+) => {
-        pub trait Int: Sized + Copy + Default + PartialEq + Eq + std::fmt::Debug + From<bool> $( + TryFrom<$num> ) +
+        pub trait Int: Sized + Copy + Default + PartialEq + Eq + core::fmt::Debug + From<bool> $( + TryFrom<$num> ) +
         + BitAnd<Output=Self> + BitOr<Output=Self> + BitXor<Output=Self> + Shl<usize, Output=Self> + Rem<Output=Self>
         + Shr<usize, Output=Self> + Add<Output=Self> + Sub<Output=Self> + Div<Output=Self> + Mul<Output=Self> + Into<i64>
         + TryFrom<i64> + TryFrom<u64> + TryInto<u64> + TryInto<i64>
@@ -18,7 +18,7 @@ macro_rules! int_types {
         $(
         #[allow(clippy::cast_possible_truncation)]
         impl Int for $num {
-            const BYTE_DEPTH: u8 = std::mem::size_of::<Self>() as u8;
+            const BYTE_DEPTH: u8 = core::mem::size_of::<Self>() as u8;
             const BIT_DEPTH: u8 = Self::BYTE_DEPTH * 8;
             const MAX: u64 = Self::MAX as _;
             const MIN: i64 = Self::MIN as _;

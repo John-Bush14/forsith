@@ -1,3 +1,7 @@
+#[allow(unused_imports)]
+use crate::alloc::string::ToString;
+use crate::alloc::{boxed::Box, vec::Vec};
+
 #[macro_export]
 macro_rules! bail {
     ($($arg:tt)*) => {
@@ -8,18 +12,18 @@ macro_rules! bail {
 macro_rules! ensure {
     ($cond:expr, $($arg:tt)*) => {
         if !$cond {
-            return Err($crate::error::Error::msg(&format!($($arg)*)));
+            return Err($crate::error::Error::msg(&$crate::alloc::format!($($arg)*)));
         }
     };
 }
 #[macro_export]
 macro_rules! errmsg {
     ($($arg:tt)*) => {
-        $crate::error::Error::msg(&format!($($arg)*))
+        $crate::error::Error::msg(&$crate::alloc::format!($($arg)*))
     };
 }
 
-pub type Result<T> = std::result::Result<T, Error>;
+pub type Result<T> = core::result::Result<T, Error>;
 
 #[derive(Debug)]
 pub struct Error {
@@ -30,10 +34,10 @@ pub struct Error {
 #[derive(Debug)]
 enum ErrorKind {
     Message(Box<str>),
-    Error(Box<dyn std::error::Error>),
+    Error(Box<dyn core::error::Error>),
 }
-impl std::fmt::Display for ErrorKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for ErrorKind {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Message(msg) => write!(f, "{msg}"),
             Self::Error(err) => write!(f, "{err}"),
@@ -41,8 +45,8 @@ impl std::fmt::Display for ErrorKind {
     }
 }
 
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for Error {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{}", self.error)?;
         for (i, ctx) in self.context.iter().enumerate() {
             write!(f, "\n {i}. {ctx}")?;
@@ -51,7 +55,7 @@ impl std::fmt::Display for Error {
     }
 }
 
-impl<T: std::error::Error + 'static> From<T> for Error {
+impl<T: core::error::Error + 'static> From<T> for Error {
     fn from(err: T) -> Self {
         Self {
             error: ErrorKind::Error(Box::new(err)),
@@ -64,7 +68,7 @@ pub trait ResultContext<T> {
     #[must_use]
     fn with_context<R: Into<Box<str>>, F: FnOnce() -> R>(self, context: F) -> Self;
 }
-impl<T> ResultContext<T> for std::result::Result<T, Error> {
+impl<T> ResultContext<T> for core::result::Result<T, Error> {
     fn with_context<R: Into<Box<str>>, F: FnOnce() -> R>(mut self, context: F) -> Self {
         if let Err(ref mut err) = self {
             err.context.push(context().into());
@@ -137,9 +141,10 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "std")]
     fn test_error_from_std_error() {
         (|| -> Result<()> {
-            std::result::Result::Err(std::io::Error::other("test"))?;
+            core::result::Result::Err(std::io::Error::other("test"))?;
 
             Ok(())
         })()

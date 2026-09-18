@@ -1,6 +1,5 @@
-use std::collections::HashMap;
-
 use crate::arena::Arena;
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct InternedString(usize);

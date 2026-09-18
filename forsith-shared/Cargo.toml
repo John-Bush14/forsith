@@ -6,3 +6,8 @@ edition = "2024"
 [dependencies]
 forsith-base = { path = "../forsith-base" }
 forsith-proc = { path = "../forsith-proc" }
+
+[features]
+alloc = []
+std = ["alloc"]
+default = ["std"]

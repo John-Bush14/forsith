@@ -1,10 +1,12 @@
+use crate::alloc::{boxed::Box, vec, vec::Vec};
+
 const CHUNK_SIZE: usize = 2usize.pow(12); // 4096
 
 #[derive(Debug)]
 pub struct Arena<'arena, T: Default + Copy> {
     chunks: Vec<Box<[T]>>,
     index: usize,
-    phantom: std::marker::PhantomData<&'arena ()>,
+    phantom: core::marker::PhantomData<&'arena ()>,
 }
 
 impl<T: Default + Copy> Default for Arena<'_, T> {
@@ -12,7 +14,7 @@ impl<T: Default + Copy> Default for Arena<'_, T> {
         Self {
             chunks: vec![],
             index: CHUNK_SIZE + 1,
-            phantom: std::marker::PhantomData,
+            phantom: core::marker::PhantomData,
         }
     }
 }
@@ -33,14 +35,14 @@ impl<'arena, T: Default + Copy> Arena<'arena, T> {
         chunk[start..end].copy_from_slice(buf);
         self.index = end;
 
-        unsafe { std::slice::from_raw_parts_mut(chunk.as_mut_ptr().add(start), buf.len()) }
+        unsafe { core::slice::from_raw_parts_mut(chunk.as_mut_ptr().add(start), buf.len()) }
     }
 }
 
 impl<'arena> Arena<'arena, u8> {
     pub fn alloc_str(&mut self, s: &str) -> &'arena mut str {
         let bytes = self.alloc(s.as_bytes());
-        unsafe { std::str::from_utf8_unchecked_mut(bytes) }
+        unsafe { core::str::from_utf8_unchecked_mut(bytes) }
     }
 }
 
@@ -107,7 +109,7 @@ mod arena_tests {
     fn move_arena_hello_hello() {
         let mut arena = Arena::<u8>::default();
         let hello = arena.asserted_alloc_str("hello");
-        let mut moved_arena = std::mem::take(&mut arena);
+        let mut moved_arena = core::mem::take(&mut arena);
         let _ = moved_arena.asserted_alloc_str("world");
         assert_eq!(hello, "hello");
     }
@@ -116,7 +118,7 @@ mod arena_tests {
     fn move_arena_hello_large_string_hello() {
         let mut arena = Arena::<u8>::default();
         let hello1 = arena.asserted_alloc_str("hello");
-        let mut moved_arena = std::mem::take(&mut arena);
+        let mut moved_arena = core::mem::take(&mut arena);
         let large_string = "a".repeat(CHUNK_SIZE + 1);
         let large = moved_arena.asserted_alloc_str(&large_string);
         let _ = moved_arena.asserted_alloc_str("hello");
