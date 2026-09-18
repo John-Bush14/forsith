@@ -1,3 +1,5 @@
+use alloc::string::String;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Casing {
     Snake,

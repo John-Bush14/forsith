@@ -5,4 +5,5 @@ edition = "2024"
 
 [features]
 in_proc_macro = []
-default = []
+default = ["alloc"]
+alloc = []

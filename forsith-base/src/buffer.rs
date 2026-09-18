@@ -1,5 +1,9 @@
-use std::{
-    alloc::{Layout, alloc},
+use alloc::{
+    alloc::{Layout, alloc, handle_alloc_error},
+    boxed::Box,
+    vec::Vec,
+};
+use core::{
     ops::{Deref, DerefMut},
     ptr,
 };
@@ -115,7 +119,7 @@ impl<T: Clone> Buffer<T> {
             let layout = Layout::array::<T>(size).expect("could not allocate buffer");
             let ptr = alloc(layout).cast::<T>();
             if ptr.is_null() {
-                std::alloc::handle_alloc_error(layout);
+                handle_alloc_error(layout);
             }
             ptr
         }
@@ -168,6 +172,7 @@ impl<T: Clone> Buffer<T> {
 #[cfg(test)]
 mod buffer_tests {
     use super::*;
+    use alloc::vec;
 
     #[test]
     fn test_buffer_conversion_slice() {

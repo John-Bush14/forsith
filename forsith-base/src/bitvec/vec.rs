@@ -1,6 +1,8 @@
+use crate::bitvec::BitSlice;
 use crate::buffer;
-use crate::{bitvec::BitSlice, buffer::Buffer};
-use std::{
+#[cfg(feature = "alloc")]
+use crate::buffer::Buffer;
+use core::{
     mem::MaybeUninit,
     ops::{Deref, DerefMut},
 };
@@ -24,11 +26,14 @@ pub struct BitVec {
     bits: usize,
 }
 
-impl std::fmt::Debug for BitVec {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+#[allow(clippy::transmute_ptr_to_ptr)]
+impl core::fmt::Debug for BitVec {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("BitVec")
             .field("bits", &self.bits)
-            .field("data", &self.as_bools())
+            .field("data", unsafe {
+                core::mem::transmute::<&Buffer<MaybeUninit<u8>>, &Buffer<u8>>(&self.data)
+            })
             .finish()
     }
 }
@@ -73,7 +78,7 @@ impl From<&[bool]> for BitVec {
 impl From<Buffer<u8>> for BitVec {
     fn from(buffer: Buffer<u8>) -> Self {
         let bits = buffer.len() * 8;
-        let data = unsafe { std::mem::transmute::<Buffer<u8>, Buffer<MaybeUninit<u8>>>(buffer) };
+        let data = unsafe { core::mem::transmute::<Buffer<u8>, Buffer<MaybeUninit<u8>>>(buffer) };
 
         Self { data, bits }
     }
@@ -269,6 +274,7 @@ mod bitvec_tests {
         assert_eq!(bitvec.len(), 0);
     }
 
+    #[cfg(feature = "alloc")]
     #[test]
     fn test_bitvec_set_len_from_buffer() {
         let buffer = buffer![MaybeUninit::new(0b1010_1010), MaybeUninit::new(0b1100_1100)];

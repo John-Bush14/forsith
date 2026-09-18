@@ -1,6 +1,8 @@
-use std::marker::PhantomData;
-
 use crate::bitvec::BitArray;
+use core::marker::PhantomData;
+
+#[cfg(feature = "alloc")]
+use alloc::vec::Vec;
 
 #[repr(transparent)]
 #[derive(Debug, Clone, Default)]
@@ -61,6 +63,7 @@ impl<S: BitStorage, F: BitFlag> From<S> for Bitflags<S, F> {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<S: BitStorage, F: BitFlag + BitFlagFromIndex> Bitflags<S, F> {
     #[must_use]
     pub fn flags(&self, value: bool) -> Vec<F> {
@@ -128,6 +131,8 @@ impl<const N: usize> BitStorage for BitArray<N> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(feature = "alloc")]
+    use alloc::vec;
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     enum TestFlag {
@@ -175,6 +180,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "alloc")]
     fn bitflags_new_and_flags() {
         let flags = Bitflags::<u32, TestFlag>::new(&[TestFlag::B, TestFlag::C]);
 

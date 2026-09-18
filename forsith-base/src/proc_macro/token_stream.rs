@@ -1,7 +1,12 @@
-use std::{
-    ffi::CString,
+use core::{
     fmt::Display,
     ops::{Deref, Index, IndexMut},
+};
+
+use alloc::{
+    ffi::CString,
+    string::{String, ToString},
+    vec::Vec,
 };
 
 #[cfg(feature = "in_proc_macro")]
@@ -63,7 +68,7 @@ impl From<Vec<TokenTree>> for TokenStream {
 }
 
 impl Display for TokenStream {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         for tt in &self.0 {
             write!(f, "{tt} ")?;
         }
@@ -81,7 +86,7 @@ impl FromIterator<Self> for TokenStream {
 
 impl IntoIterator for TokenStream {
     type Item = TokenTree;
-    type IntoIter = std::vec::IntoIter<TokenTree>;
+    type IntoIter = alloc::vec::IntoIter<TokenTree>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
@@ -129,7 +134,7 @@ impl From<TokenTree> for proc_macro::TokenTree {
 }
 
 impl Display for TokenTree {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Group(g) => write!(f, "{g}"),
             Self::Ident(i) => write!(f, "{i}"),
@@ -182,7 +187,7 @@ impl Ident {
 }
 
 impl Display for Ident {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{}", self.0)
     }
 }
@@ -332,7 +337,7 @@ impl From<PunctChar> for char {
 }
 
 impl Display for Punct {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         if self.joint {
             write!(f, "{}", char::from(self.char))
         } else {
@@ -527,7 +532,7 @@ impl From<Literal> for proc_macro::Literal {
 }
 
 impl Display for Literal {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Char(c) => write!(f, "'{c}'"),
             Self::Integer(i, Some(suffix)) => write!(f, "{}{}", i, suffix.as_str()),
@@ -577,7 +582,7 @@ impl From<Group> for proc_macro::Group {
 }
 
 impl Display for Group {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let (open, close) = match self.delimiter {
             Delimiter::Parenthesis => ('(', ')'),
             Delimiter::Brace => ('{', '}'),

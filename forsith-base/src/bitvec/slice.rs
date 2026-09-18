@@ -1,17 +1,20 @@
-use std::{
+use core::{
     fmt::Debug,
     ops::{Deref, Index},
 };
+
+#[cfg(feature = "alloc")]
+use alloc::vec::Vec;
 
 pub struct BitSlice {
     data: [()],
 }
 
 impl Debug for BitSlice {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("BitSlice")
             .field("bits", &self.bits())
-            .field("bytes", &self.as_bools())
+            .field("bytes", &self.bytes())
             .finish()
     }
 }
@@ -41,6 +44,7 @@ impl Index<usize> for BitSlice {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl From<&BitSlice> for Vec<bool> {
     fn from(slice: &BitSlice) -> Self {
         slice.iter().collect()
@@ -180,6 +184,7 @@ impl BitSlice {
         unsafe { Self::from_raw_parts_mut(bytes.as_mut_ptr(), bits) }
     }
 
+    #[cfg(feature = "alloc")]
     #[must_use]
     pub fn as_bools(&self) -> Vec<bool> {
         self.into()
@@ -205,12 +210,12 @@ impl BitSlice {
 
     #[must_use]
     pub const fn bytes(&self) -> &[u8] {
-        unsafe { std::slice::from_raw_parts(self.as_ptr(), self.len_bytes()) }
+        unsafe { core::slice::from_raw_parts(self.as_ptr(), self.len_bytes()) }
     }
 
     #[must_use]
     pub const fn bytes_mut(&mut self) -> &mut [u8] {
-        unsafe { std::slice::from_raw_parts_mut(self.as_mut_ptr(), self.len_bytes()) }
+        unsafe { core::slice::from_raw_parts_mut(self.as_mut_ptr(), self.len_bytes()) }
     }
 
     #[must_use]
@@ -235,7 +240,7 @@ impl BitSlice {
     #[must_use]
     pub const unsafe fn from_raw_parts<'a>(ptr: *const u8, bits: usize) -> &'a Self {
         unsafe {
-            let wptr = std::ptr::slice_from_raw_parts(ptr, bits);
+            let wptr = core::ptr::slice_from_raw_parts(ptr, bits);
 
             &*(wptr as *const Self)
         }
@@ -248,7 +253,7 @@ impl BitSlice {
     #[must_use]
     pub unsafe fn from_raw_parts_mut<'a>(ptr: *mut u8, bits: usize) -> &'a mut Self {
         unsafe {
-            let wptr = std::ptr::slice_from_raw_parts_mut(ptr, bits);
+            let wptr = core::ptr::slice_from_raw_parts_mut(ptr, bits);
 
             &mut *(wptr as *mut Self)
         }
@@ -281,7 +286,7 @@ impl BitSlice {
     /// lifetime of the `BitSlice` reference.
     #[must_use]
     pub unsafe fn with_lifetime<'d>(&self) -> &'d Self {
-        unsafe { std::mem::transmute(self) }
+        unsafe { core::mem::transmute(self) }
     }
 
     /// # Safety
@@ -289,7 +294,7 @@ impl BitSlice {
     /// lifetime of the `BitSlice` reference.
     #[must_use]
     pub unsafe fn with_lifetime_mut<'d>(&mut self) -> &'d mut Self {
-        unsafe { std::mem::transmute(self) }
+        unsafe { core::mem::transmute(self) }
     }
 }
 
@@ -322,6 +327,7 @@ mod bitslice_tests {
         assert_eq!(bytes, [0b0101_0101, 0b0101_0101]);
     }
 
+    #[cfg(feature = "alloc")]
     #[test]
     fn test_bitslice_iter() {
         let bytes = [0b1010_1010, 0b1100_1100];

@@ -5,7 +5,8 @@ use crate::proc_macro::{
         ItemType, StructDefinition, StructField, Visibility,
     },
 };
-use std::iter::{Peekable, once};
+use alloc::{string::ToString, vec::Vec};
+use core::iter::{Peekable, once};
 
 impl Attribute {
     fn parse(input: &mut impl Iterator<Item = TokenTree>) -> Self {
@@ -200,7 +201,7 @@ impl StructDefinition {
                                 name: TokenTree::Literal(i),
                                 visibility,
                                 ty: parse_type(&mut iter),
-                                attributes: std::mem::take(&mut attributes),
+                                attributes: core::mem::take(&mut attributes),
                             });
                         }
                     }
@@ -228,7 +229,7 @@ impl StructDefinition {
                                 name: TokenTree::Ident(name),
                                 ty: parse_type(&mut iter),
                                 visibility,
-                                attributes: std::mem::take(&mut attributes),
+                                attributes: core::mem::take(&mut attributes),
                             });
                         }
                         TokenTree::Punct(punct) if punct.char() == PunctChar::Hash => {
@@ -295,7 +296,7 @@ impl EnumDefinition {
                     let mut variant = EnumVariant {
                         ident: name,
                         fields: None,
-                        attributes: std::mem::take(&mut attributes),
+                        attributes: core::mem::take(&mut attributes),
                         discriminant: None,
                     };
 
