@@ -42,9 +42,8 @@ impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
         Prober::new(h1, self)
     }
 
-    unsafe fn store_group(&mut self, group_index: usize, group: Group) {
-        let ptr = unsafe { self.content.as_mut_ptr().add(group_index).cast::<Tag>() };
-        unsafe { group.store(ptr) };
+    unsafe fn set_tag(&mut self, group_index: usize, bit: usize, tag: Tag) {
+        unsafe { self.content.as_mut_ptr().add(group_index + bit).cast::<Tag>().write(tag) };
     }
 
     unsafe fn get_key_value(&mut self, index: usize) -> &mut (K, V) {
@@ -66,7 +65,7 @@ impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
         let mut deleted_index = None;
 
         let mut prober = self.probe(h1);
-        while let Some(mut group) = prober.next(self) {
+        while let Some(group) = prober.next(self) {
             for bit in group.tag_bitmask(Tag::entry(h2)) {
                 println!("Found matching tag at bit: {bit}");
                 let (k, v) = unsafe { self.get_key_value(prober.group_index() + bit as usize) };
@@ -79,8 +78,9 @@ impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
             if let Some(empty) = group.tag_bitmask(Tag::EMPTY).next_one() {
                 println!("Found empty slot at bit: {empty}");
                 let kv_index = deleted_index.unwrap_or_else(|| {
-                    group.set_tag(empty as usize, Tag::entry(h2));
-                    unsafe { self.store_group(prober.group_index(), group) };
+                    unsafe {
+                        self.set_tag(prober.group_index(), empty as usize, Tag::entry(h2));
+                    }
 
                     prober.group_index() + empty as usize
                 });
@@ -197,10 +197,6 @@ impl Group {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.tag_bitmask(Tag::EMPTY) != Bitmask::new(0)
-    }
-
-    pub fn set_tag(&mut self, index: usize, tag: Tag) {
-        self.0[index] = tag.0;
     }
 
     #[must_use]
