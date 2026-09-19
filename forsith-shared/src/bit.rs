@@ -1,8 +1,31 @@
 use std::io::{Read, Seek};
-
 use forsith_proc::{Deref, DerefMut};
-
 use crate::{buffers::CursorVec, int::Int};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Bitmask(u16);
+
+impl Bitmask {
+    #[must_use]
+    pub const fn new(bits: u16) -> Self {
+        Self(bits)
+    }
+
+    pub fn next_one(&mut self) -> Option<u8> {
+        if self.0 == 0 {return None;}
+        let next_bit: u8 = self.0.trailing_zeros().try_into().unwrap_or_else(|_| unreachable!());
+        self.0 &= !(1 << next_bit);
+        Some(next_bit)
+    }
+}
+
+impl Iterator for Bitmask {
+    type Item = u8;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.next_one()
+    }
+}
 
 pub trait BitRead {
     fn fill_bitbuf(&mut self);
