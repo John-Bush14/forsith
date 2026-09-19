@@ -1,6 +1,6 @@
-use std::io::{Read, Seek};
-use forsith_proc::{Deref, DerefMut};
 use crate::{buffers::CursorVec, int::Int};
+use forsith_proc::{Deref, DerefMut};
+use std::io::{Read, Seek};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Bitmask(u16);
@@ -12,8 +12,14 @@ impl Bitmask {
     }
 
     pub fn next_one(&mut self) -> Option<u8> {
-        if self.0 == 0 {return None;}
-        let next_bit: u8 = self.0.trailing_zeros().try_into().unwrap_or_else(|_| unreachable!());
+        if self.0 == 0 {
+            return None;
+        }
+        let next_bit: u8 = self
+            .0
+            .trailing_zeros()
+            .try_into()
+            .unwrap_or_else(|_| unreachable!());
         self.0 &= !(1 << next_bit);
         Some(next_bit)
     }
