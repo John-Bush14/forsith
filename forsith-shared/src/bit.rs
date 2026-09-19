@@ -5,7 +5,17 @@ use std::io::{Read, Seek};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Bitmask(u16);
 
+impl core::ops::BitOr for Bitmask {
+    type Output = Self;
+
+    fn bitor(self, rhs: Self) -> Self::Output {
+        Self(self.0 | rhs.0)
+    }
+}
+
 impl Bitmask {
+    pub const EMPTY: Self = Self(0);
+
     #[must_use]
     pub const fn new(bits: u16) -> Self {
         Self(bits)

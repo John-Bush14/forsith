@@ -46,18 +46,41 @@ impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
         unsafe { self.content.as_mut_ptr().add(group_index + bit).cast::<Tag>().write(tag) };
     }
 
-    unsafe fn get_key_value(&mut self, index: usize) -> &mut (K, V) {
+    unsafe fn get_key_value(&self, index: usize) -> &(K, V) {
         let base = unsafe { self.content.as_ptr().add(self.content.len()) };
 
-        #[cfg(debug_assertions)]
-        assert!(
-            index * core::mem::size_of::<(K, V)>() < self.content.len(),
-            "index {index} out of bounds for content length {}",
-            self.content.len()
-        );
-        let kv_ptr = unsafe { base.sub(index * core::mem::size_of::<(K, V)>()) as *mut (K, V) };
+        let kv_ptr = unsafe { base.sub(index * core::mem::size_of::<(K, V)>()).cast::<(K, V)>() };
+
+        unsafe { &*kv_ptr }
+    }
+
+    unsafe fn get_key_value_mut(&mut self, index: usize) -> &mut (K, V) {
+        let base = unsafe { self.content.as_mut_ptr().add(self.content.len()) };
+
+        let kv_ptr = unsafe { base.sub(index * core::mem::size_of::<(K, V)>()).cast::<(K, V)>() };
 
         unsafe { &mut *kv_ptr }
+    }
+
+    pub fn get(&self, key: &K) -> Option<&V> {
+        let (h1, h2) = Self::split_hash(self.hash(key));
+
+        let mut prober = self.probe(h1);
+        while let Some(group) = prober.next(self) {
+            for bit in group.bitmask(Tag::entry(h2)) {
+                let (k, v) = unsafe { self.get_key_value(prober.group_index() + bit as usize) };
+
+                if *k == *key {
+                    return Some(v);
+                }
+            }
+
+            if group.bitmask(Tag::EMPTY) != Bitmask::EMPTY {
+                return None;
+            }
+        }
+
+        unreachable!("Prober should never stop")
     }
 
     pub fn insert(&mut self, key: K, val: V) -> Option<V> {
@@ -66,16 +89,16 @@ impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
 
         let mut prober = self.probe(h1);
         while let Some(group) = prober.next(self) {
-            for bit in group.tag_bitmask(Tag::entry(h2)) {
+            for bit in group.bitmask(Tag::entry(h2)) {
                 println!("Found matching tag at bit: {bit}");
-                let (k, v) = unsafe { self.get_key_value(prober.group_index() + bit as usize) };
+                let (k, v) = unsafe { self.get_key_value_mut(prober.group_index() + bit as usize) };
 
                 if *k == key {
                     return Some(core::mem::replace(v, val));
                 }
             }
 
-            if let Some(empty) = group.tag_bitmask(Tag::EMPTY).next_one() {
+            if let Some(empty) = group.bitmask(Tag::EMPTY).next_one() {
                 println!("Found empty slot at bit: {empty}");
                 let kv_index = deleted_index.unwrap_or_else(|| {
                     unsafe {
@@ -85,14 +108,14 @@ impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
                     prober.group_index() + empty as usize
                 });
 
-                let (k, v) = unsafe { self.get_key_value(kv_index) };
+                let (k, v) = unsafe { self.get_key_value_mut(kv_index) };
                 *k = key;
                 *v = val;
                 return None;
             }
 
             if deleted_index.is_none()
-                && let Some(deleted) = group.tag_bitmask(Tag::DELETED).next_one()
+                && let Some(deleted) = group.bitmask(Tag::DELETED).next_one()
             {
                 println!("Found deleted slot at bit: {deleted}");
                 deleted_index = Some(deleted as usize + prober.group_index());
@@ -178,7 +201,7 @@ impl Group {
 
     #[allow(clippy::missing_panics_doc)]
     #[must_use]
-    pub fn tag_bitmask(&self, tag: Tag) -> Bitmask {
+    pub fn bitmask(&self, tag: Tag) -> Bitmask {
         let mask = self.0.simd_eq(Simd::splat(tag.0));
         Bitmask::new(mask.to_bitmask().try_into().unwrap())
     }
@@ -196,12 +219,7 @@ impl Group {
 
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.tag_bitmask(Tag::EMPTY) != Bitmask::new(0)
-    }
-
-    #[must_use]
-    pub fn is_full(&self) -> bool {
-        self.0 & Simd::splat(0b100_0000) == Simd::splat(0)
+        self.bitmask(Tag::EMPTY) != Bitmask::new(0)
     }
 }
 
@@ -212,12 +230,21 @@ mod tests {
     #[test]
     fn test_test_test() {
         let mut table = SwissTable::<u8, u8>::new(RandomState::default());
-        table.insert(17, 10);
+        table.insert(1, 10);
         table.insert(2, 20);
         table.insert(3, 30);
 
+        for i in 4..32 {
+            assert_eq!(table.get(&i), None);
+        }
+
         for i in 0..32 {
             table.insert(i, i * 2);
+            assert_eq!(table.get(&i), Some(&(i * 2)));
+        }
+
+        for i in 0..32 {
+            assert_eq!(table.get(&i), Some(&(i * 2)));
         }
 
         for i in 0..32 {
