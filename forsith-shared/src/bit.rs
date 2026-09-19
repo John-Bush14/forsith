@@ -13,6 +13,14 @@ impl core::ops::BitOr for Bitmask {
     }
 }
 
+impl core::ops::Not for Bitmask {
+    type Output = Self;
+
+    fn not(self) -> Self::Output {
+        Self(!self.0)
+    }
+}
+
 impl Bitmask {
     pub const EMPTY: Self = Self(0);
 
