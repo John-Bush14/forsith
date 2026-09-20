@@ -194,14 +194,12 @@ impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
         loop {
             let group = prober.next(self);
 
-            let isnt_full = group.bitmask(Tag::EMPTY) != Bitmask::EMPTY;
-            let mut bitmask = group.bitmask(Tag::entry(h2));
-            while let Some(bit) = bitmask.next_one() {
+            for bit in group.bitmask(Tag::entry(h2)) {
                 let kv_index = prober.kv_index(bit);
 
                 let (k, _) = self.get_key_value(kv_index);
 
-                if core::hint::likely((bitmask == Bitmask::EMPTY && isnt_full) || *k == *key) {
+                if core::hint::likely(*k == *key) {
                     return Some(kv_index);
                 }
             }
