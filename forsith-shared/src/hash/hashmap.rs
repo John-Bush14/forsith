@@ -80,10 +80,15 @@ impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
 
         let v = &mut self.get_key_value_mut(kv_index).1;
 
-        unsafe {Some(core::mem::replace(
-            &mut *core::ptr::from_mut::<V>(v).cast::<MaybeUninit<V>>(),
-            MaybeUninit::uninit(),
-        ).assume_init())}
+        unsafe {
+            Some(
+                core::mem::replace(
+                    &mut *core::ptr::from_mut::<V>(v).cast::<MaybeUninit<V>>(),
+                    MaybeUninit::uninit(),
+                )
+                .assume_init(),
+            )
+        }
     }
 
     #[allow(clippy::missing_panics_doc)]
@@ -448,7 +453,7 @@ struct Group(Simd<u8, 16>);
 impl Group {
     const SIZE: usize = 16;
 
-    fn iter_all(capacity: usize, content: &[u8]) -> impl Iterator<Item = Group> + '_ {
+    fn iter_all(capacity: usize, content: &[u8]) -> impl Iterator<Item = Self> + '_ {
         (0..capacity / Self::SIZE).map(move |i| Self::load_from(content, i))
     }
 
@@ -477,38 +482,58 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_test_test() {
+    fn inserts_and_reads_values() {
+        let mut table = SwissTable::<u32, &'static str>::new(RandomState::default());
+
+        for (key, value) in [(1, "one"), (2, "two"), (3, "three")] {
+            assert_eq!(table.insert(key, value), None);
+        }
+
+        assert_eq!(table.get(&1), Some(&"one"));
+        assert_eq!(table.get(&2), Some(&"two"));
+        assert_eq!(table.get(&3), Some(&"three"));
+        assert_eq!(table.get(&99), None);
+    }
+
+    #[test]
+    fn overwrites_existing_value_and_returns_old_one() {
         let mut table = SwissTable::<u32, u32>::new(RandomState::default());
-        table.insert(1u32, 10);
-        table.insert(2u32, 20);
-        table.insert(3u32, 30);
 
-        for i in 4..32u32 {
-            assert_eq!(table.get(&i), None);
+        assert_eq!(table.insert(42, 10), None);
+        assert_eq!(table.insert(42, 99), Some(10));
+        assert_eq!(table.get(&42), Some(&99));
+    }
+
+    #[test]
+    fn removes_entries_without_disturbing_the_rest() {
+        let mut table = SwissTable::<u32, u32>::new(RandomState::default());
+
+        for i in 0..50u32 {
+            table.insert(i, i * 10);
         }
 
-        for i in 0..32u32 {
+        assert_eq!(table.remove(&25), Some(250));
+        assert_eq!(table.get(&25), None);
+        assert_eq!(table.remove(&25), None);
+
+        for i in 0..50u32 {
+            if i == 25 {
+                continue;
+            }
+            assert_eq!(table.get(&i), Some(&(i * 10)));
+        }
+    }
+
+    #[test]
+    fn survives_growth_and_rehashing() {
+        let mut table = SwissTable::<u32, u32>::new(RandomState::default());
+
+        for i in 0..500u32 {
             table.insert(i, i * 2);
+        }
+
+        for i in 0..500u32 {
             assert_eq!(table.get(&i), Some(&(i * 2)));
         }
-
-        for i in 0..32u32 {
-            assert_eq!(table.get(&i), Some(&(i * 2)));
-        }
-
-        for i in 0..32u32 {
-            assert_eq!(table.insert(i, i * 3), Some(i * 2));
-        }
-
-        for i in 0..1 << 24 {
-            table.insert(i, i * 4);
-        }
-
-        let duration = std::time::Instant::now();
-        for i in 0..1 << 24 {
-            table.get(&i);
-        }
-
-        panic!("Time taken to get 1 million entries: {:?}", duration.elapsed());
     }
 }
