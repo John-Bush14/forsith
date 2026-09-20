@@ -50,27 +50,34 @@ impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
 
     fn grow_if_needed(&mut self) {
         if self.load_factor() > Self::MAX_LOAD_FACTOR {
-            let old_capacity = self.capacity();
-            self.set_capacity(self.capacity() * 2);
-            println!("Growing table from {} to {}", old_capacity, self.capacity());
-            let capacity = self.capacity();
+            self.resize(self.capacity() * 2);
+        }
+    }
 
-            let content = core::mem::replace(&mut self.content, buffer![Tag::EMPTY.byte(); capacity + capacity * core::mem::size_of::<(K, V)>()]);
-            let groups = (0..old_capacity / Group::SIZE).map(|i| {
-                Group::load_from(&content, i)
-            });
+    /// Resize the hash table to the nearest multiple of 16 and power of 2 greater than or equal to
+    /// `new_capacity`. Rehashes all existing entries into the new table.
+    fn resize(&mut self, new_capacity: usize) {
+        let old_capacity = self.capacity();
+        self.set_capacity(new_capacity);
+        let capacity = self.capacity();
 
-            self.empty = capacity;
-            for (i, group) in groups.enumerate() {
-                for bit in !(group.bitmask(Tag::EMPTY) | group.bitmask(Tag::DELETED)) {
-                    self.empty -= 1;
+        let content = core::mem::replace(&mut self.content, buffer![Tag::EMPTY.byte(); capacity + capacity * core::mem::size_of::<(K, V)>()]);
 
-                    let index = GroupIndex::new(i, bit);
-                    let h2 = index.get_tag(&content).h2();
+        self.empty = capacity;
 
-                    let kv = KvIndex::<K, V>::from_group_index(index).get_kv(&content);
-                    self.insert_rehash(kv, h2);
-                }
+        self.rehash_from(&content, old_capacity);
+    }
+
+    fn rehash_from(&mut self, old_content: &Buffer<u8>, old_capacity: usize) {
+        for (i, group) in Group::iter_all(old_capacity, old_content).enumerate() {
+            for bit in !(group.bitmask(Tag::EMPTY) | group.bitmask(Tag::DELETED)) {
+                self.empty -= 1;
+
+                let index = GroupIndex::new(i, bit);
+                let h2 = index.get_tag(old_content).h2();
+
+                let kv = KvIndex::<K, V>::from_group_index(index).get_kv(old_content);
+                self.insert_rehash(kv, h2);
             }
         }
     }
@@ -361,6 +368,10 @@ impl Tag {
 struct Group(Simd<u8, 16>);
 impl Group {
     const SIZE: usize = 16;
+
+    fn iter_all(capacity: usize, content: &[u8]) -> impl Iterator<Item = Group> + '_ {
+        (0..capacity / Self::SIZE).map(move |i| Self::load_from(content, i))
+    }
 
     #[must_use]
     const fn load(slice: &[u8]) -> Self {
