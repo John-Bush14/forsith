@@ -1,6 +1,7 @@
 use crate::bit::Bitmask;
 use crate::hash::hashing::RandomState;
 use core::hash::{BuildHasher, Hash};
+use core::mem::MaybeUninit;
 use core::simd::Simd;
 use core::simd::cmp::SimdPartialEq;
 use forsith_base::buffer;
@@ -62,24 +63,27 @@ impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
     }
 
     pub fn get(&self, key: &K) -> Option<&V> {
-        let (h1, h2) = Self::split_hash(self.hash(key));
+        self.find_kvindex(key)
+            .map(|kv_index| &self.get_key_value(kv_index).1)
+    }
 
-        let mut prober = self.probe(h1)?;
-        loop {
-            let group = prober.next(self);
+    pub fn get_mut(&mut self, key: &K) -> Option<&mut V> {
+        self.find_kvindex(key)
+            .map(|kv_index| &mut self.get_key_value_mut(kv_index).1)
+    }
 
-            for bit in group.bitmask(Tag::entry(h2)) {
-                let (k, v) = self.get_key_value(prober.kv_index(bit));
+    pub fn remove(&mut self, key: &K) -> Option<V> {
+        let kv_index = self.find_kvindex(key)?;
 
-                if core::hint::likely(*k == *key) {
-                    return Some(v);
-                }
-            }
+        let group_index: GroupIndex = kv_index.into();
+        group_index.set_tag(&mut self.content, Tag::DELETED);
 
-            if core::hint::likely(group.bitmask(Tag::EMPTY) != Bitmask::EMPTY) {
-                return None;
-            }
-        }
+        let v = &mut self.get_key_value_mut(kv_index).1;
+
+        unsafe {Some(core::mem::replace(
+            &mut *core::ptr::from_mut::<V>(v).cast::<MaybeUninit<V>>(),
+            MaybeUninit::uninit(),
+        ).assume_init())}
     }
 
     #[allow(clippy::missing_panics_doc)]
@@ -163,6 +167,30 @@ impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
         let groups = capacity / Group::SIZE;
         let needed_bits = groups.bit_width() - 1;
         self.bitmask = (1 << needed_bits) - 1;
+    }
+
+    #[inline(always)]
+    fn find_kvindex(&self, key: &K) -> Option<KvIndex<K, V>> {
+        let (h1, h2) = Self::split_hash(self.hash(key));
+
+        let mut prober = self.probe(h1)?;
+        loop {
+            let group = prober.next(self);
+
+            for bit in group.bitmask(Tag::entry(h2)) {
+                let kv_index = prober.kv_index(bit);
+
+                let (k, _) = self.get_key_value(kv_index);
+
+                if core::hint::likely(*k == *key) {
+                    return Some(kv_index);
+                }
+            }
+
+            if core::hint::likely(group.bitmask(Tag::EMPTY) != Bitmask::EMPTY) {
+                return None;
+            }
+        }
     }
 
     fn insert_rehash(&mut self, kv: &(K, V), h2: u8) {
@@ -249,6 +277,16 @@ impl GroupIndex {
 
     pub const fn set_tag(self, content: &mut [u8], tag: Tag) {
         content[self.index()] = tag.byte();
+    }
+
+    pub const fn from_kv_index<K, V>(kv_index: KvIndex<K, V>) -> Self {
+        Self(kv_index.index() / KvIndex::<K, V>::KV_SIZE - 1)
+    }
+}
+
+impl<K, V> From<KvIndex<K, V>> for GroupIndex {
+    fn from(kv_index: KvIndex<K, V>) -> Self {
+        Self::from_kv_index(kv_index)
     }
 }
 
