@@ -42,15 +42,19 @@ impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
         self.growth_left
     }
 
+    pub fn with_capacity(hash_builder: H, capacity: usize) -> Self {
+        let mut table = Self::new(hash_builder);
+        table.realloc_buffer(capacity);
+        table
+    }
+
     /// Resize the hash table to the nearest multiple of 16 and power of 2 greater than or equal to
     /// `new_capacity`. Rehashes all existing entries into the new table.
     pub fn resize(&mut self, new_capacity: usize) {
         let old_capacity = self.capacity();
-        let content = self.realloc_buffer(new_capacity);
+        let old_content = self.realloc_buffer(new_capacity);
 
-        self.growth_left = self.capacity() * Self::MAX_LOAD_FACTOR as usize / 100;
-
-        self.rehash_from(&content, old_capacity);
+        self.rehash_from(&old_content, old_capacity);
     }
 
     pub fn capacity(&self) -> usize {
@@ -129,6 +133,8 @@ impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
     fn realloc_buffer(&mut self, new_capacity: usize) -> Buffer<u8> {
         let capacity = Self::choose_capacity(new_capacity);
         self.set_bitmask(capacity);
+        self.growth_left = capacity * Self::MAX_LOAD_FACTOR as usize / 100;
+
         core::mem::replace(
             &mut self.content,
             buffer![Tag::EMPTY.byte(); capacity * (1 + core::mem::size_of::<(K, V)>())],

@@ -42,7 +42,7 @@ impl Hasher for SimpleHasher {
         for &byte in bytes {
             self.state = self
                 .state
-                .wrapping_mul(0x10000_0001b67)
+                .wrapping_mul(0x10000_0001b3)
                 .wrapping_add(u64::from(byte));
         }
     }
