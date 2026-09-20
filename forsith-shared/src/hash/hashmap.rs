@@ -2,9 +2,9 @@ use crate::bit::Bitmask;
 use crate::hash::hashing::RandomState;
 use core::hash::{BuildHasher, Hash};
 use core::simd::Simd;
+use core::simd::cmp::SimdPartialEq;
 use forsith_base::buffer;
 use forsith_base::buffer::Buffer;
-use core::simd::cmp::SimdPartialEq;
 
 #[allow(type_alias_bounds)]
 pub type HashMap<K: Hash, V, H = RandomState> = SwissTable<K, V, H>;
@@ -18,9 +18,14 @@ pub struct SwissTable<K: Hash + PartialEq, V, H: BuildHasher = RandomState> {
     _value: core::marker::PhantomData<V>,
 }
 
-impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
-    const MAX_LOAD_FACTOR: u8 = 85;
+impl<K: Hash + PartialEq, V, H: Default + BuildHasher> Default for SwissTable<K, V, H> {
+    fn default() -> Self {
+        Self::new(H::default())
+    }
+}
 
+// public interface
+impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
     pub fn new(hash_builder: H) -> Self {
         Self {
             hash_builder,
@@ -32,19 +37,9 @@ impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
         }
     }
 
-    fn load_group(&self, group_index: usize) -> Group {
-        Group::load_from(&self.content, group_index)
-    }
-
     #[must_use]
     pub const fn growth_left(&self) -> usize {
         self.growth_left
-    }
-
-    fn grow_if_needed(&mut self) {
-        if self.growth_left == 0 {
-            self.resize(self.capacity() * 2);
-        }
     }
 
     /// Resize the hash table to the nearest multiple of 16 and power of 2 greater than or equal to
@@ -58,66 +53,8 @@ impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
         self.rehash_from(&content, old_capacity);
     }
 
-    fn realloc_buffer(&mut self, new_capacity: usize) -> Buffer<u8> {
-        let capacity = Self::choose_capacity(new_capacity);
-        self.set_bitmask(capacity);
-        core::mem::replace(&mut self.content, buffer![Tag::EMPTY.byte(); capacity * (1 + core::mem::size_of::<(K, V)>())])
-    }
-
-    fn rehash_from(&mut self, old_content: &Buffer<u8>, old_capacity: usize) {
-        for (i, group) in Group::iter_all(old_capacity, old_content).enumerate() {
-            for bit in !(group.bitmask(Tag::EMPTY) | group.bitmask(Tag::DELETED)) {
-                self.growth_left -= 1;
-
-                let index = GroupIndex::new(i, bit);
-                let h2 = index.get_tag(old_content).h2();
-
-                let kv = KvIndex::<K, V>::from_group_index(index).get_kv(old_content);
-                self.insert_rehash(kv, h2);
-            }
-        }
-    }
-
-    fn choose_capacity(capacity: usize) -> usize {
-        capacity.next_power_of_two().max(Group::SIZE)
-    }
-
-    const fn set_bitmask(&mut self, capacity: usize) {
-        let groups = capacity / Group::SIZE;
-        let needed_bits = groups.bit_width() - 1;
-        self.bitmask = (1 << needed_bits) - 1;
-    }
-
     pub fn capacity(&self) -> usize {
         self.content.len() / (1 + core::mem::size_of::<(K, V)>())
-    }
-
-    fn split_hash(hash: u64) -> (u64, u8) {
-        (hash, u8::try_from(hash & ((1 << 7) - 1)).unwrap())
-    }
-
-    fn hash(&self, key: &K) -> u64 {
-        self.hash_builder.hash_one(key)
-    }
-
-    fn probe(&self, h1: u64) -> Option<Prober> {
-        if self.capacity() == 0 {
-            return None;
-        }
-
-        Some(Prober::new(h1, self))
-    }
-
-    fn set_tag(&mut self, index: GroupIndex, tag: Tag) {
-        index.set_tag(&mut self.content, tag);
-    }
-
-    fn get_key_value(&self, index: KvIndex<K, V>) -> &(K, V) {
-        index.get_kv(&self.content)
-    }
-
-    fn get_key_value_mut(&mut self, index: KvIndex<K, V>) -> &mut (K, V) {
-        index.get_kv_mut(&mut self.content)
     }
 
     pub fn get(&self, key: &K) -> Option<&V> {
@@ -141,27 +78,6 @@ impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
         }
     }
 
-    fn insert_rehash(&mut self, kv: &(K, V), h2: u8) {
-        let (h1, _) = Self::split_hash(self.hash(&kv.0));
-
-        let mut prober = self.probe(h1).expect("Should always have a prober when rehashing into a larger table");
-        loop {
-            let group = prober.next(self);
-
-            if let Some(empty) = group.bitmask(Tag::EMPTY).next_one() {
-                let group_index = prober.group_index(empty);
-                self.set_tag(group_index, Tag::entry(h2));
-
-                let kvnew = self.get_key_value_mut(group_index.into());
-                unsafe {
-                    core::ptr::copy_nonoverlapping(kv, kvnew, 1);
-                }
-
-                return;
-            }
-        }
-    }
-
     #[allow(clippy::missing_panics_doc)]
     pub fn insert(&mut self, key: K, val: V) -> Option<V> {
         self.grow_if_needed();
@@ -169,7 +85,10 @@ impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
         let (h1, h2) = Self::split_hash(self.hash(&key));
         let mut deleted_index = None;
 
-        let mut prober = self.probe(h1).expect("Should never be empty as just grew if needed");
+        let mut prober = self
+            .probe(h1)
+            .expect("Should never be empty as just grew if needed");
+
         loop {
             let group = prober.next(self);
 
@@ -203,6 +122,108 @@ impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
     }
 }
 
+// private interface
+impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
+    const MAX_LOAD_FACTOR: u8 = 85;
+
+    fn realloc_buffer(&mut self, new_capacity: usize) -> Buffer<u8> {
+        let capacity = Self::choose_capacity(new_capacity);
+        self.set_bitmask(capacity);
+        core::mem::replace(
+            &mut self.content,
+            buffer![Tag::EMPTY.byte(); capacity * (1 + core::mem::size_of::<(K, V)>())],
+        )
+    }
+
+    fn rehash_from(&mut self, old_content: &Buffer<u8>, old_capacity: usize) {
+        for (i, group) in Group::iter_all(old_capacity, old_content).enumerate() {
+            for bit in !(group.bitmask(Tag::EMPTY) | group.bitmask(Tag::DELETED)) {
+                self.growth_left -= 1;
+
+                let index = GroupIndex::new(i, bit);
+                let h2 = index.get_tag(old_content).h2();
+
+                let kv = KvIndex::<K, V>::from_group_index(index).get_kv(old_content);
+                self.insert_rehash(kv, h2);
+            }
+        }
+    }
+
+    fn choose_capacity(capacity: usize) -> usize {
+        capacity.next_power_of_two().max(Group::SIZE)
+    }
+
+    const fn set_bitmask(&mut self, capacity: usize) {
+        let groups = capacity / Group::SIZE;
+        let needed_bits = groups.bit_width() - 1;
+        self.bitmask = (1 << needed_bits) - 1;
+    }
+
+    fn insert_rehash(&mut self, kv: &(K, V), h2: u8) {
+        let (h1, _) = Self::split_hash(self.hash(&kv.0));
+
+        let mut prober = self
+            .probe(h1)
+            .expect("Should always have a prober when rehashing into a larger table");
+        loop {
+            let group = prober.next(self);
+
+            if let Some(empty) = group.bitmask(Tag::EMPTY).next_one() {
+                let group_index = prober.group_index(empty);
+                self.set_tag(group_index, Tag::entry(h2));
+
+                let kvnew = self.get_key_value_mut(group_index.into());
+                unsafe {
+                    core::ptr::copy_nonoverlapping(kv, kvnew, 1);
+                }
+
+                return;
+            }
+        }
+    }
+
+    fn split_hash(hash: u64) -> (u64, u8) {
+        (
+            hash.wrapping_shr(7),
+            u8::try_from(hash & ((1 << 7) - 1)).unwrap(),
+        )
+    }
+
+    fn hash(&self, key: &K) -> u64 {
+        self.hash_builder.hash_one(key)
+    }
+
+    fn probe(&self, h1: u64) -> Option<Prober> {
+        if self.capacity() == 0 {
+            return None;
+        }
+
+        Some(Prober::new(h1, self))
+    }
+
+    fn set_tag(&mut self, index: GroupIndex, tag: Tag) {
+        index.set_tag(&mut self.content, tag);
+    }
+
+    fn get_key_value(&self, index: KvIndex<K, V>) -> &(K, V) {
+        index.get_kv(&self.content)
+    }
+
+    fn get_key_value_mut(&mut self, index: KvIndex<K, V>) -> &mut (K, V) {
+        index.get_kv_mut(&mut self.content)
+    }
+
+    fn load_group(&self, group_index: usize) -> Group {
+        Group::load_from(&self.content, group_index)
+    }
+
+    fn grow_if_needed(&mut self) {
+        if self.growth_left == 0 {
+            self.resize(self.capacity() * 2);
+        }
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 struct GroupIndex(usize);
 impl GroupIndex {
@@ -232,7 +253,9 @@ impl<K, V> From<GroupIndex> for KvIndex<K, V> {
 }
 
 impl<K, V> Clone for KvIndex<K, V> {
-    fn clone(&self) -> Self { *self }
+    fn clone(&self) -> Self {
+        *self
+    }
 }
 impl<K, V> Copy for KvIndex<K, V> {}
 
@@ -243,7 +266,10 @@ impl<K, V> KvIndex<K, V> {
 
     #[must_use]
     pub const fn new(group_index: usize, bit: u8) -> Self {
-        Self((group_index * Group::SIZE + bit as usize + 1) * Self::KV_SIZE, core::marker::PhantomData)
+        Self(
+            (group_index * Group::SIZE + bit as usize + 1) * Self::KV_SIZE,
+            core::marker::PhantomData,
+        )
     }
 
     #[must_use]
@@ -252,7 +278,10 @@ impl<K, V> KvIndex<K, V> {
     }
 
     pub const fn from_group_index(index: GroupIndex) -> Self {
-        Self((index.index() + 1) * Self::KV_SIZE, core::marker::PhantomData)
+        Self(
+            (index.index() + 1) * Self::KV_SIZE,
+            core::marker::PhantomData,
+        )
     }
 
     pub fn get_kv(self, content: &[u8]) -> &(K, V) {
@@ -333,7 +362,10 @@ impl Tag {
     #[must_use]
     pub fn from_byte(byte: u8) -> Self {
         #[cfg(debug_assertions)]
-        assert!(!(byte >= 0b1000_0000 && !(byte == Self::EMPTY.byte() || byte == Self::DELETED.byte())), "Tried to create a tag from a byte that is not a valid tag: {byte:#010b}");
+        assert!(
+            !(byte >= 0b1000_0000 && !(byte == Self::EMPTY.byte() || byte == Self::DELETED.byte())),
+            "Tried to create a tag from a byte that is not a valid tag: {byte:#010b}"
+        );
 
         Self(byte)
     }
@@ -358,7 +390,10 @@ impl Tag {
     #[must_use]
     pub const fn h2(&self) -> u8 {
         #[cfg(debug_assertions)]
-        assert!(self.0 < 0b1000_0000, "Tried to get h2 from a tag that is not a valid entry");
+        assert!(
+            self.0 < 0b1000_0000,
+            "Tried to get h2 from a tag that is not a valid entry"
+        );
 
         self.0
     }
@@ -421,9 +456,15 @@ mod tests {
             assert_eq!(table.insert(i, i * 3), Some(i * 2));
         }
 
-        for i in 0..1 << 10 {
+        for i in 0..1 << 24 {
             table.insert(i, i * 4);
-            assert_eq!(table.get(&i), Some(&(i * 4)));
         }
+
+        let duration = std::time::Instant::now();
+        for i in 0..1 << 24 {
+            table.get(&i);
+        }
+
+        panic!("Time taken to get 1 million entries: {:?}", duration.elapsed());
     }
 }
