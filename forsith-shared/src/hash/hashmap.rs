@@ -13,8 +13,7 @@ pub struct SwissTable<K: Hash + PartialEq, V, H: BuildHasher = RandomState> {
     hash_builder: H,
     content: Buffer<u8>,
     bitmask: usize,
-    capacity: usize,
-    empty: usize,
+    growth_left: usize,
     _key: core::marker::PhantomData<K>,
     _value: core::marker::PhantomData<V>,
 }
@@ -27,8 +26,7 @@ impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
             hash_builder,
             content: buffer![Tag::EMPTY.byte(); 0],
             bitmask: 0,
-            capacity: 0,
-            empty: 0,
+            growth_left: 0,
             _key: core::marker::PhantomData,
             _value: core::marker::PhantomData,
         }
@@ -38,40 +36,38 @@ impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
         Group::load_from(&self.content, group_index)
     }
 
-    /// in percent, 0-100
-    ///
-    /// # Panics
-    /// Panics if empty slots are greater than capacity
-    pub fn load_factor(&self) -> u8 {
-        if self.capacity() == 0 {return 100;}
-
-        100u8 - u8::try_from(self.empty * 100 / self.capacity()).expect("Empty slots should be less than capacity")
+    #[must_use]
+    pub const fn growth_left(&self) -> usize {
+        self.growth_left
     }
 
     fn grow_if_needed(&mut self) {
-        if self.load_factor() > Self::MAX_LOAD_FACTOR {
+        if self.growth_left == 0 {
             self.resize(self.capacity() * 2);
         }
     }
 
     /// Resize the hash table to the nearest multiple of 16 and power of 2 greater than or equal to
     /// `new_capacity`. Rehashes all existing entries into the new table.
-    fn resize(&mut self, new_capacity: usize) {
+    pub fn resize(&mut self, new_capacity: usize) {
         let old_capacity = self.capacity();
-        self.set_capacity(new_capacity);
-        let capacity = self.capacity();
+        let content = self.realloc_buffer(new_capacity);
 
-        let content = core::mem::replace(&mut self.content, buffer![Tag::EMPTY.byte(); capacity + capacity * core::mem::size_of::<(K, V)>()]);
-
-        self.empty = capacity;
+        self.growth_left = self.capacity() * Self::MAX_LOAD_FACTOR as usize / 100;
 
         self.rehash_from(&content, old_capacity);
+    }
+
+    fn realloc_buffer(&mut self, new_capacity: usize) -> Buffer<u8> {
+        let capacity = Self::choose_capacity(new_capacity);
+        self.set_bitmask(capacity);
+        core::mem::replace(&mut self.content, buffer![Tag::EMPTY.byte(); capacity * (1 + core::mem::size_of::<(K, V)>())])
     }
 
     fn rehash_from(&mut self, old_content: &Buffer<u8>, old_capacity: usize) {
         for (i, group) in Group::iter_all(old_capacity, old_content).enumerate() {
             for bit in !(group.bitmask(Tag::EMPTY) | group.bitmask(Tag::DELETED)) {
-                self.empty -= 1;
+                self.growth_left -= 1;
 
                 let index = GroupIndex::new(i, bit);
                 let h2 = index.get_tag(old_content).h2();
@@ -82,15 +78,19 @@ impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
         }
     }
 
-    fn set_capacity(&mut self, capacity: usize) {
-        self.capacity = capacity.next_power_of_two().max(Group::SIZE);
+    fn choose_capacity(capacity: usize) -> usize {
+        capacity.next_power_of_two().max(Group::SIZE)
+    }
 
-        let groups = self.capacity() / Group::SIZE;
+    const fn set_bitmask(&mut self, capacity: usize) {
+        let groups = capacity / Group::SIZE;
         let needed_bits = groups.bit_width() - 1;
         self.bitmask = (1 << needed_bits) - 1;
     }
 
-    pub const fn capacity(&self) -> usize {self.capacity}
+    pub fn capacity(&self) -> usize {
+        self.content.len() / (1 + core::mem::size_of::<(K, V)>())
+    }
 
     fn split_hash(hash: u64) -> (u64, u8) {
         (hash, u8::try_from(hash & ((1 << 7) - 1)).unwrap())
@@ -101,7 +101,7 @@ impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
     }
 
     fn probe(&self, h1: u64) -> Option<Prober> {
-        if self.capacity() < 16 {
+        if self.capacity() == 0 {
             return None;
         }
 
@@ -183,7 +183,7 @@ impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
 
             if let Some(empty) = group.bitmask(Tag::EMPTY).next_one() {
                 let index = deleted_index.unwrap_or_else(|| {
-                    self.empty -= 1;
+                    self.growth_left -= 1;
 
                     prober.group_index(empty)
                 });
