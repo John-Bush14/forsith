@@ -21,16 +21,28 @@ pub struct SwissTable<K: Hash + PartialEq, V, H: BuildHasher = RandomState> {
 
 impl<K: Hash + PartialEq, V, H: Default + BuildHasher> Default for SwissTable<K, V, H> {
     fn default() -> Self {
-        Self::new(H::default())
+        Self::new()
+    }
+}
+
+impl<K: Hash + PartialEq, V, H: Default + BuildHasher> SwissTable<K, V, H> {
+    #[must_use]
+    pub fn new() -> Self {
+        Self::new_with_hasher(H::default())
+    }
+
+    #[must_use]
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self::with_capacity_and_hasher(capacity, H::default())
     }
 }
 
 // public interface
 impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
-    pub fn new(hash_builder: H) -> Self {
+    pub fn new_with_hasher(hash_builder: H) -> Self {
         Self {
             hash_builder,
-            content: buffer![Tag::EMPTY.byte(); 0],
+            content: Buffer::new(),
             bitmask: 0,
             growth_left: 0,
             _key: core::marker::PhantomData,
@@ -38,15 +50,15 @@ impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
         }
     }
 
+    pub fn with_capacity_and_hasher(capacity: usize, hash_builder: H) -> Self {
+        let mut table = Self::new_with_hasher(hash_builder);
+        table.realloc_buffer(capacity);
+        table
+    }
+
     #[must_use]
     pub const fn growth_left(&self) -> usize {
         self.growth_left
-    }
-
-    pub fn with_capacity(hash_builder: H, capacity: usize) -> Self {
-        let mut table = Self::new(hash_builder);
-        table.realloc_buffer(capacity);
-        table
     }
 
     /// Resize the hash table to the nearest multiple of 16 and power of 2 greater than or equal to
@@ -483,7 +495,7 @@ mod tests {
 
     #[test]
     fn inserts_and_reads_values() {
-        let mut table = SwissTable::<u32, &'static str>::new(RandomState::default());
+        let mut table = SwissTable::<u32, &'static str>::new();
 
         for (key, value) in [(1, "one"), (2, "two"), (3, "three")] {
             assert_eq!(table.insert(key, value), None);
@@ -497,7 +509,7 @@ mod tests {
 
     #[test]
     fn overwrites_existing_value_and_returns_old_one() {
-        let mut table = SwissTable::<u32, u32>::new(RandomState::default());
+        let mut table = SwissTable::<u32, u32>::new();
 
         assert_eq!(table.insert(42, 10), None);
         assert_eq!(table.insert(42, 99), Some(10));
@@ -506,7 +518,7 @@ mod tests {
 
     #[test]
     fn removes_entries_without_disturbing_the_rest() {
-        let mut table = SwissTable::<u32, u32>::new(RandomState::default());
+        let mut table = SwissTable::<u32, u32>::new();
 
         for i in 0..50u32 {
             table.insert(i, i * 10);
@@ -526,7 +538,7 @@ mod tests {
 
     #[test]
     fn survives_growth_and_rehashing() {
-        let mut table = SwissTable::<u32, u32>::new(RandomState::default());
+        let mut table = SwissTable::<u32, u32>::new();
 
         for i in 0..500u32 {
             table.insert(i, i * 2);
