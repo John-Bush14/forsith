@@ -27,8 +27,8 @@ pub mod bit;
 #[cfg(feature = "alloc")]
 pub mod error;
 
-#[cfg(feature = "std")]
-pub mod ffi;
+// #[cfg(feature = "std")]
+// pub mod ffi;
 
 pub mod rng;
 

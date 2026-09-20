@@ -167,6 +167,16 @@ impl<T: Clone> Buffer<T> {
     pub fn clear(&mut self) {
         *self = Self::new();
     }
+
+    #[must_use]
+    pub fn slice(&self, base: usize, len: usize) -> &[T] {
+        &self[base..base + len]
+    }
+
+    #[must_use]
+    pub fn slice_mut(&mut self, base: usize, len: usize) -> &mut [T] {
+        &mut self[base..base + len]
+    }
 }
 
 #[cfg(test)]
