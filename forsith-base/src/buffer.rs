@@ -126,6 +126,13 @@ impl<T: Clone> Buffer<T> {
     }
 
     unsafe fn init(ptr: *mut T, n: usize, value: T) {
+        if core::mem::size_of::<T>() == 1 {
+            unsafe {
+                let byte = *(&raw const value).cast::<u8>();
+                ptr.write_bytes(byte, n);
+            }
+        }
+
         unsafe {
             for i in 0..n {
                 ptr.add(i).write(value.clone());
