@@ -1,4 +1,4 @@
-#![feature(portable_simd)]
+#![feature(portable_simd, likely_unlikely)]
 #![cfg_attr(not(feature = "std"), no_std)]
 #![warn(clippy::all, clippy::pedantic, clippy::nursery)]
 #![allow(clippy::inline_always, clippy::missing_errors_doc)]
