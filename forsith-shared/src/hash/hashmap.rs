@@ -21,7 +21,14 @@ pub struct SwissTable<K: Hash + PartialEq, V, H: BuildHasher = RandomState> {
 
 impl<K: Hash + PartialEq, V, H: BuildHasher> Drop for SwissTable<K, V, H> {
     fn drop(&mut self) {
-        unsafe {core::mem::take(&mut self.content).drop_with_align(core::mem::align_of::<(K, V)>())};
+        self.iter_key_mut_values_mut().for_each(|(k, v)| unsafe {
+            core::ptr::drop_in_place(k);
+            core::ptr::drop_in_place(v);
+        });
+
+        unsafe {
+            core::mem::take(&mut self.content).drop_with_align(core::mem::align_of::<(K, V)>());
+        };
     }
 }
 
@@ -92,6 +99,33 @@ impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
             .map(|kv_index| &mut self.get_key_value_mut(kv_index).1)
     }
 
+    pub fn iter_key_values(&self) -> impl Iterator<Item = &(K, V)> {
+        self.iter_kvindices()
+            .map(|kv_index| self.get_key_value(kv_index))
+    }
+
+
+    pub fn iter_values(&self) -> impl Iterator<Item = &V> {
+        self.iter_key_values().map(|(_, v)| v)
+    }
+
+    pub fn iter_key_values_mut(&mut self) -> impl Iterator<Item = (&K, &mut V)> {
+        self.iter_kvindices().map(|kv_index| {
+            #[allow(invalid_reference_casting)]
+            let (k, v) = unsafe { &mut *(&raw const *self).cast_mut() }.get_key_value_mut(kv_index);
+
+            (&*k, v)
+        })
+    }
+
+    pub fn iter_values_mut(&mut self) -> impl Iterator<Item = &mut V> {
+        self.iter_key_values_mut().map(|(_, v)| v)
+    }
+
+    pub fn iter_keys(&self) -> impl Iterator<Item = &K> {
+        self.iter_key_values().map(|(k, _)| k)
+    }
+
     pub fn remove(&mut self, key: &K) -> Option<V> {
         let kv_index = self.find_kvindex(key)?;
 
@@ -125,8 +159,6 @@ impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
         loop {
             let group = prober.next(self);
 
-            println!("group: {:?}", group.0);
-
             for bit in group.bitmask(Tag::entry(h2)) {
                 let (k, v) = self.get_key_value_mut(prober.kv_index(bit));
 
@@ -141,8 +173,6 @@ impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
 
                     prober.group_index(empty)
                 });
-
-                println!("inserting at index: {:?}", index);
 
                 self.set_tag(index, Tag::entry(h2));
                 self.set_key_value(index.into(), (key, val));
@@ -168,10 +198,20 @@ impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
         self.set_bitmask(capacity);
         self.growth_left = capacity * Self::MAX_LOAD_FACTOR as usize / 100;
 
-        core::mem::replace(
-            &mut self.content,
-            unsafe {Buffer::from_size_align(capacity * (1 + core::mem::size_of::<(K, V)>()), core::mem::align_of::<(K, V)>(), Tag::EMPTY.byte())},
-        )
+        core::mem::replace(&mut self.content, unsafe {
+            Buffer::from_size_align(
+                capacity * (1 + core::mem::size_of::<(K, V)>()),
+                core::mem::align_of::<(K, V)>(),
+                Tag::EMPTY.byte(),
+            )
+        })
+    }
+
+    fn iter_key_mut_values_mut(&mut self) -> impl Iterator<Item = &mut (K, V)> {
+        self.iter_kvindices().map(|kv_index| {
+            #[allow(invalid_reference_casting)]
+            unsafe { &mut *(&raw const *self).cast_mut() }.get_key_value_mut(kv_index)
+        })
     }
 
     fn rehash_from(&mut self, old_content: &Buffer<u8>, old_capacity: usize) {
@@ -186,6 +226,15 @@ impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
                 self.insert_rehash(kv, h2);
             }
         }
+    }
+
+    fn iter_kvindices(&self) -> impl Iterator<Item = KvIndex<K, V>> {
+        Group::iter_all(self.capacity(), &self.content)
+            .enumerate()
+            .flat_map(|(i, group)| {
+                (!(group.bitmask(Tag::EMPTY) | group.bitmask(Tag::DELETED)))
+                    .map(move |bit| KvIndex::new(i, bit))
+            })
     }
 
     fn choose_capacity(capacity: usize) -> usize {
@@ -522,9 +571,9 @@ impl Group {
 #[cfg(test)]
 mod tests {
 
-use crate::hash::hashing::StateHasher;
+    use crate::hash::hashing::StateHasher;
 
-use super::*;
+    use super::*;
 
     struct CollisionHasher(u64);
     impl core::hash::Hasher for CollisionHasher {
