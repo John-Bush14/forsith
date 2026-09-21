@@ -3,6 +3,10 @@ use core::hash::{BuildHasher, Hasher};
 
 pub type DefaultHasher = SimpleHasher;
 
+pub trait StateHasher: Hasher {
+    fn new(state: u64) -> Self;
+}
+
 pub struct RandomState<H: StateHasher = SimpleHasher> {
     state: u64,
     _hasher: core::marker::PhantomData<H>,
@@ -56,8 +60,4 @@ impl StateHasher for SimpleHasher {
     fn new(state: u64) -> Self {
         Self { state }
     }
-}
-
-pub trait StateHasher: Hasher {
-    fn new(state: u64) -> Self;
 }

@@ -106,6 +106,47 @@ impl<T: Clone> Buffer<T> {
     }
 
     /// # Safety
+    /// This buffer must have been allocated with `from_size_align`.
+    pub unsafe fn drop_with_align(self, align: usize) {
+        if self.is_empty() {return;}
+
+        let layout = Layout::from_size_align(self.len(), align)
+            .expect("could not deallocate buffer");
+
+        // for elem in &self.0 {
+        //     unsafe {
+        //         core::ptr::drop_in_place(core::ptr::from_ref::<T>(elem).cast_mut());
+        //     };
+        // }
+
+        unsafe {
+            let ptr = Box::into_raw(self.0);
+            crate::alloc::alloc::dealloc(ptr.cast::<u8>(), layout);
+        };
+    }
+
+    /// # Safety
+    /// The size and alignment must be valid for the type T.
+    /// And this buffer most be deallocated with `drop_with_align`.
+    #[must_use]
+    pub unsafe fn from_size_align(size: usize, align: usize, init: T) -> Self {
+        let size = size * core::mem::size_of::<T>();
+        let size = size + (size % align);
+
+        let layout = Layout::from_size_align(size, align)
+            .expect("could not allocate buffer");
+
+        let ptr = unsafe { alloc(layout).cast::<T>() };
+        if ptr.is_null() {
+            handle_alloc_error(layout);
+        }
+
+        unsafe {Self::init(ptr, size, init)};
+
+        unsafe { Self::from_raw_parts(ptr, size) }
+    }
+
+    /// # Safety
     /// ptr must be a valid pointer to a slice of length `len` and must have been allocated with
     /// the global allocator.
     #[must_use]

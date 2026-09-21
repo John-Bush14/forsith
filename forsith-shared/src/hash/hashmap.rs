@@ -19,6 +19,12 @@ pub struct SwissTable<K: Hash + PartialEq, V, H: BuildHasher = RandomState> {
     _value: core::marker::PhantomData<V>,
 }
 
+impl<K: Hash + PartialEq, V, H: BuildHasher> Drop for SwissTable<K, V, H> {
+    fn drop(&mut self) {
+        unsafe {core::mem::take(&mut self.content).drop_with_align(core::mem::align_of::<(K, V)>())};
+    }
+}
+
 impl<K: Hash + PartialEq, V, H: Default + BuildHasher> Default for SwissTable<K, V, H> {
     fn default() -> Self {
         Self::new()
@@ -71,7 +77,9 @@ impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
     }
 
     pub fn capacity(&self) -> usize {
-        self.content.len() / (1 + core::mem::size_of::<(K, V)>())
+        let cap = self.content.len() / (1 + core::mem::size_of::<(K, V)>());
+        println!("capacity: {cap}");
+        cap
     }
 
     pub fn get(&self, key: &K) -> Option<&V> {
@@ -117,6 +125,8 @@ impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
         loop {
             let group = prober.next(self);
 
+            println!("group: {:?}", group.0);
+
             for bit in group.bitmask(Tag::entry(h2)) {
                 let (k, v) = self.get_key_value_mut(prober.kv_index(bit));
 
@@ -132,8 +142,10 @@ impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
                     prober.group_index(empty)
                 });
 
+                println!("inserting at index: {:?}", index);
+
                 self.set_tag(index, Tag::entry(h2));
-                *self.get_key_value_mut(index.into()) = (key, val);
+                self.set_key_value(index.into(), (key, val));
 
                 return None;
             }
@@ -158,7 +170,7 @@ impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
 
         core::mem::replace(
             &mut self.content,
-            buffer![Tag::EMPTY.byte(); capacity * (1 + core::mem::size_of::<(K, V)>())],
+            unsafe {Buffer::from_size_align(capacity * (1 + core::mem::size_of::<(K, V)>()), core::mem::align_of::<(K, V)>(), Tag::EMPTY.byte())},
         )
     }
 
@@ -260,6 +272,13 @@ impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
         index.get_kv(&self.content)
     }
 
+    fn set_key_value(&mut self, index: KvIndex<K, V>, kv: (K, V)) {
+        let kv_mut = self.get_key_value_mut(index);
+        unsafe {
+            core::ptr::write(kv_mut, kv);
+        }
+    }
+
     fn get_key_value_mut(&mut self, index: KvIndex<K, V>) -> &mut (K, V) {
         index.get_kv_mut(&mut self.content)
     }
@@ -275,7 +294,7 @@ impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 struct GroupIndex(usize);
 impl GroupIndex {
     #[must_use]
@@ -319,6 +338,15 @@ impl<K, V> Clone for KvIndex<K, V> {
     }
 }
 impl<K, V> Copy for KvIndex<K, V> {}
+
+impl<K, V> core::fmt::Debug for KvIndex<K, V> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_tuple("KvIndex")
+            .field(&self.0)
+            .field(&core::any::type_name::<(K, V)>())
+            .finish()
+    }
+}
 
 #[derive(PartialEq, Eq)]
 struct KvIndex<K, V>(usize, core::marker::PhantomData<(K, V)>);
@@ -392,6 +420,8 @@ impl Prober {
         self.group_start += self.accumulator;
         self.group_start &= hashmap.bitmask;
         self.accumulator += 1;
+
+        println!("next group: {}", self.group_start);
 
         hashmap.load_group(self.group_start)
     }
@@ -491,7 +521,44 @@ impl Group {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+use crate::hash::hashing::StateHasher;
+
+use super::*;
+
+    struct CollisionHasher(u64);
+    impl core::hash::Hasher for CollisionHasher {
+        fn write(&mut self, _bytes: &[u8]) {}
+        fn finish(&self) -> u64 {
+            self.0
+        }
+    }
+
+    impl StateHasher for CollisionHasher {
+        fn new(state: u64) -> Self {
+            Self(state)
+        }
+    }
+
+    #[test]
+    fn inserts_and_reads_values_with_collisions() {
+        let mut table = SwissTable::<u32, String, RandomState<CollisionHasher>>::new();
+
+        for i in 10..70 {
+            let key = i;
+            let value = i.to_string();
+
+            assert_eq!(table.insert(key, value), None);
+        }
+
+        for i in 10..70 {
+            assert_eq!(table.get(&i), Some(&i.to_string()));
+        }
+
+        for i in (0..10).chain(70..100) {
+            assert_eq!(table.get(&i), None);
+        }
+    }
 
     #[test]
     fn inserts_and_reads_values() {
