@@ -570,7 +570,6 @@ impl Group {
 
 #[cfg(test)]
 mod tests {
-
     use crate::hash::hashing::StateHasher;
 
     use super::*;
@@ -589,9 +588,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn inserts_and_reads_values_with_collisions() {
-        let mut table = SwissTable::<u32, String, RandomState<CollisionHasher>>::new();
+    fn inserts_and_reads_u32_string_values<H: BuildHasher + Default>() {
+        let mut table = SwissTable::<u32, String, H>::new();
 
         for i in 10..70 {
             let key = i;
@@ -608,33 +606,46 @@ mod tests {
             assert_eq!(table.get(&i), None);
         }
     }
-
     #[test]
-    fn inserts_and_reads_values() {
-        let mut table = SwissTable::<u32, &'static str>::new();
+    fn test_inserts_and_reads_u32_string_values_with_collisions() {
+        inserts_and_reads_u32_string_values::<RandomState<CollisionHasher>>();
+    }
+    #[test]
+    fn test_inserts_and_reads_u32_string_values() {
+        inserts_and_reads_u32_string_values::<RandomState>();
+    }
 
-        for (key, value) in [(1, "one"), (2, "two"), (3, "three")] {
-            assert_eq!(table.insert(key, value), None);
+    fn overwrite_existing_entries<H: BuildHasher + Default>() {
+        let mut table = SwissTable::<u32, u32, H>::new();
+
+        for i in 0..50u32 {
+            assert_eq!(table.insert(i, i * 10), None);
         }
 
-        assert_eq!(table.get(&1), Some(&"one"));
-        assert_eq!(table.get(&2), Some(&"two"));
-        assert_eq!(table.get(&3), Some(&"three"));
-        assert_eq!(table.get(&99), None);
+        for i in 0..40u32 {
+            assert_eq!(table.insert(i, i * 20), Some(i * 10));
+        }
+
+        for i in 0..40u32 {
+            assert_eq!(table.get(&i), Some(&(i * 20)));
+        }
+
+        for i in 40..50u32 {
+            assert_eq!(table.get(&i), Some(&(i * 10)));
+        }
     }
 
     #[test]
-    fn overwrites_existing_value_and_returns_old_one() {
-        let mut table = SwissTable::<u32, u32>::new();
-
-        assert_eq!(table.insert(42, 10), None);
-        assert_eq!(table.insert(42, 99), Some(10));
-        assert_eq!(table.get(&42), Some(&99));
+    fn test_overwrite_existing_entries_with_collisions() {
+        overwrite_existing_entries::<RandomState<CollisionHasher>>();
+    }
+    #[test]
+    fn test_overwrite_existing_entries() {
+        overwrite_existing_entries::<RandomState>();
     }
 
-    #[test]
-    fn removes_entries_without_disturbing_the_rest() {
-        let mut table = SwissTable::<u32, u32>::new();
+    fn removes_entries_without_disturbing_the_rest<H: BuildHasher + Default>() {
+        let mut table = SwissTable::<u32, u32, H>::new();
 
         for i in 0..50u32 {
             table.insert(i, i * 10);
@@ -653,15 +664,119 @@ mod tests {
     }
 
     #[test]
-    fn survives_growth_and_rehashing() {
-        let mut table = SwissTable::<u32, u32>::new();
+    fn test_removes_entries_without_disturbing_the_rest_with_collisions() {
+        removes_entries_without_disturbing_the_rest::<RandomState<CollisionHasher>>();
+    }
+    #[test]
+    fn test_removes_entries_without_disturbing_the_rest() {
+        removes_entries_without_disturbing_the_rest::<RandomState>();
+    }
 
-        for i in 0..500u32 {
-            table.insert(i, i * 2);
+    fn with_capacity<H: BuildHasher + Default>() {
+        let mut table = SwissTable::<u32, u32, H>::with_capacity(512);
+
+        for i in 0..400 {
+            table.insert(i, i * 10);
         }
 
-        for i in 0..500u32 {
-            assert_eq!(table.get(&i), Some(&(i * 2)));
+        assert_eq!(table.capacity(), 512);
+    }
+
+    #[test]
+    fn test_with_capacity_with_collisions() {
+        with_capacity::<RandomState<CollisionHasher>>();
+    }
+
+    #[test]
+    fn test_with_capacity() {
+        with_capacity::<RandomState>();
+    }
+
+    fn remove_and_downsize<H: BuildHasher + Default>() {
+        let mut table = SwissTable::<u32, u32, H>::with_capacity(512);
+
+        for i in 0..400 {
+            table.insert(i, i * 10);
         }
+
+        for i in 200..400 {
+            table.remove(&i);
+        }
+
+        assert_eq!(table.capacity(), 512);
+
+        table.resize(256);
+
+        assert_eq!(table.capacity(), 256);
+
+        for i in 0..200 {
+            assert_eq!(table.get(&i), Some(&(i * 10)));
+        }
+    }
+
+    #[test]
+    fn test_remove_and_downsize_with_collisions() {
+        remove_and_downsize::<RandomState<CollisionHasher>>();
+    }
+
+    #[test]
+    fn test_remove_and_downsize() {
+        remove_and_downsize::<RandomState>();
+    }
+
+    fn large_keys<H: BuildHasher + Default>() {
+        let mut table = SwissTable::<[u64; 64], u64, H>::new();
+
+        for i in 0..100 {
+            let key = [i; 64];
+            let value = i * 10;
+
+            assert_eq!(table.insert(key, value), None);
+        }
+
+        for i in 0..100 {
+            let key = [i; 64];
+            let value = i * 10;
+
+            assert_eq!(table.get(&key), Some(&value));
+        }
+    }
+
+    #[test]
+    fn test_large_keys_with_collisions() {
+        large_keys::<RandomState<CollisionHasher>>();
+    }
+
+    #[test]
+    fn test_large_keys() {
+        large_keys::<RandomState>();
+    }
+
+    fn large_values<H: BuildHasher + Default>() {
+        let mut table = SwissTable::<u64, [u64; 64], H>::new();
+
+        for i in 0..100 {
+            let key = i;
+            let value = [i; 64];
+
+            assert_eq!(table.insert(key, value), None);
+        }
+
+        for i in 0..100 {
+            let key = i;
+            let value = [i; 64];
+
+            assert_eq!(table.get(&key), Some(&value));
+        }
+    }
+
+    #[test]
+    fn test_large_values_with_collisions() {
+        large_values::<RandomState<CollisionHasher>>();
+    }
+
+    #[test]
+    fn test_large_values() {
+        large_values::<RandomState>();
     }
 }
