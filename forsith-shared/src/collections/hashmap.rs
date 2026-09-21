@@ -1,10 +1,9 @@
 use crate::bit::Bitmask;
-use crate::hash::hashing::RandomState;
+use crate::hashing::RandomState;
 use core::hash::{BuildHasher, Hash};
 use core::mem::MaybeUninit;
 use core::simd::Simd;
 use core::simd::cmp::SimdPartialEq;
-use forsith_base::buffer;
 use forsith_base::buffer::Buffer;
 
 #[allow(type_alias_bounds)]
@@ -570,7 +569,7 @@ impl Group {
 
 #[cfg(test)]
 mod tests {
-    use crate::hash::hashing::StateHasher;
+    use crate::hashing::StateHasher;
 
     use super::*;
 
