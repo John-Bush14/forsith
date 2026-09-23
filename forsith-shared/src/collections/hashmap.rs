@@ -570,6 +570,7 @@ impl Group {
 #[cfg(test)]
 mod tests {
     use crate::hashing::StateHasher;
+    use forsith_proc::paste;
 
     use super::*;
 
@@ -587,6 +588,32 @@ mod tests {
         }
     }
 
+    macro_rules! define_tests {
+        ($($fn:ident)+) => {
+            $(paste! {
+                #[test]
+                fn [<test_ $fn _with_collisions>]() {
+                    $fn::<RandomState<CollisionHasher>>();
+                }
+
+                #[test]
+                fn [<test_ $fn>]() {
+                    $fn::<RandomState>();
+                }
+            })+
+        }
+    }
+
+    define_tests!(
+        inserts_and_reads_u32_string_values
+        overwrite_existing_entries
+        removes_entries_without_disturbing_the_rest
+        remove_and_downsize
+        large_keys
+        large_values
+        with_capacity
+    );
+
     fn inserts_and_reads_u32_string_values<H: BuildHasher + Default>() {
         let mut table = SwissTable::<u32, String, H>::new();
 
@@ -601,17 +628,9 @@ mod tests {
             assert_eq!(table.get(&i), Some(&i.to_string()));
         }
 
-        for i in (0..10).chain(70..100) {
+        for i in (0..10u32).chain(70..100u32) {
             assert_eq!(table.get(&i), None);
         }
-    }
-    #[test]
-    fn test_inserts_and_reads_u32_string_values_with_collisions() {
-        inserts_and_reads_u32_string_values::<RandomState<CollisionHasher>>();
-    }
-    #[test]
-    fn test_inserts_and_reads_u32_string_values() {
-        inserts_and_reads_u32_string_values::<RandomState>();
     }
 
     fn overwrite_existing_entries<H: BuildHasher + Default>() {
@@ -634,15 +653,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_overwrite_existing_entries_with_collisions() {
-        overwrite_existing_entries::<RandomState<CollisionHasher>>();
-    }
-    #[test]
-    fn test_overwrite_existing_entries() {
-        overwrite_existing_entries::<RandomState>();
-    }
-
     fn removes_entries_without_disturbing_the_rest<H: BuildHasher + Default>() {
         let mut table = SwissTable::<u32, u32, H>::new();
 
@@ -662,15 +672,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_removes_entries_without_disturbing_the_rest_with_collisions() {
-        removes_entries_without_disturbing_the_rest::<RandomState<CollisionHasher>>();
-    }
-    #[test]
-    fn test_removes_entries_without_disturbing_the_rest() {
-        removes_entries_without_disturbing_the_rest::<RandomState>();
-    }
-
     fn with_capacity<H: BuildHasher + Default>() {
         let mut table = SwissTable::<u32, u32, H>::with_capacity(512);
 
@@ -679,16 +680,6 @@ mod tests {
         }
 
         assert_eq!(table.capacity(), 512);
-    }
-
-    #[test]
-    fn test_with_capacity_with_collisions() {
-        with_capacity::<RandomState<CollisionHasher>>();
-    }
-
-    #[test]
-    fn test_with_capacity() {
-        with_capacity::<RandomState>();
     }
 
     fn remove_and_downsize<H: BuildHasher + Default>() {
@@ -713,16 +704,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_remove_and_downsize_with_collisions() {
-        remove_and_downsize::<RandomState<CollisionHasher>>();
-    }
-
-    #[test]
-    fn test_remove_and_downsize() {
-        remove_and_downsize::<RandomState>();
-    }
-
     fn large_keys<H: BuildHasher + Default>() {
         let mut table = SwissTable::<[u64; 64], u64, H>::new();
 
@@ -741,16 +722,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_large_keys_with_collisions() {
-        large_keys::<RandomState<CollisionHasher>>();
-    }
-
-    #[test]
-    fn test_large_keys() {
-        large_keys::<RandomState>();
-    }
-
     fn large_values<H: BuildHasher + Default>() {
         let mut table = SwissTable::<u64, [u64; 64], H>::new();
 
@@ -767,15 +738,5 @@ mod tests {
 
             assert_eq!(table.get(&key), Some(&value));
         }
-    }
-
-    #[test]
-    fn test_large_values_with_collisions() {
-        large_values::<RandomState<CollisionHasher>>();
-    }
-
-    #[test]
-    fn test_large_values() {
-        large_values::<RandomState>();
     }
 }

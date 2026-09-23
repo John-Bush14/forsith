@@ -12,7 +12,7 @@ use alloc::{
 #[cfg(feature = "in_proc_macro")]
 extern crate proc_macro;
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct TokenStream(Vec<TokenTree>);
 
 impl TokenStream {
@@ -25,6 +25,7 @@ impl TokenStream {
     pub const fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
+
     #[must_use]
     pub const fn len(&self) -> usize {
         self.0.len()
@@ -101,7 +102,7 @@ impl Extend<Self> for TokenStream {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum TokenTree {
     Group(Group),
     Ident(Ident),
@@ -156,7 +157,7 @@ impl FromIterator<TokenTree> for TokenStream {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Ident(String);
 
 #[cfg(feature = "in_proc_macro")]
@@ -556,7 +557,7 @@ impl Extend<Literal> for TokenStream {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Group {
     pub delimiter: Delimiter,
     pub stream: TokenStream,
