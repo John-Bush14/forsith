@@ -8,6 +8,5 @@ forsith-base = { path = "../forsith-base" }
 forsith-proc = { path = "../forsith-proc" }
 
 [features]
-alloc = []
-std = ["alloc"]
+std = []
 default = ["std"]
