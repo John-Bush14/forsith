@@ -1,10 +1,26 @@
 use crate::bit::Bitmask;
 use crate::hashing::RandomState;
+use core::borrow::Borrow;
+use core::fmt::Debug;
 use core::hash::{BuildHasher, Hash};
 use core::mem::MaybeUninit;
 use core::simd::Simd;
 use core::simd::cmp::SimdPartialEq;
 use forsith_base::buffer::Buffer;
+
+pub trait Equivalent<T: ?Sized> {
+    fn equivalent(&self, other: &T) -> bool;
+}
+
+impl<T, U> Equivalent<U> for T
+where
+    T: ?Sized + PartialEq,
+    U: ?Sized + PartialEq + Borrow<T>,
+{
+    fn equivalent(&self, other: &U) -> bool {
+        self == other.borrow()
+    }
+}
 
 #[allow(type_alias_bounds)]
 pub type HashMap<K: Hash, V, H = RandomState> = SwissTable<K, V, H>;
@@ -16,6 +32,16 @@ pub struct SwissTable<K: Hash + PartialEq, V, H: BuildHasher = RandomState> {
     growth_left: usize,
     _key: core::marker::PhantomData<K>,
     _value: core::marker::PhantomData<V>,
+}
+
+impl<K: Hash + PartialEq + Debug, V: Debug, H: BuildHasher> Debug for SwissTable<K, V, H> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("SwissTable")
+            .field("capacity", &self.capacity())
+            .field("growth_left", &self.growth_left)
+            .field("entries", &self.iter_key_values().collect::<Vec<_>>())
+            .finish_non_exhaustive()
+    }
 }
 
 impl<K: Hash + PartialEq, V, H: BuildHasher> Drop for SwissTable<K, V, H> {
@@ -88,12 +114,18 @@ impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
         cap
     }
 
-    pub fn get(&self, key: &K) -> Option<&V> {
+    pub fn get<Q>(&self, key: &Q) -> Option<&V>
+    where
+        Q: ?Sized + Equivalent<K> + Hash,
+    {
         self.find_kvindex(key)
             .map(|kv_index| &self.get_key_value(kv_index).1)
     }
 
-    pub fn get_mut(&mut self, key: &K) -> Option<&mut V> {
+    pub fn get_mut<Q>(&mut self, key: &Q) -> Option<&mut V>
+    where
+        Q: ?Sized + Equivalent<K> + Hash,
+    {
         self.find_kvindex(key)
             .map(|kv_index| &mut self.get_key_value_mut(kv_index).1)
     }
@@ -102,7 +134,6 @@ impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
         self.iter_kvindices()
             .map(|kv_index| self.get_key_value(kv_index))
     }
-
 
     pub fn iter_values(&self) -> impl Iterator<Item = &V> {
         self.iter_key_values().map(|(_, v)| v)
@@ -125,7 +156,10 @@ impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
         self.iter_key_values().map(|(k, _)| k)
     }
 
-    pub fn remove(&mut self, key: &K) -> Option<V> {
+    pub fn remove<Q>(&mut self, key: &Q) -> Option<V>
+    where
+        Q: ?Sized + Equivalent<K> + Hash,
+    {
         let kv_index = self.find_kvindex(key)?;
 
         let group_index: GroupIndex = kv_index.into();
@@ -148,7 +182,7 @@ impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
     pub fn insert(&mut self, key: K, val: V) -> Option<V> {
         self.grow_if_needed();
 
-        let (h1, h2) = Self::split_hash(self.hash(&key));
+        let (h1, h2) = Self::split_hash(self.hash_builder.hash_one(&key));
         let mut deleted_index = None;
 
         let mut prober = self
@@ -247,8 +281,11 @@ impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
     }
 
     #[inline(always)]
-    fn find_kvindex(&self, key: &K) -> Option<KvIndex<K, V>> {
-        let (h1, h2) = Self::split_hash(self.hash(key));
+    fn find_kvindex<Q>(&self, key: &Q) -> Option<KvIndex<K, V>>
+    where
+        Q: ?Sized + Equivalent<K> + Hash,
+    {
+        let (h1, h2) = Self::split_hash(self.hash_builder.hash_one(key));
 
         let mut prober = self.probe(h1)?;
         loop {
@@ -259,7 +296,7 @@ impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
 
                 let (k, _) = self.get_key_value(kv_index);
 
-                if core::hint::likely(*k == *key) {
+                if core::hint::likely(key.equivalent(k)) {
                     return Some(kv_index);
                 }
             }
@@ -271,7 +308,7 @@ impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
     }
 
     fn insert_rehash(&mut self, kv: &(K, V), h2: u8) {
-        let (h1, _) = Self::split_hash(self.hash(&kv.0));
+        let (h1, _) = Self::split_hash(self.hash_builder.hash_one(&kv.0));
 
         let mut prober = self
             .probe(h1)
@@ -298,10 +335,6 @@ impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
             hash.wrapping_shr(7),
             u8::try_from(hash & ((1 << 7) - 1)).unwrap(),
         )
-    }
-
-    fn hash(&self, key: &K) -> u64 {
-        self.hash_builder.hash_one(key)
     }
 
     fn probe(&self, h1: u64) -> Option<Prober> {
