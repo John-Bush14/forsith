@@ -43,6 +43,7 @@ impl Bitmask {
     }
 }
 
+#[allow(clippy::copy_iterator)]
 impl Iterator for Bitmask {
     type Item = u8;
 
@@ -289,7 +290,7 @@ mod tests {
         let mut output = Vec::new();
 
         unpack::<UPSAMPLE>(input, BITS, padding, |chunk| {
-            output.extend_from_slice(chunk)
+            output.extend_from_slice(chunk);
         });
 
         assert_eq!(output, expected);

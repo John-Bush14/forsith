@@ -1,5 +1,5 @@
 use forsith_base::proc_macro::{
-    Delimiter, Group, Ident, Punct, PunctChar, TokenStream,
+    Delimiter, Group, Ident, PunctChar, TokenStream,
     TokenTree::{self},
 };
 

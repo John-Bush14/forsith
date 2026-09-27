@@ -23,8 +23,7 @@ pub mod bit;
 
 pub mod error;
 
-// #[cfg(feature = "std")]
-// pub mod ffi;
+pub mod ffi;
 
 pub mod rng;
 

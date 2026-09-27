@@ -91,18 +91,18 @@ mod string_interner_tests {
         let mut interner = StringInterner::default();
         let large = "a".repeat(10_000);
 
-        let interned = interner.asserted_interned(&large);
-        assert_eq!(interner.resolve(interned), large);
+        let intr = interner.asserted_interned(&large);
+        assert_eq!(interner.resolve(intr), large);
     }
 
     #[test]
     fn punctuation_and_unicode_are_preserved() {
         let mut interner = StringInterner::default();
 
-        let interned = interner.asserted_interned("Hello, world! 💡");
-        assert_eq!(interner.resolve(interned), "Hello, world! 💡");
+        let intr = interner.asserted_interned("Hello, world! 💡");
+        assert_eq!(interner.resolve(intr), "Hello, world! 💡");
 
         let duplicate = interner.interned("Hello, world! 💡");
-        assert_eq!(duplicate, interned);
+        assert_eq!(duplicate, intr);
     }
 }

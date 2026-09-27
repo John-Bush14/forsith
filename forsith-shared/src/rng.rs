@@ -13,8 +13,9 @@ impl Rng<u64> for SimpleRng {
         let duration_since_epoch = now
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap_or(Duration::new(0, 0));
-        let nanos = duration_since_epoch.as_nanos() as u64;
-        let random_state = nanos ^ (nanos >> 32);
-        random_state
+        let nanos = duration_since_epoch.as_nanos();
+        ((nanos ^ (nanos >> 64)) & u128::from(u64::MAX))
+            .try_into()
+            .unwrap()
     }
 }
