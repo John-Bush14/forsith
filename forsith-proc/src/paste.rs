@@ -1,7 +1,12 @@
-use forsith_base::proc_macro::{Delimiter, Ident, Punct, PunctChar, TokenStream, Group, TokenTree::{self}};
+use forsith_base::proc_macro::{
+    Delimiter, Group, Ident, Punct, PunctChar, TokenStream,
+    TokenTree::{self},
+};
 
 pub fn expand_token_tree(tt: TokenTree) -> TokenTree {
-    let TokenTree::Group(group) = tt else { return tt };
+    let TokenTree::Group(group) = tt else {
+        return tt;
+    };
 
     let stream = group.stream();
     if group.delimiter != Delimiter::Bracket
@@ -9,7 +14,11 @@ pub fn expand_token_tree(tt: TokenTree) -> TokenTree {
         || !matches!(&stream[stream.len() - 1], TokenTree::Punct(p) if p.char() == PunctChar::GreaterThan)
     {
         let delimiter = group.delimiter;
-        let expanded_stream = group.take_stream().into_iter().map(expand_token_tree).collect();
+        let expanded_stream = group
+            .take_stream()
+            .into_iter()
+            .map(expand_token_tree)
+            .collect();
 
         return TokenTree::Group(Group::new(delimiter, expanded_stream));
     }

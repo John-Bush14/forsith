@@ -108,10 +108,12 @@ impl<T: Clone> Buffer<T> {
     /// # Safety
     /// This buffer must have been allocated with `from_size_align`.
     pub unsafe fn drop_with_align(self, align: usize) {
-        if self.is_empty() {return;}
+        if self.is_empty() {
+            return;
+        }
 
-        let layout = Layout::from_size_align(self.len(), align)
-            .expect("could not deallocate buffer");
+        let layout =
+            Layout::from_size_align(self.len(), align).expect("could not deallocate buffer");
 
         // for elem in &self.0 {
         //     unsafe {
@@ -133,15 +135,14 @@ impl<T: Clone> Buffer<T> {
         let size = size * core::mem::size_of::<T>();
         let size = size + (size % align);
 
-        let layout = Layout::from_size_align(size, align)
-            .expect("could not allocate buffer");
+        let layout = Layout::from_size_align(size, align).expect("could not allocate buffer");
 
         let ptr = unsafe { alloc(layout).cast::<T>() };
         if ptr.is_null() {
             handle_alloc_error(layout);
         }
 
-        unsafe {Self::init(ptr, size, init)};
+        unsafe { Self::init(ptr, size, init) };
 
         unsafe { Self::from_raw_parts(ptr, size) }
     }

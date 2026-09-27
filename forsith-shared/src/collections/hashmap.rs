@@ -1,11 +1,11 @@
-use crate::bit::Bitmask;
-use crate::hashing::RandomState;
-use core::borrow::Borrow;
-use core::fmt::Debug;
-use core::hash::{BuildHasher, Hash};
-use core::mem::MaybeUninit;
-use core::simd::Simd;
-use core::simd::cmp::SimdPartialEq;
+use crate::{bit::Bitmask, hashing::RandomState};
+use core::{
+    borrow::Borrow,
+    fmt::Debug,
+    hash::{BuildHasher, Hash},
+    mem::MaybeUninit,
+    simd::{Simd, cmp::SimdPartialEq},
+};
 use forsith_base::buffer::Buffer;
 
 pub trait Equivalent<T: ?Sized> {
