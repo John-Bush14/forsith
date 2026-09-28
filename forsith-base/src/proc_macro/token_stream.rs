@@ -174,6 +174,12 @@ impl From<Ident> for proc_macro::Ident {
     }
 }
 
+impl From<String> for Ident {
+    fn from(s: String) -> Self {
+        Self(s)
+    }
+}
+
 impl Extend<Ident> for TokenStream {
     fn extend<T: IntoIterator<Item = Ident>>(&mut self, iter: T) {
         self.0.extend(iter.into_iter().map(TokenTree::Ident));

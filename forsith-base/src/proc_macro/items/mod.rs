@@ -59,7 +59,7 @@ pub trait ItemDefinition {
     fn generics(&self) -> &GenericsDefinition;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct GenericsDefinition(pub Vec<GenericDefinition>);
 
 pub struct StructField {
@@ -119,6 +119,35 @@ pub struct TypeAliasDefinition {
 }
 
 impl ItemDefinition for TypeAliasDefinition {
+    fn name(&self) -> &Ident {
+        &self.name
+    }
+    fn generics(&self) -> &GenericsDefinition {
+        &self.generics
+    }
+}
+
+pub enum Indirection {
+    None,
+    Constant,
+    Mutable,
+}
+
+pub struct FunctionDefinition {
+    pub attributes: Vec<Attribute>,
+    pub visibility: Visibility,
+    pub constness: bool,
+    pub unsafety: bool,
+    pub asyncness: bool,
+    pub name: Ident,
+    pub self_param: Option<Indirection>,
+    pub generics: GenericsDefinition,
+    pub params: Vec<(Ident, TokenStream)>,
+    pub ret_ty: Option<TokenStream>,
+    pub body: Option<TokenStream>,
+}
+
+impl ItemDefinition for FunctionDefinition {
     fn name(&self) -> &Ident {
         &self.name
     }

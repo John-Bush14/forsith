@@ -1,6 +1,6 @@
 use crate::{
     proc_macro::{
-        Punct, PunctChar, TokenStream, TokenTree, items::{GenericDefinition, GenericsDefinition, ItemDefinition, TypeAliasDefinition},
+        Punct, PunctChar, TokenStream, TokenTree, items::{FunctionDefinition, GenericDefinition, GenericsDefinition, Indirection, ItemDefinition, TypeAliasDefinition, Visibility},
     }, quote,
 };
 
@@ -82,6 +82,18 @@ impl GenericDefinition {
     }
 }
 
+impl Visibility {
+    /// produces the complete visibility definition for an item, e.g. `pub` or `pub(crate)`.
+    #[must_use]
+    pub fn definition(&self) -> TokenStream {
+        match self {
+            Self::Public => quote! { pub },
+            Self::SpecializedPublic(vis) => quote! { pub (@ vis.clone()) },
+            Self::Private => TokenStream::new(),
+        }
+    }
+}
+
 impl TypeAliasDefinition {
     /// produces the complete type alias definition, e.g. `type MyType<T> = Vec<T>;`.
     #[must_use]
@@ -89,7 +101,7 @@ impl TypeAliasDefinition {
         let generics = self.generics();
 
         quote! {
-            type (@ self.name().clone()) (@ generics.definition()) = (@ self.ty.clone());
+            (@ self.visibility.definition()) type (@ self.name().clone()) (@ generics.definition()) = (@ self.ty.clone());
         }
     }
 }
@@ -106,6 +118,71 @@ pub fn impl_item(
     quote! {
         impl (@ generics.definition()) (@ r#trait) (@ item.name().clone()) (@ generics.usage()) {
             (@ body)
+        }
+    }
+}
+
+impl FunctionDefinition {
+    /// produces the complete function definition, e.g. `fn my_function<T>(arg: T) -> T { ... }`.
+    #[must_use]
+    pub fn definition(&self) -> TokenStream {
+        quote! {
+            (@ self.visibility.definition()) fn (@ self.name.clone()) (@ self.generics.definition()) (@ self.params_def()) (@ self.return_def()) (@ self.body_def())
+        }
+    }
+
+    fn return_def(&self) -> TokenStream {
+        self.ret_ty.as_ref().map_or_else(|| TokenStream::new(), |ret_ty| quote! { -> (@ ret_ty.clone()) })
+    }
+
+    fn body_def(&self) -> TokenStream {
+        self.body.as_ref().map_or_else(|| TokenStream::new(), |body| quote! {{ (@ body.clone()) }})
+    }
+
+    fn params_def(&self) -> TokenStream {
+        let params = self.params.iter().map(|param| {
+            quote! { (@ param.0.clone()): (@ param.1.clone()), }
+        }).collect::<TokenStream>();
+
+        quote! {
+            ((@ self.self_param_def()) (@ params))
+        }
+    }
+
+    fn self_param_def(&self) -> TokenStream {
+        match self.self_param {
+            Some(Indirection::None) => quote! { self },
+            Some(Indirection::Constant) => quote! { &self },
+            Some(Indirection::Mutable) => quote! { &mut self },
+            _ => TokenStream::new(),
+        }
+    }
+
+    fn params_usage(&self) -> TokenStream {
+        let params = self.params.iter().map(|param| {
+            quote! { (@ param.0.clone()), }
+        }).collect::<TokenStream>();
+
+        quote! {
+            ((@ self.self_param_def()) (@ params))
+        }
+    }
+
+    /// produces the complete function signature, e.g. `fn my_function<T>(arg: T) -> T`.
+    #[must_use]
+    pub fn signature(&self) -> TokenStream {
+        quote! {
+            fn (@ self.name.clone()) (@ self.generics.definition()) (@ self.params_def()) (@ self.return_def())
+        }
+    }
+
+    /// produces the complete function usage, e.g. `my_function::<T>(arg)`.
+    #[must_use]
+    pub fn usage(&self) -> TokenStream {
+        let generics = self.generics();
+
+        quote! {
+            (@ self.name.clone()) (@ generics.usage()) (@ self.params_usage())
         }
     }
 }
