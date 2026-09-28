@@ -109,3 +109,20 @@ impl ItemDefinition for EnumDefinition {
         &self.generics
     }
 }
+
+pub struct TypeAliasDefinition {
+    pub name: Ident,
+    pub generics: GenericsDefinition,
+    pub attributes: Vec<Attribute>,
+    pub visibility: Visibility,
+    pub ty: TokenStream,
+}
+
+impl ItemDefinition for TypeAliasDefinition {
+    fn name(&self) -> &Ident {
+        &self.name
+    }
+    fn generics(&self) -> &GenericsDefinition {
+        &self.generics
+    }
+}

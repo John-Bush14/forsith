@@ -1,9 +1,7 @@
 use crate::{
     proc_macro::{
-        Punct, PunctChar, TokenStream, TokenTree,
-        items::{GenericDefinition, GenericsDefinition, ItemDefinition},
-    },
-    quote,
+        Punct, PunctChar, TokenStream, TokenTree, items::{GenericDefinition, GenericsDefinition, ItemDefinition, TypeAliasDefinition},
+    }, quote,
 };
 
 impl GenericsDefinition {
@@ -80,6 +78,18 @@ impl GenericDefinition {
             Self::Type(ident, _) => quote! {
                 (@ ident.clone())
             },
+        }
+    }
+}
+
+impl TypeAliasDefinition {
+    /// produces the complete type alias definition, e.g. `type MyType<T> = Vec<T>;`.
+    #[must_use]
+    pub fn definition(&self) -> TokenStream {
+        let generics = self.generics();
+
+        quote! {
+            type (@ self.name().clone()) (@ generics.definition()) = (@ self.ty.clone());
         }
     }
 }
