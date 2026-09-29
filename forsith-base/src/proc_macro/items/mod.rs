@@ -127,6 +127,7 @@ impl ItemDefinition for TypeAliasDefinition {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Indirection {
     None,
     Constant,
