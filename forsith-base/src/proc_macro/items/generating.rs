@@ -94,6 +94,45 @@ impl Visibility {
     }
 }
 
+impl Indirection {
+    #[must_use]
+    pub fn ptr_definition(&self) -> TokenStream {
+        match self {
+            Self::None => TokenStream::new(),
+            Self::Constant => quote! { *const },
+            Self::Mutable => quote! { *mut },
+        }
+    }
+
+    #[must_use]
+    pub fn wrap_type_ptr(&self, ty: TokenStream) -> TokenStream {
+        match self {
+            Self::None => ty,
+            Self::Constant => quote! { *const (@ ty) },
+            Self::Mutable => quote! { *mut (@ ty) },
+        }
+    }
+
+    #[must_use]
+    pub fn wrap_type_ref(&self, ty: TokenStream) -> TokenStream {
+        match self {
+            Self::None => ty,
+            Self::Constant => quote! { &(@ ty) },
+            Self::Mutable => quote! { &mut (@ ty) },
+        }
+    }
+
+    #[must_use]
+    pub fn ref_definition(&self) -> TokenStream {
+        match self {
+            Self::None => TokenStream::new(),
+            Self::Constant => quote! { & },
+            Self::Mutable => quote! { &mut },
+        }
+    }
+
+}
+
 impl TypeAliasDefinition {
     /// produces the complete type alias definition, e.g. `type MyType<T> = Vec<T>;`.
     #[must_use]
