@@ -1,7 +1,12 @@
 use crate::{
     proc_macro::{
-        Ident, Punct, PunctChar, TokenStream, TokenTree, items::{FunctionDefinition, GenericDefinition, GenericsDefinition, Indirection, ItemDefinition, TypeAliasDefinition, Visibility},
-    }, quote,
+        Ident, Punct, PunctChar, TokenStream, TokenTree,
+        items::{
+            FunctionDefinition, GenericDefinition, GenericsDefinition, Indirection, ItemDefinition,
+            TypeAliasDefinition, Visibility,
+        },
+    },
+    quote,
 };
 
 impl GenericsDefinition {
@@ -31,7 +36,6 @@ impl GenericsDefinition {
     /// produces the usage of the generics for an item, e.g. `<T, U>` or `<T>`.
     #[must_use]
     pub fn usage(&self, exprs: Option<&[TokenStream]>) -> TokenStream {
-
         if self.0.is_empty() {
             return TokenStream::new();
         }
@@ -47,7 +51,10 @@ impl GenericsDefinition {
     #[must_use]
     #[allow(clippy::redundant_closure_for_method_calls)]
     pub fn generic_usage(&self, exprs: Option<&[TokenStream]>) -> TokenStream {
-        assert!(self.0.len() >= exprs.map_or(0, |g| g.len()), "Tried to make usage of generics with too many generics");
+        assert!(
+            self.0.len() >= exprs.map_or(0, |g| g.len()),
+            "Tried to make usage of generics with too many generics"
+        );
 
         let anonymous = quote! {(@ Ident::new("_"))};
 
@@ -81,11 +88,12 @@ impl GenericDefinition {
     pub fn usage(&self, expr: Option<TokenStream>) -> TokenStream {
         match self {
             Self::Lifetime(ident) => {
-                let mut tt = TokenStream::from_iter([TokenTree::Punct(Punct::new(PunctChar::Qoute, true))]);
+                let mut tt =
+                    TokenStream::from_iter([TokenTree::Punct(Punct::new(PunctChar::Qoute, true))]);
                 tt.extend(expr.unwrap_or_else(|| quote! {(@ ident.clone())}));
                 tt
-            },
-            Self::Type(ident, _) => expr.unwrap_or_else(|| quote! {(@ ident.clone())})
+            }
+            Self::Type(ident, _) => expr.unwrap_or_else(|| quote! {(@ ident.clone())}),
         }
     }
 }
@@ -138,7 +146,6 @@ impl Indirection {
             Self::Mutable => quote! { &mut },
         }
     }
-
 }
 
 impl TypeAliasDefinition {
@@ -179,17 +186,25 @@ impl FunctionDefinition {
     }
 
     fn return_def(&self) -> TokenStream {
-        self.ret_ty.as_ref().map_or_else(TokenStream::new, |ret_ty| quote! { -> (@ ret_ty.clone()) })
+        self.ret_ty
+            .as_ref()
+            .map_or_else(TokenStream::new, |ret_ty| quote! { -> (@ ret_ty.clone()) })
     }
 
     fn body_def(&self) -> TokenStream {
-        self.body.as_ref().map_or_else(TokenStream::new, |body| quote! {{ (@ body.clone()) }})
+        self.body
+            .as_ref()
+            .map_or_else(TokenStream::new, |body| quote! {{ (@ body.clone()) }})
     }
 
     fn params_def(&self) -> TokenStream {
-        let params = self.params.iter().map(|param| {
-            quote! { (@ param.0.clone()): (@ param.1.clone()), }
-        }).collect::<TokenStream>();
+        let params = self
+            .params
+            .iter()
+            .map(|param| {
+                quote! { (@ param.0.clone()): (@ param.1.clone()), }
+            })
+            .collect::<TokenStream>();
 
         quote! {
             ((@ self.self_param_def()) (@ params))
@@ -215,10 +230,22 @@ impl FunctionDefinition {
 
     /// produces the complete function usage, e.g. `my_function::<T>(arg)`.
     #[must_use]
-    pub fn usage(&self, arg_exprs: &[TokenStream], generic_exprs: Option<&[TokenStream]>) -> TokenStream {
-        assert_eq!(self.params.len(), arg_exprs.len(), "Tried to make usage of func with incorrect amount of args");
+    pub fn usage(
+        &self,
+        arg_exprs: &[TokenStream],
+        generic_exprs: Option<&[TokenStream]>,
+    ) -> TokenStream {
+        assert_eq!(
+            self.params.len(),
+            arg_exprs.len(),
+            "Tried to make usage of func with incorrect amount of args"
+        );
 
-        let args = arg_exprs.iter().cloned().map(|arg| quote!{(@ arg),}).collect::<TokenStream>();
+        let args = arg_exprs
+            .iter()
+            .cloned()
+            .map(|arg| quote! {(@ arg),})
+            .collect::<TokenStream>();
 
         quote! {
             (@ self.name.clone()) (@ self.generics.usage(generic_exprs)) ((@ args))
