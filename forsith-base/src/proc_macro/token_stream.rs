@@ -2,6 +2,7 @@ use core::{
     fmt::Display,
     ops::{Deref, Index, IndexMut},
 };
+use std::io::Read;
 
 use alloc::{
     ffi::CString,
@@ -30,6 +31,49 @@ impl TokenStream {
     pub const fn len(&self) -> usize {
         self.0.len()
     }
+
+    fn raw_code(&self) -> String {
+        self.0.iter().fold(String::new(), |mut code, tt| {
+            if !matches!(tt, TokenTree::Punct(p) if !p.joint) {
+                code.push(' ');
+            }
+
+            code.push_str(&tt.to_string());
+            code
+        })
+    }
+
+    #[must_use]
+    pub fn formatted_code(&self) -> String {
+        let raw_code = self.raw_code();
+        Self::format_code(&raw_code).unwrap_or(raw_code)
+    }
+
+    #[cfg(feature = "std")]
+    fn format_code(raw_code: &str) -> Option<String> {
+        use std::{
+            io::{Read, Write},
+            process,
+        };
+
+        let mut output = String::new();
+
+        let proc = process::Command::new("rustfmt")
+            .stdin(process::Stdio::piped())
+            .stdout(process::Stdio::piped())
+            .spawn().ok()?;
+
+        let mut stdin = proc.stdin?;
+        let mut stdout = proc.stdout?;
+
+        stdin.write_all(raw_code.as_bytes()).ok()?;
+        drop(stdin);
+        stdout.read_to_string(&mut output).ok()?;
+
+        Some(output)
+    }
+
+
 }
 
 impl Index<usize> for TokenStream {
@@ -69,11 +113,9 @@ impl From<Vec<TokenTree>> for TokenStream {
 }
 
 impl Display for TokenStream {
+    #[allow(clippy::unit_cmp)]
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        for tt in &self.0 {
-            write!(f, "{tt} ")?;
-        }
-        Ok(())
+        f.write_str(&self.formatted_code())
     }
 }
 
@@ -596,7 +638,7 @@ impl Display for Group {
             Delimiter::Bracket => ('[', ']'),
             Delimiter::None => (' ', ' '),
         };
-        write!(f, "{}{}{}", open, self.stream, close)
+        write!(f, "{}{}{}", open, self.stream.raw_code(), close)
     }
 }
 

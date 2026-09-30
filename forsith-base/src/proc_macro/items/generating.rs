@@ -194,7 +194,7 @@ impl FunctionDefinition {
     fn body_def(&self) -> TokenStream {
         self.body
             .as_ref()
-            .map_or_else(TokenStream::new, |body| quote! {{ (@ body.clone()) }})
+            .map_or_else(|| quote! {;}, |body| quote! {{ (@ body.clone()) }})
     }
 
     fn params_def(&self) -> TokenStream {
