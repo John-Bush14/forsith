@@ -1,5 +1,5 @@
 use crate::proc_macro::{Group, Ident, TokenStream, TokenTree};
-use alloc::vec::Vec;
+use crate::alloc::vec::Vec;
 
 pub mod generating;
 pub mod parsing;

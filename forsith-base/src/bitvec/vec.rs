@@ -1,6 +1,5 @@
 use crate::bitvec::BitSlice;
 use crate::buffer;
-#[cfg(feature = "alloc")]
 use crate::buffer::Buffer;
 use core::{
     mem::MaybeUninit,
@@ -274,7 +273,6 @@ mod bitvec_tests {
         assert_eq!(bitvec.len(), 0);
     }
 
-    #[cfg(feature = "alloc")]
     #[test]
     fn test_bitvec_set_len_from_buffer() {
         let buffer = buffer![MaybeUninit::new(0b1010_1010), MaybeUninit::new(0b1100_1100)];

@@ -5,7 +5,7 @@ use crate::proc_macro::{
         ItemType, StructDefinition, StructField, Visibility,
     },
 };
-use alloc::{string::ToString, vec::Vec};
+use crate::alloc::{string::ToString, vec::Vec};
 use core::iter::{Peekable, once};
 
 impl Attribute {

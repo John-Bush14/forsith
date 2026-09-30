@@ -2,9 +2,7 @@ use core::{
     fmt::Display,
     ops::{Deref, Index, IndexMut},
 };
-use std::io::Read;
-
-use alloc::{
+use crate::alloc::{
     ffi::CString,
     string::{String, ToString},
     vec::Vec,
@@ -49,28 +47,35 @@ impl TokenStream {
         Self::format_code(&raw_code).unwrap_or(raw_code)
     }
 
-    #[cfg(feature = "std")]
     fn format_code(raw_code: &str) -> Option<String> {
-        use std::{
-            io::{Read, Write},
-            process,
-        };
+        #[cfg(feature = "std")]
+        {
+            use std::{
+                io::{Read, Write},
+                process,
+            };
 
-        let mut output = String::new();
+            let mut output = String::new();
 
-        let proc = process::Command::new("rustfmt")
-            .stdin(process::Stdio::piped())
-            .stdout(process::Stdio::piped())
-            .spawn().ok()?;
+            let proc = process::Command::new("rustfmt")
+                .stdin(process::Stdio::piped())
+                .stdout(process::Stdio::piped())
+                .spawn().ok()?;
 
-        let mut stdin = proc.stdin?;
-        let mut stdout = proc.stdout?;
+            let mut stdin = proc.stdin?;
+            let mut stdout = proc.stdout?;
 
-        stdin.write_all(raw_code.as_bytes()).ok()?;
-        drop(stdin);
-        stdout.read_to_string(&mut output).ok()?;
+            stdin.write_all(raw_code.as_bytes()).ok()?;
+            drop(stdin);
+            stdout.read_to_string(&mut output).ok()?;
 
-        Some(output)
+            Some(output)
+        }
+
+        #[cfg(not(feature = "std"))]
+        let _ = raw_code;
+        #[cfg(not(feature = "std"))]
+        None
     }
 
 

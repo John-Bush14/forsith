@@ -2,9 +2,7 @@ use core::{
     fmt::Debug,
     ops::{Deref, Index},
 };
-
-#[cfg(feature = "alloc")]
-use alloc::vec::Vec;
+use crate::alloc::vec::Vec;
 
 pub struct BitSlice {
     data: [()],
@@ -44,7 +42,6 @@ impl Index<usize> for BitSlice {
     }
 }
 
-#[cfg(feature = "alloc")]
 impl From<&BitSlice> for Vec<bool> {
     fn from(slice: &BitSlice) -> Self {
         slice.iter().collect()
@@ -184,7 +181,6 @@ impl BitSlice {
         unsafe { Self::from_raw_parts_mut(bytes.as_mut_ptr(), bits) }
     }
 
-    #[cfg(feature = "alloc")]
     #[must_use]
     pub fn as_bools(&self) -> Vec<bool> {
         self.into()
@@ -327,7 +323,6 @@ mod bitslice_tests {
         assert_eq!(bytes, [0b0101_0101, 0b0101_0101]);
     }
 
-    #[cfg(feature = "alloc")]
     #[test]
     fn test_bitslice_iter() {
         let bytes = [0b1010_1010, 0b1100_1100];
