@@ -585,6 +585,18 @@ impl From<Literal> for proc_macro::Literal {
     }
 }
 
+impl From<&str> for Literal {
+    fn from(s: &str) -> Self {
+        Self::Str(s.to_string())
+    }
+}
+
+impl From<usize> for Literal {
+    fn from(i: usize) -> Self {
+        Self::Integer(i, None)
+    }
+}
+
 impl Display for Literal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {

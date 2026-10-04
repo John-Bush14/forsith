@@ -25,9 +25,7 @@ macro_rules! quote_tree {
         [$crate::proc_macro::Group::new($crate::proc_macro::Delimiter::Bracket, quote!($($tt)*))]
     }};
     ($lit:literal) => {{
-        use std::any::Any;
-        if ($lit).type_id() == "".type_id() {[$crate::proc_macro::Literal::Str(String::from($lit))]}
-        else {panic!("Unsupported literal type: {:?}", stringify!($lit))}
+        [$crate::proc_macro::Literal::from($lit)]
     }};
     ($punct:tt) => {{
         let puncts = stringify!($punct);
