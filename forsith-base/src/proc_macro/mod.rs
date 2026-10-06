@@ -5,5 +5,5 @@ pub mod items;
 pub mod token_stream;
 
 pub use token_stream::{
-    Delimiter, Group, Ident, Literal, Punct, PunctChar, TokenStream, TokenTree,
+    group::Delimiter, group::Group, ident::Ident, literal::Literal, punct::Punct, punct::PunctChar, TokenStream, TokenTree,
 };
