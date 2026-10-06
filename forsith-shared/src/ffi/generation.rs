@@ -1,12 +1,11 @@
 use crate::ffi::{
     FFIField, FFIFuncDef, FFIGenerator, FFIPrimitive, FFIType, FFIValueType, FFiFieldIndirection,
+    IndirectionLen,
 };
 use forsith_base::{
     proc_macro::{
-        Ident, TokenStream,
-        items::{FunctionDefinition, GenericsDefinition, TypeAliasDefinition, Visibility},
-    },
-    quote,
+        Ident, Literal, TokenStream, items::{FunctionDefinition, FunctionParam, GenericsDefinition, TypeAliasDefinition, Visibility},
+    }, quote,
 };
 
 impl FFIType<'_> {
@@ -16,6 +15,17 @@ impl FFIType<'_> {
 
         for indirection in self.indirection.iter().rev() {
             ty = indirection.wrap_type_ptr(ty);
+        }
+
+        ty
+    }
+
+    #[must_use]
+    pub fn wrapped_type(&self) -> TokenStream {
+        let mut ty = quote!((@ self.value_type.ident()));
+
+        for indirection in self.indirection.iter().rev() {
+            ty = indirection.wrap_type_ref(ty);
         }
 
         ty
@@ -73,9 +83,102 @@ impl FFiFieldIndirection<'_> {
             quote! { *const (@ ty) }
         }
     }
+
+    /// Wraps an expr with this indirection, for example wraps 'expr' with 'Some(&mut expr)' if
+    /// this indirection is optional and mutable.
+    #[must_use]
+    pub fn wrap_expr_safe(&self, mut expr: TokenStream) -> TokenStream {
+        assert!(
+            self.len == IndirectionLen::None,
+            "Indirection with length is not supported for wrapping expressions"
+        );
+
+        if self.mutable {
+            expr = quote! {&mut (@ expr)}
+        } else {
+            expr = quote! {& (@ expr)}
+        }
+
+        if self.optional {
+            expr = quote! {Some((@ expr))};
+        }
+
+        expr
+    }
+
+    #[must_use]
+    pub fn unwrap_expr_safe(&self, expr: TokenStream) -> TokenStream {
+        let unwrap = |expr| match self.len {
+            IndirectionLen::None => {
+                if self.mutable {
+                    quote! {core::ptr::from_mut((@ expr))}
+                } else {
+                    quote! {core::ptr::from_ref((@ expr))}
+                }
+            }
+            _ => {
+                if self.mutable {
+                    quote! {(@ expr).as_mut_ptr()}
+                } else {
+                    quote! {(@ expr).as_ptr()}
+                }
+            }
+        };
+
+        if self.optional {
+            let null = if self.mutable {
+                quote! {core::ptr::null_mut()}
+            } else {
+                quote! {core::ptr::null()}
+            };
+
+            let as_expr = if self.mutable {
+                quote! {as_mut()}
+            } else {
+                quote! {as_ref()}
+            };
+
+            quote! {(@ expr).(@ as_expr).map_or((@ null), |expr| (@ unwrap(quote! {expr})))}
+        } else {
+            unwrap(expr)
+        }
+    }
+
+    #[must_use]
+    pub fn wrap_type_safe(&self, mut ty: TokenStream, use_vec: bool) -> TokenStream {
+        ty = match self.len {
+            IndirectionLen::None => ty,
+            IndirectionLen::Fixed(len) => quote! { [(@ ty); (@ Literal::Integer(len, None))] },
+            IndirectionLen::Field(_) if use_vec => quote! { Vec<(@ ty)> },
+            IndirectionLen::Field(_) => quote! { [(@ ty)] },
+        };
+
+        ty = if self.mutable {
+            quote! {&mut (@ ty)}
+        } else {
+            quote! {& (@ ty)}
+        };
+
+        if self.optional {
+            quote! {Option<(@ ty)>}
+        } else {
+            ty
+        }
+    }
 }
 
 impl FFIField<'_> {
+    #[must_use]
+    pub fn wrapped_type(&self, use_vec: bool) -> TokenStream {
+        let mut ty = quote!((@ self.ty.ident()));
+
+        for indirection in self.meta.iter().rev() {
+            ty = indirection.wrap_type_safe(ty, use_vec);
+        }
+
+        ty
+    }
+
     #[must_use]
     pub fn raw_type(&self) -> TokenStream {
         let mut ty = quote!((@ self.ty.ident()));
@@ -88,8 +191,37 @@ impl FFIField<'_> {
     }
 
     #[must_use]
-    pub fn raw_definition(&self) -> (Ident, TokenStream) {
-        (self.name.to_string().into(), self.raw_type())
+    pub fn unwrap_expr_safe(&self, mut expr: TokenStream) -> TokenStream {
+        for indirection in self.meta.iter().rev() {
+            expr = indirection.unwrap_expr_safe(expr);
+        }
+
+        expr
+    }
+
+    #[must_use]
+    pub fn wrap_expr_safe(&self, mut expr: TokenStream) -> TokenStream {
+        for indirection in self.meta.iter().rev() {
+            expr = indirection.wrap_expr_safe(expr);
+        }
+
+        expr
+    }
+
+    #[must_use]
+    pub fn wrapped_definition(&self, use_vec: bool) -> FunctionParam {
+        FunctionParam {
+            pattern: quote! {(@ Ident::new(self.name))},
+            ty: self.wrapped_type(use_vec)
+        }
+    }
+
+    #[must_use]
+    pub fn raw_definition(&self) -> FunctionParam {
+        FunctionParam {
+            pattern: quote! {(@ Ident::new(self.name))},
+            ty: self.raw_type(),
+        }
     }
 }
 
@@ -99,12 +231,136 @@ pub struct FFIFuncGen<'a, 'b> {
 }
 
 impl FFIFuncGen<'_, '_> {
-    fn raw_param_definitions(&self) -> Vec<(Ident, TokenStream)> {
+    fn raw_param_definitions(&self) -> Vec<FunctionParam> {
         self.func_def
             .params
             .iter()
-            .map(|param| param.raw_definition())
+            .map(FFIField::raw_definition)
             .collect()
+    }
+
+    fn wrapper_params(&self, len_fields: &[&str], vec_fields: &[&str]) -> Vec<FunctionParam> {
+        self.func_def
+            .params
+            .iter()
+            .filter(|arg| !len_fields.contains(&arg.name))
+            .map(|arg| FFIField::wrapped_definition(arg, vec_fields.contains(&arg.name)))
+            .collect()
+    }
+
+    fn get_len_field(&self, field: &str) -> Option<&FFIField<'_>> {
+        self.func_def.params.iter().find(|arg| arg.name == field)
+    }
+
+    fn unwrapped_raw_fn_expr(&self, raw_fn_expr: TokenStream) -> TokenStream {
+        let unwrapped_arg_exprs = self
+            .func_def
+            .params
+            .iter()
+            .map(|arg| quote! {(@ arg.unwrap_expr_safe(quote! {(@ Ident::new(arg.name))})),})
+            .collect::<TokenStream>();
+
+        quote! {
+            (@ raw_fn_expr)((@ unwrapped_arg_exprs))
+        }
+    }
+
+    fn len_field_params(&self) -> impl Iterator<Item = &FFIField<'_>> {
+        self.func_def
+            .params
+            .iter()
+            .filter(|arg| {
+                arg.meta
+                    .iter()
+                    .any(|meta| matches!(meta.len, IndirectionLen::Field(_)))
+            })
+    }
+
+    /// # Panics
+    /// Panics if a length field is not found for a parameter that requires one.
+    #[must_use]
+    pub fn wrapper_fn_definition(&self, raw_fn_expr: TokenStream) -> FunctionDefinition {
+        let name = (self.generator.func_map.wrapper)(self.func_def.name);
+        let mut len_fields = Vec::new();
+        let mut vec_fields = Vec::new();
+
+        let mut body = TokenStream::new();
+
+        for param in self.len_field_params() {
+            if let IndirectionLen::Field(field) = param.meta[0].len {
+                len_fields.push(field);
+
+                let Some(len_field) = self.get_len_field(field) else {
+                    panic!("Length field '{}' not found for parameter '{}'", field, param.name);
+                };
+
+                assert!(len_field.meta.len() <= 1, "Length field '{}' for parameter '{}' has more then 1 level of indirection, which is not supported", field, param.name);
+
+                let field = Ident::new(field);
+                let param_ident = Ident::new(param.name);
+
+                match len_field.meta.first() {
+                    None | Some(FFiFieldIndirection { mutable: false, .. }) => {
+                        let wrapped_len_field = len_field.wrap_expr_safe(quote! {(@ param_ident).len()});
+
+                        body.extend(quote! {
+                            let (@ field) = (@ wrapped_len_field);
+
+                            (@ self.unwrapped_raw_fn_expr(raw_fn_expr.clone()));
+                        });
+                    }
+                    Some(FFiFieldIndirection { len: IndirectionLen::Field(_) | IndirectionLen::Fixed(_), .. }) => {
+                        panic!("Length field '{}' for parameter '{}' has length field itself?", field, param.name);
+                    }
+                    Some(FFiFieldIndirection { mutable: true, optional, ..}) => {
+                        vec_fields.push(param.name);
+
+                        let raw_field = Ident::from(format!("raw_{field}"));
+
+                        let len_getting_code = quote! {
+                            let mut (@ raw_field.clone()) = 0;
+                            let (@ field.clone()) = (@ len_field.wrap_expr_safe(quote! {(@ raw_field.clone())}));
+
+                            (@ self.unwrapped_raw_fn_expr(raw_fn_expr.clone()));
+
+                            unsafe {(@ param_ident.clone()).set_len(*(@ len_field.unwrap_expr_safe(quote! {(@ field.clone())}))) as usize;}
+
+                            (@ self.unwrapped_raw_fn_expr(raw_fn_expr.clone()));
+                        };
+
+                        if *optional {
+                            assert!(param.meta[0].optional, "Parameter '{}' is not optional, but its length field '{}' is optional", param.name, field);
+
+                            body.extend(quote! {
+                                if (@ param_ident).is_some() {
+                                    (@ len_getting_code)
+                                } else {
+                                    let (@ field) = None;
+
+                                    (@ self.unwrapped_raw_fn_expr(raw_fn_expr.clone()));
+                                }
+                            });
+                        } else {
+                            body.extend(len_getting_code);
+                        }
+                    }
+                }
+            }
+        }
+
+        FunctionDefinition {
+            attributes: Vec::default(),
+            visibility: Visibility::Public,
+            constness: false,
+            unsafety: false,
+            asyncness: false,
+            name: name.to_string().into(),
+            self_param: None,
+            generics: GenericsDefinition::default(),
+            params: self.wrapper_params(&len_fields, &vec_fields),
+            ret_ty: self.func_def.ret_ty.as_ref().map(FFIType::wrapped_type),
+            body: Some(body),
+        }
     }
 
     #[must_use]
@@ -137,5 +393,71 @@ impl FFIFuncGen<'_, '_> {
             visibility: Visibility::Public,
             ty: self.raw_fn_definition().signature(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use alloc::borrow::Cow;
+
+    use crate::ffi::FFIStructMap;
+
+    use super::*;
+
+    #[test]
+    fn ffi_func_all() {
+        let generator = FFIGenerator {
+            func_map: crate::ffi::FFiFuncMap {
+                loader: |l| Cow::Borrowed(l),
+                wrapper: |_| Cow::Owned("wrapped".to_owned()),
+                ty: |_| Cow::Owned("ty".to_owned()),
+                raw: |_| Cow::Owned("raw".to_owned()),
+            },
+            struct_map: FFIStructMap {
+                raw: |_| "raw".into(),
+                wrapper: |_| "wrapper".into(),
+            },
+        };
+
+        let test_func = FFIFuncDef {
+            name: "test",
+            params: vec![
+                FFIField {
+                    name: "test1",
+                    ty: FFIValueType::Void,
+                    meta: vec![FFiFieldIndirection {
+                        mutable: true,
+                        optional: true,
+                        len: IndirectionLen::Field("test2"),
+                    }],
+                },
+                FFIField {
+                    name: "test2",
+                    ty: FFIValueType::Primitive(FFIPrimitive::U32),
+                    meta: vec![FFiFieldIndirection {
+                        mutable: true,
+                        optional: true,
+                        len: IndirectionLen::None,
+                    }],
+                },
+            ],
+            ret_ty: Some(FFIType {
+                value_type: FFIValueType::Void,
+                indirection: Vec::new(),
+            }),
+        };
+
+        let fgen = FFIFuncGen {
+            generator: &generator,
+            func_def: test_func,
+        };
+
+        println!(
+            "raw {} \n wrapper {}",
+            fgen.raw_fn_definition().definition(),
+            fgen.wrapper_fn_definition(quote! {test}).definition()
+        );
+
+        panic!()
     }
 }

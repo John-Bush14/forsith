@@ -202,7 +202,7 @@ impl FunctionDefinition {
             .params
             .iter()
             .map(|param| {
-                quote! { (@ param.0.clone()): (@ param.1.clone()), }
+                quote! { (@ param.pattern.clone()): (@ param.ty.clone()), }
             })
             .collect::<TokenStream>();
 

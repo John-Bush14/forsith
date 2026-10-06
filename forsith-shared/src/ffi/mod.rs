@@ -12,15 +12,15 @@ pub struct FFIGenerator {
 }
 
 pub struct FFiFuncMap {
-    pub loader: fn(&str) -> Cow<&str>,
-    pub wrapper: fn(&str) -> Cow<&str>,
-    pub ty: fn(&str) -> Cow<&str>,
-    pub raw: fn(&str) -> Cow<&str>,
+    pub loader: fn(&str) -> Cow<str>,
+    pub wrapper: fn(&str) -> Cow<str>,
+    pub ty: fn(&str) -> Cow<str>,
+    pub raw: fn(&str) -> Cow<str>,
 }
 
 pub struct FFIStructMap {
-    pub raw: fn(&str) -> Cow<&str>,
-    pub wrapper: fn(&str) -> Cow<&str>,
+    pub raw: fn(&str) -> Cow<str>,
+    pub wrapper: fn(&str) -> Cow<str>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

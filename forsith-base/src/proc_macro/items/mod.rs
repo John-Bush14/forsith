@@ -134,6 +134,11 @@ pub enum Indirection {
     Mutable,
 }
 
+pub struct FunctionParam {
+    pub pattern: TokenStream,
+    pub ty: TokenStream,
+}
+
 pub struct FunctionDefinition {
     pub attributes: Vec<Attribute>,
     pub visibility: Visibility,
@@ -143,7 +148,7 @@ pub struct FunctionDefinition {
     pub name: Ident,
     pub self_param: Option<Indirection>,
     pub generics: GenericsDefinition,
-    pub params: Vec<(Ident, TokenStream)>,
+    pub params: Vec<FunctionParam>,
     pub ret_ty: Option<TokenStream>,
     pub body: Option<TokenStream>,
 }
