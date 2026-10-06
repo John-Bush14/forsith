@@ -1,7 +1,8 @@
+use core::num::NonZeroU32;
 use crate::{arena::Arena, collections::hashmap::HashMap};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct InternedString(usize);
+pub struct InternedString(NonZeroU32);
 
 #[derive(Debug, Default)]
 pub struct StringInterner<'arena> {
@@ -11,6 +12,11 @@ pub struct StringInterner<'arena> {
 }
 
 impl StringInterner<'_> {
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
     pub fn interned(&mut self, s: &str) -> InternedString {
         #[allow(clippy::option_if_let_else)]
         match self.key_map.get(s) {
@@ -20,7 +26,7 @@ impl StringInterner<'_> {
     }
 
     fn intern(&mut self, s: &str) -> InternedString {
-        let interned_s = InternedString(self.str_map.len());
+        let interned_s = InternedString(u32::try_from(self.str_map.len() + 1).and_then(TryInto::try_into).expect("StringInterner's capacity exceeded u32::MAX-1"));
         self.key_map.insert(s.to_string(), interned_s);
         self.str_map.push(self.arena.alloc_str(s));
 
@@ -29,7 +35,7 @@ impl StringInterner<'_> {
 
     #[must_use]
     pub fn resolve(&self, interned: InternedString) -> &str {
-        self.str_map[interned.0]
+        self.str_map[interned.0.get() as usize - 1]
     }
 }
 
