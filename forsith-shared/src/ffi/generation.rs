@@ -4,8 +4,12 @@ use crate::ffi::{
 };
 use forsith_base::{
     proc_macro::{
-        Ident, Literal, TokenStream, items::{FunctionDefinition, FunctionParam, GenericsDefinition, TypeAliasDefinition, Visibility},
-    }, quote,
+        Ident, Literal, TokenStream,
+        items::{
+            FunctionDefinition, FunctionParam, GenericsDefinition, TypeAliasDefinition, Visibility,
+        },
+    },
+    quote,
 };
 
 impl FFIType<'_> {
@@ -212,7 +216,7 @@ impl FFIField<'_> {
     pub fn wrapped_definition(&self, use_vec: bool) -> FunctionParam {
         FunctionParam {
             pattern: quote! {(@ Ident::new(self.name))},
-            ty: self.wrapped_type(use_vec)
+            ty: self.wrapped_type(use_vec),
         }
     }
 
@@ -266,14 +270,113 @@ impl FFIFuncGen<'_, '_> {
     }
 
     fn len_field_params(&self) -> impl Iterator<Item = &FFIField<'_>> {
-        self.func_def
-            .params
-            .iter()
-            .filter(|arg| {
-                arg.meta
-                    .iter()
-                    .any(|meta| matches!(meta.len, IndirectionLen::Field(_)))
-            })
+        self.func_def.params.iter().filter(|arg| {
+            arg.meta
+                .iter()
+                .any(|meta| matches!(meta.len, IndirectionLen::Field(_)))
+        })
+    }
+
+    fn handle_len_field_params_wrapper(
+        &self,
+        raw_fn_expr: &TokenStream,
+        body: &mut TokenStream,
+    ) -> (Vec<&str>, Vec<&str>) {
+        let mut len_fields = Vec::new();
+        let mut vec_fields = Vec::new();
+
+        for param in self.len_field_params() {
+            let IndirectionLen::Field(field) = param.meta[0].len else {
+                unreachable!()
+            };
+
+            len_fields.push(field);
+
+            let Some(len_field) = self.get_len_field(field) else {
+                panic!(
+                    "Length field '{}' not found for parameter '{}'",
+                    field, param.name
+                );
+            };
+
+            assert!(
+                len_field.meta.len() <= 1,
+                "Length field '{}' for parameter '{}' has more then 1 level of indirection, which is not supported",
+                field,
+                param.name
+            );
+
+            let len_field_ident = Ident::new(field);
+            let param_ident = Ident::new(param.name);
+
+            match len_field.meta.first() {
+                Some(FFiFieldIndirection { optional, .. })
+                    if *optional != param.meta[0].optional =>
+                {
+                    panic!(
+                        "Length field '{}' for parameter '{}' has different optionality than the parameter",
+                        len_field_ident, param.name
+                    );
+                }
+                Some(FFiFieldIndirection {
+                    len: IndirectionLen::Field(_) | IndirectionLen::Fixed(_),
+                    ..
+                }) => {
+                    panic!(
+                        "Length field '{}' for parameter '{}' has length field itself?",
+                        len_field_ident, param.name
+                    );
+                }
+                None | Some(FFiFieldIndirection { mutable: false, .. }) => {
+                    let wrapped_len_field =
+                        len_field.wrap_expr_safe(quote! {(@ param_ident).len()});
+
+                    body.extend(quote! {
+                        let (@ len_field_ident) = (@ wrapped_len_field);
+                    });
+                }
+                Some(FFiFieldIndirection {
+                    mutable: true,
+                    optional,
+                    ..
+                }) => {
+                    vec_fields.push(param.name);
+
+                    let raw_len_field = Ident::from(format!("raw_{len_field_ident}"));
+
+                    let mut wrapped_len_field =
+                        len_field.wrap_expr_safe(quote! {(@ raw_len_field.clone())});
+                    if *optional {
+                        wrapped_len_field = quote! {if (@ param_ident.clone()).is_some() {(@ wrapped_len_field)} else {None}};
+                    }
+
+                    let condition = if *optional {
+                        quote! {if (@ param_ident.clone()).is_some()}
+                    } else {
+                        quote! {true}
+                    };
+
+                    let unwrap = if *optional {
+                        quote! {.as_mut().unwrap()}
+                    } else {
+                        quote! {}
+                    };
+
+                    body.extend(quote! {
+                        let mut (@ raw_len_field) = 0;
+                        let mut (@ len_field_ident.clone()) = (@ wrapped_len_field);
+
+                        (@ condition) {
+                            (@ self.unwrapped_raw_fn_expr(raw_fn_expr.clone()));
+
+                            unsafe {(@ param_ident)(@ unwrap.clone()).set_len(**(@ len_field_ident)(@ unwrap) as usize);}
+                        }
+                    });
+                }
+            }
+        }
+
+        (len_fields, vec_fields)
     }
 
     /// # Panics
@@ -281,71 +384,19 @@ impl FFIFuncGen<'_, '_> {
     #[must_use]
     pub fn wrapper_fn_definition(&self, raw_fn_expr: TokenStream) -> FunctionDefinition {
         let name = (self.generator.func_map.wrapper)(self.func_def.name);
-        let mut len_fields = Vec::new();
-        let mut vec_fields = Vec::new();
 
         let mut body = TokenStream::new();
 
-        for param in self.len_field_params() {
-            if let IndirectionLen::Field(field) = param.meta[0].len {
-                len_fields.push(field);
+        let (len_fields, vec_fields) =
+            self.handle_len_field_params_wrapper(&raw_fn_expr, &mut body);
 
-                let Some(len_field) = self.get_len_field(field) else {
-                    panic!("Length field '{}' not found for parameter '{}'", field, param.name);
-                };
+        body.extend(quote! {
+            (@ self.unwrapped_raw_fn_expr(raw_fn_expr));
+        });
 
-                assert!(len_field.meta.len() <= 1, "Length field '{}' for parameter '{}' has more then 1 level of indirection, which is not supported", field, param.name);
-
-                let field = Ident::new(field);
-                let param_ident = Ident::new(param.name);
-
-                match len_field.meta.first() {
-                    None | Some(FFiFieldIndirection { mutable: false, .. }) => {
-                        let wrapped_len_field = len_field.wrap_expr_safe(quote! {(@ param_ident).len()});
-
-                        body.extend(quote! {
-                            let (@ field) = (@ wrapped_len_field);
-
-                            (@ self.unwrapped_raw_fn_expr(raw_fn_expr.clone()));
-                        });
-                    }
-                    Some(FFiFieldIndirection { len: IndirectionLen::Field(_) | IndirectionLen::Fixed(_), .. }) => {
-                        panic!("Length field '{}' for parameter '{}' has length field itself?", field, param.name);
-                    }
-                    Some(FFiFieldIndirection { mutable: true, optional, ..}) => {
-                        vec_fields.push(param.name);
-
-                        let raw_field = Ident::from(format!("raw_{field}"));
-
-                        let len_getting_code = quote! {
-                            let mut (@ raw_field.clone()) = 0;
-                            let (@ field.clone()) = (@ len_field.wrap_expr_safe(quote! {(@ raw_field.clone())}));
-
-                            (@ self.unwrapped_raw_fn_expr(raw_fn_expr.clone()));
-
-                            unsafe {(@ param_ident.clone()).set_len(*(@ len_field.unwrap_expr_safe(quote! {(@ field.clone())}))) as usize;}
-
-                            (@ self.unwrapped_raw_fn_expr(raw_fn_expr.clone()));
-                        };
-
-                        if *optional {
-                            assert!(param.meta[0].optional, "Parameter '{}' is not optional, but its length field '{}' is optional", param.name, field);
-
-                            body.extend(quote! {
-                                if (@ param_ident).is_some() {
-                                    (@ len_getting_code)
-                                } else {
-                                    let (@ field) = None;
-
-                                    (@ self.unwrapped_raw_fn_expr(raw_fn_expr.clone()));
-                                }
-                            });
-                        } else {
-                            body.extend(len_getting_code);
-                        }
-                    }
-                }
-            }
+        let mut params = self.wrapper_params(&len_fields, &vec_fields);
+        for param in &mut params {
+            param.pattern = quote! {mut (@ param.pattern.clone())};
         }
 
         FunctionDefinition {
@@ -357,7 +408,7 @@ impl FFIFuncGen<'_, '_> {
             name: name.to_string().into(),
             self_param: None,
             generics: GenericsDefinition::default(),
-            params: self.wrapper_params(&len_fields, &vec_fields),
+            params,
             ret_ty: self.func_def.ret_ty.as_ref().map(FFIType::wrapped_type),
             body: Some(body),
         }
@@ -439,6 +490,20 @@ mod tests {
                         optional: true,
                         len: IndirectionLen::None,
                     }],
+                },
+                FFIField {
+                    name: "test3",
+                    ty: FFIValueType::Primitive(FFIPrimitive::U32),
+                    meta: vec![FFiFieldIndirection {
+                        mutable: false,
+                        optional: false,
+                        len: IndirectionLen::Fixed(5),
+                    }],
+                },
+                FFIField {
+                    name: "test4",
+                    ty: FFIValueType::Primitive(FFIPrimitive::U32),
+                    meta: vec![],
                 },
             ],
             ret_ty: Some(FFIType {

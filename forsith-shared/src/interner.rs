@@ -1,5 +1,5 @@
-use core::num::NonZeroU32;
 use crate::{arena::Arena, collections::hashmap::HashMap};
+use core::num::NonZeroU32;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct InternedString(NonZeroU32);
@@ -26,7 +26,11 @@ impl StringInterner<'_> {
     }
 
     fn intern(&mut self, s: &str) -> InternedString {
-        let interned_s = InternedString(u32::try_from(self.str_map.len() + 1).and_then(TryInto::try_into).expect("StringInterner's capacity exceeded u32::MAX-1"));
+        let interned_s = InternedString(
+            u32::try_from(self.str_map.len() + 1)
+                .and_then(TryInto::try_into)
+                .expect("StringInterner's capacity exceeded u32::MAX-1"),
+        );
         self.key_map.insert(s.to_string(), interned_s);
         self.str_map.push(self.arena.alloc_str(s));
 
