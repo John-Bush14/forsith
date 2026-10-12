@@ -1,41 +1,48 @@
-use crate::alloc::{boxed::Box, vec, vec::Vec};
+use crate::alloc::{boxed::Box, vec::Vec};
+use core::slice;
+use forsith_base::buffer;
 
-const CHUNK_SIZE: usize = 2usize.pow(12); // 4096
+const BASE_CHUNK_SIZE: usize = 4 * 1024; // linux page size
+const MAX_CHUNK_SIZE: usize = 1024 * 1024; // linux huge page size
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Arena<'arena, T: Default + Copy> {
     chunks: Vec<Box<[T]>>,
     index: usize,
     phantom: core::marker::PhantomData<&'arena ()>,
 }
 
-impl<T: Default + Copy> Default for Arena<'_, T> {
-    fn default() -> Self {
-        Self {
-            chunks: vec![],
-            index: CHUNK_SIZE + 1,
-            phantom: core::marker::PhantomData,
-        }
-    }
-}
-
 impl<'arena, T: Default + Copy> Arena<'arena, T> {
-    // Code is setup so that chunks is never empty when last_mut is called, so unwrap is safe
-    #[allow(clippy::missing_panics_doc)]
-    pub fn alloc(&mut self, buf: &[T]) -> &'arena mut [T] {
-        if self.index + buf.len() > CHUNK_SIZE {
-            self.chunks
-                .push(vec![T::default(); CHUNK_SIZE.max(buf.len())].into_boxed_slice());
+    const BASE_CHUNK_SIZE: usize = BASE_CHUNK_SIZE / core::mem::size_of::<T>();
+    const MAX_CHUNK_SIZE: usize = MAX_CHUNK_SIZE / core::mem::size_of::<T>();
+
+    fn next_chunk_size(&self) -> usize {
+        (Self::BASE_CHUNK_SIZE * (1 << self.chunks.len())).min(Self::MAX_CHUNK_SIZE)
+    }
+
+    #[rustfmt::skip]
+    fn grow_if_needed(&mut self, additional: usize) {
+        if self.chunks.last().is_none_or(|chunk| self.index + additional > chunk.len()) {
+            let new_chunk_size = self.next_chunk_size().max(additional);
+            self.chunks.push(buffer![T::default(); new_chunk_size].into());
             self.index = 0;
         }
+    }
+
+    // grow_if_needed makes sure that chunks is never empty and that there
+    // is enough space in the last chunk for buf, so unwrap and from_raw_parts_mut are safe here.
+    #[allow(clippy::missing_panics_doc)]
+    pub fn alloc(&mut self, buf: &[T]) -> &'arena mut [T] {
+        self.grow_if_needed(buf.len());
 
         let chunk = self.chunks.last_mut().unwrap();
-        let start = self.index;
-        let end = start + buf.len();
-        chunk[start..end].copy_from_slice(buf);
-        self.index = end;
+        let slice = unsafe {
+            slice::from_raw_parts_mut(chunk.as_mut_ptr().add(self.index), buf.len()) // for lifetime
+        };
+        self.index += slice.len();
+        slice.copy_from_slice(buf);
 
-        unsafe { core::slice::from_raw_parts_mut(chunk.as_mut_ptr().add(start), buf.len()) }
+        slice
     }
 }
 
@@ -74,31 +81,34 @@ mod arena_tests {
         let _ = arena.asserted_alloc_str("");
         assert_eq!(empty, "");
         assert_eq!(hello, "hello");
+        assert_eq!(arena.chunks.last().unwrap().len(), BASE_CHUNK_SIZE);
     }
 
     #[test]
     fn alloc_full_chunk_empty_hello() {
         let mut arena = Arena::<u8>::default();
-        let full_chunk = "a".repeat(CHUNK_SIZE);
+        let full_chunk = "a".repeat(BASE_CHUNK_SIZE);
         let full = arena.asserted_alloc_str(&full_chunk);
         let empty = arena.asserted_alloc_str("");
         let _ = arena.asserted_alloc_str("hello");
         assert_eq!(full, full_chunk);
         assert_eq!(empty, "");
+        assert_eq!(arena.chunks.last().unwrap().len(), BASE_CHUNK_SIZE * 2);
     }
 
     #[test]
     fn alloc_large_string() {
         let mut arena = Arena::<u8>::default();
-        let large_string = "a".repeat(CHUNK_SIZE + 1);
+        let large_string = "a".repeat(BASE_CHUNK_SIZE + 1);
         let _ = arena.asserted_alloc_str(&large_string);
+        assert_eq!(arena.chunks.last().unwrap().len(), BASE_CHUNK_SIZE + 1);
     }
 
     #[test]
     fn alloc_hello_large_string_hello() {
         let mut arena = Arena::<u8>::default();
         let hello1 = arena.asserted_alloc_str("hello");
-        let large_string = "a".repeat(CHUNK_SIZE + 1);
+        let large_string = "a".repeat(BASE_CHUNK_SIZE + 1);
         let large = arena.asserted_alloc_str(&large_string);
         let _ = arena.asserted_alloc_str("hello");
         assert_eq!(hello1, "hello");
@@ -119,7 +129,7 @@ mod arena_tests {
         let mut arena = Arena::<u8>::default();
         let hello1 = arena.asserted_alloc_str("hello");
         let mut moved_arena = core::mem::take(&mut arena);
-        let large_string = "a".repeat(CHUNK_SIZE + 1);
+        let large_string = "a".repeat(BASE_CHUNK_SIZE + 1);
         let large = moved_arena.asserted_alloc_str(&large_string);
         let _ = moved_arena.asserted_alloc_str("hello");
         assert_eq!(hello1, "hello");
