@@ -68,7 +68,7 @@ pub fn enum_integer_discriminant_variants(
                 [TokenTree::Literal(lit)] => {
                     assert!(
                         matches!(lit, Literal::Integer(_, _)),
-                        "Discriminant must be a number literal"
+                        "Discriminant must be a number literal but is {lit:?}",
                     );
                     true
                 }
@@ -214,11 +214,6 @@ pub fn derive_try_from_num(input: TokenStream) -> TokenStream {
     let repr = item_repr(&enum_def);
     let variants = enum_integer_discriminant_variants(&enum_def);
     let match_arms = generate_from_discriminant_match_arms(&variants, true);
-
-    assert!(
-        !variants.iter().any(|variant| variant.attributes.iter().any(|attr| attr.name == Ident::new("default"))),
-        "TryFromNum cannot be derived for enums with a wildcard variant, please use FromNum instead"
-    );
 
     impl_item(
         &enum_def,
