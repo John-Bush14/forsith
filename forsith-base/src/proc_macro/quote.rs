@@ -27,6 +27,9 @@ macro_rules! quote_tree {
     ($lit:literal) => {{
         [$crate::proc_macro::Literal::from($lit)]
     }};
+    (_) => {{
+        [$crate::proc_macro::Ident::new("_")]
+    }};
     ($punct:tt) => {{
         let puncts = stringify!($punct);
         puncts
