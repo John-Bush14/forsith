@@ -1,12 +1,11 @@
+use alloc::alloc::realloc;
+
 use crate::alloc::{
     alloc::{Layout, alloc, handle_alloc_error},
     boxed::Box,
     vec::Vec,
 };
-use core::{
-    ops::{Deref, DerefMut},
-    ptr,
-};
+use core::ops::{Deref, DerefMut};
 
 #[macro_export]
 macro_rules! buffer {
@@ -152,19 +151,23 @@ impl<T: Clone> Buffer<T> {
     /// the global allocator.
     #[must_use]
     pub unsafe fn from_raw_parts(ptr: *mut T, len: usize) -> Self {
-        let ptr = ptr::slice_from_raw_parts_mut(ptr, len);
+        let ptr = core::ptr::slice_from_raw_parts_mut(ptr, len);
         unsafe { Self(Box::from_raw(ptr)) }
     }
 
-    fn alloc(size: usize) -> *mut T {
+    fn alloc(len: usize) -> *mut T {
         unsafe {
-            let layout = Layout::array::<T>(size).expect("could not allocate buffer");
+            let layout = Self::layout(len);
             let ptr = alloc(layout).cast::<T>();
             if ptr.is_null() {
                 handle_alloc_error(layout);
             }
             ptr
         }
+    }
+
+    fn layout(len: usize) -> Layout {
+        Layout::array::<T>(len).expect("could not allocate buffer")
     }
 
     unsafe fn init(ptr: *mut T, n: usize, value: T) {
@@ -192,24 +195,43 @@ impl<T: Clone> Buffer<T> {
         }
     }
 
-    pub fn resize(&mut self, new_size: usize, value: T) {
-        let old_size = self.len();
+    fn realloc(&mut self, new_len: usize) -> *mut T {
+        let old_len = self.len();
+        let old_ptr = Box::into_raw(core::mem::take(&mut self.0)).cast::<u8>();
 
-        if old_size == new_size {
+        unsafe {
+            realloc(
+                old_ptr,
+                Self::layout(old_len),
+                new_len * core::mem::size_of::<T>(),
+            )
+            .cast::<T>()
+        }
+    }
+
+    pub fn resize(&mut self, new_len: usize, value: T) {
+        let old_len = self.len();
+
+        if old_len == new_len {
             return;
         }
 
-        let new_buffer = Self::alloc(new_size);
         unsafe {
-            if new_size > old_size {
-                new_buffer.copy_from_nonoverlapping(self.0.as_ptr(), old_size);
-
-                Self::init(new_buffer.add(old_size), new_size - old_size, value);
+            let new_ptr = if old_len != 0 {
+                self.realloc(new_len)
             } else {
-                new_buffer.copy_from_nonoverlapping(self.0.as_ptr(), new_size);
+                Self::alloc(new_len)
+            };
+
+            if new_ptr.is_null() {
+                handle_alloc_error(Self::layout(new_len));
             }
 
-            *self = Self::from_raw_parts(new_buffer, new_size);
+            if new_len > old_len {
+                Self::init(new_ptr.add(old_len), new_len - old_len, value);
+            }
+
+            *self = Self::from_raw_parts(new_ptr, new_len);
         }
     }
 

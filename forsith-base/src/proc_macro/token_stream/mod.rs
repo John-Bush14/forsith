@@ -6,7 +6,8 @@ use crate::{
     proc_macro::token_stream::{group::Group, ident::Ident, literal::Literal, punct::Punct},
 };
 use core::{
-    fmt::Display, ops::{Deref, DerefMut},
+    fmt::Display,
+    ops::{Deref, DerefMut},
 };
 
 #[cfg(feature = "in_proc_macro")]

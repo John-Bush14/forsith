@@ -113,7 +113,9 @@ impl From<proc_macro::Literal> for Literal {
             Self::Integer(i, None)
         } else if let Ok(c) = s.parse::<char>() {
             Self::Char(c)
-        } else if &s[..2] == "0x" && let Ok(i) = usize::from_str_radix(&no_underscore[2..], 16) {
+        } else if &s[..2] == "0x"
+            && let Ok(i) = usize::from_str_radix(&no_underscore[2..], 16)
+        {
             Self::Integer(i, None)
         } else if let Ok(f) = no_underscore.parse::<f64>() {
             Self::Float(f, None)
