@@ -1,8 +1,8 @@
+use crate::alloc::vec::Vec;
 use core::{
     fmt::Debug,
     ops::{Deref, Index},
 };
-use crate::alloc::vec::Vec;
 
 pub struct BitSlice {
     data: [()],

@@ -1,3 +1,4 @@
+use crate::alloc::{string::ToString, vec::Vec};
 use crate::proc_macro::{
     Delimiter, Literal, PunctChar, TokenStream, TokenTree,
     items::{
@@ -5,7 +6,6 @@ use crate::proc_macro::{
         ItemType, StructDefinition, StructField, Visibility,
     },
 };
-use crate::alloc::{string::ToString, vec::Vec};
 use core::iter::{Peekable, once};
 
 impl Attribute {

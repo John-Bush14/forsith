@@ -90,6 +90,10 @@ impl FFiFieldIndirection<'_> {
 
     /// Wraps an expr with this indirection, for example wraps 'expr' with 'Some(&mut expr)' if
     /// this indirection is optional and mutable.
+    ///
+    /// # Panics
+    /// Panics if this indirection has a length, as wrapping an expression with a length is not
+    /// supported.
     #[must_use]
     pub fn wrap_expr_safe(&self, mut expr: TokenStream) -> TokenStream {
         assert!(
@@ -111,7 +115,7 @@ impl FFiFieldIndirection<'_> {
     }
 
     #[must_use]
-    pub fn unwrap_expr_safe(&self, expr: TokenStream) -> TokenStream {
+    pub fn map_safe_expr_to_raw(&self, expr: TokenStream) -> TokenStream {
         let unwrap = |expr| match self.len {
             IndirectionLen::None => {
                 if self.mutable {
@@ -174,42 +178,34 @@ impl FFiFieldIndirection<'_> {
 impl FFIField<'_> {
     #[must_use]
     pub fn wrapped_type(&self, use_vec: bool) -> TokenStream {
-        let mut ty = quote!((@ self.ty.ident()));
-
-        for indirection in self.meta.iter().rev() {
-            ty = indirection.wrap_type_safe(ty, use_vec);
-        }
-
-        ty
+        self.meta
+            .iter()
+            .rev()
+            .fold(quote!((@ self.ty.ident())), |ty, indirection| {
+                indirection.wrap_type_safe(ty, use_vec)
+            })
     }
-
     #[must_use]
     pub fn raw_type(&self) -> TokenStream {
-        let mut ty = quote!((@ self.ty.ident()));
-
-        for indirection in self.meta.iter().rev() {
-            ty = indirection.wrap_type_raw(ty);
-        }
-
-        ty
+        self.meta
+            .iter()
+            .rev()
+            .fold(quote!((@ self.ty.ident())), |ty, indirection| {
+                indirection.wrap_type_raw(ty)
+            })
     }
-
     #[must_use]
-    pub fn unwrap_expr_safe(&self, mut expr: TokenStream) -> TokenStream {
-        for indirection in self.meta.iter().rev() {
-            expr = indirection.unwrap_expr_safe(expr);
-        }
-
-        expr
+    pub fn map_safe_expr_to_raw(&self, expr: TokenStream) -> TokenStream {
+        self.meta.iter().rev().fold(expr, |expr, indirection| {
+            indirection.map_safe_expr_to_raw(expr)
+        })
     }
-
     #[must_use]
-    pub fn wrap_expr_safe(&self, mut expr: TokenStream) -> TokenStream {
-        for indirection in self.meta.iter().rev() {
-            expr = indirection.wrap_expr_safe(expr);
-        }
-
-        expr
+    pub fn wrap_expr_safe(&self, expr: TokenStream) -> TokenStream {
+        self.meta
+            .iter()
+            .rev()
+            .fold(expr, |expr, indirection| indirection.wrap_expr_safe(expr))
     }
 
     #[must_use]
@@ -261,7 +257,7 @@ impl FFIFuncGen<'_, '_> {
             .func_def
             .params
             .iter()
-            .map(|arg| quote! {(@ arg.unwrap_expr_safe(quote! {(@ Ident::new(arg.name))})),})
+            .map(|arg| quote! {(@ arg.map_safe_expr_to_raw(quote! {(@ Ident::new(arg.name))})),})
             .collect::<TokenStream>();
 
         quote! {
@@ -286,8 +282,14 @@ impl FFIFuncGen<'_, '_> {
         let mut vec_fields = Vec::new();
 
         for param in self.len_field_params() {
-            let IndirectionLen::Field(field) = param.meta[0].len else {
-                unreachable!()
+            let i = param
+                .meta
+                .iter()
+                .position(|meta| matches!(meta.len, IndirectionLen::Field(_)))
+                .unwrap();
+
+            let IndirectionLen::Field(field) = param.meta[i].len else {
+                unreachable!("We already filtered for parameters with length fields");
             };
 
             len_fields.push(field);
@@ -311,7 +313,7 @@ impl FFIFuncGen<'_, '_> {
 
             match len_field.meta.first() {
                 Some(FFiFieldIndirection { optional, .. })
-                    if *optional != param.meta[0].optional =>
+                    if *optional != param.meta[i].optional =>
                 {
                     panic!(
                         "Length field '{}' for parameter '{}' has different optionality than the parameter",
@@ -362,6 +364,8 @@ impl FFIFuncGen<'_, '_> {
                         quote! {}
                     };
 
+                    todo!();
+
                     body.extend(quote! {
                         let mut (@ raw_len_field) = 0;
                         let mut (@ len_field_ident.clone()) = (@ wrapped_len_field);
@@ -369,7 +373,7 @@ impl FFIFuncGen<'_, '_> {
                         (@ condition) {
                             (@ self.unwrapped_raw_fn_expr(raw_fn_expr.clone()));
 
-                            unsafe {(@ param_ident)(@ unwrap.clone()).set_len(**(@ len_field_ident)(@ unwrap) as usize);}
+                            unsafe {(@ param_ident)(@ unwrap.clone()).set_len(*(@ len_field_ident)(@ unwrap) as usize);} /// *(@ ...)(@ len_)....
                         }
                     });
                 }
@@ -476,11 +480,18 @@ mod tests {
                 FFIField {
                     name: "test1",
                     ty: FFIValueType::Void,
-                    meta: vec![FFiFieldIndirection {
-                        mutable: true,
-                        optional: true,
-                        len: IndirectionLen::Field("test2"),
-                    }],
+                    meta: vec![
+                        FFiFieldIndirection {
+                            mutable: true,
+                            optional: true,
+                            len: IndirectionLen::Field("test2"),
+                        },
+                        FFiFieldIndirection {
+                            mutable: true,
+                            optional: false,
+                            len: IndirectionLen::Fixed(255),
+                        },
+                    ],
                 },
                 FFIField {
                     name: "test2",

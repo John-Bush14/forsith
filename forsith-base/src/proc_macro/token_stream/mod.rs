@@ -1,11 +1,14 @@
+use crate::{
+    alloc::{
+        string::{String, ToString},
+        vec::Vec,
+    },
+    proc_macro::token_stream::{group::Group, ident::Ident, literal::Literal, punct::Punct},
+};
 use core::{
     fmt::Display,
     ops::{Index, IndexMut},
 };
-use crate::{alloc::{
-    string::{String, ToString},
-    vec::Vec,
-}, proc_macro::token_stream::{group::Group, ident::Ident, literal::Literal, punct::Punct}};
 
 #[cfg(feature = "in_proc_macro")]
 extern crate proc_macro;
@@ -59,7 +62,7 @@ impl TokenStream {
         {
             use std::{
                 io::{Read, Write},
-                   process,
+                process,
             };
 
             let mut output = String::new();
@@ -67,7 +70,8 @@ impl TokenStream {
             let proc = process::Command::new("rustfmt")
                 .stdin(process::Stdio::piped())
                 .stdout(process::Stdio::piped())
-                .spawn().ok()?;
+                .spawn()
+                .ok()?;
 
             let mut stdin = proc.stdin?;
             let mut stdout = proc.stdout?;
@@ -84,8 +88,6 @@ impl TokenStream {
         #[cfg(not(feature = "std"))]
         None
     }
-
-
 }
 
 impl Index<usize> for TokenStream {

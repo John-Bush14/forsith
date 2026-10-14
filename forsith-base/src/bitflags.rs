@@ -1,6 +1,6 @@
+use crate::alloc::vec::Vec;
 use crate::bitvec::BitArray;
 use core::marker::PhantomData;
-use crate::alloc::vec::Vec;
 
 #[repr(transparent)]
 #[derive(Debug, Clone, Default)]

@@ -1,7 +1,7 @@
 #[cfg(feature = "in_proc_macro")]
 extern crate proc_macro;
-use alloc::ffi::CString;
 use crate::proc_macro::{TokenStream, TokenTree};
+use alloc::ffi::CString;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Literal {
