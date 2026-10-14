@@ -109,10 +109,10 @@ impl From<proc_macro::Literal> for Literal {
         let s = l.to_string();
         let no_underscore = s.chars().filter(|&c| c != '_').collect::<String>();
         #[allow(clippy::option_if_let_else)]
-        if let Ok(c) = s.parse::<char>() {
-            Self::Char(c)
-        } else if let Ok(i) = no_underscore.parse::<usize>() {
+        if let Ok(i) = no_underscore.parse::<usize>() {
             Self::Integer(i, None)
+        } else if let Ok(c) = s.parse::<char>() {
+            Self::Char(c)
         } else if &s[..2] == "0x" && let Ok(i) = usize::from_str_radix(&no_underscore[2..], 16) {
             Self::Integer(i, None)
         } else if let Ok(f) = no_underscore.parse::<f64>() {
