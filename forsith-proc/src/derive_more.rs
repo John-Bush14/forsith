@@ -1,14 +1,11 @@
 use forsith_base::{
-    casing::{Casing, change_casing},
-    proc_macro::{
-        Ident, Literal, TokenStream, TokenTree,
-        items::{
+    casing::{Casing, change_casing}, proc_macro::{
+        Ident, Literal, PunctChar, TokenStream, TokenTree, items::{
             EnumDefinition, EnumVariant, ItemDefinition, StructDefinition, StructField,
             generating::impl_item,
             parsing::{DeriveInput, parse_derive_input},
         },
-    },
-    quote,
+    }, quote,
 };
 
 pub fn derive_is_variant(input: TokenStream) -> TokenStream {
@@ -19,11 +16,24 @@ pub fn derive_is_variant(input: TokenStream) -> TokenStream {
     let is_variant_functions = enum_def.variants.iter().map(|variant| {
         let func_name = Ident::new(&format!("is_{}", change_casing(&variant.ident.to_string(), Casing::Snake)));
 
+        let tuple = variant.fields.as_ref().map_or_else(
+            TokenStream::new,
+            |fields| {
+                let mut count = fields.stream().iter().filter(|tt| matches!(tt, TokenTree::Punct(p) if p.char() == PunctChar::Comma)).count() + 1;
+
+                if let Some(TokenTree::Punct(punct)) = fields.stream().last() && punct.char() == PunctChar::Comma {
+                    count -= 1;
+                }
+
+                quote!(((@ (0..count).map(|_| quote!(_,)).collect::<TokenStream>())))
+            }
+        );
+
         quote!(
             #[doc = concat!("Returns `true` if the enum is the variant `", stringify!(#variant_ident), "`.")]
             #[inline]
             pub fn (@ func_name)(self) -> bool {
-                matches!(self, Self::(@ variant.ident.clone()))
+                matches!(self, Self::(@ variant.ident.clone())(@ tuple))
             }
         )
     }).collect();
@@ -99,7 +109,7 @@ pub fn generate_into_discriminant_match_arms(
             if result {
                 discriminant = quote!(Ok((@ discriminant)));
             }
-            quote!(Self::(@ variant.ident.clone()) => (@ discriminant))
+            quote!(Self::(@ variant.ident.clone()) => (@ discriminant),)
         })
         .collect::<TokenStream>()
 }
@@ -116,7 +126,7 @@ pub fn generate_from_discriminant_match_arms(
             if result {
                 variant = quote!(Ok((@ variant)));
             }
-            quote!((@ discriminant) => Self::(@ variant))
+            quote!((@ discriminant) => (@ variant),)
         })
         .collect::<TokenStream>()
 }
