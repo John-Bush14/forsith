@@ -69,6 +69,22 @@ pub fn singular_struct_field_derive(
     derive(&struct_def, field)
 }
 
+pub fn derive_deref(input: TokenStream) -> TokenStream {
+    singular_struct_field_derive(input, "deref", |struct_def, deref_field| {
+        impl_item(
+            struct_def,
+            Some(quote!(std::ops::Deref)),
+            quote!(
+                type Target = (@ deref_field.ty.clone());
+
+                fn deref(&self) -> &Self::Target {
+                    &self.(@ deref_field.name.clone())
+                }
+            ),
+        )
+    })
+}
+
 pub fn derive_deref_mut(input: TokenStream) -> TokenStream {
     singular_struct_field_derive(input, "deref_mut", |struct_def, deref_field| {
         impl_item(
@@ -83,16 +99,30 @@ pub fn derive_deref_mut(input: TokenStream) -> TokenStream {
     })
 }
 
-pub fn derive_deref(input: TokenStream) -> TokenStream {
-    singular_struct_field_derive(input, "deref", |struct_def, deref_field| {
+pub fn derive_index(input: TokenStream) -> TokenStream {
+    singular_struct_field_derive(input, "index", |struct_def, index_field| {
         impl_item(
             struct_def,
-            Some(quote!(std::ops::Deref)),
+            Some(quote!(std::ops::Index<usize>)),
             quote!(
-                type Target = (@ deref_field.ty.clone());
+                type Output = (@ index_field.ty.clone());
 
-                fn deref(&self) -> &Self::Target {
-                    &self.(@ deref_field.name.clone())
+                fn index(&self, index: usize) -> &Self::Output {
+                    &self.(@ index_field.name.clone())[index]
+                }
+            ),
+        )
+    })
+}
+
+pub fn derive_index_mut(input: TokenStream) -> TokenStream {
+    singular_struct_field_derive(input, "index_mut", |struct_def, index_field| {
+        impl_item(
+            struct_def,
+            Some(quote!(std::ops::IndexMut<usize>)),
+            quote!(
+                fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+                    &mut self.(@ index_field.name.clone())[index]
                 }
             ),
         )

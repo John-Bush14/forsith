@@ -22,6 +22,16 @@ pub fn derive_deref_mut(input: TokenStream) -> TokenStream {
     derive_more::derive_deref_mut(input.into()).into()
 }
 
+#[proc_macro_derive(Index, attributes(index))]
+pub fn derive_index(input: TokenStream) -> TokenStream {
+    derive_more::derive_index(input.into()).into()
+}
+
+#[proc_macro_derive(IndexMut, attributes(index_mut))]
+pub fn derive_index_mut(input: TokenStream) -> TokenStream {
+    derive_more::derive_index_mut(input.into()).into()
+}
+
 #[proc_macro]
 pub fn paste(input: TokenStream) -> TokenStream {
     paste::paste(input.into()).into()
