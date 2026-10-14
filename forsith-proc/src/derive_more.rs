@@ -1,14 +1,9 @@
 use forsith_base::{
-    casing::{Casing, change_casing},
-    proc_macro::{
-        Ident, TokenStream,
-        items::{
-            StructField,
-            generating::impl_item,
-            parsing::{DeriveInput, parse_derive_input},
+    casing::{Casing, change_casing}, proc_macro::{
+        Ident, TokenStream, items::{
+            StructDefinition, StructField, generating::impl_item, parsing::{DeriveInput, parse_derive_input},
         },
-    },
-    quote,
+    }, quote,
 };
 
 pub fn derive_is_variant(input: TokenStream) -> TokenStream {
@@ -58,44 +53,48 @@ pub fn choose_singular_struct_field<'a>(
     })
 }
 
-pub fn derive_deref_mut(input: TokenStream) -> TokenStream {
+pub fn singular_struct_field_derive(
+    input: TokenStream,
+    attribute: &'static str,
+    derive: fn(&StructDefinition, &StructField) -> TokenStream,
+) -> TokenStream {
     let mut input = input.into_iter().peekable();
 
     let DeriveInput::Struct(struct_def) = parse_derive_input(&mut input) else {
-        panic!("DerefMut can only be derived for structs");
+        panic!("{attribute} can only be derived for structs");
     };
 
-    let deref_field = choose_singular_struct_field(&struct_def.fields, "deref_mut");
+    let field = choose_singular_struct_field(&struct_def.fields, attribute);
 
-    impl_item(
-        &struct_def,
-        Some(quote!(std::ops::DerefMut)),
-        quote!(
-            fn deref_mut(&mut self) -> &mut Self::Target {
-               &mut self.(@ deref_field.name.clone())
-            }
-        ),
-    )
+    derive(&struct_def, field)
+}
+
+pub fn derive_deref_mut(input: TokenStream) -> TokenStream {
+    singular_struct_field_derive(input, "deref_mut", |struct_def, deref_field| {
+        impl_item(
+            struct_def,
+            Some(quote!(std::ops::DerefMut)),
+            quote!(
+                fn deref_mut(&mut self) -> &mut Self::Target {
+                    &mut self.(@ deref_field.name.clone())
+                }
+            ),
+        )
+    })
 }
 
 pub fn derive_deref(input: TokenStream) -> TokenStream {
-    let mut input = input.into_iter().peekable();
+    singular_struct_field_derive(input, "deref", |struct_def, deref_field| {
+        impl_item(
+            struct_def,
+            Some(quote!(std::ops::Deref)),
+            quote!(
+                type Target = (@ deref_field.ty.clone());
 
-    let DeriveInput::Struct(struct_def) = parse_derive_input(&mut input) else {
-        panic!("Deref can only be derived for structs");
-    };
-
-    let deref_field = choose_singular_struct_field(&struct_def.fields, "deref");
-
-    impl_item(
-        &struct_def,
-        Some(quote!(std::ops::Deref)),
-        quote!(
-            type Target = (@ deref_field.ty.clone());
-
-            fn deref(&self) -> &Self::Target {
-               &self.(@ deref_field.name.clone())
-            }
-        ),
-    )
+                fn deref(&self) -> &Self::Target {
+                    &self.(@ deref_field.name.clone())
+                }
+            ),
+        )
+    })
 }
