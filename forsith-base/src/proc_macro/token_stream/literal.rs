@@ -107,12 +107,13 @@ impl From<proc_macro::Literal> for Literal {
         }
 
         let s = l.to_string();
+        let no_underscore = s.chars().filter(|&c| c != '_').collect::<String>();
         #[allow(clippy::option_if_let_else)]
         if let Ok(c) = s.parse::<char>() {
             Self::Char(c)
-        } else if let Ok(i) = l.to_string().parse::<usize>() {
+        } else if let Ok(i) = no_underscore.parse::<usize>() {
             Self::Integer(i, None)
-        } else if let Ok(f) = l.to_string().parse::<f64>() {
+        } else if let Ok(f) = no_underscore.parse::<f64>() {
             Self::Float(f, None)
         } else if s.starts_with('"') && s.ends_with('"') {
             Self::Str(s[1..s.len() - 1].to_string())
