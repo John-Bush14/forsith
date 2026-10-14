@@ -32,6 +32,16 @@ pub fn derive_index_mut(input: TokenStream) -> TokenStream {
     derive_more::derive_index_mut(input.into()).into()
 }
 
+#[proc_macro_derive(FromNum)]
+pub fn derive_from(input: TokenStream) -> TokenStream {
+    derive_more::derive_from_num(input.into()).into()
+}
+
+#[proc_macro_derive(TryFromNum)]
+pub fn derive_try_from(input: TokenStream) -> TokenStream {
+    derive_more::derive_try_from_num(input.into()).into()
+}
+
 #[proc_macro]
 pub fn paste(input: TokenStream) -> TokenStream {
     paste::paste(input.into()).into()

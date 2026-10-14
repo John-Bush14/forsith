@@ -1,9 +1,14 @@
 use forsith_base::{
-    casing::{Casing, change_casing}, proc_macro::{
-        Ident, TokenStream, items::{
-            StructDefinition, StructField, generating::impl_item, parsing::{DeriveInput, parse_derive_input},
+    casing::{Casing, change_casing},
+    proc_macro::{
+        Ident, Literal, TokenStream, TokenTree,
+        items::{
+            EnumDefinition, EnumVariant, ItemDefinition, StructDefinition, StructField,
+            generating::impl_item,
+            parsing::{DeriveInput, parse_derive_input},
         },
-    }, quote,
+    },
+    quote,
 };
 
 pub fn derive_is_variant(input: TokenStream) -> TokenStream {
@@ -26,6 +31,146 @@ pub fn derive_is_variant(input: TokenStream) -> TokenStream {
     }).collect();
 
     impl_item(&enum_def, None, is_variant_functions)
+}
+
+pub fn item_repr(item: &impl ItemDefinition) -> Ident {
+    item.attributes()
+        .iter()
+        .find(|attr| attr.name == Ident::new("repr"))
+        .map_or_else(
+            || Ident::new("usize"),
+            |attr| {
+                let args = attr
+                    .args
+                    .as_ref()
+                    .expect("repr attribute must have arguments");
+
+                match args.first() {
+                    Some(TokenTree::Ident(ident)) if ident == &Ident::new("C") => {
+                        panic!("repr(C) is not currently supported")
+                    }
+                    Some(TokenTree::Ident(ident)) => ident.clone(),
+                    _ => panic!("repr attribute must have an identifier argument"),
+                }
+            },
+        )
+}
+
+pub fn enum_integer_discriminants(
+    enum_def: &EnumDefinition,
+) -> (Vec<&EnumVariant>, Option<&EnumVariant>) {
+    let mut wildcard_variant = None;
+
+    (
+        enum_def
+            .variants
+            .iter()
+            .filter(|&variant| {
+                let Some(discriminant) = &variant.discriminant else {
+                    return false;
+                };
+                match discriminant.as_slice() {
+                    [TokenTree::Literal(lit)] => {
+                        assert!(
+                            matches!(lit, Literal::Integer(_, _)),
+                            "Discriminant must be a number literal"
+                        );
+                        true
+                    }
+                    [TokenTree::Ident(ident)] if ident == &Ident::new("_") => {
+                        assert!(
+                            wildcard_variant.is_none(),
+                            "Only one wildcard variant is allowed"
+                        );
+                        wildcard_variant = Some(variant);
+                        false
+                    }
+                    _ => panic!("Discriminant must be a number literal or a wildcard"),
+                }
+            })
+            .collect(),
+        wildcard_variant,
+    )
+}
+
+pub fn assert_enum_unit_variants(enum_def: &EnumDefinition) {
+    assert!(
+        enum_def
+            .variants
+            .iter()
+            .all(|variant| variant.fields.is_none()),
+        "Can only be derived for enums with unit variants"
+    );
+}
+
+pub fn generate_discriminant_match_arms(
+    variants: &[&EnumVariant]
+) -> TokenStream {
+    variants
+        .iter()
+        .map(|variant| {
+            let discriminant = variant.discriminant.clone().unwrap();
+            quote!((@ discriminant) => Self::(@ variant.ident.clone()))
+        })
+        .collect::<TokenStream>()
+}
+
+pub fn derive_from_num(input: TokenStream) -> TokenStream {
+    let mut input = input.into_iter().peekable();
+
+    let DeriveInput::Enum(enum_def) = parse_derive_input(&mut input) else {
+        panic!("FromNum can only be derived for enums");
+    };
+
+    assert_enum_unit_variants(&enum_def);
+    let repr = item_repr(&enum_def);
+    let (variants, Some(wildcard)) = enum_integer_discriminants(&enum_def) else {
+        panic!("FromNum can only be derived for enums with a wildcard variant to be infallibly matched, try using TryFromNum instead");
+    };
+    let match_arms = generate_discriminant_match_arms(&variants);
+
+    impl_item(
+        &enum_def,
+        Some(quote!(std::convert::From<(@ repr.clone())>)),
+        quote!(
+            fn from(value: (@ repr)) -> Self {
+                match value {
+                    (@ match_arms)
+                    _ => Self::(@ wildcard.ident.clone())
+                }
+            }
+        ),
+    )
+}
+
+pub fn derive_try_from_num(input: TokenStream) -> TokenStream {
+    let mut input = input.into_iter().peekable();
+
+    let DeriveInput::Enum(enum_def) = parse_derive_input(&mut input) else {
+        panic!("TryFromNum can only be derived for enums");
+    };
+
+    assert_enum_unit_variants(&enum_def);
+    let repr = item_repr(&enum_def);
+    let (variants, None) = enum_integer_discriminants(&enum_def) else {
+        panic!("TryFromNum can only be derived for enums without a wildcard variant to be fallible, try using FromNum instead");
+    };
+    let match_arms = generate_discriminant_match_arms(&variants);
+
+    impl_item(
+        &enum_def,
+        Some(quote!(std::convert::TryFrom<(@ repr.clone())>)),
+        quote!(
+            type Error = ();
+
+            fn try_from(value: (@ repr)) -> Result<Self, Self::Error> {
+                match value {
+                    (@ match_arms)
+                    _ => Err(()),
+                }
+            }
+        ),
+    )
 }
 
 pub fn choose_singular_struct_field<'a>(

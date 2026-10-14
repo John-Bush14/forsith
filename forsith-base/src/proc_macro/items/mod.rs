@@ -57,6 +57,7 @@ pub struct Attribute {
 pub trait ItemDefinition {
     fn name(&self) -> &Ident;
     fn generics(&self) -> &GenericsDefinition;
+    fn attributes(&self) -> &[Attribute];
 }
 
 #[derive(Debug, Clone, Default)]
@@ -84,6 +85,9 @@ impl ItemDefinition for StructDefinition {
     fn generics(&self) -> &GenericsDefinition {
         &self.generics
     }
+    fn attributes(&self) -> &[Attribute] {
+        &self.attributes
+    }
 }
 
 pub struct EnumVariant {
@@ -108,6 +112,9 @@ impl ItemDefinition for EnumDefinition {
     fn generics(&self) -> &GenericsDefinition {
         &self.generics
     }
+    fn attributes(&self) -> &[Attribute] {
+        &self.attributes
+    }
 }
 
 pub struct TypeAliasDefinition {
@@ -124,6 +131,9 @@ impl ItemDefinition for TypeAliasDefinition {
     }
     fn generics(&self) -> &GenericsDefinition {
         &self.generics
+    }
+    fn attributes(&self) -> &[Attribute] {
+        &self.attributes
     }
 }
 
@@ -159,5 +169,8 @@ impl ItemDefinition for FunctionDefinition {
     }
     fn generics(&self) -> &GenericsDefinition {
         &self.generics
+    }
+    fn attributes(&self) -> &[Attribute] {
+        &self.attributes
     }
 }

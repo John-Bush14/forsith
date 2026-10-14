@@ -1,5 +1,7 @@
 #[cfg(feature = "in_proc_macro")]
 extern crate proc_macro;
+use core::ops::{Deref, DerefMut};
+
 use crate::proc_macro::{TokenStream, TokenTree};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -24,6 +26,20 @@ impl From<Group> for proc_macro::Group {
         let mut group = Self::new(g.delimiter().into(), g.stream.into());
         group.set_span(proc_macro::Span::call_site());
         group
+    }
+}
+
+impl Deref for Group {
+    type Target = TokenStream;
+
+    fn deref(&self) -> &Self::Target {
+        &self.stream
+    }
+}
+
+impl DerefMut for Group {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.stream
     }
 }
 

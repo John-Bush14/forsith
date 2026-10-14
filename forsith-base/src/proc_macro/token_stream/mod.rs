@@ -6,8 +6,7 @@ use crate::{
     proc_macro::token_stream::{group::Group, ident::Ident, literal::Literal, punct::Punct},
 };
 use core::{
-    fmt::Display,
-    ops::{Index, IndexMut},
+    fmt::Display, ops::{Deref, DerefMut},
 };
 
 #[cfg(feature = "in_proc_macro")]
@@ -57,6 +56,11 @@ impl TokenStream {
         Self::format_code(&raw_code).unwrap_or(raw_code)
     }
 
+    #[must_use]
+    pub fn as_slice(&self) -> &[TokenTree] {
+        &self.0
+    }
+
     fn format_code(raw_code: &str) -> Option<String> {
         #[cfg(feature = "std")]
         {
@@ -90,17 +94,17 @@ impl TokenStream {
     }
 }
 
-impl Index<usize> for TokenStream {
-    type Output = TokenTree;
+impl Deref for TokenStream {
+    type Target = [TokenTree];
 
-    fn index(&self, index: usize) -> &Self::Output {
-        &self.0[index]
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 
-impl IndexMut<usize> for TokenStream {
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        &mut self.0[index]
+impl DerefMut for TokenStream {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
 
