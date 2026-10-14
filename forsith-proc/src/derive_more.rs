@@ -316,7 +316,7 @@ pub fn derive_index(input: TokenStream) -> TokenStream {
             struct_def,
             Some(quote!(std::ops::Index<usize>)),
             quote!(
-                type Output = (@ index_field.ty.clone());
+                type Output = <(@ index_field.ty.clone()) as std::ops::Index<usize>>::Output;
 
                 fn index(&self, index: usize) -> &Self::Output {
                     &self.(@ index_field.name.clone())[index]
