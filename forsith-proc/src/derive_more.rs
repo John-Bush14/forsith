@@ -12,9 +12,7 @@ use forsith_base::{
 };
 
 pub fn derive_is_variant(input: TokenStream) -> TokenStream {
-    let mut input = input.into_iter().peekable();
-
-    let DeriveInput::Enum(enum_def) = parse_derive_input(&mut input) else {
+    let DeriveInput::Enum(enum_def) = parse_derive_input(input) else {
         panic!("IsVariant can only be derived for enums");
     };
 
@@ -103,22 +101,95 @@ pub fn assert_enum_unit_variants(enum_def: &EnumDefinition) {
     );
 }
 
-pub fn generate_discriminant_match_arms(
-    variants: &[&EnumVariant]
+pub fn generate_into_discriminant_match_arms(
+    variants: &[&EnumVariant],
+    result: bool
+) -> TokenStream {
+    variants
+        .iter()
+        .map(|variant| {
+            let mut discriminant = variant.discriminant.clone().unwrap();
+            if result {
+                discriminant = quote!(Ok((@ discriminant)));
+            }
+            quote!(Self::(@ variant.ident.clone()) => (@ discriminant))
+        })
+        .collect::<TokenStream>()
+}
+
+pub fn generate_from_discriminant_match_arms(
+    variants: &[&EnumVariant],
+    result: bool
 ) -> TokenStream {
     variants
         .iter()
         .map(|variant| {
             let discriminant = variant.discriminant.clone().unwrap();
-            quote!((@ discriminant) => Self::(@ variant.ident.clone()))
+            let mut variant = quote!(Self::(@ variant.ident.clone()));
+            if result {
+                variant = quote!(Ok((@ variant)));
+            }
+            quote!((@ discriminant) => Self::(@ variant))
         })
         .collect::<TokenStream>()
 }
 
-pub fn derive_from_num(input: TokenStream) -> TokenStream {
-    let mut input = input.into_iter().peekable();
+pub fn derive_into_num(input: TokenStream) -> TokenStream {
+    let DeriveInput::Enum(enum_def) = parse_derive_input(input) else {
+        panic!("IntoEnum can only be derived for enums");
+    };
 
-    let DeriveInput::Enum(enum_def) = parse_derive_input(&mut input) else {
+    assert_enum_unit_variants(&enum_def);
+    let repr = item_repr(&enum_def);
+    let (variants, _) = enum_integer_discriminants(&enum_def);
+    let match_arms = generate_into_discriminant_match_arms(&variants, false);
+
+    assert!(
+        variants.len() == enum_def.variants.len(),
+        "IntoNum can only be derived for enums with all variants having a discriminant"
+    );
+
+    impl_item(
+        &enum_def,
+        Some(quote!(std::convert::Into<(@ repr.clone())>)),
+        quote!(
+            fn into(self) -> (@ repr) {
+                match self {
+                    (@ match_arms)
+                }
+            }
+        ),
+    )
+}
+
+pub fn derive_try_into_num(input: TokenStream) -> TokenStream {
+    let DeriveInput::Enum(enum_def) = parse_derive_input(input) else {
+        panic!("TryIntoNum can only be derived for enums");
+    };
+
+    assert_enum_unit_variants(&enum_def);
+    let repr = item_repr(&enum_def);
+    let (variants, _) = enum_integer_discriminants(&enum_def);
+    let match_arms = generate_into_discriminant_match_arms(&variants, true);
+
+    impl_item(
+        &enum_def,
+        Some(quote!(std::convert::TryInto<(@ repr.clone())>)),
+        quote!(
+            type Error = ();
+
+            fn try_into(self) -> Result<(@ repr), Self::Error> {
+                match self {
+                    (@ match_arms)
+                    _ => Err(()),
+                }
+            }
+        ),
+    )
+}
+
+pub fn derive_from_num(input: TokenStream) -> TokenStream {
+    let DeriveInput::Enum(enum_def) = parse_derive_input(input) else {
         panic!("FromNum can only be derived for enums");
     };
 
@@ -127,7 +198,7 @@ pub fn derive_from_num(input: TokenStream) -> TokenStream {
     let (variants, Some(wildcard)) = enum_integer_discriminants(&enum_def) else {
         panic!("FromNum can only be derived for enums with a wildcard variant to be infallibly matched, try using TryFromNum instead");
     };
-    let match_arms = generate_discriminant_match_arms(&variants);
+    let match_arms = generate_from_discriminant_match_arms(&variants, false);
 
     impl_item(
         &enum_def,
@@ -144,9 +215,7 @@ pub fn derive_from_num(input: TokenStream) -> TokenStream {
 }
 
 pub fn derive_try_from_num(input: TokenStream) -> TokenStream {
-    let mut input = input.into_iter().peekable();
-
-    let DeriveInput::Enum(enum_def) = parse_derive_input(&mut input) else {
+    let DeriveInput::Enum(enum_def) = parse_derive_input(input) else {
         panic!("TryFromNum can only be derived for enums");
     };
 
@@ -155,7 +224,7 @@ pub fn derive_try_from_num(input: TokenStream) -> TokenStream {
     let (variants, None) = enum_integer_discriminants(&enum_def) else {
         panic!("TryFromNum can only be derived for enums without a wildcard variant to be fallible, try using FromNum instead");
     };
-    let match_arms = generate_discriminant_match_arms(&variants);
+    let match_arms = generate_from_discriminant_match_arms(&variants, true);
 
     impl_item(
         &enum_def,
@@ -203,9 +272,7 @@ pub fn singular_struct_field_derive(
     attribute: &'static str,
     derive: fn(&StructDefinition, &StructField) -> TokenStream,
 ) -> TokenStream {
-    let mut input = input.into_iter().peekable();
-
-    let DeriveInput::Struct(struct_def) = parse_derive_input(&mut input) else {
+    let DeriveInput::Struct(struct_def) = parse_derive_input(input) else {
         panic!("{attribute} can only be derived for structs");
     };
 

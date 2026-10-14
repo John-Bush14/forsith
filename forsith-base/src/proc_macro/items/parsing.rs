@@ -411,7 +411,9 @@ pub enum DeriveInput {
     Enum(EnumDefinition),
 }
 
-pub fn parse_derive_input(input: &mut Peekable<impl Iterator<Item = TokenTree>>) -> DeriveInput {
+pub fn parse_derive_input(input: TokenStream) -> DeriveInput {
+    let input = &mut input.into_iter().peekable();
+
     let item_prefix = ItemPrefix::parse(input);
 
     match item_prefix.item_type {
