@@ -32,7 +32,7 @@ pub fn derive_is_variant(input: TokenStream) -> TokenStream {
         quote!(
             #[doc = concat!("Returns `true` if the enum is the variant `", stringify!(#variant_ident), "`.")]
             #[inline]
-            pub fn (@ func_name)(self) -> bool {
+            pub const fn (@ func_name)(self) -> bool {
                 matches!(self, Self::(@ variant.ident.clone())(@ tuple))
             }
         )
