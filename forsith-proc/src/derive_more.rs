@@ -346,10 +346,13 @@ pub fn derive_not(input: TokenStream) -> TokenStream {
             struct_def,
             Some(quote!(std::ops::Not)),
             quote!(
-                type Output = (@ not_field.ty.clone());
+                type Output = Self;
 
                 fn not(self) -> Self::Output {
-                    !self.(@ not_field.name.clone())
+                    Self {
+                        (@ not_field.name.clone()): !self.(@ not_field.name.clone()),
+                        ..self
+                    }
                 }
             ),
         )
