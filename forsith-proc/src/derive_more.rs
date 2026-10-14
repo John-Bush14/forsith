@@ -54,41 +54,28 @@ pub fn item_repr(item: &impl ItemDefinition) -> Ident {
         )
 }
 
-pub fn enum_integer_discriminants(
+pub fn enum_integer_discriminant_variants(
     enum_def: &EnumDefinition,
-) -> (Vec<&EnumVariant>, Option<&EnumVariant>) {
-    let mut wildcard_variant = None;
-
-    (
-        enum_def
-            .variants
-            .iter()
-            .filter(|&variant| {
-                let Some(discriminant) = &variant.discriminant else {
-                    return false;
-                };
-                match discriminant.as_slice() {
-                    [TokenTree::Literal(lit)] => {
-                        assert!(
-                            matches!(lit, Literal::Integer(_, _)),
-                            "Discriminant must be a number literal"
-                        );
-                        true
-                    }
-                    [TokenTree::Ident(ident)] if ident == &Ident::new("_") => {
-                        assert!(
-                            wildcard_variant.is_none(),
-                            "Only one wildcard variant is allowed"
-                        );
-                        wildcard_variant = Some(variant);
-                        false
-                    }
-                    _ => panic!("Discriminant must be a number literal or a wildcard"),
+) -> Vec<&EnumVariant> {
+    enum_def
+        .variants
+        .iter()
+        .filter(|&variant| {
+            let Some(discriminant) = &variant.discriminant else {
+                return false;
+            };
+            match discriminant.as_slice() {
+                [TokenTree::Literal(lit)] => {
+                    assert!(
+                        matches!(lit, Literal::Integer(_, _)),
+                        "Discriminant must be a number literal"
+                    );
+                    true
                 }
-            })
-            .collect(),
-        wildcard_variant,
-    )
+                _ => panic!("Discriminant must be a number literal"),
+            }
+        })
+        .collect()
 }
 
 pub fn assert_enum_unit_variants(enum_def: &EnumDefinition) {
@@ -141,7 +128,7 @@ pub fn derive_into_num(input: TokenStream) -> TokenStream {
 
     assert_enum_unit_variants(&enum_def);
     let repr = item_repr(&enum_def);
-    let (variants, _) = enum_integer_discriminants(&enum_def);
+    let variants = enum_integer_discriminant_variants(&enum_def);
     let match_arms = generate_into_discriminant_match_arms(&variants, false);
 
     assert!(
@@ -169,7 +156,7 @@ pub fn derive_try_into_num(input: TokenStream) -> TokenStream {
 
     assert_enum_unit_variants(&enum_def);
     let repr = item_repr(&enum_def);
-    let (variants, _) = enum_integer_discriminants(&enum_def);
+    let variants = enum_integer_discriminant_variants(&enum_def);
     let match_arms = generate_into_discriminant_match_arms(&variants, true);
 
     impl_item(
@@ -195,10 +182,14 @@ pub fn derive_from_num(input: TokenStream) -> TokenStream {
 
     assert_enum_unit_variants(&enum_def);
     let repr = item_repr(&enum_def);
-    let (variants, Some(wildcard)) = enum_integer_discriminants(&enum_def) else {
-        panic!("FromNum can only be derived for enums with a wildcard variant to be infallibly matched, try using TryFromNum instead");
-    };
+    let variants = enum_integer_discriminant_variants(&enum_def);
     let match_arms = generate_from_discriminant_match_arms(&variants, false);
+
+    let wildcard = enum_def
+        .variants
+        .iter()
+        .find(|variant| variant.attributes.iter().any(|attr| attr.name == Ident::new("default")))
+        .expect("FromNum can only be derived for enums with a wildcard variant, please use TryFromNum instead");
 
     impl_item(
         &enum_def,
@@ -221,10 +212,13 @@ pub fn derive_try_from_num(input: TokenStream) -> TokenStream {
 
     assert_enum_unit_variants(&enum_def);
     let repr = item_repr(&enum_def);
-    let (variants, None) = enum_integer_discriminants(&enum_def) else {
-        panic!("TryFromNum can only be derived for enums without a wildcard variant to be fallible, try using FromNum instead");
-    };
+    let variants = enum_integer_discriminant_variants(&enum_def);
     let match_arms = generate_from_discriminant_match_arms(&variants, true);
+
+    assert!(
+        !variants.iter().any(|variant| variant.attributes.iter().any(|attr| attr.name == Ident::new("default"))),
+        "TryFromNum cannot be derived for enums with a wildcard variant, please use FromNum instead"
+    );
 
     impl_item(
         &enum_def,

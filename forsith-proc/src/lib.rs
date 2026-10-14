@@ -25,7 +25,7 @@ derive_macros! {
     DerefMut #[deref_mut] => derive_more::derive_deref_mut,
     Index #[index] => derive_more::derive_index,
     IndexMut #[index_mut] => derive_more::derive_index_mut,
-    FromNum => derive_more::derive_from_num,
+    FromNum #[default] => derive_more::derive_from_num,
     TryFromNum => derive_more::derive_try_from_num,
     IntoNum => derive_more::derive_into_num,
     TryIntoNum => derive_more::derive_try_into_num,
