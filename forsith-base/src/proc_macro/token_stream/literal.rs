@@ -113,6 +113,8 @@ impl From<proc_macro::Literal> for Literal {
             Self::Char(c)
         } else if let Ok(i) = no_underscore.parse::<usize>() {
             Self::Integer(i, None)
+        } else if &s[..2] == "0x" && let Ok(i) = usize::from_str_radix(&no_underscore[2..], 16) {
+            Self::Integer(i, None)
         } else if let Ok(f) = no_underscore.parse::<f64>() {
             Self::Float(f, None)
         } else if s.starts_with('"') && s.ends_with('"') {
