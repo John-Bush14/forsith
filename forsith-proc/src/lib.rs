@@ -29,6 +29,7 @@ derive_macros! {
     TryFromNum => derive_more::derive_try_from_num,
     IntoNum => derive_more::derive_into_num,
     TryIntoNum => derive_more::derive_try_into_num,
+    Not #[not] => derive_more::derive_not,
 }
 
 #[proc_macro]

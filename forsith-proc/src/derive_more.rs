@@ -334,3 +334,19 @@ pub fn derive_index_mut(input: TokenStream) -> TokenStream {
         )
     })
 }
+
+pub fn derive_not(input: TokenStream) -> TokenStream {
+    singular_struct_field_derive(input, "not", |struct_def, not_field| {
+        impl_item(
+            struct_def,
+            Some(quote!(std::ops::Not)),
+            quote!(
+                type Output = (@ not_field.ty.clone());
+
+                fn not(self) -> Self::Output {
+                    !self.(@ not_field.name.clone())
+                }
+            ),
+        )
+    })
+}
