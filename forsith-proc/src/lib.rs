@@ -7,39 +7,26 @@ mod derive_more;
 
 mod paste;
 
-#[proc_macro_derive(IsVariant)]
-pub fn derive_is_variant(input: TokenStream) -> TokenStream {
-    derive_more::derive_is_variant(input.into()).into()
+macro_rules! derive_macros {
+    ($($name:ident $(#[$($att:ident),+ $(,)?])? => $func:path ),* $(,)?) => {
+        $(
+            #[allow(non_snake_case)]
+            #[proc_macro_derive($name $(, attributes($($att),+))? )]
+            pub fn $name(input: TokenStream) -> TokenStream {
+                $func(input.into()).into()
+            }
+        )*
+    };
 }
 
-#[proc_macro_derive(Deref, attributes(deref))]
-pub fn derive_deref(input: TokenStream) -> TokenStream {
-    derive_more::derive_deref(input.into()).into()
-}
-
-#[proc_macro_derive(DerefMut, attributes(deref_mut))]
-pub fn derive_deref_mut(input: TokenStream) -> TokenStream {
-    derive_more::derive_deref_mut(input.into()).into()
-}
-
-#[proc_macro_derive(Index, attributes(index))]
-pub fn derive_index(input: TokenStream) -> TokenStream {
-    derive_more::derive_index(input.into()).into()
-}
-
-#[proc_macro_derive(IndexMut, attributes(index_mut))]
-pub fn derive_index_mut(input: TokenStream) -> TokenStream {
-    derive_more::derive_index_mut(input.into()).into()
-}
-
-#[proc_macro_derive(FromNum)]
-pub fn derive_from(input: TokenStream) -> TokenStream {
-    derive_more::derive_from_num(input.into()).into()
-}
-
-#[proc_macro_derive(TryFromNum)]
-pub fn derive_try_from(input: TokenStream) -> TokenStream {
-    derive_more::derive_try_from_num(input.into()).into()
+derive_macros! {
+    IsVariant => derive_more::derive_is_variant,
+    Deref #[deref] => derive_more::derive_deref,
+    DerefMut #[deref_mut] => derive_more::derive_deref_mut,
+    Index #[index] => derive_more::derive_index,
+    IndexMut #[index_mut] => derive_more::derive_index_mut,
+    FromNum => derive_more::derive_from_num,
+    TryFromNum => derive_more::derive_try_from_num,
 }
 
 #[proc_macro]
