@@ -32,7 +32,7 @@ pub fn derive_is_variant(input: TokenStream) -> TokenStream {
         quote!(
             #[doc = concat!("Returns `true` if the enum is the variant `", stringify!(#variant_ident), "`.")]
             #[inline]
-            pub const fn (@ func_name)(self) -> bool {
+            pub const fn (@ func_name)(&self) -> bool {
                 matches!(self, Self::(@ variant.ident.clone())(@ tuple))
             }
         )
@@ -109,7 +109,7 @@ pub fn generate_into_discriminant_match_arms(
             if result {
                 discriminant = quote!(Ok((@ discriminant)));
             }
-            quote!(Self::(@ variant.ident.clone()) => (@ discriminant),)
+            quote!((@ variant.ident.clone()) => (@ discriminant),)
         })
         .collect::<TokenStream>()
 }
@@ -146,17 +146,17 @@ pub fn derive_into_num(input: TokenStream) -> TokenStream {
         "IntoNum can only be derived for enums with all variants having a discriminant"
     );
 
-    impl_item(
-        &enum_def,
-        Some(quote!(std::convert::Into<(@ repr.clone())>)),
-        quote!(
-            fn into(self) -> (@ repr) {
-                match self {
+    let enum_type = quote!((@ enum_def.name.clone())<(@ enum_def.generics.generic_usage(None))>);
+    quote! {
+        impl<(@ enum_def.generics.generic_definitions())> std::convert::From<(@ enum_type.clone())> for (@ repr) {
+            fn from(value: (@ enum_type)) -> Self {
+                use (@ enum_def.name)::*;
+                match value {
                     (@ match_arms)
                 }
             }
-        ),
-    )
+        }
+    }
 }
 
 pub fn derive_try_into_num(input: TokenStream) -> TokenStream {
@@ -169,20 +169,18 @@ pub fn derive_try_into_num(input: TokenStream) -> TokenStream {
     let variants = enum_integer_discriminant_variants(&enum_def);
     let match_arms = generate_into_discriminant_match_arms(&variants, true);
 
-    impl_item(
-        &enum_def,
-        Some(quote!(std::convert::TryInto<(@ repr.clone())>)),
-        quote!(
-            type Error = ();
-
-            fn try_into(self) -> Result<(@ repr), Self::Error> {
-                match self {
+    let enum_type = quote!((@ enum_def.name.clone())<(@ enum_def.generics.generic_usage(None))>);
+    quote! {
+        impl<(@ enum_def.generics.generic_definitions())> std::convert::TryFrom<(@ enum_type.clone())> for (@ repr) {
+            fn try_from(value: (@ enum_type)) -> Self {
+                use (@ enum_def.name)::*;
+                match value {
                     (@ match_arms)
                     _ => Err(()),
                 }
             }
-        ),
-    )
+        }
+    }
 }
 
 pub fn derive_from_num(input: TokenStream) -> TokenStream {

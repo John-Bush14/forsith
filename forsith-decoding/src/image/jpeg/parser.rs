@@ -1,5 +1,5 @@
 use std::{io::Read, ops::Range};
-use derive_more::{Deref, IsVariant};
+use forsith_proc::{Deref, IsVariant};
 use crate::{DecodingError, buffers::CursorVec, image::jpeg::markers::MarkerType, parsing::{SegmentHeader, SegmentParser}};
 
 const BLIND_LEN: usize = 1 << 10;

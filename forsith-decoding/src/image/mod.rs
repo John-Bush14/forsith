@@ -1,8 +1,6 @@
 use crate::{DecodingError, int::Int};
 use std::fmt::Debug;
-use derive_more::IsVariant;
-use num_enum::{IntoPrimitive, TryFromPrimitive};
-pub use png::PngDecoder;
+use forsith_proc::{IntoNum, TryFromNum, IsVariant};
 use std::io::Read;
 
 #[cfg(feature = "png")]
@@ -18,7 +16,7 @@ pub use jpeg::JpegDecoder;
 mod outputconverting;
 
 #[repr(u8)]
-#[derive(TryFromPrimitive, IntoPrimitive, IsVariant)]
+#[derive(TryFromNum, IntoNum, IsVariant)]
 pub enum PixelFormat {
     Native = 0,
     Grayscale = 1,

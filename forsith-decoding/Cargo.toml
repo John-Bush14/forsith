@@ -7,11 +7,12 @@ autotests = false
 [dependencies]
 forsith-shared = { path = "../forsith-shared" }
 forsith-proc = { path = "../forsith-proc" }
+thiserror = "1.0.38"
 
 [features]
 default = [
-    # "png",
-    # "jpeg",
+    "png",
+    "jpeg",
     "xml"
 ]
 image = []

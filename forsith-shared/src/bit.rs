@@ -57,6 +57,7 @@ pub trait BitRead {
     fn peek_bits(&mut self, n: u8) -> u64;
     fn peek_bits_nobranch(&mut self, n: u8) -> u64;
     fn consume_bits(&mut self, n: u8);
+    fn remaining_bits(&self) -> u8;
     fn read_bits(&mut self, n: u8) -> u64 {
         let bits = self.peek_bits(n);
         self.consume_bits(n);
@@ -125,7 +126,7 @@ impl BitBuffer {
     }
 }
 
-#[derive(Debug, Deref, DerefMut)]
+#[derive(Debug, Deref, DerefMut, Default)]
 pub struct BitReader<T: Read + Seek> {
     #[deref]
     #[deref_mut]
@@ -170,6 +171,10 @@ impl<T: Read + Seek> BitRead for BitReader<T> {
         }
 
         self.bit_buf.peek(n)
+    }
+
+    fn remaining_bits(&self) -> u8 {
+        self.bit_buf.bits_remaining()
     }
 
     #[inline(always)]

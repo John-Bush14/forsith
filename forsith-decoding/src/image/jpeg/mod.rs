@@ -6,8 +6,8 @@ pub mod markers;
 mod idct;
 
 mod parser;
-use derive_more::IsVariant;
-use num_enum::{FromPrimitive, TryFromPrimitive};
+use forsith_proc::IsVariant;
+use forsith_proc::{FromNum, TryFromNum};
 use parser::JpegParser;
 
 type HuffmanTree = crate::decompression::HuffmanTree<16, 10,  16_384>;
@@ -25,7 +25,7 @@ pub struct JpegDecoder<'a, C: Channel, const F: u8> {
 }
 
 #[repr(u8)]
-#[derive(Debug, TryFromPrimitive, IsVariant)]
+#[derive(Debug, TryFromNum, IsVariant)]
 enum HuffmanTreeType {
     Dc = 0,
     Ac = 1

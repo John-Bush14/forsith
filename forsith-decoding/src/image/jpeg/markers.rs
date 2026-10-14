@@ -1,8 +1,8 @@
 use std::{io::BufRead, ops::Range, simd::Simd, io::Read};
 
-use derive_more::IsVariant;
+use forsith_proc::IsVariant;
 use crate::{DecodingError, buffers::CursorVec, image::{Channel, JpegDecoder, jpeg::{DecodeOp, HuffmanTreeType, idct::IdctTable, parser::Marker}}, parsing::SegmentHeader};
-use const_for::const_for;
+use forsith_shared::const_for;
 
 const DEZIGZAG_TABLE: [usize; 64] = [
     0, 1, 5, 6,14,15,27,28,

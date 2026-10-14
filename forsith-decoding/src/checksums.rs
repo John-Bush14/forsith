@@ -1,5 +1,5 @@
-use const_for::const_for;
-use derive_more::Not;
+use forsith_shared::const_for;
+use forsith_proc::Not;
 use crate::{DecodingError};
 use crate::SIMD_WIDTH;
 use core::simd::prelude::*;
@@ -10,7 +10,7 @@ const CRC_TABLES: [[u32; 256]; 8] = const {
 
     const_for!(n in 0u32..255+1 => {
         let mut c = n;
-        const_for!(_ in 0..8 => {
+        const_for!(_n in 0..8 => {
             if c & 1 == 1 {
                 c = POLY ^ (c >> 1);
                 continue;

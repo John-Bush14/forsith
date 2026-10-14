@@ -1,11 +1,11 @@
 use std::{any::Any, fmt::Display, io::Read};
 use crate::{DecodingError::{self, InvalidChunk}, buffers::CursorVec, image::{Channel, PngDecoder, png::{ColorType, parser::ChunkHeader, postprocessing::MAX_STRIDE}}};
-use derive_more::{IsVariant, Index};
-use num_enum::{TryFromPrimitive, IntoPrimitive};
+use forsith_proc::{IsVariant, Index};
+use forsith_proc::{TryFromNum, IntoNum};
 
 #[repr(u32)]
 #[allow(non_camel_case_types)]
-#[derive(TryFromPrimitive, IntoPrimitive, Clone, Copy, Debug, PartialEq, Eq, Default, IsVariant)]
+#[derive(TryFromNum, IntoNum, Clone, Copy, Debug, PartialEq, Eq, Default, IsVariant)]
 pub enum ChunkType {
     Ihdr = 0x4948_4452,
     Plte = 0x504C_5445,
@@ -87,7 +87,7 @@ impl ChunkData for ZlibDataStream {
 
         let cmf = reader.read_le::<u8>()?;
         let flg = reader.read_le::<u8>()?;
-        reader.align()?;
+        // reader.align()?;
 
         let compression_method = cmf & 0b0000_1111;
         let compression_info = (cmf & 0b1111_0000) >> 4;

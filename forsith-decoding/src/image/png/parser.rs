@@ -1,5 +1,5 @@
 use std::io::{Read, Seek};
-use derive_more::Deref;
+use forsith_proc::Deref;
 
 use crate::{DecodingError, buffers::CursorVec, image::png::{ChunkType::{self}, checksums::CRC32}, parsing::{SegmentHeader, SegmentParser}};
 
@@ -71,15 +71,15 @@ impl<R: Read> SegmentParser<R> for ChunkParser<R> {
 pub struct ChunkHeader {
     len: usize,
     #[deref]
-    r#type: ChunkType,
+    ty: ChunkType,
     pub crc: CRC32,
 }
 impl ChunkHeader {
-    pub fn new(len: usize, r#type: ChunkType) -> Self {Self {len, r#type, crc: CRC32::default()}}
+    pub fn new(len: usize, ty: ChunkType) -> Self {Self {len, ty, crc: CRC32::default()}}
 
     pub const fn len(&self) -> usize {self.len}
 
-    pub const fn r#type(&self) -> ChunkType {self.r#type}
+    pub const fn r#type(&self) -> ChunkType {self.ty}
 }
 impl SegmentHeader for ChunkHeader {
     const MAX_SIZE: usize = 8;
@@ -100,7 +100,7 @@ impl SegmentHeader for ChunkHeader {
             ChunkType::UnkownAncillerary
         };
 
-        Ok(Self {len, r#type, crc})
+        Ok(Self {len, ty: r#type, crc})
     }
 
     fn is_final(&self) -> bool {self.is_iend()}

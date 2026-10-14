@@ -1,7 +1,7 @@
 use std::io::Read;
 use crate::{DecodingError, parsing::SegmentParser, bit::BitReader, buffers::{ CursorVec}, image::{Channel, ImageDecoder, PixelFormat, bitspp, outputconverting::OutputWriter, png::{checksums::Adler32, chunks::{ColorPalette, Ihdr, ZlibDataStream, tRNS}, deflate::{BlockType, MAX_BACKREF_LEN, STATIC_DISTANCE_TREE, STATIC_LITLEN_TREE, decode_distance, decode_length}, postprocessing::{MAX_STRIDE, PostProcessor}}}};
-use derive_more::IsVariant;
-use num_enum::TryFromPrimitive;
+use forsith_proc::IsVariant;
+use forsith_proc::TryFromNum;
 
 mod chunks;
 pub(crate) use chunks::{ChunkType, ChunkData};
@@ -19,7 +19,7 @@ const PNG_HEADER: [u8; 8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
 
 
 #[repr(u8)]
-#[derive(Debug, TryFromPrimitive, Clone, Copy, PartialEq, Eq, IsVariant)]
+#[derive(Debug, TryFromNum, Clone, Copy, PartialEq, Eq, IsVariant)]
 enum ColorType {
     Grayscale = 0,
     Truecolor = 2,
@@ -255,7 +255,7 @@ impl<C: Channel, const F: u8> PngDecoder<'_, C, F> {
         }
 
         if len == decoded_bytes {
-            self.compressed_data.align()?;
+            // self.compressed_data.align()?;
             self.next_block()?;
         } else {
             self.cur_block.r#type = BlockType::Uncompressed(len - decoded_bytes);

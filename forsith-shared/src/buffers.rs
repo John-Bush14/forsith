@@ -1,8 +1,14 @@
 use forsith_proc::{Deref, DerefMut};
 use std::io::{BufRead, Cursor, Read, Seek};
 
-#[derive(Debug, Deref, DerefMut, Default)]
+#[derive(Debug, Deref, DerefMut)]
 pub struct CursorVec<T>(Cursor<Vec<T>>);
+
+impl<T> Default for CursorVec<T> {
+    fn default() -> Self {
+        Self(Cursor::new(Vec::new()))
+    }
+}
 
 impl<T: Default + Clone> CursorVec<T> {
     #[must_use]

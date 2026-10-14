@@ -1,5 +1,5 @@
-use const_for::const_for;
-use derive_more::IsVariant;
+use forsith_shared::const_for;
+use forsith_proc::IsVariant;
 
 use crate::{DecodingError, bit::BitRead, decompression::{HuffmanTree}};
 

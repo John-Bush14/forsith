@@ -1,5 +1,5 @@
-use derive_more::IsVariant;
-use num_enum::IntoPrimitive;
+use forsith_proc::IsVariant;
+use forsith_proc::IntoNum;
 use crate::{DecodingError, bit::BitRead};
 
 #[derive(Debug, Clone)]
@@ -19,7 +19,7 @@ where
 #[repr(transparent)]
 struct Entry(u32);
 
-#[derive(IntoPrimitive, Debug, Clone, Copy, PartialEq, Eq, IsVariant)]
+#[derive(IntoNum, Debug, Clone, Copy, PartialEq, Eq, IsVariant)]
 #[repr(u32)]
 enum EntryTag {
     Empty = 0,

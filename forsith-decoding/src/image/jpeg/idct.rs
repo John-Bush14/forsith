@@ -1,6 +1,6 @@
 use std::simd::Simd;
 
-use const_for::const_for;
+use forsith_shared::const_for;
 
 #[allow(clippy::unreadable_literal)]
 const AAN_SCALE: [f64; 8] = [
