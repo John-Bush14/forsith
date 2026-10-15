@@ -14,6 +14,8 @@ pub mod buffer;
 
 pub mod bitflags;
 
+pub mod string;
+
 #[macro_export]
 macro_rules! const_for {
     ($i:ident in $range:expr => $body:block) => {
