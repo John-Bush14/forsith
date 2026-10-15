@@ -16,24 +16,11 @@ pub fn derive_is_variant(input: TokenStream) -> TokenStream {
     let is_variant_functions = enum_def.variants.iter().map(|variant| {
         let func_name = Ident::new(&format!("is_{}", change_casing(&variant.ident.to_string(), Casing::Snake)));
 
-        let tuple = variant.fields.as_ref().map_or_else(
-            TokenStream::new,
-            |fields| {
-                let mut count = fields.stream().iter().filter(|tt| matches!(tt, TokenTree::Punct(p) if p.char() == PunctChar::Comma)).count() + 1;
-
-                if let Some(TokenTree::Punct(punct)) = fields.stream().last() && punct.char() == PunctChar::Comma {
-                    count -= 1;
-                }
-
-                quote!(((@ (0..count).map(|_| quote!(_,)).collect::<TokenStream>())))
-            }
-        );
-
         quote!(
             #[doc = concat!("Returns `true` if the enum is the variant `", stringify!(#variant_ident), "`.")]
             #[inline]
             pub const fn (@ func_name)(&self) -> bool {
-                matches!(self, Self::(@ variant.ident.clone())(@ tuple))
+                matches!(self, Self::(@ variant.ident.clone()){..})
             }
         )
     }).collect();
