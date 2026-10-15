@@ -39,6 +39,41 @@ pub enum StructFields {
     Unit,
 }
 
+impl UnnamedStructField {
+    pub fn parse(stream: &mut Peekable<impl Iterator<Item = TokenTree>>, attributes: Vec<Attribute>) -> Self {
+        Self {
+            visibility: Visibility::parse_or_default(stream),
+            ty: parse_type(stream),
+            attributes,
+        }
+    }
+}
+
+impl NamedStructField {
+    pub fn parse(stream: &mut Peekable<impl Iterator<Item = TokenTree>>, attributes: Vec<Attribute>) -> Self {
+        let visibility = Visibility::parse_or_default(stream);
+
+        let TokenTree::Ident(name) = stream.next().expect("Expected field name, found None")
+        else {
+            panic!("Expected field name, found non-ident token");
+        };
+
+        assert!(
+            matches!(stream.next(), Some(TokenTree::Punct(ref punct)) if punct.char() == PunctChar::Colon),
+            "Expected colon after field name`"
+        );
+
+        Self {
+            name,
+            field: UnnamedStructField {
+                ty: parse_type(stream),
+                visibility,
+                attributes,
+            },
+        }
+    }
+}
+
 impl StructFields {
     #[must_use]
     pub const fn len(&self) -> usize {
@@ -77,29 +112,11 @@ impl StructFields {
         self.len() == 0
     }
 
-    pub fn parse_tuple(stream: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Self {
-        let mut fields = Vec::new();
-        let mut attributes = Vec::new();
-
-        while let Some(tt) = stream.peek() {
-            if let TokenTree::Punct(punct) = tt
-                && punct.char() == PunctChar::Hash
-            {
-                attributes.push(Attribute::parse(stream));
-                continue;
-            }
-
-            fields.push(UnnamedStructField {
-                visibility: Visibility::parse_or_default(stream),
-                ty: parse_type(stream),
-                attributes: core::mem::take(&mut attributes),
-            });
-        }
-
-        Self::Tuple(fields)
-    }
-
-    pub fn parse_named(stream: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Self {
+    fn parse_generic<F, I, P>(stream: &mut Peekable<I>, mut parse: P) -> Vec<F>
+    where
+        I: Iterator<Item = TokenTree>,
+        P: FnMut(&mut Peekable<I>, Vec<Attribute>) -> F
+    {
         let mut attributes = Vec::new();
         let mut fields = Vec::new();
 
@@ -111,29 +128,10 @@ impl StructFields {
                 continue;
             }
 
-            let visibility = Visibility::parse_or_default(stream);
-
-            let TokenTree::Ident(name) = stream.next().expect("Expected field name, found None")
-            else {
-                panic!("Expected field name, found non-ident token");
-            };
-
-            assert!(
-                matches!(stream.next(), Some(TokenTree::Punct(ref punct)) if punct.char() == PunctChar::Colon),
-                "Expected colon after field name`"
-            );
-
-            fields.push(NamedStructField {
-                name,
-                field: UnnamedStructField {
-                    ty: parse_type(stream),
-                    visibility,
-                    attributes: core::mem::take(&mut attributes),
-                },
-            });
+            fields.push(parse(stream, core::mem::take(&mut attributes)));
         }
 
-        Self::Named(fields)
+        fields
     }
 
     pub fn parse(stream: &mut impl Iterator<Item = TokenTree>) -> Self {
@@ -149,8 +147,8 @@ impl StructFields {
         let mut stream = stream.into_iter().peekable();
 
         match delimiter {
-            Delimiter::Parenthesis => Self::parse_tuple(&mut stream),
-            Delimiter::Brace => Self::parse_named(&mut stream),
+            Delimiter::Parenthesis => Self::Tuple(Self::parse_generic(&mut stream, UnnamedStructField::parse)),
+            Delimiter::Brace => Self::Named(Self::parse_generic(&mut stream, NamedStructField::parse)),
             _ => panic!(
                 "Expected struct fields to be in parentheses or braces, found `{delimiter:?}`"
             ),
