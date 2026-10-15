@@ -80,7 +80,6 @@ impl Visibility {
     }
 }
 
-
 pub fn parse_attributed_fields_generic<F, I, P>(stream: &mut Peekable<I>, parse: P) -> Vec<F>
 where
     I: Iterator<Item = TokenTree>,
@@ -159,7 +158,14 @@ impl ItemPrefix {
     }
 }
 
-pub fn parse_type(input: &mut Peekable<impl Iterator<Item = TokenTree>>) -> TokenStream {
+pub fn parse_type<const COMMA: bool, const COLON: bool>(
+    input: &mut Peekable<impl Iterator<Item = TokenTree>>,
+) -> TokenStream {
+    assert!(
+        COMMA || COLON,
+        "parse_type must be called with at least one of COMMA or COLON set to true"
+    );
+
     let mut ty_tokens = TokenStream::new();
     let mut nested = 0;
 
@@ -168,7 +174,15 @@ pub fn parse_type(input: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Toke
             match punct.char() {
                 PunctChar::LessThan => nested += 1,
                 PunctChar::GreaterThan => nested -= 1,
-                PunctChar::Comma if nested == 0 => break,
+                PunctChar::Comma if COMMA && nested == 0 => break,
+                PunctChar::Colon
+                    if COLON
+                        && nested == 0
+                        && !punct.joint()
+                        && !matches!(ty_tokens.last(), Some(TokenTree::Punct(punct)) if punct.joint()) =>
+                {
+                    break;
+                }
                 _ => {}
             }
         }
