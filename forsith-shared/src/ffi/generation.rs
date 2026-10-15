@@ -6,7 +6,7 @@ use forsith_base::{
     proc_macro::{
         Ident, Literal, TokenStream,
         items::{
-            FunctionDefinition, FunctionParam, GenericsDefinition, TypeAliasDefinition, Visibility,
+            FunctionDefinition, FunctionParam, generics_definition::GenericsDefinition, TypeAliasDefinition, Visibility,
         },
     },
     quote,

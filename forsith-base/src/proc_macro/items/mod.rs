@@ -2,22 +2,20 @@ use crate::alloc::vec::Vec;
 use crate::proc_macro::{Group, Ident, TokenStream, TokenTree};
 
 pub mod generating;
+
 pub mod parsing;
 
 pub mod struct_definition;
 
 pub mod enum_definition;
 
+pub mod generics_definition;
+use generics_definition::GenericsDefinition;
+
 #[derive(Debug, Clone)]
 pub enum ItemContent {
     Struct(Vec<(TokenTree, TokenStream, Vec<Attribute>)>),
     Enum(Vec<(Ident, Option<Group>, Vec<Attribute>)>),
-}
-
-#[derive(Debug, Clone)]
-pub enum GenericDefinition {
-    Lifetime(Ident),
-    Type(Ident, TokenStream),
 }
 
 #[derive(Debug, Clone)]
@@ -63,9 +61,6 @@ pub trait ItemDefinition {
     fn generics(&self) -> &GenericsDefinition;
     fn attributes(&self) -> &[Attribute];
 }
-
-#[derive(Debug, Clone, Default)]
-pub struct GenericsDefinition(pub Vec<GenericDefinition>);
 
 pub struct TypeAliasDefinition {
     pub name: Ident,

@@ -3,7 +3,7 @@ use crate::proc_macro::items::enum_definition::EnumDefinition;
 use crate::proc_macro::items::struct_definition::{StructDefinition, StructFields};
 use crate::proc_macro::{
     Delimiter, Literal, PunctChar, TokenStream, TokenTree,
-    items::{Attribute, GenericDefinition, GenericsDefinition, ItemPrefix, ItemType, Visibility},
+    items::{Attribute, GenericsDefinition, ItemPrefix, ItemType, Visibility},
 };
 use core::iter::{Peekable, once};
 
@@ -176,72 +176,6 @@ pub fn parse_type(input: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Toke
     }
 
     ty_tokens
-}
-
-impl GenericsDefinition {
-    fn parse(input: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Self {
-        let mut generics: Vec<GenericDefinition> = Vec::new();
-        if let Some(TokenTree::Punct(punct)) = input.peek()
-            && punct.char() == PunctChar::LessThan
-        {
-            let _ = input.next();
-
-            loop {
-                match input.next() {
-                    Some(TokenTree::Ident(ident)) => {
-                        let mut constraints = TokenStream::new();
-                        if let Some(TokenTree::Punct(punct)) = input.peek()
-                            && punct.char() == PunctChar::Colon
-                        {
-                            let _ = input.next();
-
-                            let mut nested = 0;
-                            while let Some(item) = input.peek() {
-                                if let TokenTree::Punct(punct) = item {
-                                    match punct.char() {
-                                        PunctChar::LessThan => nested += 1,
-                                        PunctChar::GreaterThan => {
-                                            if nested == 0 {
-                                                break;
-                                            }
-                                            nested -= 1;
-                                        }
-                                        PunctChar::Comma if nested == 0 => {
-                                            let _ = input.next();
-                                            break;
-                                        }
-                                        _ => {}
-                                    }
-                                }
-                                constraints.extend(once(input.next().unwrap()));
-                            }
-                        }
-                        generics.push(GenericDefinition::Type(ident, constraints));
-                    }
-                    Some(TokenTree::Punct(punct)) if punct.char() == PunctChar::GreaterThan => {
-                        break;
-                    }
-                    Some(TokenTree::Punct(punct)) if punct.char() == PunctChar::Qoute => {
-                        let lifetime_ident = match input.next() {
-                            Some(TokenTree::Ident(ident)) => ident,
-                            t => panic!("Expected lifetime name after `'`, found `{t:?}`"),
-                        };
-                        generics.push(GenericDefinition::Lifetime(lifetime_ident));
-
-                        if let Some(TokenTree::Punct(punct)) = input.peek()
-                            && punct.char() == PunctChar::Comma
-                        {
-                            let _ = input.next();
-                        }
-                    }
-                    None => panic!("Expected Some after `<` in generics, found None"),
-                    tt => panic!("Expected ident or `>` or \"'\" in generics, found `{tt:?}`"),
-                }
-            }
-        }
-
-        Self(generics)
-    }
 }
 
 pub enum DeriveInput {
