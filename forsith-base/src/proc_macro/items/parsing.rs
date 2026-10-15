@@ -159,7 +159,7 @@ impl ItemPrefix {
     }
 }
 
-pub fn parse_type<const CONSUME: bool, const COMMA: bool, const COLON: bool>(
+pub fn parse_type<const CONSUME: bool, const COMMA: bool, const COLON: bool, const BRACE: bool>(
     input: &mut Peekable<impl Iterator<Item = TokenTree>>,
 ) -> TokenStream
 {
@@ -188,6 +188,11 @@ pub fn parse_type<const CONSUME: bool, const COMMA: bool, const COLON: bool>(
                 _ => {}
             }
         }
+
+        if BRACE && matches!(item, TokenTree::Group(group) if group.delimiter() == Delimiter::Brace) {
+            break;
+        }
+
         ty_tokens.extend(once(input.next().unwrap()));
     }
 

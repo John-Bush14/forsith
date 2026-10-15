@@ -46,7 +46,7 @@ impl UnnamedStructField {
     ) -> Self {
         Self {
             visibility: Visibility::parse_or_default(stream),
-            ty: parse_type::<true, true, false>(stream),
+            ty: parse_type::<true, true, false, false>(stream),
             attributes,
         }
     }
@@ -71,7 +71,7 @@ impl NamedStructField {
         Self {
             name,
             field: UnnamedStructField {
-                ty: parse_type::<true, true, false>(stream),
+                ty: parse_type::<true, true, false, false>(stream),
                 visibility,
                 attributes,
             },

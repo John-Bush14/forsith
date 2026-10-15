@@ -93,7 +93,7 @@ impl EnumVariantUnnamedField {
     ) -> Self {
         Self {
             attributes,
-            ty: parse_type::<true, true, false>(stream),
+            ty: parse_type::<true, true, false, false>(stream),
         }
     }
 }
@@ -144,7 +144,7 @@ impl EnumVariant {
                     variant.fields = EnumVariantFields::parse(group);
                 }
                 TokenTree::Punct(punct) if punct.char() == PunctChar::Equal => {
-                    variant.discriminant = Some(parse_type::<true, true, false>(stream));
+                    variant.discriminant = Some(parse_type::<true, true, false, false>(stream));
                     break; // parse_type consumes comma
                 }
                 TokenTree::Punct(punct) if punct.char() == PunctChar::Comma => {
