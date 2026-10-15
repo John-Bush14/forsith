@@ -1,12 +1,34 @@
 use core::iter::Peekable;
 
-use crate::proc_macro::{Delimiter, Group, Ident, PunctChar, TokenStream, TokenTree, items::{Attribute, GenericsDefinition, ItemDefinition, ItemPrefix, ItemType, Visibility, parsing::parse_type}};
+use crate::proc_macro::{
+    Delimiter, Group, Ident, PunctChar, TokenStream, TokenTree,
+    items::{
+        Attribute, GenericsDefinition, ItemDefinition, ItemPrefix, ItemType, Visibility,
+        parsing::parse_type,
+    },
+};
 
 pub struct EnumVariant {
     pub ident: Ident,
-    pub fields: Option<Group>,
+    pub fields: EnumVariantFields,
     pub attributes: Vec<Attribute>,
     pub discriminant: Option<TokenStream>,
+}
+
+pub enum EnumVariantFields {
+    Unit,
+    Tuple(Vec<EnumVariantUnnamedField>),
+    Struct(Vec<EnumVariantNamedField>),
+}
+
+pub struct EnumVariantUnnamedField {
+    pub attributes: Vec<Attribute>,
+    pub ty: TokenStream,
+}
+
+pub struct EnumVariantNamedField {
+    pub name: Ident,
+    pub field: EnumVariantUnnamedField,
 }
 
 pub struct EnumDefinition {
@@ -26,6 +48,137 @@ impl ItemDefinition for EnumDefinition {
     }
     fn attributes(&self) -> &[Attribute] {
         &self.attributes
+    }
+}
+
+impl EnumVariantFields {
+    #[must_use]
+    pub const fn len(&self) -> usize {
+        match self {
+            Self::Unit => 0,
+            Self::Tuple(fields) => fields.len(),
+            Self::Struct(fields) => fields.len(),
+        }
+    }
+
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    fn parse(group: Group) -> Self {
+        let (delimiter, stream) = group.decompose();
+        let mut stream = stream.into_iter().peekable();
+
+        match delimiter {
+            Delimiter::Parenthesis => Self::Tuple(Self::parse_generic(
+                &mut stream,
+                EnumVariantUnnamedField::parse,
+            )),
+            Delimiter::Brace => Self::Struct(Self::parse_generic(
+                &mut stream,
+                EnumVariantNamedField::parse,
+            )),
+            _ => panic!(
+                "Expected enum variant fields to be in parentheses or braces, found `{delimiter:?}`"
+            ),
+        }
+    }
+
+    fn parse_generic<F, I, P>(stream: &mut Peekable<I>, parse: P) -> Vec<F>
+    where
+        I: Iterator<Item = TokenTree>,
+        P: Fn(&mut Peekable<I>, Vec<Attribute>) -> F,
+    {
+        let mut attributes = Vec::new();
+        let mut fields = Vec::new();
+
+        while let Some(tt) = stream.peek() {
+            if let TokenTree::Punct(punct) = tt
+                && punct.char() == PunctChar::Hash
+            {
+                attributes.push(Attribute::parse(stream));
+                continue;
+            }
+
+            fields.push(parse(stream, core::mem::take(&mut attributes)));
+        }
+
+        fields
+    }
+}
+
+impl EnumVariantUnnamedField {
+    fn parse(
+        stream: &mut Peekable<impl Iterator<Item = TokenTree>>,
+        attributes: Vec<Attribute>,
+    ) -> Self {
+        Self {
+            attributes,
+            ty: parse_type(stream),
+        }
+    }
+}
+
+impl EnumVariantNamedField {
+    fn parse(
+        stream: &mut Peekable<impl Iterator<Item = TokenTree>>,
+        attributes: Vec<Attribute>,
+    ) -> Self {
+        let TokenTree::Ident(name) = stream.next().expect("Expected field name, found None") else {
+            panic!("Expected field name, found non-ident token");
+        };
+
+        assert!(
+            matches!(stream.next(), Some(TokenTree::Punct(ref punct)) if punct.char() == PunctChar::Colon),
+            "Expected colon after field name`"
+        );
+
+        Self {
+            name,
+            field: EnumVariantUnnamedField::parse(stream, attributes),
+        }
+    }
+}
+
+impl EnumVariant {
+    fn parse(
+        stream: &mut Peekable<impl Iterator<Item = TokenTree>>,
+        mut attributes: Vec<Attribute>,
+    ) -> Self {
+        let name = match stream.next() {
+            Some(TokenTree::Ident(name)) => name,
+            tt => {
+                panic!("Expected ident or attribute in enum variants, found `{tt:?}`");
+            }
+        };
+
+        let mut variant = Self {
+            ident: name,
+            fields: EnumVariantFields::Unit,
+            attributes: core::mem::take(&mut attributes),
+            discriminant: None,
+        };
+
+        while let Some(tt) = stream.next() {
+            match tt {
+                TokenTree::Group(group) => {
+                    variant.fields = EnumVariantFields::parse(group);
+                }
+                TokenTree::Punct(punct) if punct.char() == PunctChar::Equal => {
+                    variant.discriminant = Some(parse_type(stream));
+                    break; // parse_type consumes comma
+                }
+                TokenTree::Punct(punct) if punct.char() == PunctChar::Comma => {
+                    break;
+                }
+                _ => panic!(
+                    "Expected `(`, `{{`, `=`, `,` or end of enum variants after variant name, found `{tt:?}`"
+                ),
+            }
+        }
+
+        variant
     }
 }
 
@@ -65,56 +218,20 @@ impl EnumDefinition {
             t => panic!("Expected group of enum variants, found `{t:?}`"),
         };
 
-        let mut iter = group.take_stream().into_iter().peekable();
+        let mut stream = group.take_stream().into_iter().peekable();
 
-        while let Some(token) = iter.peek() {
-            match token {
-                TokenTree::Ident(_) => {
-                    let TokenTree::Ident(name) = iter.next().unwrap() else {
-                        unreachable!()
-                    };
-
-                    let mut variant = EnumVariant {
-                        ident: name,
-                        fields: None,
-                        attributes: core::mem::take(&mut attributes),
-                        discriminant: None,
-                    };
-
-                    match iter.peek() {
-                        Some(TokenTree::Group(group))
-                            if group.delimiter() == Delimiter::Parenthesis =>
-                        {
-                            let TokenTree::Group(group) = iter.next().unwrap() else {
-                                unreachable!()
-                            };
-                            variant.fields = Some(group);
-                            if let Some(TokenTree::Punct(punct)) = iter.peek()
-                                && punct.char() == PunctChar::Comma
-                            {
-                                let _ = iter.next();
-                            }
-                        }
-                        Some(TokenTree::Punct(punct)) if punct.char() == PunctChar::Equal => {
-                            let _ = iter.next();
-                            variant.discriminant = Some(parse_type(&mut iter));
-                        }
-                        Some(TokenTree::Punct(punct)) if punct.char() == PunctChar::Comma => {
-                            let _ = iter.next();
-                        }
-                        None => {}
-                        token => panic!(
-                            "Expected `(`, `=`, `,` or end of enum variants after variant name, found `{token:?}`"
-                        ),
-                    }
-
-                    variants.push(variant);
-                }
-                TokenTree::Punct(punct) if punct.char() == PunctChar::Hash => {
-                    attributes.push(Attribute::parse(&mut iter));
-                }
-                t => panic!("Expected ident or attribute in enum variants, found `{t:?}`"),
+        while let Some(tt) = stream.peek() {
+            if let TokenTree::Punct(punct) = tt
+                && punct.char() == PunctChar::Hash
+            {
+                attributes.push(Attribute::parse(&mut stream));
+                continue;
             }
+
+            variants.push(EnumVariant::parse(
+                &mut stream,
+                core::mem::take(&mut attributes),
+            ));
         }
 
         variants

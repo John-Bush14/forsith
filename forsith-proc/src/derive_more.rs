@@ -1,9 +1,16 @@
 use forsith_base::{
-    casing::{Casing, change_casing}, proc_macro::{
-        Ident, Literal, PunctChar, TokenStream, TokenTree, items::{
-             ItemDefinition, enum_definition::{EnumDefinition, EnumVariant}, generating::impl_item, parsing::{DeriveInput, parse_derive_input}, struct_definition::{StructDefinition, StructField, StructFields},
+    casing::{Casing, change_casing},
+    proc_macro::{
+        Ident, Literal, PunctChar, TokenStream, TokenTree,
+        items::{
+            ItemDefinition,
+            enum_definition::{EnumDefinition, EnumVariant},
+            generating::impl_item,
+            parsing::{DeriveInput, parse_derive_input},
+            struct_definition::{StructDefinition, StructField, StructFields},
         },
-    }, quote,
+    },
+    quote,
 };
 
 pub fn derive_is_variant(input: TokenStream) -> TokenStream {
@@ -49,9 +56,7 @@ pub fn item_repr(item: &impl ItemDefinition) -> Ident {
         )
 }
 
-pub fn enum_integer_discriminant_variants(
-    enum_def: &EnumDefinition,
-) -> Vec<&EnumVariant> {
+pub fn enum_integer_discriminant_variants(enum_def: &EnumDefinition) -> Vec<&EnumVariant> {
     enum_def
         .variants
         .iter()
@@ -78,14 +83,14 @@ pub fn assert_enum_unit_variants(enum_def: &EnumDefinition) {
         enum_def
             .variants
             .iter()
-            .all(|variant| variant.fields.is_none()),
+            .all(|variant| variant.fields.is_empty()),
         "Can only be derived for enums with unit variants"
     );
 }
 
 pub fn generate_into_discriminant_match_arms(
     variants: &[&EnumVariant],
-    result: bool
+    result: bool,
 ) -> TokenStream {
     variants
         .iter()
@@ -101,7 +106,7 @@ pub fn generate_into_discriminant_match_arms(
 
 pub fn generate_from_discriminant_match_arms(
     variants: &[&EnumVariant],
-    result: bool
+    result: bool,
 ) -> TokenStream {
     variants
         .iter()

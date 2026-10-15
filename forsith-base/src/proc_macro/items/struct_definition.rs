@@ -40,7 +40,10 @@ pub enum StructFields {
 }
 
 impl UnnamedStructField {
-    pub fn parse(stream: &mut Peekable<impl Iterator<Item = TokenTree>>, attributes: Vec<Attribute>) -> Self {
+    pub fn parse(
+        stream: &mut Peekable<impl Iterator<Item = TokenTree>>,
+        attributes: Vec<Attribute>,
+    ) -> Self {
         Self {
             visibility: Visibility::parse_or_default(stream),
             ty: parse_type(stream),
@@ -50,11 +53,13 @@ impl UnnamedStructField {
 }
 
 impl NamedStructField {
-    pub fn parse(stream: &mut Peekable<impl Iterator<Item = TokenTree>>, attributes: Vec<Attribute>) -> Self {
+    pub fn parse(
+        stream: &mut Peekable<impl Iterator<Item = TokenTree>>,
+        attributes: Vec<Attribute>,
+    ) -> Self {
         let visibility = Visibility::parse_or_default(stream);
 
-        let TokenTree::Ident(name) = stream.next().expect("Expected field name, found None")
-        else {
+        let TokenTree::Ident(name) = stream.next().expect("Expected field name, found None") else {
             panic!("Expected field name, found non-ident token");
         };
 
@@ -115,7 +120,7 @@ impl StructFields {
     fn parse_generic<F, I, P>(stream: &mut Peekable<I>, mut parse: P) -> Vec<F>
     where
         I: Iterator<Item = TokenTree>,
-        P: FnMut(&mut Peekable<I>, Vec<Attribute>) -> F
+        P: FnMut(&mut Peekable<I>, Vec<Attribute>) -> F,
     {
         let mut attributes = Vec::new();
         let mut fields = Vec::new();
@@ -147,8 +152,12 @@ impl StructFields {
         let mut stream = stream.into_iter().peekable();
 
         match delimiter {
-            Delimiter::Parenthesis => Self::Tuple(Self::parse_generic(&mut stream, UnnamedStructField::parse)),
-            Delimiter::Brace => Self::Named(Self::parse_generic(&mut stream, NamedStructField::parse)),
+            Delimiter::Parenthesis => {
+                Self::Tuple(Self::parse_generic(&mut stream, UnnamedStructField::parse))
+            }
+            Delimiter::Brace => {
+                Self::Named(Self::parse_generic(&mut stream, NamedStructField::parse))
+            }
             _ => panic!(
                 "Expected struct fields to be in parentheses or braces, found `{delimiter:?}`"
             ),

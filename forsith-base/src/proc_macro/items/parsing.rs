@@ -3,14 +3,22 @@ use crate::proc_macro::items::enum_definition::EnumDefinition;
 use crate::proc_macro::items::struct_definition::{StructDefinition, StructFields};
 use crate::proc_macro::{
     Delimiter, Literal, PunctChar, TokenStream, TokenTree,
-    items::{
-        Attribute, GenericDefinition, GenericsDefinition, ItemPrefix,
-        ItemType, Visibility,
-    },
+    items::{Attribute, GenericDefinition, GenericsDefinition, ItemPrefix, ItemType, Visibility},
 };
 use core::iter::{Peekable, once};
 
 impl Attribute {
+    pub fn parse_all(
+        input: &mut Peekable<impl Iterator<Item = TokenTree>>,
+        attributes: &mut Vec<Attribute>,
+    ) {
+        while let Some(TokenTree::Punct(punct)) = input.peek()
+            && punct.char() == PunctChar::Hash
+        {
+            attributes.push(Self::parse(input));
+        }
+    }
+
     pub fn parse(input: &mut impl Iterator<Item = TokenTree>) -> Self {
         assert!(
             matches!(input.next(), Some(TokenTree::Punct(punct)) if punct.char() == PunctChar::Hash),
@@ -218,6 +226,7 @@ pub enum DeriveInput {
     Enum(EnumDefinition),
 }
 
+#[must_use]
 pub fn parse_derive_input(input: TokenStream) -> DeriveInput {
     let input = &mut input.into_iter().peekable();
 
@@ -268,8 +277,8 @@ mod tests {
 
         assert_eq!(definition.name.to_string(), "Example");
         assert_eq!(definition.variants.len(), 3);
-        assert!(definition.variants[0].fields.is_some());
-        assert!(definition.variants[1].fields.is_none());
+        assert_eq!(definition.variants[0].fields.len(), 1);
+        assert!(definition.variants[1].fields.is_empty());
         assert!(definition.variants[2].discriminant.is_some());
     }
 }

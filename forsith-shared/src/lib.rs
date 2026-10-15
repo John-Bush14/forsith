@@ -27,4 +27,4 @@ pub mod ffi;
 
 pub mod rng;
 
-pub use forsith_base::{casing, proc_macro, const_for};
+pub use forsith_base::{casing, const_for, proc_macro};
