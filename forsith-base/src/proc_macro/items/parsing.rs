@@ -80,6 +80,29 @@ impl Visibility {
     }
 }
 
+
+pub fn parse_attributed_fields_generic<F, I, P>(stream: &mut Peekable<I>, parse: P) -> Vec<F>
+where
+    I: Iterator<Item = TokenTree>,
+    P: Fn(&mut Peekable<I>, Vec<Attribute>) -> F,
+{
+    let mut attributes = Vec::new();
+    let mut fields = Vec::new();
+
+    while let Some(tt) = stream.peek() {
+        if let TokenTree::Punct(punct) = tt
+            && punct.char() == PunctChar::Hash
+        {
+            attributes.push(Attribute::parse(stream));
+            continue;
+        }
+
+        fields.push(parse(stream, core::mem::take(&mut attributes)));
+    }
+
+    fields
+}
+
 impl ItemPrefix {
     pub fn parse(input: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Self {
         let mut attributes = Vec::new();

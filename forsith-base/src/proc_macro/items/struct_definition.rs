@@ -4,10 +4,8 @@ use core::{
 };
 
 use crate::proc_macro::{
-    Delimiter, Ident, Literal, PunctChar, TokenStream, TokenTree,
-    items::{
-        Attribute, GenericsDefinition, ItemDefinition, ItemPrefix, ItemType, Visibility,
-        parsing::parse_type,
+    Delimiter, Ident, Literal, PunctChar, TokenStream, TokenTree, items::{
+        Attribute, GenericsDefinition, ItemDefinition, ItemPrefix, ItemType, Visibility, parsing::{parse_attributed_fields_generic, parse_type},
     },
 };
 
@@ -117,28 +115,6 @@ impl StructFields {
         self.len() == 0
     }
 
-    fn parse_generic<F, I, P>(stream: &mut Peekable<I>, mut parse: P) -> Vec<F>
-    where
-        I: Iterator<Item = TokenTree>,
-        P: FnMut(&mut Peekable<I>, Vec<Attribute>) -> F,
-    {
-        let mut attributes = Vec::new();
-        let mut fields = Vec::new();
-
-        while let Some(tt) = stream.peek() {
-            if let TokenTree::Punct(punct) = tt
-                && punct.char() == PunctChar::Hash
-            {
-                attributes.push(Attribute::parse(stream));
-                continue;
-            }
-
-            fields.push(parse(stream, core::mem::take(&mut attributes)));
-        }
-
-        fields
-    }
-
     pub fn parse(stream: &mut impl Iterator<Item = TokenTree>) -> Self {
         let group = match stream.next() {
             Some(TokenTree::Group(group)) => group,
@@ -153,10 +129,10 @@ impl StructFields {
 
         match delimiter {
             Delimiter::Parenthesis => {
-                Self::Tuple(Self::parse_generic(&mut stream, UnnamedStructField::parse))
+                Self::Tuple(parse_attributed_fields_generic(&mut stream, UnnamedStructField::parse))
             }
             Delimiter::Brace => {
-                Self::Named(Self::parse_generic(&mut stream, NamedStructField::parse))
+                Self::Named(parse_attributed_fields_generic(&mut stream, NamedStructField::parse))
             }
             _ => panic!(
                 "Expected struct fields to be in parentheses or braces, found `{delimiter:?}`"

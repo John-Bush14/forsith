@@ -1,10 +1,8 @@
 use core::iter::Peekable;
 
 use crate::proc_macro::{
-    Delimiter, Group, Ident, PunctChar, TokenStream, TokenTree,
-    items::{
-        Attribute, GenericsDefinition, ItemDefinition, ItemPrefix, ItemType, Visibility,
-        parsing::parse_type,
+    Delimiter, Group, Ident, PunctChar, TokenStream, TokenTree, items::{
+        Attribute, GenericsDefinition, ItemDefinition, ItemPrefix, ItemType, Visibility, parsing::{parse_attributed_fields_generic, parse_type},
     },
 };
 
@@ -71,11 +69,11 @@ impl EnumVariantFields {
         let mut stream = stream.into_iter().peekable();
 
         match delimiter {
-            Delimiter::Parenthesis => Self::Tuple(Self::parse_generic(
+            Delimiter::Parenthesis => Self::Tuple(parse_attributed_fields_generic(
                 &mut stream,
                 EnumVariantUnnamedField::parse,
             )),
-            Delimiter::Brace => Self::Struct(Self::parse_generic(
+            Delimiter::Brace => Self::Struct(parse_attributed_fields_generic(
                 &mut stream,
                 EnumVariantNamedField::parse,
             )),
@@ -83,28 +81,6 @@ impl EnumVariantFields {
                 "Expected enum variant fields to be in parentheses or braces, found `{delimiter:?}`"
             ),
         }
-    }
-
-    fn parse_generic<F, I, P>(stream: &mut Peekable<I>, parse: P) -> Vec<F>
-    where
-        I: Iterator<Item = TokenTree>,
-        P: Fn(&mut Peekable<I>, Vec<Attribute>) -> F,
-    {
-        let mut attributes = Vec::new();
-        let mut fields = Vec::new();
-
-        while let Some(tt) = stream.peek() {
-            if let TokenTree::Punct(punct) = tt
-                && punct.char() == PunctChar::Hash
-            {
-                attributes.push(Attribute::parse(stream));
-                continue;
-            }
-
-            fields.push(parse(stream, core::mem::take(&mut attributes)));
-        }
-
-        fields
     }
 }
 
