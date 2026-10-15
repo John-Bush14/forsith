@@ -6,6 +6,7 @@ use crate::proc_macro::{
     items::{Attribute, GenericsDefinition, ItemPrefix, ItemType, Visibility},
 };
 use core::iter::{Peekable, once};
+use std::net::ToSocketAddrs;
 
 impl Attribute {
     pub fn parse_all(
@@ -158,9 +159,10 @@ impl ItemPrefix {
     }
 }
 
-pub fn parse_type<const COMMA: bool, const COLON: bool>(
+pub fn parse_type<const CONSUME: bool, const COMMA: bool, const COLON: bool>(
     input: &mut Peekable<impl Iterator<Item = TokenTree>>,
-) -> TokenStream {
+) -> TokenStream
+{
     assert!(
         COMMA || COLON,
         "parse_type must be called with at least one of COMMA or COLON set to true"
@@ -169,8 +171,8 @@ pub fn parse_type<const COMMA: bool, const COLON: bool>(
     let mut ty_tokens = TokenStream::new();
     let mut nested = 0;
 
-    for item in input {
-        if let TokenTree::Punct(ref punct) = item {
+    while let Some(item) = input.peek() {
+        if let TokenTree::Punct(punct) = item {
             match punct.char() {
                 PunctChar::LessThan => nested += 1,
                 PunctChar::GreaterThan => nested -= 1,
@@ -186,7 +188,11 @@ pub fn parse_type<const COMMA: bool, const COLON: bool>(
                 _ => {}
             }
         }
-        ty_tokens.extend(once(item));
+        ty_tokens.extend(once(input.next().unwrap()));
+    }
+
+    if CONSUME {
+        let _ = input.next();
     }
 
     ty_tokens

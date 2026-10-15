@@ -1,8 +1,10 @@
 use core::iter::Peekable;
 
 use crate::proc_macro::{
-    Delimiter, Group, Ident, PunctChar, TokenStream, TokenTree, items::{
-        Attribute, GenericsDefinition, ItemDefinition, ItemPrefix, ItemType, Visibility, parsing::{parse_attributed_fields_generic, parse_type},
+    Delimiter, Group, Ident, PunctChar, TokenStream, TokenTree,
+    items::{
+        Attribute, GenericsDefinition, ItemDefinition, ItemPrefix, ItemType, Visibility,
+        parsing::{parse_attributed_fields_generic, parse_type},
     },
 };
 
@@ -91,7 +93,7 @@ impl EnumVariantUnnamedField {
     ) -> Self {
         Self {
             attributes,
-            ty: parse_type(stream),
+            ty: parse_type::<true, true, false>(stream),
         }
     }
 }
@@ -142,7 +144,7 @@ impl EnumVariant {
                     variant.fields = EnumVariantFields::parse(group);
                 }
                 TokenTree::Punct(punct) if punct.char() == PunctChar::Equal => {
-                    variant.discriminant = Some(parse_type(stream));
+                    variant.discriminant = Some(parse_type::<true, true, false>(stream));
                     break; // parse_type consumes comma
                 }
                 TokenTree::Punct(punct) if punct.char() == PunctChar::Comma => {

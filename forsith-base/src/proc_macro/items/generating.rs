@@ -1,10 +1,7 @@
 use crate::{
     proc_macro::{
         Ident, Punct, PunctChar, TokenStream, TokenTree,
-        items::{
-            FunctionDefinition, Indirection, ItemDefinition,
-            TypeAliasDefinition, Visibility,
-        },
+        items::{FunctionDefinition, Indirection, ItemDefinition, TypeAliasDefinition, Visibility},
     },
     quote,
 };

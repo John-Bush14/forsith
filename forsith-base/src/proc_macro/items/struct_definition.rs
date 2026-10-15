@@ -4,8 +4,10 @@ use core::{
 };
 
 use crate::proc_macro::{
-    Delimiter, Ident, Literal, PunctChar, TokenStream, TokenTree, items::{
-        Attribute, GenericsDefinition, ItemDefinition, ItemPrefix, ItemType, Visibility, parsing::{parse_attributed_fields_generic, parse_type},
+    Delimiter, Ident, Literal, PunctChar, TokenStream, TokenTree,
+    items::{
+        Attribute, GenericsDefinition, ItemDefinition, ItemPrefix, ItemType, Visibility,
+        parsing::{parse_attributed_fields_generic, parse_type},
     },
 };
 
@@ -44,7 +46,7 @@ impl UnnamedStructField {
     ) -> Self {
         Self {
             visibility: Visibility::parse_or_default(stream),
-            ty: parse_type(stream),
+            ty: parse_type::<true, true, false>(stream),
             attributes,
         }
     }
@@ -69,7 +71,7 @@ impl NamedStructField {
         Self {
             name,
             field: UnnamedStructField {
-                ty: parse_type(stream),
+                ty: parse_type::<true, true, false>(stream),
                 visibility,
                 attributes,
             },
@@ -128,12 +130,14 @@ impl StructFields {
         let mut stream = stream.into_iter().peekable();
 
         match delimiter {
-            Delimiter::Parenthesis => {
-                Self::Tuple(parse_attributed_fields_generic(&mut stream, UnnamedStructField::parse))
-            }
-            Delimiter::Brace => {
-                Self::Named(parse_attributed_fields_generic(&mut stream, NamedStructField::parse))
-            }
+            Delimiter::Parenthesis => Self::Tuple(parse_attributed_fields_generic(
+                &mut stream,
+                UnnamedStructField::parse,
+            )),
+            Delimiter::Brace => Self::Named(parse_attributed_fields_generic(
+                &mut stream,
+                NamedStructField::parse,
+            )),
             _ => panic!(
                 "Expected struct fields to be in parentheses or braces, found `{delimiter:?}`"
             ),
