@@ -4,6 +4,8 @@ use crate::proc_macro::{Group, Ident, TokenStream, TokenTree};
 pub mod generating;
 pub mod parsing;
 
+pub mod struct_definition;
+
 #[derive(Debug, Clone)]
 pub enum ItemContent {
     Struct(Vec<(TokenTree, TokenStream, Vec<Attribute>)>),
@@ -62,33 +64,6 @@ pub trait ItemDefinition {
 
 #[derive(Debug, Clone, Default)]
 pub struct GenericsDefinition(pub Vec<GenericDefinition>);
-
-pub struct StructField {
-    pub name: TokenTree,
-    pub ty: TokenStream,
-    pub visibility: Visibility,
-    pub attributes: Vec<Attribute>,
-}
-
-pub struct StructDefinition {
-    pub attributes: Vec<Attribute>,
-    pub visibility: Visibility,
-    pub name: Ident,
-    pub generics: GenericsDefinition,
-    pub fields: Vec<StructField>,
-}
-
-impl ItemDefinition for StructDefinition {
-    fn name(&self) -> &Ident {
-        &self.name
-    }
-    fn generics(&self) -> &GenericsDefinition {
-        &self.generics
-    }
-    fn attributes(&self) -> &[Attribute] {
-        &self.attributes
-    }
-}
 
 pub struct EnumVariant {
     pub ident: Ident,

@@ -1,9 +1,7 @@
 use forsith_base::{
     casing::{Casing, change_casing}, proc_macro::{
         Ident, Literal, PunctChar, TokenStream, TokenTree, items::{
-            EnumDefinition, EnumVariant, ItemDefinition, StructDefinition, StructField,
-            generating::impl_item,
-            parsing::{DeriveInput, parse_derive_input},
+            EnumDefinition, EnumVariant, ItemDefinition, generating::impl_item, parsing::{DeriveInput, parse_derive_input}, struct_definition::{StructDefinition, StructField, StructFields},
         },
     }, quote,
 };
@@ -227,9 +225,9 @@ pub fn derive_try_from_num(input: TokenStream) -> TokenStream {
 }
 
 pub fn choose_singular_struct_field<'a>(
-    fields: &'a [StructField],
+    fields: &'a StructFields,
     attribute: &'static str,
-) -> &'a StructField {
+) -> StructField<'a> {
     let mut attributed_fields = fields.iter().filter(|field| {
         field
             .attributes
@@ -237,24 +235,26 @@ pub fn choose_singular_struct_field<'a>(
             .any(|a| a.name.to_string() == attribute)
     });
 
-    assert!(
-        attributed_fields.clone().count() <= 1,
-        "Only one field can be marked with #[{attribute}]"
-    );
-
-    attributed_fields.next().unwrap_or_else(|| {
+    let field = attributed_fields.next().unwrap_or_else(|| {
         assert!(
             fields.len() == 1,
             "Only one field can be present in the struct if no field is marked with #[{attribute}]"
         );
-        &fields[0]
-    })
+        fields.get(0).unwrap()
+    });
+
+    assert!(
+        attributed_fields.next().is_none(),
+        "Only one field can be marked with #[{attribute}]"
+    );
+
+    field
 }
 
 pub fn singular_struct_field_derive(
     input: TokenStream,
     attribute: &'static str,
-    derive: fn(&StructDefinition, &StructField) -> TokenStream,
+    derive: fn(&StructDefinition, StructField) -> TokenStream,
 ) -> TokenStream {
     let DeriveInput::Struct(struct_def) = parse_derive_input(input) else {
         panic!("{attribute} can only be derived for structs");
@@ -274,7 +274,7 @@ pub fn derive_deref(input: TokenStream) -> TokenStream {
                 type Target = (@ deref_field.ty.clone());
 
                 fn deref(&self) -> &Self::Target {
-                    &self.(@ deref_field.name.clone())
+                    &self.(@ deref_field.name)
                 }
             ),
         )
@@ -288,7 +288,7 @@ pub fn derive_deref_mut(input: TokenStream) -> TokenStream {
             Some(quote!(std::ops::DerefMut)),
             quote!(
                 fn deref_mut(&mut self) -> &mut Self::Target {
-                    &mut self.(@ deref_field.name.clone())
+                    &mut self.(@ deref_field.name)
                 }
             ),
         )
@@ -304,7 +304,7 @@ pub fn derive_index(input: TokenStream) -> TokenStream {
                 type Output = <(@ index_field.ty.clone()) as std::ops::Index<usize>>::Output;
 
                 fn index(&self, index: usize) -> &Self::Output {
-                    &self.(@ index_field.name.clone())[index]
+                    &self.(@ index_field.name)[index]
                 }
             ),
         )
@@ -318,7 +318,7 @@ pub fn derive_index_mut(input: TokenStream) -> TokenStream {
             Some(quote!(std::ops::IndexMut<usize>)),
             quote!(
                 fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-                    &mut self.(@ index_field.name.clone())[index]
+                    &mut self.(@ index_field.name)[index]
                 }
             ),
         )
@@ -335,7 +335,7 @@ pub fn derive_not(input: TokenStream) -> TokenStream {
 
                 fn not(self) -> Self::Output {
                     Self {
-                        (@ not_field.name.clone()): !self.(@ not_field.name.clone()),
+                        (@ not_field.name.clone()): !self.(@ not_field.name),
                         ..self
                     }
                 }

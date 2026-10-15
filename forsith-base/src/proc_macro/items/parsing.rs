@@ -1,15 +1,16 @@
 use crate::alloc::{string::ToString, vec::Vec};
+use crate::proc_macro::items::struct_definition::{StructDefinition, StructFields};
 use crate::proc_macro::{
     Delimiter, Literal, PunctChar, TokenStream, TokenTree,
     items::{
         Attribute, EnumDefinition, EnumVariant, GenericDefinition, GenericsDefinition, ItemPrefix,
-        ItemType, StructDefinition, StructField, Visibility,
+        ItemType, Visibility,
     },
 };
 use core::iter::{Peekable, once};
 
 impl Attribute {
-    fn parse(input: &mut impl Iterator<Item = TokenTree>) -> Self {
+    pub fn parse(input: &mut impl Iterator<Item = TokenTree>) -> Self {
         assert!(
             matches!(input.next(), Some(TokenTree::Punct(punct)) if punct.char() == PunctChar::Hash),
             "Tried to parse attribute, but first token was not `#`"
@@ -40,7 +41,7 @@ impl Attribute {
 }
 
 impl Visibility {
-    fn parse(input: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Self {
+    pub fn parse(input: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Self {
         assert!(
             matches!(input.next(), Some(TokenTree::Ident(ident)) if ident.to_string() == "pub"),
             "Tried to parse visibility, but first token was not `pub`"
@@ -59,7 +60,7 @@ impl Visibility {
         }
     }
 
-    fn parse_or_default(input: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Self {
+    pub fn parse_or_default(input: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Self {
         if let Some(TokenTree::Ident(ident)) = input.peek()
             && ident.to_string() == "pub"
         {
@@ -126,7 +127,7 @@ impl ItemPrefix {
     }
 }
 
-fn parse_type(input: &mut Peekable<impl Iterator<Item = TokenTree>>) -> TokenStream {
+pub fn parse_type(input: &mut Peekable<impl Iterator<Item = TokenTree>>) -> TokenStream {
     let mut ty_tokens = TokenStream::new();
     let mut nested = 0;
 
@@ -143,109 +144,6 @@ fn parse_type(input: &mut Peekable<impl Iterator<Item = TokenTree>>) -> TokenStr
     }
 
     ty_tokens
-}
-
-impl StructDefinition {
-    pub fn parse(ts: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Self {
-        let prefix = ItemPrefix::parse(ts);
-
-        Self::assemble(prefix, Self::parse_fields(ts))
-    }
-
-    #[must_use]
-    pub fn assemble(prefix: ItemPrefix, fields: Vec<StructField>) -> Self {
-        assert!(
-            matches!(prefix.item_type, ItemType::Struct),
-            "Expected struct definition, found {:?}",
-            prefix.item_type
-        );
-        assert!(!prefix.constness, "Structs cannot be const");
-        assert!(!prefix.unsafety, "Structs cannot be unsafe");
-        assert!(!prefix.asyncness, "Structs cannot be async");
-
-        Self {
-            attributes: prefix.attributes,
-            visibility: prefix.visibility,
-            name: prefix.name,
-            generics: prefix.generics,
-            fields,
-        }
-    }
-
-    pub fn parse_fields(input: &mut impl Iterator<Item = TokenTree>) -> Vec<StructField> {
-        let mut fields = Vec::new();
-
-        let group = match input.next() {
-            Some(TokenTree::Group(group)) => group,
-            Some(TokenTree::Punct(punct)) if punct.char() == PunctChar::Semicolon => return fields,
-            t => panic!("Expected group of struct fields, found `{t:?}`"),
-        };
-
-        let mut attributes = Vec::new();
-
-        let (delimiter, stream) = group.decompose();
-        let mut iter = stream.into_iter().peekable();
-
-        match delimiter {
-            Delimiter::Parenthesis => {
-                while let Some(item) = iter.peek() {
-                    match item {
-                        TokenTree::Punct(punct) if punct.char() == PunctChar::Hash => {
-                            attributes.push(Attribute::parse(&mut iter));
-                        }
-                        _ => {
-                            let visibility = Visibility::parse_or_default(&mut iter);
-
-                            let i = Literal::Integer(fields.len(), None);
-                            fields.push(StructField {
-                                name: TokenTree::Literal(i),
-                                visibility,
-                                ty: parse_type(&mut iter),
-                                attributes: core::mem::take(&mut attributes),
-                            });
-                        }
-                    }
-                }
-
-                return fields;
-            }
-            Delimiter::Brace => {
-                while let Some(token) = iter.peek() {
-                    match token {
-                        TokenTree::Ident(_) => {
-                            let visibility = Visibility::parse_or_default(&mut iter);
-
-                            let TokenTree::Ident(name) = iter.next().unwrap() else {
-                                unreachable!()
-                            };
-
-                            let colon = iter.next().expect("Expected colon after field name");
-                            assert!(
-                                matches!(colon, TokenTree::Punct(ref punct) if punct.char() == PunctChar::Colon),
-                                "Expected colon after field name, found `{colon:?}`"
-                            );
-
-                            fields.push(StructField {
-                                name: TokenTree::Ident(name),
-                                ty: parse_type(&mut iter),
-                                visibility,
-                                attributes: core::mem::take(&mut attributes),
-                            });
-                        }
-                        TokenTree::Punct(punct) if punct.char() == PunctChar::Hash => {
-                            attributes.push(Attribute::parse(&mut iter));
-                        }
-                        t => panic!("Expected ident or attribute in struct fields, found `{t:?}`"),
-                    }
-                }
-            }
-            _ => panic!(
-                "Expected struct fields to be in parentheses or braces, found `{delimiter:?}`"
-            ),
-        }
-
-        fields
-    }
 }
 
 impl EnumDefinition {
@@ -419,7 +317,7 @@ pub fn parse_derive_input(input: TokenStream) -> DeriveInput {
     match item_prefix.item_type {
         ItemType::Struct => DeriveInput::Struct(StructDefinition::assemble(
             item_prefix,
-            StructDefinition::parse_fields(input),
+            StructFields::parse(input),
         )),
         ItemType::Enum => DeriveInput::Enum(EnumDefinition::assemble(
             item_prefix,
@@ -444,11 +342,11 @@ mod tests {
         assert!(matches!(definition.visibility, Visibility::Public));
         assert_eq!(definition.fields.len(), 2);
         assert!(matches!(
-            definition.fields[0].visibility,
+            definition.fields.get(0).unwrap().visibility,
             Visibility::Public
         ));
         assert!(matches!(
-            definition.fields[1].visibility,
+            definition.fields.get(1).unwrap().visibility,
             Visibility::Private
         ));
     }
