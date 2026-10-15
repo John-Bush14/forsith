@@ -6,6 +6,8 @@ pub mod parsing;
 
 pub mod struct_definition;
 
+pub mod enum_definition;
+
 #[derive(Debug, Clone)]
 pub enum ItemContent {
     Struct(Vec<(TokenTree, TokenStream, Vec<Attribute>)>),
@@ -64,33 +66,6 @@ pub trait ItemDefinition {
 
 #[derive(Debug, Clone, Default)]
 pub struct GenericsDefinition(pub Vec<GenericDefinition>);
-
-pub struct EnumVariant {
-    pub ident: Ident,
-    pub fields: Option<Group>,
-    pub attributes: Vec<Attribute>,
-    pub discriminant: Option<TokenStream>,
-}
-
-pub struct EnumDefinition {
-    pub name: Ident,
-    pub generics: GenericsDefinition,
-    pub attributes: Vec<Attribute>,
-    pub visibility: Visibility,
-    pub variants: Vec<EnumVariant>,
-}
-
-impl ItemDefinition for EnumDefinition {
-    fn name(&self) -> &Ident {
-        &self.name
-    }
-    fn generics(&self) -> &GenericsDefinition {
-        &self.generics
-    }
-    fn attributes(&self) -> &[Attribute] {
-        &self.attributes
-    }
-}
 
 pub struct TypeAliasDefinition {
     pub name: Ident,

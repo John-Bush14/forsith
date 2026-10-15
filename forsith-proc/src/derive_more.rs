@@ -1,7 +1,7 @@
 use forsith_base::{
     casing::{Casing, change_casing}, proc_macro::{
         Ident, Literal, PunctChar, TokenStream, TokenTree, items::{
-            EnumDefinition, EnumVariant, ItemDefinition, generating::impl_item, parsing::{DeriveInput, parse_derive_input}, struct_definition::{StructDefinition, StructField, StructFields},
+             ItemDefinition, enum_definition::{EnumDefinition, EnumVariant}, generating::impl_item, parsing::{DeriveInput, parse_derive_input}, struct_definition::{StructDefinition, StructField, StructFields},
         },
     }, quote,
 };
