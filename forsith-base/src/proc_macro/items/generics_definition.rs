@@ -53,6 +53,13 @@ impl WhereClause {
 
         s
     }
+
+    #[must_use]
+    pub fn definition(&self) -> TokenStream {
+        quote! {
+            (@ self.0.clone()) : (@ self.1.clone())
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -119,13 +126,31 @@ impl GenericsDefinition {
         }
     }
 
+    /// produces the complete where clause definition for an item, e.g. `where T: Clone, U: Debug`.
+    #[must_use]
+    pub fn where_clause_definition(&self) -> TokenStream {
+        if self.where_clauses.is_empty() {
+            return TokenStream::new()
+        }
+
+        quote! {
+            where (@ self.inner_where_clause_definition())
+        }
+    }
+
+    /// produces the inner where clause definitions for an item without `where`, e.g. `T: Clone, U:
+    /// Debug`.
+    #[must_use]
+    pub fn inner_where_clause_definition(&self) -> TokenStream {
+        self.where_clauses
+            .iter()
+            .map(|where_clause| quote! {(@ where_clause.definition()),})
+            .collect()
+    }
+
     /// produces the complete generic param definition for an item, e.g. `<T, U>` or `<T: Clone>`.
     #[must_use]
     pub fn param_definition(&self) -> TokenStream {
-        if self.params.is_empty() {
-            return TokenStream::new();
-        }
-
         quote! {
             < (@ self.inner_param_definitions()) >
         }
@@ -145,10 +170,6 @@ impl GenericsDefinition {
     /// produces the usage of the generics for an item, e.g. `<T, U>` or `<T>`.
     #[must_use]
     pub fn param_usage(&self, exprs: Option<&[TokenStream]>) -> TokenStream {
-        if self.params.is_empty() {
-            return TokenStream::new();
-        }
-
         quote! {
             < (@ self.inner_param_usage(exprs)) >
         }

@@ -118,7 +118,7 @@ pub fn derive_into_num(input: TokenStream) -> TokenStream {
         quote!((@ enum_def.name.clone())<(@ enum_def.generics.inner_param_usage(None))>);
 
     quote! {
-        impl(@ enum_def.generics.param_definition()) std::convert::From<(@ enum_type.clone())> for (@ repr) {
+        impl(@ enum_def.generics.param_definition()) (@ enum_def.generics.where_clause_definition()) std::convert::From<(@ enum_type.clone())> for (@ repr) {
             fn from(value: (@ enum_type)) -> Self {
                 use (@ enum_def.name)::*;
                 match value {
@@ -143,7 +143,7 @@ pub fn derive_try_into_num(input: TokenStream) -> TokenStream {
         quote!((@ enum_def.name.clone())<(@ enum_def.generics.inner_param_usage(None))>);
 
     quote! {
-        impl(@ enum_def.generics.param_definition()) std::convert::TryFrom<(@ enum_type.clone())> for (@ repr) {
+        impl(@ enum_def.generics.param_definition()) (@ enum_def.generics.where_clause_definition()) std::convert::TryFrom<(@ enum_type.clone())> for (@ repr) {
             fn try_from(value: (@ enum_type)) -> Self {
                 use (@ enum_def.name)::*;
                 match value {
