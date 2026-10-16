@@ -1,13 +1,13 @@
 use core::iter::Peekable;
 
-use crate::proc_macro::{
+use crate::{proc_macro::{
     Delimiter, Group, Ident, PunctChar, TokenStream, TokenTree,
     items::{
         Attribute, GenericsDefinition, ItemDefinition, ItemPrefix, ItemType, Visibility,
         generics_definition::WhereClause,
         parsing::{parse_attributed_fields_generic, parse_type_until},
     },
-};
+}, quote};
 
 pub struct EnumVariant {
     pub ident: Ident,
@@ -165,6 +165,27 @@ impl EnumVariant {
         }
 
         variant
+    }
+
+    /// Match pattern to unpack the variant into it's fields. For example, for a variant `Foo(u32, u8)`
+    /// this will return `(_0, _1)` or for Bar {foo: u16} this will return {foo}.
+    pub fn unpack_pattern(&self) -> TokenStream {
+        match &self.fields {
+            EnumVariantFields::Unit => TokenStream::new(),
+            EnumVariantFields::Tuple(fields) => {
+                let field_names = fields
+                    .iter()
+                    .enumerate()
+                    .map(|(i, _)| Ident::new(&format!(", _{i}")))
+                    .map(TokenTree::Ident)
+                    .collect::<TokenStream>();
+                quote!(((@ field_names)))
+            }
+            EnumVariantFields::Struct(fields) => {
+                let field_names = fields.iter().map(|f| f.name.clone()).map(TokenTree::Ident).collect::<TokenStream>();
+                quote!({(@ field_names)})
+            }
+        }
     }
 }
 
