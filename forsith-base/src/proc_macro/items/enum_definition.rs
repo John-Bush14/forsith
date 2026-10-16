@@ -104,12 +104,16 @@ impl EnumVariantNamedField {
         stream: &mut Peekable<impl Iterator<Item = TokenTree>>,
         attributes: Vec<Attribute>,
     ) -> Self {
-        let TokenTree::Ident(name) = stream.next().expect("Expected field name, found None") else {
-            panic!("Expected field name, found non-ident token");
-        };
+        let name = stream
+            .next()
+            .expect("Expected field name, found None")
+            .ident()
+            .expect("Expected identifier as field name");
 
         assert!(
-            matches!(stream.next(), Some(TokenTree::Punct(ref punct)) if punct.char() == PunctChar::Colon),
+            stream
+                .next()
+                .is_some_and(|tt| tt.is_punct(PunctChar::Colon)),
             "Expected colon after field name`"
         );
 
@@ -125,12 +129,11 @@ impl EnumVariant {
         stream: &mut Peekable<impl Iterator<Item = TokenTree>>,
         mut attributes: Vec<Attribute>,
     ) -> Self {
-        let name = match stream.next() {
-            Some(TokenTree::Ident(name)) => name,
-            tt => {
-                panic!("Expected ident or attribute in enum variants, found `{tt:?}`");
-            }
-        };
+        let name = stream
+            .next()
+            .expect("Expected enum variant name, found None")
+            .ident()
+            .expect("Expected identifier as enum variant name");
 
         let mut variant = Self {
             ident: name,
@@ -144,12 +147,12 @@ impl EnumVariant {
                 TokenTree::Group(group) => {
                     variant.fields = EnumVariantFields::parse(group);
                 }
-                TokenTree::Punct(punct) if punct.char() == PunctChar::Equal => {
+                tt if tt.is_punct(PunctChar::Equal) => {
                     variant.discriminant =
                         Some(parse_type::<true, true, false, false, false>(stream));
                     break; // parse_type consumes comma
                 }
-                TokenTree::Punct(punct) if punct.char() == PunctChar::Comma => {
+                tt if tt.is_punct(PunctChar::Comma) => {
                     break;
                 }
                 _ => panic!(
@@ -201,17 +204,16 @@ impl EnumDefinition {
         let mut variants = Vec::new();
         let mut attributes = Vec::new();
 
-        let group = match input.next() {
-            Some(TokenTree::Group(group)) if group.delimiter() == Delimiter::Brace => group,
-            t => panic!("Expected group of enum variants, found `{t:?}`"),
-        };
+        let group = input
+            .next()
+            .expect("Expected enum variants group, found None")
+            .delimited_group(Delimiter::Brace)
+            .expect("Expected enum variants to be in braces");
 
         let mut stream = group.take_stream().into_iter().peekable();
 
         while let Some(tt) = stream.peek() {
-            if let TokenTree::Punct(punct) = tt
-                && punct.char() == PunctChar::Hash
-            {
+            if tt.is_punct(PunctChar::Hash) {
                 attributes.push(Attribute::parse(&mut stream));
                 continue;
             }

@@ -2,7 +2,17 @@
 //! This module contains the helpers and implementations for derive macros operating on a single
 //! field of a struct.
 
-use forsith_base::{proc_macro::{TokenStream, items::{generating::impl_item, parsing::{DeriveInput, parse_derive_input}, struct_definition::{StructDefinition, StructField, StructFields}}}, quote};
+use forsith_base::{
+    proc_macro::{
+        TokenStream,
+        items::{
+            generating::impl_item,
+            parsing::{DeriveInput, parse_derive_input},
+            struct_definition::{StructDefinition, StructField, StructFields},
+        },
+    },
+    quote,
+};
 
 pub fn choose_singular_struct_field<'a>(
     fields: &'a StructFields,

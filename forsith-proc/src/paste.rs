@@ -10,8 +10,8 @@ pub fn expand_token_tree(tt: TokenTree) -> TokenTree {
 
     let stream = group.stream();
     if group.delimiter != Delimiter::Bracket
-        || !matches!(&stream[0], TokenTree::Punct(p) if p.char() == PunctChar::LessThan)
-        || !matches!(&stream[stream.len() - 1], TokenTree::Punct(p) if p.char() == PunctChar::GreaterThan)
+        || !stream[0].is_punct(PunctChar::LessThan)
+        || !stream[stream.len() - 1].is_punct(PunctChar::GreaterThan)
     {
         let delimiter = group.delimiter;
         let expanded_stream = group
@@ -30,9 +30,7 @@ pub fn expand_token_tree(tt: TokenTree) -> TokenTree {
 
     let mut result = String::new();
     for tt in stream {
-        let TokenTree::Ident(ident) = tt else {
-            panic!("Expected identifier in paste macro");
-        };
+        let ident = tt.ident().expect("Expected identifier in paste macro");
 
         result.push_str(&ident.to_string());
     }

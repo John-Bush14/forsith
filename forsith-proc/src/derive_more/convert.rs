@@ -1,4 +1,15 @@
-use forsith_base::{proc_macro::{Ident, Literal, TokenStream, TokenTree, items::{ItemDefinition, enum_definition::{EnumDefinition, EnumVariant}, generating::impl_item, parsing::{DeriveInput, parse_derive_input}}}, quote};
+use forsith_base::{
+    proc_macro::{
+        Ident, Literal, TokenStream, TokenTree,
+        items::{
+            ItemDefinition,
+            enum_definition::{EnumDefinition, EnumVariant},
+            generating::impl_item,
+            parsing::{DeriveInput, parse_derive_input},
+        },
+    },
+    quote,
+};
 
 pub fn enum_integer_discriminant_variants(enum_def: &EnumDefinition) -> Vec<&EnumVariant> {
     enum_def
@@ -35,7 +46,7 @@ pub fn item_repr(item: &impl ItemDefinition) -> Ident {
                     .expect("repr attribute must have arguments");
 
                 match args.first() {
-                    Some(TokenTree::Ident(ident)) if ident == &Ident::new("C") => {
+                    Some(tt) if tt.is_ident("C") => {
                         panic!("repr(C) is not currently supported")
                     }
                     Some(TokenTree::Ident(ident)) => ident.clone(),
@@ -103,7 +114,9 @@ pub fn derive_into_num(input: TokenStream) -> TokenStream {
         "IntoNum can only be derived for enums with all variants having a discriminant"
     );
 
-    let enum_type = quote!((@ enum_def.name.clone())<(@ enum_def.generics.inner_param_usage(None))>);
+    let enum_type =
+        quote!((@ enum_def.name.clone())<(@ enum_def.generics.inner_param_usage(None))>);
+
     quote! {
         impl(@ enum_def.generics.param_definition()) std::convert::From<(@ enum_type.clone())> for (@ repr) {
             fn from(value: (@ enum_type)) -> Self {
@@ -126,7 +139,9 @@ pub fn derive_try_into_num(input: TokenStream) -> TokenStream {
     let variants = enum_integer_discriminant_variants(&enum_def);
     let match_arms = generate_into_discriminant_match_arms(&variants, true);
 
-    let enum_type = quote!((@ enum_def.name.clone())<(@ enum_def.generics.inner_param_usage(None))>);
+    let enum_type =
+        quote!((@ enum_def.name.clone())<(@ enum_def.generics.inner_param_usage(None))>);
+
     quote! {
         impl(@ enum_def.generics.param_definition()) std::convert::TryFrom<(@ enum_type.clone())> for (@ repr) {
             fn try_from(value: (@ enum_type)) -> Self {

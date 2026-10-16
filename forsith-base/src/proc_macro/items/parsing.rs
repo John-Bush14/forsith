@@ -6,63 +6,58 @@ use crate::proc_macro::{
     items::{Attribute, GenericsDefinition, ItemPrefix, ItemType, Visibility},
 };
 use core::iter::{Peekable, once};
-use std::net::ToSocketAddrs;
 
 impl Attribute {
     pub fn parse_all(
-        input: &mut Peekable<impl Iterator<Item = TokenTree>>,
-        attributes: &mut Vec<Attribute>,
+        stream: &mut Peekable<impl Iterator<Item = TokenTree>>,
+        attributes: &mut Vec<Self>,
     ) {
-        while let Some(TokenTree::Punct(punct)) = input.peek()
-            && punct.char() == PunctChar::Hash
-        {
-            attributes.push(Self::parse(input));
+        while stream.peek().is_some_and(|tt| tt.is_punct(PunctChar::Hash)) {
+            attributes.push(Self::parse(stream));
         }
     }
 
-    pub fn parse(input: &mut impl Iterator<Item = TokenTree>) -> Self {
+    pub fn parse(stream: &mut impl Iterator<Item = TokenTree>) -> Self {
         assert!(
-            matches!(input.next(), Some(TokenTree::Punct(punct)) if punct.char() == PunctChar::Hash),
+            matches!(stream.next(), Some(TokenTree::Punct(punct)) if punct.char() == PunctChar::Hash),
             "Tried to parse attribute, but first token was not `#`"
         );
 
-        let att = match input.next() {
-            Some(TokenTree::Group(group)) if group.delimiter() == Delimiter::Bracket => group,
-            t => panic!("Expected [...] after `#` in enum variants, found `{t:?}`"),
-        };
+        let mut att_ts = stream
+            .next()
+            .expect("Expected attribute after `#`")
+            .group()
+            .expect("Expected group after `#`")
+            .take_stream()
+            .into_iter();
 
-        let mut att = att.take_stream().into_iter();
+        let name = att_ts
+            .next()
+            .expect("Expected attribute name after `#`")
+            .ident()
+            .expect("Expected identifier as attribute name");
 
-        let name = match att.next() {
-            Some(TokenTree::Ident(ident)) => ident,
-            t => panic!("Expected ident after `#` in attribute, found `{t:?}`"),
-        };
-
-        let args = match att.next() {
-            Some(TokenTree::Group(group)) if group.delimiter() == Delimiter::Parenthesis => {
-                Some(group)
-            }
-            None => None,
-            t => panic!("Expected (...) after `#ident` in attribute, found `{t:?}`"),
-        };
+        let args = att_ts.next().map(|tt| {
+            tt.delimited_group(Delimiter::Parenthesis)
+                .expect("Expected (...) after attribute name")
+        });
 
         Self { name, args }
     }
 }
 
 impl Visibility {
-    pub fn parse(input: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Self {
+    pub fn parse(stream: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Self {
         assert!(
-            matches!(input.next(), Some(TokenTree::Ident(ident)) if ident.to_string() == "pub"),
+            matches!(stream.next(), Some(TokenTree::Ident(ident)) if ident.to_string() == "pub"),
             "Tried to parse visibility, but first token was not `pub`"
         );
 
-        if let Some(TokenTree::Group(group)) = input.peek()
-            && group.delimiter() == Delimiter::Parenthesis
+        if stream
+            .peek()
+            .is_some_and(|tt| tt.is_group(Delimiter::Parenthesis))
         {
-            let TokenTree::Group(group) = input.next().unwrap() else {
-                unreachable!()
-            };
+            let group = stream.next().unwrap().group().unwrap();
 
             Self::SpecializedPublic(group.take_stream())
         } else {
@@ -71,9 +66,7 @@ impl Visibility {
     }
 
     pub fn parse_or_default(input: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Self {
-        if let Some(TokenTree::Ident(ident)) = input.peek()
-            && ident.to_string() == "pub"
-        {
+        if input.peek().is_some_and(|tt| tt.is_ident("pub")) {
             Self::parse(input)
         } else {
             Self::Private
@@ -90,9 +83,7 @@ where
     let mut fields = Vec::new();
 
     while let Some(tt) = stream.peek() {
-        if let TokenTree::Punct(punct) = tt
-            && punct.char() == PunctChar::Hash
-        {
+        if tt.is_punct(PunctChar::Hash) {
             attributes.push(Attribute::parse(stream));
             continue;
         }
@@ -113,31 +104,29 @@ impl ItemPrefix {
 
         while let Some(token) = input.peek() {
             match token {
-                TokenTree::Punct(punct) if punct.char() == PunctChar::Hash => {
+                tt if tt.is_punct(PunctChar::Hash) => {
                     attributes.push(Attribute::parse(input));
                 }
-                TokenTree::Ident(ident) if ident.to_string() == "pub" => {
+                tt if tt.is_ident("pub") => {
                     visibility = Visibility::parse(input);
                 }
-                TokenTree::Ident(ident) if ident.to_string() == "const" => constness = true,
-                TokenTree::Ident(ident) if ident.to_string() == "unsafe" => unsafety = true,
-                TokenTree::Ident(ident) if ident.to_string() == "async" => asyncness = true,
+                tt if tt.is_ident("const") => constness = true,
+                tt if tt.is_ident("unsafe") => unsafety = true,
+                tt if tt.is_ident("async") => asyncness = true,
                 TokenTree::Ident(_) => {
-                    let TokenTree::Ident(item_type) = input.next().unwrap() else {
-                        unreachable!()
-                    };
+                    let item_type = input.next().unwrap().ident().unwrap();
+
                     let item_type = match item_type.to_string().as_str() {
                         "struct" => ItemType::Struct,
                         "enum" => ItemType::Enum,
                         _ => unimplemented!("Item type `{}` is not supported yet", item_type),
                     };
 
-                    let name = match input.next().expect("Expected item name after item type") {
-                        TokenTree::Ident(name) => name,
-                        tt => {
-                            panic!("Expected item name after item type, found `{tt:?}`");
-                        }
-                    };
+                    let name = input
+                        .next()
+                        .expect("Expected item name after item type")
+                        .ident()
+                        .expect("Expected identifier as item name");
 
                     let generic_params = GenericsDefinition::parse_params(input);
 
@@ -152,7 +141,7 @@ impl ItemPrefix {
                         item_type,
                     };
                 }
-                t => panic!("Expected item type after attributes and modifiers, found `{t:?}`"),
+                tt => panic!("Expected item type after attributes and modifiers, found `{tt:?}`"),
             }
         }
 
@@ -177,16 +166,15 @@ pub fn parse_type<
     let mut ty_tokens = TokenStream::new();
     let mut nested = 0u32;
 
-    while let Some(item) = input.peek() {
-        if let TokenTree::Punct(punct) = item {
+    while let Some(tt) = input.peek() {
+        if let TokenTree::Punct(punct) = tt {
             match punct.char() {
                 PunctChar::LessThan => nested += 1,
                 PunctChar::GreaterThan if nested == 0 => {
                     if LESSTHEN {
                         break;
-                    } else {
-                        panic!("Unexpected `>` in type")
                     }
+                    panic!("Unexpected `>` in type")
                 }
                 PunctChar::GreaterThan => nested -= 1,
                 PunctChar::Comma if COMMA && nested == 0 => break,
@@ -194,7 +182,7 @@ pub fn parse_type<
                     if COLON
                         && nested == 0
                         && !punct.joint()
-                        && !matches!(ty_tokens.last(), Some(TokenTree::Punct(punct)) if punct.joint()) =>
+                        && !matches!(ty_tokens.last(), Some(tt) if tt.is_joint_punct()) =>
                 {
                     break;
                 }
@@ -202,8 +190,7 @@ pub fn parse_type<
             }
         }
 
-        if BRACE && matches!(item, TokenTree::Group(group) if group.delimiter() == Delimiter::Brace)
-        {
+        if BRACE && tt.is_group(Delimiter::Brace) {
             break;
         }
 
@@ -269,7 +256,7 @@ mod tests {
 
     #[test]
     fn parses_enum_variants_and_discriminants() {
-        let input = quote! { enum Example { A(u8), B, C = u32 } };
+        let input = quote! { enum Example { A(u8), B, C = 0usize } };
         let mut iter = input.into_iter().peekable();
         let definition = EnumDefinition::parse(&mut iter);
 

@@ -1,7 +1,8 @@
 use forsith_base::{
     casing::{Casing, change_casing},
     proc_macro::{
-        Ident, TokenStream, items::{
+        Ident, TokenStream,
+        items::{
             generating::impl_item,
             parsing::{DeriveInput, parse_derive_input},
         },
@@ -10,14 +11,10 @@ use forsith_base::{
 };
 
 mod convert;
-pub use convert::{
-    derive_from_num, derive_into_num, derive_try_from_num, derive_try_into_num,
-};
+pub use convert::{derive_from_num, derive_into_num, derive_try_from_num, derive_try_into_num};
 
 mod ssfd;
-pub use ssfd::{
-    derive_deref, derive_deref_mut, derive_index, derive_index_mut, derive_not,
-};
+pub use ssfd::{derive_deref, derive_deref_mut, derive_index, derive_index_mut, derive_not};
 
 pub fn derive_is_variant(input: TokenStream) -> TokenStream {
     let DeriveInput::Enum(enum_def) = parse_derive_input(input) else {

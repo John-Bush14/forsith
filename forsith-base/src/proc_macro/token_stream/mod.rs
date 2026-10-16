@@ -3,7 +3,10 @@ use crate::{
         string::{String, ToString},
         vec::Vec,
     },
-    proc_macro::token_stream::{group::Group, ident::Ident, literal::Literal, punct::Punct},
+    proc_macro::{
+        Delimiter, PunctChar,
+        token_stream::{group::Group, ident::Ident, literal::Literal, punct::Punct},
+    },
 };
 use core::{
     fmt::Display,
@@ -42,7 +45,7 @@ impl TokenStream {
 
     fn raw_code(&self) -> String {
         self.0.iter().fold(String::new(), |mut code, tt| {
-            if !matches!(tt, TokenTree::Punct(p) if !p.joint()) {
+            if tt.is_joint_punct() {
                 code.push(' ');
             }
 
@@ -191,6 +194,68 @@ impl From<TokenTree> for proc_macro::TokenTree {
             TokenTree::Ident(i) => Self::Ident(i.into()),
             TokenTree::Punct(p) => Self::Punct(p.into()),
             TokenTree::Literal(l) => Self::Literal(l.into()),
+        }
+    }
+}
+
+impl TokenTree {
+    #[must_use]
+    pub fn is_punct(&self, punct: PunctChar) -> bool {
+        matches!(self, Self::Punct(p) if p.char() == punct)
+    }
+
+    #[must_use]
+    pub const fn is_joint_punct(&self) -> bool {
+        matches!(self, Self::Punct(p) if p.joint())
+    }
+
+    #[must_use]
+    pub fn is_ident(&self, ident: &str) -> bool {
+        matches!(self, Self::Ident(i) if i.to_string() == ident)
+    }
+
+    #[must_use]
+    pub fn is_group(&self, delimiter: Delimiter) -> bool {
+        matches!(self, Self::Group(g) if delimiter == g.delimiter())
+    }
+
+    #[must_use]
+    pub fn group(self) -> Option<Group> {
+        match self {
+            Self::Group(g) => Some(g),
+            _ => None,
+        }
+    }
+
+    #[must_use]
+    pub fn delimited_group(self, delimiter: Delimiter) -> Option<Group> {
+        match self {
+            Self::Group(g) if g.delimiter() == delimiter => Some(g),
+            _ => None,
+        }
+    }
+
+    #[must_use]
+    pub fn ident(self) -> Option<Ident> {
+        match self {
+            Self::Ident(i) => Some(i),
+            _ => None,
+        }
+    }
+
+    #[must_use]
+    pub fn punct(self) -> Option<Punct> {
+        match self {
+            Self::Punct(p) => Some(p),
+            _ => None,
+        }
+    }
+
+    #[must_use]
+    pub fn literal(self) -> Option<Literal> {
+        match self {
+            Self::Literal(l) => Some(l),
+            _ => None,
         }
     }
 }

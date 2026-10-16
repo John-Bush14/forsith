@@ -17,7 +17,7 @@ impl GenericParam {
         Self::Type(
             ident,
             match stream.peek() {
-                Some(TokenTree::Punct(punct)) if punct.char() == PunctChar::Colon => {
+                Some(tt) if tt.is_punct(PunctChar::Colon) => {
                     let _ = stream.next();
                     parse_type::<false, true, false, false, true>(stream)
                 }
@@ -27,10 +27,13 @@ impl GenericParam {
     }
 
     fn parse_lifetime(stream: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Self {
-        Self::Lifetime(match stream.next() {
-            Some(TokenTree::Ident(ident)) => ident,
-            t => panic!("Expected lifetime name after `'`, found `{t:?}`"),
-        })
+        Self::Lifetime(
+            stream
+                .next()
+                .expect("Expected lifetime after `'`")
+                .ident()
+                .expect("Expected identifier after `'`"),
+        )
     }
 }
 
@@ -44,9 +47,7 @@ impl WhereClause {
             parse_type::<false, true, false, true, false>(input),
         );
 
-        if let Some(TokenTree::Punct(punct)) = input.peek()
-            && punct.char() == PunctChar::Comma
-        {
+        if input.peek().is_some_and(|tt| tt.is_punct(PunctChar::Comma)) {
             let _ = input.next();
         }
 
@@ -61,27 +62,23 @@ pub struct GenericsDefinition {
 }
 
 impl GenericsDefinition {
-    pub fn parse_params(
-        input: &mut Peekable<impl Iterator<Item = TokenTree>>,
-    ) -> Vec<GenericParam> {
+    pub fn parse_params(ts: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Vec<GenericParam> {
         let mut params = Vec::new();
 
-        if let Some(TokenTree::Punct(punct)) = input.peek()
-            && punct.char() == PunctChar::LessThan
-        {
-            let _ = input.next();
+        if ts.peek().is_some_and(|tt| tt.is_punct(PunctChar::LessThan)) {
+            let _ = ts.next();
         } else {
             return params;
         }
 
         #[allow(irrefutable_let_patterns)]
-        while let token = input.next().expect("Generic param list ended unexpectedly") {
+        while let token = ts.next().expect("Generic param list ended unexpectedly") {
             match token {
                 TokenTree::Ident(ident) => {
-                    params.push(GenericParam::parse_type(input, ident));
+                    params.push(GenericParam::parse_type(ts, ident));
                 }
                 TokenTree::Punct(punct) if punct.char() == PunctChar::Qoute => {
-                    params.push(GenericParam::parse_lifetime(input));
+                    params.push(GenericParam::parse_lifetime(ts));
                 }
                 TokenTree::Punct(punct) if punct.char() == PunctChar::Comma => (),
                 TokenTree::Punct(punct) if punct.char() == PunctChar::GreaterThan => {
@@ -101,10 +98,11 @@ impl GenericsDefinition {
     ) -> Vec<WhereClause> {
         let mut where_clauses = Vec::new();
 
-        if let Some(TokenTree::Ident(ident)) = stream.peek()
-            && ident == &Ident::new("where")
-        {
-            while !matches!(stream.peek(), Some(TokenTree::Group(group)) if group.delimiter() == Delimiter::Brace)
+        if stream.peek().is_some_and(|tt| tt.is_ident("where")) {
+            while let tt = stream
+                .peek()
+                .expect("Expected where clause to end with `;` or `{`")
+                && !(tt.is_punct(PunctChar::Semicolon) || tt.is_group(Delimiter::Brace))
             {
                 where_clauses.push(WhereClause::parse(stream));
             }

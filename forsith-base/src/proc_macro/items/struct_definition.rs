@@ -60,12 +60,16 @@ impl NamedStructField {
     ) -> Self {
         let visibility = Visibility::parse_or_default(stream);
 
-        let TokenTree::Ident(name) = stream.next().expect("Expected field name, found None") else {
-            panic!("Expected field name, found non-ident token");
-        };
+        let name = stream
+            .next()
+            .expect("Expected field name, found None")
+            .ident()
+            .expect("Expected field name to be an ident");
 
         assert!(
-            matches!(stream.next(), Some(TokenTree::Punct(ref punct)) if punct.char() == PunctChar::Colon),
+            stream
+                .next()
+                .is_some_and(|tt| tt.is_punct(PunctChar::Colon)),
             "Expected colon after field name`"
         );
 
@@ -121,9 +125,7 @@ impl StructFields {
     pub fn parse(stream: &mut impl Iterator<Item = TokenTree>) -> Self {
         let group = match stream.next() {
             Some(TokenTree::Group(group)) => group,
-            Some(TokenTree::Punct(punct)) if punct.char() == PunctChar::Semicolon => {
-                return Self::Unit;
-            }
+            Some(tt) if tt.is_punct(PunctChar::Semicolon) => return Self::Unit,
             t => panic!("Expected group of struct fields, found `{t:?}`"),
         };
 
