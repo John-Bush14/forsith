@@ -27,14 +27,17 @@ macro_rules! quote_tree {
     ($lit:literal) => {{
         [$crate::proc_macro::Literal::from($lit)]
     }};
-    (_) => {{
-        [$crate::proc_macro::Ident::new("_")]
-    }};
     ($punct:tt) => {{
         let puncts = stringify!($punct);
         puncts
             .chars()
             .enumerate()
-            .map(|(i, c)| $crate::proc_macro::Punct::new(c.try_into().expect("qoute! contained punctuation PunctChar can't contain?"), i != puncts.len() - 1))
+            .map(|(i, c)| {
+                if c == '_' {
+                    return $crate::proc_macro::TokenTree::Ident($crate::proc_macro::Ident::new("_"));
+                }
+
+                $crate::proc_macro::TokenTree::Punct($crate::proc_macro::Punct::new(c.try_into().expect("qoute! contained punctuation PunctChar can't contain?"), i != puncts.len() - 1))
+            })
     }};
 }
