@@ -1,6 +1,7 @@
 use crate::{
     proc_macro::{
-        Delimiter, Ident, Punct, PunctChar, TokenStream, TokenTree, items::parsing::parse_type,
+        Delimiter, Ident, Punct, PunctChar, TokenStream, TokenTree,
+        items::parsing::parse_type_until,
     },
     quote,
 };
@@ -19,7 +20,11 @@ impl GenericParam {
             match stream.peek() {
                 Some(tt) if tt.is_punct(PunctChar::Colon) => {
                     let _ = stream.next();
-                    parse_type::<false, true, false, false, true>(stream)
+                    parse_type_until(
+                        stream,
+                        |tt| tt.is_punct(PunctChar::Comma) || tt.is_punct(PunctChar::GreaterThan),
+                        false,
+                    )
                 }
                 _ => TokenStream::new(),
             },
@@ -41,10 +46,35 @@ impl GenericParam {
 pub struct WhereClause(pub TokenStream, pub TokenStream);
 
 impl WhereClause {
+    fn rhs_stop_condition(tt: &TokenTree) -> bool {
+        tt.is_punct(PunctChar::Comma) || Self::stop_condition(tt)
+    }
+
+    fn stop_condition(tt: &TokenTree) -> bool {
+        tt.is_punct(PunctChar::Semicolon)
+            || tt.is_group(Delimiter::Brace)
+            || tt.is_group(Delimiter::Parenthesis)
+            || tt.is_punct(PunctChar::Equal)
+    }
+
+    fn lhs_stop_condition() -> impl FnMut(&TokenTree) -> bool {
+        let mut prev = None;
+        move |tt| {
+            let is_colon = tt.is_punct_joint(PunctChar::Colon, false)
+                && prev
+                    .as_ref()
+                    .is_none_or(|prev: &TokenTree| !prev.is_punct_joint(PunctChar::Colon, true));
+
+            prev = Some(tt.clone());
+
+            is_colon
+        }
+    }
+
     pub fn parse(input: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Self {
         let s = Self(
-            parse_type::<true, false, true, false, false>(input),
-            parse_type::<false, true, false, true, false>(input),
+            parse_type_until(input, Self::lhs_stop_condition(), true),
+            parse_type_until(input, Self::rhs_stop_condition, false),
         );
 
         if input.peek().is_some_and(|tt| tt.is_punct(PunctChar::Comma)) {
@@ -106,10 +136,12 @@ impl GenericsDefinition {
         let mut where_clauses = Vec::new();
 
         if stream.peek().is_some_and(|tt| tt.is_ident("where")) {
+            let _ = stream.next();
+
             while let tt = stream
                 .peek()
-                .expect("Expected where clause to end with `;` or `{`")
-                && !(tt.is_punct(PunctChar::Semicolon) || tt.is_group(Delimiter::Brace) || tt.is_group(Delimiter::Parenthesis) || tt.is_punct(PunctChar::Equal))
+                .expect("Where clause list ended unexpectedly after `where`")
+                && !WhereClause::stop_condition(tt)
             {
                 where_clauses.push(WhereClause::parse(stream));
             }

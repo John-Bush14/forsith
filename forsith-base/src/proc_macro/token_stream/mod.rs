@@ -205,6 +205,11 @@ impl TokenTree {
     }
 
     #[must_use]
+    pub fn is_punct_joint(&self, punct: PunctChar, joint: bool) -> bool {
+        matches!(self, Self::Punct(p) if p.char() == punct && p.joint() == joint)
+    }
+
+    #[must_use]
     pub const fn is_joint_punct(&self) -> bool {
         matches!(self, Self::Punct(p) if p.joint())
     }

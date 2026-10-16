@@ -5,7 +5,7 @@ use crate::proc_macro::{
     items::{
         Attribute, GenericsDefinition, ItemDefinition, ItemPrefix, ItemType, Visibility,
         generics_definition::WhereClause,
-        parsing::{parse_attributed_fields_generic, parse_type},
+        parsing::{parse_attributed_fields_generic, parse_type_until},
     },
 };
 
@@ -94,7 +94,7 @@ impl EnumVariantUnnamedField {
     ) -> Self {
         Self {
             attributes,
-            ty: parse_type::<true, true, false, false, false>(stream),
+            ty: parse_type_until(stream, |tt| tt.is_punct(PunctChar::Comma), true),
         }
     }
 }
@@ -148,8 +148,11 @@ impl EnumVariant {
                     variant.fields = EnumVariantFields::parse(group);
                 }
                 tt if tt.is_punct(PunctChar::Equal) => {
-                    variant.discriminant =
-                        Some(parse_type::<true, true, false, false, false>(stream));
+                    variant.discriminant = Some(parse_type_until(
+                        stream,
+                        |tt| tt.is_punct(PunctChar::Comma),
+                        true,
+                    ));
                     break; // parse_type consumes comma
                 }
                 tt if tt.is_punct(PunctChar::Comma) => {

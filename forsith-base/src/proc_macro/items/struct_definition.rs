@@ -8,7 +8,7 @@ use crate::proc_macro::{
     items::{
         Attribute, GenericsDefinition, ItemDefinition, ItemPrefix, ItemType, Visibility,
         generics_definition::WhereClause,
-        parsing::{parse_attributed_fields_generic, parse_type},
+        parsing::{parse_attributed_fields_generic, parse_type_until},
     },
 };
 
@@ -47,7 +47,7 @@ impl UnnamedStructField {
     ) -> Self {
         Self {
             visibility: Visibility::parse_or_default(stream),
-            ty: parse_type::<true, true, false, false, false>(stream),
+            ty: parse_type_until(stream, |tt| tt.is_punct(PunctChar::Comma), true),
             attributes,
         }
     }
@@ -76,7 +76,7 @@ impl NamedStructField {
         Self {
             name,
             field: UnnamedStructField {
-                ty: parse_type::<true, true, false, false, false>(stream),
+                ty: parse_type_until(stream, |tt| tt.is_punct(PunctChar::Comma), true),
                 visibility,
                 attributes,
             },

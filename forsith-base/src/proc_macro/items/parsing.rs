@@ -149,57 +149,29 @@ impl ItemPrefix {
     }
 }
 
-pub fn parse_type<
-    const CONSUME: bool,
-    const COMMA: bool,
-    const COLON: bool,
-    const WHERE_CLAUSE_RHS: bool,
-    const LESSTHEN: bool,
->(
+pub fn parse_type_until(
     input: &mut Peekable<impl Iterator<Item = TokenTree>>,
+    mut stop_condition: impl FnMut(&TokenTree) -> bool,
+    consume_last: bool,
 ) -> TokenStream {
-    assert!(
-        COMMA || COLON,
-        "parse_type must be called with at least one of COMMA or COLON set to true"
-    );
-
     let mut ty_tokens = TokenStream::new();
     let mut nested = 0u32;
 
     while let Some(tt) = input.peek() {
-        if let TokenTree::Punct(punct) = tt {
-            match punct.char() {
-                PunctChar::LessThan => nested += 1,
-                PunctChar::GreaterThan if nested == 0 => {
-                    if LESSTHEN {
-                        break;
-                    }
-                    panic!("Unexpected `>` in type")
-                }
-                PunctChar::GreaterThan => nested -= 1,
-                PunctChar::Comma if COMMA && nested == 0 => break,
-                PunctChar::Semicolon | PunctChar::Equal if WHERE_CLAUSE_RHS && nested == 0 => break,
-                PunctChar::Colon
-                    if COLON
-                        && nested == 0
-                        && !punct.joint()
-                        && !matches!(ty_tokens.last(), Some(tt) if tt.is_joint_punct()) =>
-                {
-                    break;
-                }
-                _ => {}
-            }
+        if nested == 0 && stop_condition(tt) {
+            break;
         }
 
-        if WHERE_CLAUSE_RHS && (tt.is_group(Delimiter::Brace) || tt.is_group(Delimiter::Parenthesis))
-        {
-            break;
+        if tt.is_punct(PunctChar::LessThan) {
+            nested += 1;
+        } else if tt.is_punct(PunctChar::GreaterThan) {
+            nested -= 1;
         }
 
         ty_tokens.extend(once(input.next().unwrap()));
     }
 
-    if CONSUME {
+    if consume_last {
         let _ = input.next();
     }
 
