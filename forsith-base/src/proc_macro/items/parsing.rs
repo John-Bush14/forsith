@@ -126,6 +126,11 @@ impl ItemPrefix {
                     let TokenTree::Ident(item_type) = input.next().unwrap() else {
                         unreachable!()
                     };
+                    let item_type = match item_type.to_string().as_str() {
+                        "struct" => ItemType::Struct,
+                        "enum" => ItemType::Enum,
+                        _ => unimplemented!("Item type `{}` is not supported yet", item_type),
+                    };
 
                     let name = match input.next().expect("Expected item name after item type") {
                         TokenTree::Ident(name) => name,
@@ -133,12 +138,8 @@ impl ItemPrefix {
                             panic!("Expected item name after item type, found `{tt:?}`");
                         }
                     };
-                    let generics = GenericsDefinition::parse(input);
-                    let item_type = match item_type.to_string().as_str() {
-                        "struct" => ItemType::Struct,
-                        "enum" => ItemType::Enum,
-                        _ => unimplemented!("Item type `{}` is not supported yet", item_type),
-                    };
+
+                    let generic_params = GenericsDefinition::parse_params(input);
 
                     return Self {
                         attributes,
@@ -147,7 +148,7 @@ impl ItemPrefix {
                         unsafety,
                         asyncness,
                         name,
-                        generics,
+                        generic_params,
                         item_type,
                     };
                 }
@@ -159,22 +160,34 @@ impl ItemPrefix {
     }
 }
 
-pub fn parse_type<const CONSUME: bool, const COMMA: bool, const COLON: bool, const BRACE: bool>(
+pub fn parse_type<
+    const CONSUME: bool,
+    const COMMA: bool,
+    const COLON: bool,
+    const BRACE: bool,
+    const LESSTHEN: bool,
+>(
     input: &mut Peekable<impl Iterator<Item = TokenTree>>,
-) -> TokenStream
-{
+) -> TokenStream {
     assert!(
         COMMA || COLON,
         "parse_type must be called with at least one of COMMA or COLON set to true"
     );
 
     let mut ty_tokens = TokenStream::new();
-    let mut nested = 0;
+    let mut nested = 0u32;
 
     while let Some(item) = input.peek() {
         if let TokenTree::Punct(punct) = item {
             match punct.char() {
                 PunctChar::LessThan => nested += 1,
+                PunctChar::GreaterThan if nested == 0 => {
+                    if LESSTHEN {
+                        break;
+                    } else {
+                        panic!("Unexpected `>` in type")
+                    }
+                }
                 PunctChar::GreaterThan => nested -= 1,
                 PunctChar::Comma if COMMA && nested == 0 => break,
                 PunctChar::Colon
@@ -189,7 +202,8 @@ pub fn parse_type<const CONSUME: bool, const COMMA: bool, const COLON: bool, con
             }
         }
 
-        if BRACE && matches!(item, TokenTree::Group(group) if group.delimiter() == Delimiter::Brace) {
+        if BRACE && matches!(item, TokenTree::Group(group) if group.delimiter() == Delimiter::Brace)
+        {
             break;
         }
 
@@ -210,18 +224,20 @@ pub enum DeriveInput {
 
 #[must_use]
 pub fn parse_derive_input(input: TokenStream) -> DeriveInput {
-    let input = &mut input.into_iter().peekable();
+    let stream = &mut input.into_iter().peekable();
 
-    let item_prefix = ItemPrefix::parse(input);
+    let item_prefix = ItemPrefix::parse(stream);
 
     match item_prefix.item_type {
         ItemType::Struct => DeriveInput::Struct(StructDefinition::assemble(
             item_prefix,
-            StructFields::parse(input),
+            GenericsDefinition::parse_where_clauses(stream),
+            StructFields::parse(stream),
         )),
         ItemType::Enum => DeriveInput::Enum(EnumDefinition::assemble(
             item_prefix,
-            EnumDefinition::parse_variants(input),
+            GenericsDefinition::parse_where_clauses(stream),
+            EnumDefinition::parse_variants(stream),
         )),
         item_type => unimplemented!("Item type `{item_type:?}` is not supported yet"),
     }

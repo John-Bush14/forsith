@@ -1,100 +1,144 @@
+use crate::{
+    proc_macro::{
+        Delimiter, Ident, Punct, PunctChar, TokenStream, TokenTree, items::parsing::parse_type,
+    },
+    quote,
+};
 use core::iter::{Peekable, once};
-use crate::{proc_macro::{Ident, Punct, PunctChar, TokenStream, TokenTree}, quote};
 
 #[derive(Debug, Clone)]
-pub enum GenericDefinition {
+pub enum GenericParam {
     Lifetime(Ident),
     Type(Ident, TokenStream),
 }
 
+impl GenericParam {
+    fn parse_type(stream: &mut Peekable<impl Iterator<Item = TokenTree>>, ident: Ident) -> Self {
+        Self::Type(
+            ident,
+            match stream.peek() {
+                Some(TokenTree::Punct(punct)) if punct.char() == PunctChar::Colon => {
+                    let _ = stream.next();
+                    parse_type::<false, true, false, false, true>(stream)
+                }
+                _ => TokenStream::new(),
+            },
+        )
+    }
+
+    fn parse_lifetime(stream: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Self {
+        Self::Lifetime(match stream.next() {
+            Some(TokenTree::Ident(ident)) => ident,
+            t => panic!("Expected lifetime name after `'`, found `{t:?}`"),
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct WhereClause(pub TokenStream, pub TokenStream);
+
+impl WhereClause {
+    pub fn parse(input: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Self {
+        let s = Self(
+            parse_type::<true, false, true, false, false>(input),
+            parse_type::<false, true, false, true, false>(input),
+        );
+
+        if let Some(TokenTree::Punct(punct)) = input.peek()
+            && punct.char() == PunctChar::Comma
+        {
+            let _ = input.next();
+        }
+
+        s
+    }
+}
+
 #[derive(Debug, Clone, Default)]
-pub struct GenericsDefinition(pub Vec<GenericDefinition>);
+pub struct GenericsDefinition {
+    pub params: Vec<GenericParam>,
+    pub where_clauses: Vec<WhereClause>,
+}
 
 impl GenericsDefinition {
-    pub fn parse(input: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Self {
-        let mut generics: Vec<GenericDefinition> = Vec::new();
+    pub fn parse_params(
+        input: &mut Peekable<impl Iterator<Item = TokenTree>>,
+    ) -> Vec<GenericParam> {
+        let mut params = Vec::new();
+
         if let Some(TokenTree::Punct(punct)) = input.peek()
             && punct.char() == PunctChar::LessThan
         {
             let _ = input.next();
+        } else {
+            return params;
+        }
 
-            loop {
-                match input.next() {
-                    Some(TokenTree::Ident(ident)) => {
-                        let mut constraints = TokenStream::new();
-                        if let Some(TokenTree::Punct(punct)) = input.peek()
-                            && punct.char() == PunctChar::Colon
-                        {
-                            let _ = input.next();
-
-                            let mut nested = 0;
-                            while let Some(item) = input.peek() {
-                                if let TokenTree::Punct(punct) = item {
-                                    match punct.char() {
-                                        PunctChar::LessThan => nested += 1,
-                                        PunctChar::GreaterThan => {
-                                            if nested == 0 {
-                                                break;
-                                            }
-                                            nested -= 1;
-                                        }
-                                        PunctChar::Comma if nested == 0 => {
-                                            let _ = input.next();
-                                            break;
-                                        }
-                                        _ => {}
-                                    }
-                                }
-                                constraints.extend(once(input.next().unwrap()));
-                            }
-                        }
-                        generics.push(GenericDefinition::Type(ident, constraints));
-                    }
-                    Some(TokenTree::Punct(punct)) if punct.char() == PunctChar::GreaterThan => {
-                        break;
-                    }
-                    Some(TokenTree::Punct(punct)) if punct.char() == PunctChar::Qoute => {
-                        let lifetime_ident = match input.next() {
-                            Some(TokenTree::Ident(ident)) => ident,
-                            t => panic!("Expected lifetime name after `'`, found `{t:?}`"),
-                        };
-                        generics.push(GenericDefinition::Lifetime(lifetime_ident));
-
-                        if let Some(TokenTree::Punct(punct)) = input.peek()
-                            && punct.char() == PunctChar::Comma
-                        {
-                            let _ = input.next();
-                        }
-                    }
-                    None => panic!("Expected Some after `<` in generics, found None"),
-                    tt => panic!("Expected ident or `>` or \"'\" in generics, found `{tt:?}`"),
+        #[allow(irrefutable_let_patterns)]
+        while let token = input.next().expect("Generic param list ended unexpectedly") {
+            match token {
+                TokenTree::Ident(ident) => {
+                    params.push(GenericParam::parse_type(input, ident));
                 }
+                TokenTree::Punct(punct) if punct.char() == PunctChar::Qoute => {
+                    params.push(GenericParam::parse_lifetime(input));
+                }
+                TokenTree::Punct(punct) if punct.char() == PunctChar::Comma => (),
+                TokenTree::Punct(punct) if punct.char() == PunctChar::GreaterThan => {
+                    break;
+                }
+                tt => panic!(
+                    "Expected ident, \"'\" or `>` in generics, found `{tt:?}`, current_context: `{params:?}`"
+                ),
             }
         }
 
-        Self(generics)
+        params
     }
-}
 
-impl GenericsDefinition {
-    /// produces the complete generic definition for an item, e.g. `<T, U>` or `<T: Clone>`.
+    pub fn parse_where_clauses(
+        stream: &mut Peekable<impl Iterator<Item = TokenTree>>,
+    ) -> Vec<WhereClause> {
+        let mut where_clauses = Vec::new();
+
+        if let Some(TokenTree::Ident(ident)) = stream.peek()
+            && ident == &Ident::new("where")
+        {
+            while !matches!(stream.peek(), Some(TokenTree::Group(group)) if group.delimiter() == Delimiter::Brace)
+            {
+                where_clauses.push(WhereClause::parse(stream));
+            }
+        }
+
+        where_clauses
+    }
+
     #[must_use]
-    pub fn definition(&self) -> TokenStream {
-        if self.0.is_empty() {
+    pub const fn assemble(params: Vec<GenericParam>, where_clauses: Vec<WhereClause>) -> Self {
+        Self {
+            params,
+            where_clauses,
+        }
+    }
+
+    /// produces the complete generic param definition for an item, e.g. `<T, U>` or `<T: Clone>`.
+    #[must_use]
+    pub fn param_definition(&self) -> TokenStream {
+        if self.params.is_empty() {
             return TokenStream::new();
         }
 
         quote! {
-            < (@ self.generic_definitions()) >
+            < (@ self.inner_param_definitions()) >
         }
     }
 
-    /// produces the inner generic definitions for an item without < and >, e.g. `T, U` or `T: Clone`.
+    /// produces the inner generic param definitions for an item without < and >, e.g. `T, U` or `T: Clone`.
     /// Always has a leading comma if there are any generic definitions, so that it can be used in
     /// combination with other generic definitions.
     #[must_use]
-    pub fn generic_definitions(&self) -> TokenStream {
-        self.0
+    pub fn inner_param_definitions(&self) -> TokenStream {
+        self.params
             .iter()
             .map(|generic| quote! {(@ generic.definition()),})
             .collect()
@@ -102,13 +146,13 @@ impl GenericsDefinition {
 
     /// produces the usage of the generics for an item, e.g. `<T, U>` or `<T>`.
     #[must_use]
-    pub fn usage(&self, exprs: Option<&[TokenStream]>) -> TokenStream {
-        if self.0.is_empty() {
+    pub fn param_usage(&self, exprs: Option<&[TokenStream]>) -> TokenStream {
+        if self.params.is_empty() {
             return TokenStream::new();
         }
 
         quote! {
-            < (@ self.generic_usage(exprs)) >
+            < (@ self.inner_param_usage(exprs)) >
         }
     }
 
@@ -117,15 +161,15 @@ impl GenericsDefinition {
     /// combination with other generic usages.
     #[must_use]
     #[allow(clippy::redundant_closure_for_method_calls)]
-    pub fn generic_usage(&self, exprs: Option<&[TokenStream]>) -> TokenStream {
+    pub fn inner_param_usage(&self, exprs: Option<&[TokenStream]>) -> TokenStream {
         assert!(
-            self.0.len() >= exprs.map_or(0, |g| g.len()),
+            self.params.len() >= exprs.map_or(0, |g| g.len()),
             "Tried to make usage of generics with too many generics"
         );
 
         let anonymous = quote! {(@ Ident::new("_"))};
 
-        self.0
+        self.params
             .iter()
             .enumerate()
             .map(|(i, generic)| {
@@ -135,7 +179,7 @@ impl GenericsDefinition {
     }
 }
 
-impl GenericDefinition {
+impl GenericParam {
     /// produces the complete generic definition for a single generic, e.g. `T` or `T: Clone`.
     #[must_use]
     pub fn definition(&self) -> TokenStream {

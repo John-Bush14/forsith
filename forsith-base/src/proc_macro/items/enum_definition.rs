@@ -4,6 +4,7 @@ use crate::proc_macro::{
     Delimiter, Group, Ident, PunctChar, TokenStream, TokenTree,
     items::{
         Attribute, GenericsDefinition, ItemDefinition, ItemPrefix, ItemType, Visibility,
+        generics_definition::WhereClause,
         parsing::{parse_attributed_fields_generic, parse_type},
     },
 };
@@ -93,7 +94,7 @@ impl EnumVariantUnnamedField {
     ) -> Self {
         Self {
             attributes,
-            ty: parse_type::<true, true, false, false>(stream),
+            ty: parse_type::<true, true, false, false, false>(stream),
         }
     }
 }
@@ -144,7 +145,8 @@ impl EnumVariant {
                     variant.fields = EnumVariantFields::parse(group);
                 }
                 TokenTree::Punct(punct) if punct.char() == PunctChar::Equal => {
-                    variant.discriminant = Some(parse_type::<true, true, false, false>(stream));
+                    variant.discriminant =
+                        Some(parse_type::<true, true, false, false, false>(stream));
                     break; // parse_type consumes comma
                 }
                 TokenTree::Punct(punct) if punct.char() == PunctChar::Comma => {
@@ -164,11 +166,19 @@ impl EnumDefinition {
     pub fn parse(ts: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Self {
         let prefix = ItemPrefix::parse(ts);
 
-        Self::assemble(prefix, Self::parse_variants(ts))
+        Self::assemble(
+            prefix,
+            GenericsDefinition::parse_where_clauses(ts),
+            Self::parse_variants(ts),
+        )
     }
 
     #[must_use]
-    pub fn assemble(prefix: ItemPrefix, variants: Vec<EnumVariant>) -> Self {
+    pub fn assemble(
+        prefix: ItemPrefix,
+        where_clauses: Vec<WhereClause>,
+        variants: Vec<EnumVariant>,
+    ) -> Self {
         assert!(
             matches!(prefix.item_type, ItemType::Enum),
             "Expected enum definition, found {:?}",
@@ -182,7 +192,7 @@ impl EnumDefinition {
             attributes: prefix.attributes,
             visibility: prefix.visibility,
             name: prefix.name,
-            generics: prefix.generics,
+            generics: GenericsDefinition::assemble(prefix.generic_params, where_clauses),
             variants,
         }
     }

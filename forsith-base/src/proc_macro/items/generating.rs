@@ -63,7 +63,7 @@ impl TypeAliasDefinition {
         let generics = self.generics();
 
         quote! {
-            (@ self.visibility.definition()) type (@ self.name().clone()) (@ generics.definition()) = (@ self.ty.clone());
+            (@ self.visibility.definition()) type (@ self.name().clone()) (@ generics.param_definition()) = (@ self.ty.clone());
         }
     }
 }
@@ -78,7 +78,7 @@ pub fn impl_item(
     let r#trait = r#trait.map_or_default(|t| quote! { (@ t) for });
 
     quote! {
-        impl (@ generics.definition()) (@ r#trait) (@ item.name().clone()) (@ generics.usage(None)) {
+        impl (@ generics.param_definition()) (@ r#trait) (@ item.name().clone()) (@ generics.param_usage(None)) {
             (@ body)
         }
     }
@@ -89,7 +89,7 @@ impl FunctionDefinition {
     #[must_use]
     pub fn definition(&self) -> TokenStream {
         quote! {
-            (@ self.visibility.definition()) fn (@ self.name.clone()) (@ self.generics.definition()) (@ self.params_def()) (@ self.return_def()) (@ self.body_def())
+            (@ self.visibility.definition()) fn (@ self.name.clone()) (@ self.generics.param_definition()) (@ self.params_def()) (@ self.return_def()) (@ self.body_def())
         }
     }
 
@@ -132,7 +132,7 @@ impl FunctionDefinition {
     #[must_use]
     pub fn signature(&self) -> TokenStream {
         quote! {
-            fn (@ self.name.clone()) (@ self.generics.definition()) (@ self.params_def()) (@ self.return_def())
+            fn (@ self.name.clone()) (@ self.generics.param_definition()) (@ self.params_def()) (@ self.return_def())
         }
     }
 
@@ -156,7 +156,7 @@ impl FunctionDefinition {
             .collect::<TokenStream>();
 
         quote! {
-            (@ self.name.clone()) (@ self.generics.usage(generic_exprs)) ((@ args))
+            (@ self.name.clone()) (@ self.generics.param_usage(generic_exprs)) ((@ args))
         }
     }
 }

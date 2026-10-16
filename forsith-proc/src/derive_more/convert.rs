@@ -103,9 +103,9 @@ pub fn derive_into_num(input: TokenStream) -> TokenStream {
         "IntoNum can only be derived for enums with all variants having a discriminant"
     );
 
-    let enum_type = quote!((@ enum_def.name.clone())<(@ enum_def.generics.generic_usage(None))>);
+    let enum_type = quote!((@ enum_def.name.clone())<(@ enum_def.generics.inner_param_usage(None))>);
     quote! {
-        impl<(@ enum_def.generics.generic_definitions())> std::convert::From<(@ enum_type.clone())> for (@ repr) {
+        impl(@ enum_def.generics.param_definition()) std::convert::From<(@ enum_type.clone())> for (@ repr) {
             fn from(value: (@ enum_type)) -> Self {
                 use (@ enum_def.name)::*;
                 match value {
@@ -126,9 +126,9 @@ pub fn derive_try_into_num(input: TokenStream) -> TokenStream {
     let variants = enum_integer_discriminant_variants(&enum_def);
     let match_arms = generate_into_discriminant_match_arms(&variants, true);
 
-    let enum_type = quote!((@ enum_def.name.clone())<(@ enum_def.generics.generic_usage(None))>);
+    let enum_type = quote!((@ enum_def.name.clone())<(@ enum_def.generics.inner_param_usage(None))>);
     quote! {
-        impl<(@ enum_def.generics.generic_definitions())> std::convert::TryFrom<(@ enum_type.clone())> for (@ repr) {
+        impl(@ enum_def.generics.param_definition()) std::convert::TryFrom<(@ enum_type.clone())> for (@ repr) {
             fn try_from(value: (@ enum_type)) -> Self {
                 use (@ enum_def.name)::*;
                 match value {

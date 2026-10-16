@@ -7,6 +7,7 @@ use crate::proc_macro::{
     Delimiter, Ident, Literal, PunctChar, TokenStream, TokenTree,
     items::{
         Attribute, GenericsDefinition, ItemDefinition, ItemPrefix, ItemType, Visibility,
+        generics_definition::WhereClause,
         parsing::{parse_attributed_fields_generic, parse_type},
     },
 };
@@ -46,7 +47,7 @@ impl UnnamedStructField {
     ) -> Self {
         Self {
             visibility: Visibility::parse_or_default(stream),
-            ty: parse_type::<true, true, false, false>(stream),
+            ty: parse_type::<true, true, false, false, false>(stream),
             attributes,
         }
     }
@@ -71,7 +72,7 @@ impl NamedStructField {
         Self {
             name,
             field: UnnamedStructField {
-                ty: parse_type::<true, true, false, false>(stream),
+                ty: parse_type::<true, true, false, false, false>(stream),
                 visibility,
                 attributes,
             },
@@ -169,11 +170,19 @@ impl StructDefinition {
     pub fn parse(ts: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Self {
         let prefix = ItemPrefix::parse(ts);
 
-        Self::assemble(prefix, StructFields::parse(ts))
+        Self::assemble(
+            prefix,
+            GenericsDefinition::parse_where_clauses(ts),
+            StructFields::parse(ts),
+        )
     }
 
     #[must_use]
-    pub fn assemble(prefix: ItemPrefix, fields: StructFields) -> Self {
+    pub fn assemble(
+        prefix: ItemPrefix,
+        where_clauses: Vec<WhereClause>,
+        fields: StructFields,
+    ) -> Self {
         assert!(
             matches!(prefix.item_type, ItemType::Struct),
             "Expected struct definition, found {:?}",
@@ -187,7 +196,7 @@ impl StructDefinition {
             attributes: prefix.attributes,
             visibility: prefix.visibility,
             name: prefix.name,
-            generics: prefix.generics,
+            generics: GenericsDefinition::assemble(prefix.generic_params, where_clauses),
             fields,
         }
     }

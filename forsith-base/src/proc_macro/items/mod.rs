@@ -1,4 +1,5 @@
 use crate::alloc::vec::Vec;
+use crate::proc_macro::items::generics_definition::GenericParam;
 use crate::proc_macro::{Group, Ident, TokenStream, TokenTree};
 
 pub mod generating;
@@ -33,7 +34,7 @@ pub struct ItemPrefix {
     pub unsafety: bool,
     pub asyncness: bool,
     pub name: Ident,
-    pub generics: GenericsDefinition,
+    pub generic_params: Vec<GenericParam>,
     pub item_type: ItemType,
 }
 
