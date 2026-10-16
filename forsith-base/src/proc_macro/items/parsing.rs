@@ -153,7 +153,7 @@ pub fn parse_type<
     const CONSUME: bool,
     const COMMA: bool,
     const COLON: bool,
-    const BRACE: bool,
+    const WHERE_CLAUSE_RHS: bool,
     const LESSTHEN: bool,
 >(
     input: &mut Peekable<impl Iterator<Item = TokenTree>>,
@@ -178,6 +178,7 @@ pub fn parse_type<
                 }
                 PunctChar::GreaterThan => nested -= 1,
                 PunctChar::Comma if COMMA && nested == 0 => break,
+                PunctChar::Semicolon | PunctChar::Equal if WHERE_CLAUSE_RHS && nested == 0 => break,
                 PunctChar::Colon
                     if COLON
                         && nested == 0
@@ -190,7 +191,8 @@ pub fn parse_type<
             }
         }
 
-        if BRACE && tt.is_group(Delimiter::Brace) {
+        if WHERE_CLAUSE_RHS && (tt.is_group(Delimiter::Brace) || tt.is_group(Delimiter::Parenthesis))
+        {
             break;
         }
 
@@ -237,7 +239,7 @@ mod tests {
 
     #[test]
     fn parses_public_struct_with_generics() {
-        let input = quote! { pub struct Example<T>(pub T, bool) };
+        let input = quote! { pub struct Example<T> where T: Clone (pub T, bool) };
         let mut iter = input.into_iter().peekable();
         let definition = StructDefinition::parse(&mut iter);
 

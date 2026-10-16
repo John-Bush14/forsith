@@ -109,7 +109,7 @@ impl GenericsDefinition {
             while let tt = stream
                 .peek()
                 .expect("Expected where clause to end with `;` or `{`")
-                && !(tt.is_punct(PunctChar::Semicolon) || tt.is_group(Delimiter::Brace))
+                && !(tt.is_punct(PunctChar::Semicolon) || tt.is_group(Delimiter::Brace) || tt.is_group(Delimiter::Parenthesis) || tt.is_punct(PunctChar::Equal))
             {
                 where_clauses.push(WhereClause::parse(stream));
             }
@@ -130,7 +130,7 @@ impl GenericsDefinition {
     #[must_use]
     pub fn where_clause_definition(&self) -> TokenStream {
         if self.where_clauses.is_empty() {
-            return TokenStream::new()
+            return TokenStream::new();
         }
 
         quote! {
