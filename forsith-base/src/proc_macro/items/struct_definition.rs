@@ -1,7 +1,4 @@
-use core::{
-    iter::Peekable,
-    ops::{Index, IndexMut},
-};
+use core::iter::Peekable;
 
 use crate::proc_macro::{
     Delimiter, Ident, Literal, PunctChar, TokenStream, TokenTree,

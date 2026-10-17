@@ -2,7 +2,7 @@ use crate::alloc::{string::ToString, vec::Vec};
 use crate::proc_macro::items::enum_definition::EnumDefinition;
 use crate::proc_macro::items::struct_definition::{StructDefinition, StructFields};
 use crate::proc_macro::{
-    Delimiter, Literal, PunctChar, TokenStream, TokenTree,
+    Delimiter, PunctChar, TokenStream, TokenTree,
     items::{Attribute, GenericsDefinition, ItemPrefix, ItemType, Visibility},
 };
 use core::iter::{Peekable, once};

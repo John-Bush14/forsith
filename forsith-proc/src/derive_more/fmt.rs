@@ -67,27 +67,31 @@ fn derive_fmt_body_enum(enum_def: &EnumDefinition, attribute: &Ident) -> TokenSt
             },
         );
 
-    let variant_cases = enum_def.variants.iter().map(|variant| {
-        let variant_ident = &variant.ident;
+    let variant_cases = enum_def
+        .variants
+        .iter()
+        .map(|variant| {
+            let variant_ident = &variant.ident;
 
-        let attr = variant
-            .attributes
-            .iter()
-            .find(|attr| &attr.name == attribute)
-            .map_or_else(
-                || todo!(),
-                |attr| {
-                    attr.args
-                        .clone()
-                        .expect("fmt attribute must have arguments")
-                        .take_stream()
-                },
-            );
+            let attr = variant
+                .attributes
+                .iter()
+                .find(|attr| &attr.name == attribute)
+                .map_or_else(
+                    || todo!(),
+                    |attr| {
+                        attr.args
+                            .clone()
+                            .expect("fmt attribute must have arguments")
+                            .take_stream()
+                    },
+                );
 
-        quote! {
-            Self::(@ variant_ident.clone()) (@ variant.unpack_pattern()) => format!((@ attr)),
-        }
-    }).collect::<TokenStream>();
+            quote! {
+                Self::(@ variant_ident.clone()) (@ variant.unpack_pattern()) => format!((@ attr)),
+            }
+        })
+        .collect::<TokenStream>();
 
     quote! {
         let _variant = match self {

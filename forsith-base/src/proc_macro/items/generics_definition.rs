@@ -5,7 +5,7 @@ use crate::{
     },
     quote,
 };
-use core::iter::{Peekable, once};
+use core::iter::Peekable;
 
 #[derive(Debug, Clone)]
 pub enum GenericParam {

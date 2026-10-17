@@ -114,19 +114,33 @@ pub fn derive_into_num(input: TokenStream) -> TokenStream {
         "IntoNum can only be derived for enums with all variants having a discriminant"
     );
 
-    impl_from_def_for(&enum_def, quote!((@ repr)), quote! {
-        use (@ enum_def.name.clone())::*;
-        match value {
-            (@ match_arms)
-        }
-    }, false)
+    impl_from_def_for(
+        &enum_def,
+        quote!((@ repr)),
+        quote! {
+            use (@ enum_def.name.clone())::*;
+            match value {
+                (@ match_arms)
+            }
+        },
+        false,
+    )
 }
 
-pub fn impl_from_def_for(def: &impl ItemDefinition, target: TokenStream, body: TokenStream, fallible: bool) -> TokenStream {
+pub fn impl_from_def_for(
+    def: &impl ItemDefinition,
+    target: TokenStream,
+    body: TokenStream,
+    fallible: bool,
+) -> TokenStream {
     let def_type = quote!((@ def.name().clone())<(@ def.generics().inner_param_usage(None))>);
 
     let (trait_, fn_, ret) = if fallible {
-        (quote!(std::convert::TryFrom), quote!(try_from), quote!(Result<Self, ()>))
+        (
+            quote!(std::convert::TryFrom),
+            quote!(try_from),
+            quote!(Result<Self, ()>),
+        )
     } else {
         (quote!(std::convert::From), quote!(from), quote!(Self))
     };
@@ -150,13 +164,18 @@ pub fn derive_try_into_num(input: TokenStream) -> TokenStream {
     let variants = enum_integer_discriminant_variants(&enum_def);
     let match_arms = generate_into_discriminant_match_arms(&variants, true);
 
-    impl_from_def_for(&enum_def, quote!((@ repr)), quote! {
-        use (@ enum_def.name.clone())::*;
-        match value {
-            (@ match_arms)
-            _ => Err(()),
-        }
-    }, true)
+    impl_from_def_for(
+        &enum_def,
+        quote!((@ repr)),
+        quote! {
+            use (@ enum_def.name.clone())::*;
+            match value {
+                (@ match_arms)
+                _ => Err(()),
+            }
+        },
+        true,
+    )
 }
 
 pub fn derive_from_num(input: TokenStream) -> TokenStream {

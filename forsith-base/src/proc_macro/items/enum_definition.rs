@@ -1,12 +1,16 @@
 use core::iter::Peekable;
 
-use crate::{proc_macro::{
-    Delimiter, Group, Ident, Literal, PunctChar, TokenStream, TokenTree, items::{
-        Attribute, GenericsDefinition, ItemDefinition, ItemPrefix, ItemType, Visibility,
-        generics_definition::WhereClause,
-        parsing::{parse_attributed_fields_generic, parse_type_until},
+use crate::{
+    proc_macro::{
+        Delimiter, Group, Ident, PunctChar, TokenStream, TokenTree,
+        items::{
+            Attribute, GenericsDefinition, ItemDefinition, ItemPrefix, ItemType, Visibility,
+            generics_definition::WhereClause,
+            parsing::{parse_attributed_fields_generic, parse_type_until},
+        },
     },
-}, quote};
+    quote,
+};
 
 pub struct EnumVariant {
     pub ident: Ident,
@@ -189,7 +193,11 @@ impl EnumVariant {
                 quote!(((@ field_names)))
             }
             EnumVariantFields::Struct(fields) => {
-                let field_names = fields.iter().map(|f| f.name.clone()).map(TokenTree::Ident).collect::<TokenStream>();
+                let field_names = fields
+                    .iter()
+                    .map(|f| f.name.clone())
+                    .map(TokenTree::Ident)
+                    .collect::<TokenStream>();
                 quote!({(@ field_names)})
             }
         }
