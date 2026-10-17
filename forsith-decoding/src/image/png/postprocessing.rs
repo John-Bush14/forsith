@@ -487,7 +487,7 @@ impl Pass {
 
             let (new_scanline_bytes, padding) = calculate_scanline_bytes(
                 width,
-                postprocessor.stored_format() as u8
+                postprocessor.stored_bpp() as u8,
             );
             postprocessor.scanline_padding = padding;
 
