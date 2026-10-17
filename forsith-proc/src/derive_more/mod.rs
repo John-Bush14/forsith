@@ -16,6 +16,9 @@ pub use convert::{derive_from_num, derive_into_num, derive_try_from_num, derive_
 mod ssfd;
 pub use ssfd::{derive_deref, derive_deref_mut, derive_index, derive_index_mut, derive_not};
 
+pub mod fmt;
+pub use fmt::*;
+
 pub fn derive_is_variant(input: TokenStream) -> TokenStream {
     let DeriveInput::Enum(enum_def) = parse_derive_input(input) else {
         panic!("IsVariant can only be derived for enums");

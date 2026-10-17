@@ -30,6 +30,14 @@ derive_macros! {
     IntoNum => derive_more::derive_into_num,
     TryIntoNum => derive_more::derive_try_into_num,
     Not #[not] => derive_more::derive_not,
+    Display #[display] => derive_more::Display,
+    Octal #[octal] => derive_more::Octal,
+    LowerHex #[lower_hex] => derive_more::LowerHex,
+    UpperHex #[upper_hex] => derive_more::UpperHex,
+    Binary #[binary] => derive_more::Binary,
+    Pointer #[pointer] => derive_more::Pointer,
+    LowerExp #[lower_exp] => derive_more::LowerExp,
+    UpperExp #[upper_exp] => derive_more::UpperExp,
 }
 
 #[proc_macro]

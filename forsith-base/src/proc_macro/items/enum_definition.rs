@@ -1,8 +1,7 @@
 use core::iter::Peekable;
 
 use crate::{proc_macro::{
-    Delimiter, Group, Ident, PunctChar, TokenStream, TokenTree,
-    items::{
+    Delimiter, Group, Ident, Literal, PunctChar, TokenStream, TokenTree, items::{
         Attribute, GenericsDefinition, ItemDefinition, ItemPrefix, ItemType, Visibility,
         generics_definition::WhereClause,
         parsing::{parse_attributed_fields_generic, parse_type_until},
@@ -176,7 +175,7 @@ impl EnumVariant {
                 let field_names = fields
                     .iter()
                     .enumerate()
-                    .map(|(i, _)| Ident::new(&format!(", _{i}")))
+                    .map(|(i, _)| Ident::new(&format!("_{i}")))
                     .map(TokenTree::Ident)
                     .collect::<TokenStream>();
                 quote!(((@ field_names)))
