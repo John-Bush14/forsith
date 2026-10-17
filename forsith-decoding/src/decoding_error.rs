@@ -1,77 +1,76 @@
 use std::io;
 
 use crate::{checksums::CRC32, image::jpeg::markers::MarkerType, image::png::ChunkType};
-use forsith_proc::IsVariant;
-use thiserror::Error;
+use forsith_proc::{Display, Error, IsVariant};
 
 
-#[derive(Error, Debug, IsVariant)]
+#[derive(Error, Debug, IsVariant, Display)]
 pub enum DecodingError {
-    #[error("Incorrect header ({0:?})")]
+    #[display("Incorrect header ({_0:?})")]
     InccorectHeader(Vec<u8>),
-    #[error("Unexpected IO error while reading data ({0})")]
+    #[display("Unexpected IO error while reading data ({_0})")]
     IOError(#[from] std::io::Error),
-    #[error("Stored ({0:?}) and calculated ({1:?}) CRC did not match, indicating data corruption.")]
+    #[display("Stored ({_0:?}) and calculated ({_1:?}) CRC did not match, indicating data corruption.")]
     CRCMismatch(CRC32, CRC32), // calculated, store
-    #[error("Stored ({1:#010X}) and calculated ({0:#010X}) Adler32 checksum did not match, indicating incorrect (de)compression.")]
+    #[display("Stored ({_1:#010X}) and calculated ({_0:#010X}) Adler32 checksum did not match, indicating incorrect (de)compression.")]
     Adler32Mismatch(u32, u32), // calculated, store
-    #[error("Provided dest buf of size less than min_buf_size ({0})")]
+    #[display("Provided dest buf of size less than min_buf_size ({_0})")]
     TinyDestBuf(usize),
 
     // JPEG specific
-    #[error("No marker found in expected position")]
+    #[display("No marker found in expected position")]
     NoMarker,
-    #[error("Tried to access uninitialized or out of bounds AC huffman tree ({0})")]
+    #[display("Tried to access uninitialized or out of bounds AC huffman tree ({_0})")]
     TriedToAccesInvalidAcTree(usize),
-    #[error("Tried to access uninitialized or out of bounds DC huffman tree ({0})")]
+    #[display("Tried to access uninitialized or out of bounds DC huffman tree ({_0})")]
     TriedToAccesInvalidDcTree(usize),
-    #[error("Tried to access uninitialized or out of bounds quant table ({0})")]
+    #[display("Tried to access uninitialized or out of bounds quant table ({_0})")]
     TriedToAccesInvalidQuantTable(usize),
-    #[error("No EOI marker found")]
+    #[display("No EOI marker found")]
     NoEOI,
-    #[error("No frame found in jpeg")]
+    #[display("No frame found in jpeg")]
     NoFrame,
-    #[error("Invalid marker length (<2)")]
+    #[display("Invalid marker length (<2)")]
     InvalidMarkerLen,
-    #[error("Invalid marker code ({0:#04X})")]
+    #[display("Invalid marker code ({_0:#04X})")]
     InvalidMarkerCode(u8),
-    #[error("Marker contained invalid data ({0:?})")]
+    #[display("Marker contained invalid data ({_0:?})")]
     InvalidMarker(MarkerType),
-    #[error("Marker '{0:?}' should have occurred before current marker '{1:?}', but did not")]
+    #[display("Marker '{_0:?}' should have occurred before current marker '{_1:?}', but did not")]
     MarkerShouldHaveOccurred(MarkerType, MarkerType),
 
     // PNG specific
-    #[error("Critical chunk '{0}' contains invalid data")]
+    #[display("Critical chunk '{_0}' contains invalid data")]
     InvalidChunk(ChunkType),
-    #[error("Unknown critical chunk type '{0:?}'")]
+    #[display("Unknown critical chunk type '{_0:?}'")]
     UnkownChunk([u8; 4]),
-    #[error("First chunk is not IHDR, instead ({0:?})")]
+    #[display("First chunk is not IHDR, instead ({_0:?})")]
     NoIHDR(ChunkType),
-    #[error("No IDAT chunk found")]
+    #[display("No IDAT chunk found")]
     NoIDAT,
-    #[error("Multiple '{0}' chunks found")]
+    #[display("Multiple '{_0}' chunks found")]
     MultipleChunks(ChunkType),
-    #[error("Attempted to close chunk '{0}' with incorrect amount of bytes ({1}) remaining")]
+    #[display("Attempted to close chunk '{_0}' with incorrect amount of bytes ({_1}) remaining")]
     IncorrectClose(ChunkType, usize),
-    #[error("Block length ({0}) and its one's complement ({1}) did not match")]
+    #[display("Block length ({_0}) and its one's complement ({_1}) did not match")]
     BlockLengthMismatch(u16, u16),
-    #[error("Code length ({0}) is too large")]
+    #[display("Code length ({_0}) is too large")]
     InvalidCodeLength(u8),
-    #[error("Tried to register huffman symbol with value larger than {0} bytes can hold.")]
+    #[display("Tried to register huffman symbol with value larger than {_0} bytes can hold.")]
     InvalidSymbol(usize),
-    #[error("Undefined huffman code ({0:#010X}) found in deflate stream.")]
+    #[display("Undefined huffman code ({_0:#010X}) found in deflate stream.")]
     UndefinedHuffmanCode(u32),
-    #[error("Reserved compression method found in deflate stream.")]
+    #[display("Reserved compression method found in deflate stream.")]
     ReservedCompressionMethod,
-    #[error("Invalid filter ({0}) written at start of scanline.")]
+    #[display("Invalid filter ({_0}) written at start of scanline.")]
     InvalidFilter(u8),
-    #[error("Invalid backreference with distance 0 found in deflate stream.")]
+    #[display("Invalid backreference with distance 0 found in deflate stream.")]
     ZeroDistance,
-    #[error("Invalid bytes per pixel ({0}) calculated for image.")]
+    #[display("Invalid bytes per pixel ({_0}) calculated for image.")]
     InvalidStride(usize),
-    #[error("No Plte chunk found for an index color type image")]
+    #[display("No Plte chunk found for an index color type image")]
     NoPallete,
-    #[error("Provided png did not contain a Iend chunk")]
+    #[display("Provided png did not contain a Iend chunk")]
     NoIend
 }
 impl From<DecodingError> for io::Error {

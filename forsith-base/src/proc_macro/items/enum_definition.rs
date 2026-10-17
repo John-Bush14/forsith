@@ -66,6 +66,15 @@ impl EnumVariantFields {
         self.len() == 0
     }
 
+    #[must_use]
+    pub fn get_unnamed(&self, index: usize) -> Option<&EnumVariantUnnamedField> {
+        match self {
+            Self::Tuple(fields) => fields.get(index),
+            Self::Struct(fields) => fields.get(index).map(|f| &f.field),
+            Self::Unit => None,
+        }
+    }
+
     fn parse(group: Group) -> Self {
         let (delimiter, stream) = group.decompose();
         let mut stream = stream.into_iter().peekable();
@@ -175,8 +184,7 @@ impl EnumVariant {
                 let field_names = fields
                     .iter()
                     .enumerate()
-                    .map(|(i, _)| Ident::new(&format!("_{i}")))
-                    .map(TokenTree::Ident)
+                    .map(|(i, _)| quote!((@ Ident::new(&format!("_{i}"))),))
                     .collect::<TokenStream>();
                 quote!(((@ field_names)))
             }

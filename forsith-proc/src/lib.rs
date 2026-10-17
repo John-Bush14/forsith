@@ -38,6 +38,7 @@ derive_macros! {
     Pointer #[pointer] => derive_more::Pointer,
     LowerExp #[lower_exp] => derive_more::LowerExp,
     UpperExp #[upper_exp] => derive_more::UpperExp,
+    Error #[from] => derive_more::derive_error,
 }
 
 #[proc_macro]
