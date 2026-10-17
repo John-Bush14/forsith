@@ -1,5 +1,5 @@
-use std::{array, io::Read, ops::Range, sync::Arc};
-use crate::{DecodingError, bit::BitReader, buffers::{CursorVec}, image::{Channel, ImageDecoder, PixelFormat, jpeg::{idct::IdctTable, markers::{FrameHeader, HuffmanTables, MarkerType, QuantizationTables, RestartInterval, Scan}, parser::Marker}, outputconverting::OutputWriter}, parsing::{SegmentHeader, SegmentParser}};
+use std::{io::Read, ops::Range, sync::Arc};
+use crate::{DecodingError, bit::BitReader, buffers::{CursorVec}, image::{Channel, ImageDecoder, PixelFormat, jpeg::{idct::IdctTable, markers::{FrameHeader, HuffmanTables, MarkerType, QuantizationTables, RestartInterval, Scan}, parser::Marker}, outputconverting::OutputWriter}, parsing::SegmentParser};
 
 pub mod markers;
 
@@ -7,7 +7,7 @@ mod idct;
 
 mod parser;
 use forsith_proc::IsVariant;
-use forsith_proc::{FromNum, TryFromNum};
+use forsith_proc::TryFromNum;
 use parser::JpegParser;
 
 type HuffmanTree = crate::decompression::HuffmanTree<16, 10,  16_384>;

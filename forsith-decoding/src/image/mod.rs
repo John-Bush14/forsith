@@ -9,10 +9,12 @@ pub(crate) mod png;
 pub use png::PngDecoder;
 
 #[cfg(feature = "jpeg")]
+#[allow(dead_code, unused_variables, unused_mut)]
 pub(crate) mod jpeg;
 #[cfg(feature = "jpeg")]
 pub use jpeg::JpegDecoder;
 
+#[allow(dead_code)]
 mod outputconverting;
 
 #[repr(u8)]

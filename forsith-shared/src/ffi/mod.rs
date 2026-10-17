@@ -4,7 +4,7 @@ use forsith_base::proc_macro::items::Indirection;
 
 // mod definition;
 
-pub mod generation;
+// pub mod generation;
 
 pub struct FFIGenerator {
     pub func_map: FFiFuncMap,

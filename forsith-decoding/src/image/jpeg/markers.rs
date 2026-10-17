@@ -115,9 +115,11 @@ impl Scan {
     pub fn components(&self) -> &[ScanComponent] {&self.components}
     pub const fn spectral_selection(&self) -> &Range<u8> {&self.spectral_selection}
     pub const fn approximation(&self) -> u8 {self.approximation}
-    pub const fn data(&self) -> &Box<[u8]> {&self.data}
+    pub const fn data(&self) -> &[u8] {&self.data}
     pub const fn ranges(&self) -> &CursorVec<Range<usize>> {&self.ranges}
     pub fn pop_chunk(&mut self) -> Option<&[u8]> {
+        if self.ranges.is_empty() {return None;}
+
         let range = self.ranges.read_single();
         Some(&self.data[range.clone()])
     }
@@ -366,7 +368,7 @@ impl HuffmanTables {
             if remaining < 17 {return Err(DecodingError::InvalidMarker(*marker));}
 
             let tree_info = data.read_be::<u8>()?;
-            let tree_type: HuffmanTreeType = (tree_info >> 4).try_into().map_err(|_| DecodingError::InvalidMarker(*marker))?;
+            let tree_type: HuffmanTreeType = (tree_info >> 4).try_into().map_err(|()| DecodingError::InvalidMarker(*marker))?;
             let tree_id = tree_info & 0x0F;
 
             let frame = decoder.cur_frame().ok_or(DecodingError::MarkerShouldHaveOccurred(MarkerType::Sof(0), MarkerType::Dht))?;

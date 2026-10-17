@@ -14,7 +14,7 @@ const AAN_SCALE: [f64; 8] = [
     0.2758993792829431
 ];
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-const fn scale(x: f64) -> i32 {(x * (1 << 12) as f64 + 0.5f64)as i32}
+const fn scale(x: f64) -> i32 {x.mul_add((1 << 12) as f64, 0.5f64) as i32}
 
 #[derive(Clone, Debug)]
 pub struct IdctTable([Simd<i32, 8>; 8]);

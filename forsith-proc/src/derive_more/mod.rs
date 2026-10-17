@@ -41,6 +41,7 @@ pub fn derive_is_variant(input: TokenStream) -> TokenStream {
     impl_item(&enum_def, None, is_variant_functions)
 }
 
+#[allow(unreachable_patterns)]
 pub fn derive_error(input: TokenStream) -> TokenStream {
     match parse_derive_input(input) {
         DeriveInput::Enum(enum_def) => {
