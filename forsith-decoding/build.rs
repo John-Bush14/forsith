@@ -1,10 +1,12 @@
-use std::{env, fs, path::{Path, PathBuf}};
+use std::{
+    env, fs,
+    path::{Path, PathBuf},
+};
 
 fn main() {
     let mut out = String::new();
 
-    let test_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests");
+    let test_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests");
 
     let pngsuite_dir = test_dir.clone().join("pngsuite");
 

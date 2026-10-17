@@ -3,16 +3,19 @@ use std::io;
 use crate::{checksums::CRC32, image::jpeg::markers::MarkerType, image::png::ChunkType};
 use forsith_proc::{Display, Error, IsVariant};
 
-
 #[derive(Error, Debug, IsVariant, Display)]
 pub enum DecodingError {
     #[display("Incorrect header ({_0:?})")]
     InccorectHeader(Vec<u8>),
     #[display("Unexpected IO error while reading data ({_0})")]
     IOError(#[from] std::io::Error),
-    #[display("Stored ({_0:?}) and calculated ({_1:?}) CRC did not match, indicating data corruption.")]
+    #[display(
+        "Stored ({_0:?}) and calculated ({_1:?}) CRC did not match, indicating data corruption."
+    )]
     CRCMismatch(CRC32, CRC32), // calculated, store
-    #[display("Stored ({_1:#010X}) and calculated ({_0:#010X}) Adler32 checksum did not match, indicating incorrect (de)compression.")]
+    #[display(
+        "Stored ({_1:#010X}) and calculated ({_0:#010X}) Adler32 checksum did not match, indicating incorrect (de)compression."
+    )]
     Adler32Mismatch(u32, u32), // calculated, store
     #[display("Provided dest buf of size less than min_buf_size ({_0})")]
     TinyDestBuf(usize),
@@ -71,7 +74,7 @@ pub enum DecodingError {
     #[display("No Plte chunk found for an index color type image")]
     NoPallete,
     #[display("Provided png did not contain a Iend chunk")]
-    NoIend
+    NoIend,
 }
 impl From<DecodingError> for io::Error {
     fn from(err: DecodingError) -> Self {

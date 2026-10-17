@@ -1,6 +1,6 @@
 use crate::{DecodingError, int::Int};
+use forsith_proc::{IntoNum, IsVariant, TryFromNum};
 use std::fmt::Debug;
-use forsith_proc::{IntoNum, TryFromNum, IsVariant};
 use std::io::Read;
 
 #[cfg(feature = "png")]
@@ -24,19 +24,34 @@ pub enum PixelFormat {
     Grayscale = 1,
     Truecolor = 3,
     GrayscaleAlpha = 2,
-    TruecolorAlpha = 4
+    TruecolorAlpha = 4,
 }
 
-const fn has_alpha(format: u8) -> bool {matches!(format, 2 | 4)}
-const fn is_rgb(format: u8) -> bool {matches!(format, 3 | 4)}
-const fn is_gray(format: u8) -> bool {matches!(format, 1 | 2)}
+const fn has_alpha(format: u8) -> bool {
+    matches!(format, 2 | 4)
+}
+const fn is_rgb(format: u8) -> bool {
+    matches!(format, 3 | 4)
+}
+const fn is_gray(format: u8) -> bool {
+    matches!(format, 1 | 2)
+}
 
-pub(crate) const fn bitspp<C: Channel, const F: u8>() -> u8 {C::BIT_DEPTH * F}
-pub(crate) const fn bytespp<C: Channel, const F: u8>() -> u8 {C::BIT_DEPTH * F / 8}
+pub(crate) const fn bitspp<C: Channel, const F: u8>() -> u8 {
+    C::BIT_DEPTH * F
+}
+pub(crate) const fn bytespp<C: Channel, const F: u8>() -> u8 {
+    C::BIT_DEPTH * F / 8
+}
 
 pub trait ImageDecoder<'a, C: Channel, const F: u8> {
-    fn open_validated<R: Read>(data: R) -> Result<Self, DecodingError> where Self: Sized;
-    fn open<R: Read>(data: R) -> Result<Self, DecodingError> where Self: Sized {
+    fn open_validated<R: Read>(data: R) -> Result<Self, DecodingError>
+    where
+        Self: Sized;
+    fn open<R: Read>(data: R) -> Result<Self, DecodingError>
+    where
+        Self: Sized,
+    {
         assert!((C::BIT_DEPTH * F).is_multiple_of(8));
         assert!(PixelFormat::try_from(F).is_ok());
 
@@ -68,7 +83,7 @@ pub enum ChannelType {
 pub trait Channel
 where
     <Self::StorageType as TryFrom<i64>>::Error: Debug,
-    <Self::StorageType as TryFrom<u64>>::Error: Debug
+    <Self::StorageType as TryFrom<u64>>::Error: Debug,
 {
     type StorageType: Int;
     const BIT_DEPTH: u8;
@@ -80,15 +95,17 @@ where
 impl<I: Int> Channel for I
 where
     <I as TryFrom<i64>>::Error: Debug,
-    <I as TryFrom<u64>>::Error: Debug
+    <I as TryFrom<u64>>::Error: Debug,
 {
     type StorageType = I;
     const BIT_DEPTH: u8 = I::BIT_DEPTH;
     const MAX: u64 = I::MAX;
     const MIN: i64 = I::MIN;
     const TYPE: ChannelType = {
-        if I::SIGNED { ChannelType::Signed } else { ChannelType::Unsigned }
+        if I::SIGNED {
+            ChannelType::Signed
+        } else {
+            ChannelType::Unsigned
+        }
     };
 }
-
-

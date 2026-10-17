@@ -1,31 +1,47 @@
-use std::io::Read;
 use crate::{DecodingError, buffers::CursorVec};
+use std::io::Read;
 
 pub trait SegmentHeader: Clone {
     const MAX_SIZE: usize;
 
     fn length(&self) -> usize;
-    fn read<R: Read>(reader: &mut R) -> Result<Self, DecodingError> where Self: Sized;
-    fn size(&self) -> usize {Self::MAX_SIZE}
+    fn read<R: Read>(reader: &mut R) -> Result<Self, DecodingError>
+    where
+        Self: Sized;
+    fn size(&self) -> usize {
+        Self::MAX_SIZE
+    }
 
     fn is_final(&self) -> bool;
-    fn is_special(&self) -> bool {false}
+    fn is_special(&self) -> bool {
+        false
+    }
 }
 
 pub trait SegmentParser<R: Read> {
     type Header: SegmentHeader;
     type ExtraOut: Default;
 
-    fn context<'s, 'a, 'b, 'c>(&'s mut self) -> (&'a mut CursorVec<u8>, &'b mut R, &'c mut Self::Header)
-        where 's: 'a, 's: 'b, 's: 'c;
+    fn context<'s, 'a, 'b, 'c>(
+        &'s mut self,
+    ) -> (&'a mut CursorVec<u8>, &'b mut R, &'c mut Self::Header)
+    where
+        's: 'a,
+        's: 'b,
+        's: 'c;
 
-    fn buffer(&mut self) -> &mut CursorVec<u8> {self.context().0}
-    fn header(&mut self) -> &Self::Header {self.context().2}
+    fn buffer(&mut self) -> &mut CursorVec<u8> {
+        self.context().0
+    }
+    fn header(&mut self) -> &Self::Header {
+        self.context().2
+    }
 
     fn validate_segment(&mut self) -> Result<(), DecodingError> {
         let (buffer, _, header) = self.context();
 
-        buffer.consume(header.length()); Ok(())
+        buffer.consume(header.length());
+        Ok(())
     }
 
     fn parse_first_chunk(&mut self) -> Result<(Self::Header, &[u8]), DecodingError> {
@@ -38,19 +54,29 @@ pub trait SegmentParser<R: Read> {
 
         self.clear_buffer();
 
-        let chunk_data = &self.buffer().get_ref()[prev_header.size()..prev_header.size() + prev_header.length()];
+        let chunk_data =
+            &self.buffer().get_ref()[prev_header.size()..prev_header.size() + prev_header.length()];
         Ok((prev_header, chunk_data))
     }
 
-    fn clear_buffer(&mut self) {self.buffer().set_cursor(0);}
+    fn clear_buffer(&mut self) {
+        self.buffer().set_cursor(0);
+    }
 
     fn handle_special_segment<F>(&mut self, _out: &mut F) -> Result<(), DecodingError>
-        where F: FnMut(&Self::Header, &mut CursorVec<u8>, Self::ExtraOut) -> Result<(), DecodingError> {unreachable!()}
+    where
+        F: FnMut(&Self::Header, &mut CursorVec<u8>, Self::ExtraOut) -> Result<(), DecodingError>,
+    {
+        unreachable!()
+    }
 
     fn parse_chunks<F>(&mut self, mut out: F) -> Result<(), DecodingError>
-        where F: FnMut(&Self::Header, &mut CursorVec<u8>, Self::ExtraOut) -> Result<(), DecodingError>
+    where
+        F: FnMut(&Self::Header, &mut CursorVec<u8>, Self::ExtraOut) -> Result<(), DecodingError>,
     {
-        if self.header().is_special() {self.handle_special_segment(&mut out)?}
+        if self.header().is_special() {
+            self.handle_special_segment(&mut out)?;
+        }
 
         while !self.header().is_final() {
             self.read_to_next_header()?;
@@ -64,10 +90,12 @@ pub trait SegmentParser<R: Read> {
 
             self.parse_header()?;
 
-            if self.header().is_special() {self.handle_special_segment(&mut out)?}
+            if self.header().is_special() {
+                self.handle_special_segment(&mut out)?;
+            }
 
             self.clear_buffer();
-        };
+        }
 
         let len = self.header().length();
         self.read_bytes_exact(len)?;
@@ -84,7 +112,9 @@ pub trait SegmentParser<R: Read> {
         self.validate_segment()
     }
 
-    fn read_bytes(&mut self, len: usize) -> Result<usize, DecodingError> {self.read_bytes_default(len)}
+    fn read_bytes(&mut self, len: usize) -> Result<usize, DecodingError> {
+        self.read_bytes_default(len)
+    }
 
     fn read_bytes_default(&mut self, len: usize) -> Result<usize, DecodingError> {
         let (buffer, reader, _) = self.context();
@@ -94,13 +124,18 @@ pub trait SegmentParser<R: Read> {
         }
 
         let cursor = buffer.cursor();
-        reader.read(&mut buffer.get_mut()[cursor..cursor + len]).map_err(std::convert::Into::into)
+        reader
+            .read(&mut buffer.get_mut()[cursor..cursor + len])
+            .map_err(std::convert::Into::into)
     }
 
     fn read_bytes_exact(&mut self, len: usize) -> Result<(), DecodingError> {
         match self.read_bytes(len) {
             Ok(n) if n == len => Ok(()),
-            Ok(_) => Err(DecodingError::IOError(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "unexpected EOF"))),
+            Ok(_) => Err(DecodingError::IOError(std::io::Error::new(
+                std::io::ErrorKind::UnexpectedEof,
+                "unexpected EOF",
+            ))),
             Err(e) => Err(e),
         }
     }
@@ -108,6 +143,7 @@ pub trait SegmentParser<R: Read> {
     fn parse_header(&mut self) -> Result<(), DecodingError> {
         let (buffer, _, header) = self.context();
 
-        *header = Self::Header::read(&mut **buffer)?; Ok(())
+        *header = Self::Header::read(&mut **buffer)?;
+        Ok(())
     }
 }

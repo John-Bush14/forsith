@@ -1,8 +1,8 @@
-use forsith_shared::const_for;
-use forsith_proc::Not;
-use crate::{DecodingError};
+use crate::DecodingError;
 use crate::SIMD_WIDTH;
 use core::simd::prelude::*;
+use forsith_proc::Not;
+use forsith_shared::const_for;
 
 pub const POLY: u32 = 0xedb8_8320;
 const CRC_TABLES: [[u32; 256]; 8] = const {
@@ -77,13 +77,13 @@ impl CRC32 {
 }
 
 #[derive(Debug)]
-pub struct Adler32{
+pub struct Adler32 {
     a: u32,
     b: u32,
 }
 impl Default for Adler32 {
     fn default() -> Self {
-        Self { a: 1, b: 0}
+        Self { a: 1, b: 0 }
     }
 }
 const ADLER_MOD: u32 = 65521;
@@ -92,14 +92,16 @@ const ADLER_CHUNK_SIZE: u16 = 5552 - (5552 % SIMD_WIDTH as u16);
 
 impl Adler32 {
     pub fn update(&mut self, data: &[u8]) {
-        let (chunks, remainder) = data.as_chunks::<{ADLER_CHUNK_SIZE as usize}>();
+        let (chunks, remainder) = data.as_chunks::<{ ADLER_CHUNK_SIZE as usize }>();
 
-        for chunk in chunks {self.compute_chunk::<true>(chunk)}
+        for chunk in chunks {
+            self.compute_chunk::<true>(chunk);
+        }
 
         let unaligned_bytes = remainder.len() % SIMD_WIDTH;
-        self.compute_chunk::<false>(&remainder[..remainder.len()-unaligned_bytes]);
+        self.compute_chunk::<false>(&remainder[..remainder.len() - unaligned_bytes]);
 
-        for b in &remainder[remainder.len()-unaligned_bytes..] {
+        for b in &remainder[remainder.len() - unaligned_bytes..] {
             self.a += u32::from(*b);
             self.b += self.a;
         }

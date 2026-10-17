@@ -1,9 +1,11 @@
-use forsith_shared::const_for;
 use forsith_proc::IsVariant;
+use forsith_shared::const_for;
 
-use crate::{DecodingError, bit::BitRead, decompression::{HuffmanTree}};
+use crate::{DecodingError, bit::BitRead, decompression::HuffmanTree};
 
-const CODE_LENGTH_ORDER: [u8; 19] = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15];
+const CODE_LENGTH_ORDER: [u8; 19] = [
+    16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15,
+];
 
 type LitLenTree = HuffmanTree<15, 9, MAX_LITLEN_SUBTABLE_ENTIES>;
 type DistanceTree = HuffmanTree<15, 9, MAX_DISTANCE_SUBTABLE_ENTRIES>;
@@ -16,31 +18,69 @@ pub const MAX_BACKREF_LEN: usize = 258;
 
 // (base, extra_bits) for length symbols 257..=285
 const LENGTH_TABLE: [(u16, u8); 29] = [
-    (3,0),(4,0),(5,0),(6,0),(7,0),(8,0),(9,0),(10,0),
-    (11,1),(13,1),(15,1),(17,1),
-    (19,2),(23,2),(27,2),(31,2),
-    (35,3),(43,3),(51,3),(59,3),
-    (67,4),(83,4),(99,4),(115,4),
-    (131,5),(163,5),(195,5),(227,5),
-    (258,0),
+    (3, 0),
+    (4, 0),
+    (5, 0),
+    (6, 0),
+    (7, 0),
+    (8, 0),
+    (9, 0),
+    (10, 0),
+    (11, 1),
+    (13, 1),
+    (15, 1),
+    (17, 1),
+    (19, 2),
+    (23, 2),
+    (27, 2),
+    (31, 2),
+    (35, 3),
+    (43, 3),
+    (51, 3),
+    (59, 3),
+    (67, 4),
+    (83, 4),
+    (99, 4),
+    (115, 4),
+    (131, 5),
+    (163, 5),
+    (195, 5),
+    (227, 5),
+    (258, 0),
 ];
 
 // (base, extra_bits) for distance codes 0..=29
 const DISTANCE_TABLE: [(u16, u8); 30] = [
-    (1,0),(2,0),(3,0),(4,0),
-    (5,1),(7,1),
-    (9,2),(13,2),
-    (17,3),(25,3),
-    (33,4),(49,4),
-    (65,5),(97,5),
-    (129,6),(193,6),
-    (257,7),(385,7),
-    (513,8),(769,8),
-    (1025,9),(1537,9),
-    (2049,10),(3073,10),
-    (4097,11),(6145,11),
-    (8193,12),(12289,12),
-    (16385,13),(24577,13),
+    (1, 0),
+    (2, 0),
+    (3, 0),
+    (4, 0),
+    (5, 1),
+    (7, 1),
+    (9, 2),
+    (13, 2),
+    (17, 3),
+    (25, 3),
+    (33, 4),
+    (49, 4),
+    (65, 5),
+    (97, 5),
+    (129, 6),
+    (193, 6),
+    (257, 7),
+    (385, 7),
+    (513, 8),
+    (769, 8),
+    (1025, 9),
+    (1537, 9),
+    (2049, 10),
+    (3073, 10),
+    (4097, 11),
+    (6145, 11),
+    (8193, 12),
+    (12289, 12),
+    (16385, 13),
+    (24577, 13),
 ];
 
 pub const STATIC_LITLEN_TREE: LitLenTree = {
@@ -53,7 +93,9 @@ pub const STATIC_LITLEN_TREE: LitLenTree = {
     const_for!(i in 256..280 => {lengths[i] = 7;});
     const_for!(i in 280..288 => {lengths[i] = 8;});
 
-    if let Err(_e) = tree.load(&lengths) { panic!("loading static litlen tree failed") }
+    if let Err(_e) = tree.load(&lengths) {
+        panic!("loading static litlen tree failed")
+    }
 
     tree
 };
@@ -62,7 +104,9 @@ pub const STATIC_DISTANCE_TREE: DistanceTree = {
 
     let lengths = [5u8; 30];
 
-    if let Err(_e) = tree.load(&lengths) { panic!("loading static distance tree failed") }
+    if let Err(_e) = tree.load(&lengths) {
+        panic!("loading static distance tree failed")
+    }
 
     tree
 };
@@ -99,7 +143,13 @@ pub struct Block {
 }
 impl Default for Block {
     fn default() -> Self {
-        Self { last: Default::default(), r#type: BlockType::default(), litlen_tree: HuffmanTree::default(), distance_tree: HuffmanTree::default(), codlen_tree: HuffmanTree::default() }
+        Self {
+            last: Default::default(),
+            r#type: BlockType::default(),
+            litlen_tree: HuffmanTree::default(),
+            distance_tree: HuffmanTree::default(),
+            codlen_tree: HuffmanTree::default(),
+        }
     }
 }
 impl Block {
@@ -144,7 +194,11 @@ impl Block {
                     _ => unreachable!(),
                 };
 
-                let prev = if use_prev {*all_codelengths.last().unwrap()} else {0};
+                let prev = if use_prev {
+                    *all_codelengths.last().unwrap()
+                } else {
+                    0
+                };
 
                 let repeat = base + reader.read_bits(extra_bits) as usize;
                 all_codelengths.resize(all_codelengths.len() + repeat, prev);
@@ -172,7 +226,7 @@ impl Block {
                 }
 
                 self.r#type = BlockType::Uncompressed(len);
-            },
+            }
             1 => self.r#type = BlockType::CompressedFixed,
             2 => self.r#type = BlockType::CompressedDynamic,
             _ => return Err(DecodingError::ReservedCompressionMethod),
