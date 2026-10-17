@@ -19,8 +19,7 @@ png = ["image"]
 jpeg = ["image"]
 xml = []
 
-[dev-dependencies]
-serde_json = "1.0.150"
+# [dev-dependencies]
 # criterion = { version = "0.8", features = ["html_reports"] }
 
 [[test]]
