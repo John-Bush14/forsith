@@ -142,10 +142,6 @@ impl From<PunctChar> for char {
 
 impl core::fmt::Display for Punct {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        if self.joint {
-            write!(f, "{}", char::from(self.char))
-        } else {
-            write!(f, "{} ", char::from(self.char))
-        }
+        write!(f, "{}", char::from(self.char))
     }
 }

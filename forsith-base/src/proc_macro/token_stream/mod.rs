@@ -45,11 +45,12 @@ impl TokenStream {
 
     fn raw_code(&self) -> String {
         self.0.iter().fold(String::new(), |mut code, tt| {
-            if tt.is_joint_punct() {
+            code.push_str(&tt.to_string());
+
+            if !tt.is_joint_punct() {
                 code.push(' ');
             }
 
-            code.push_str(&tt.to_string());
             code
         })
     }
