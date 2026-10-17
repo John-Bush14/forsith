@@ -123,6 +123,7 @@ pub fn derive_not(input: TokenStream) -> TokenStream {
             quote!(
                 type Output = Self;
 
+                #[allow(clippy::needless_update)]
                 fn not(self) -> Self::Output {
                     Self {
                         (@ not_field.name.clone()): !self.(@ not_field.name),
