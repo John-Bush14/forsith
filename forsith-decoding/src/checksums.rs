@@ -13,9 +13,9 @@ const CRC_TABLES: [[u32; 256]; 8] = const {
         const_for!(_n in 0..8 => {
             if c & 1 == 1 {
                 c = POLY ^ (c >> 1);
-                continue;
+            } else {
+                c >>= 1;
             }
-            c >>= 1;
         });
         tables[0][n as usize] = c;
     });

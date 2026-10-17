@@ -33,11 +33,13 @@ impl Bitmask {
         if self.0 == 0 {
             return None;
         }
+
         let next_bit: u8 = self
             .0
             .trailing_zeros()
             .try_into()
             .unwrap_or_else(|_| unreachable!());
+
         self.0 &= !(1 << next_bit);
         Some(next_bit)
     }
