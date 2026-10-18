@@ -11,7 +11,7 @@ forsith-proc = { path = "../forsith-proc" }
 [features]
 default = [
     "png",
-    "jpeg",
+    # "jpeg",
     "xml"
 ]
 image = []
@@ -22,9 +22,9 @@ xml = []
 # [dev-dependencies]
 # criterion = { version = "0.8", features = ["html_reports"] }
 
-[[test]]
-name = "png"
-path = "tests/png.rs"
+# [[test]]
+# name = "png"
+# path = "tests/png.rs"
 
 # [[bench]]
 # name = "png_decode"
