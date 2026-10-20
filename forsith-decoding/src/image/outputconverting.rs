@@ -1,63 +1,27 @@
-use crate::{
-    bit::unpack_constant,
-    buffers::CursorVec,
-    image::{Channel, bytespp, has_alpha, is_gray, is_rgb},
-    int::Int,
-};
-use std::{
-    io::{Seek, Write},
-    marker::PhantomData,
-};
+use crate::image::PixelFormat;
 
-macro_rules! aligned {
-    ($t:ty, $format:ident) => {
-        match $format {
-            1 => push_aligned_slice::<C, F, $t, 1>,
-            2 => push_aligned_slice::<C, F, $t, 2>,
-            3 => push_aligned_slice::<C, F, $t, 3>,
-            4 => push_aligned_slice::<C, F, $t, 4>,
-            _ => unreachable!(),
-        }
-    };
-}
 
-macro_rules! packed {
-    ($d:expr, $format:ident) => {
-        match $format {
-            1 => push_packed_slice::<C, F, $d, 1>,
-            2 => push_packed_slice::<C, F, $d, 2>,
-            3 => push_packed_slice::<C, F, $d, 3>,
-            4 => push_packed_slice::<C, F, $d, 4>,
-            _ => unreachable!(),
-        }
-    };
-}
-
-#[allow(type_alias_bounds)]
-pub type OutputConverter<C: Channel, const F: u8> =
-    fn(&[u8], &mut OutputWriter<C, F>, u8, Option<(i64, i64, i64)>);
-
-pub struct OutputWriter<'a, C: Channel, const F: u8> {
-    buffer: &'a mut [C::StorageType],
+pub struct OutputWriter<'a> {
+    buffer: &'a mut [u8],
     index: usize,
     full: bool,
     stride: usize,
-    _phantom: PhantomData<C>,
+    bytespp: u8,
 }
 
-impl<'a, C: Channel, const F: u8> OutputWriter<'a, C, F> {
-    pub const fn new(buffer: &'a mut [C::StorageType]) -> Self {
+impl<'a> OutputWriter<'a> {
+    pub const fn new(buffer: &'a mut [u8], format: PixelFormat) -> Self {
         Self {
             buffer,
             index: 0,
             full: false,
             stride: 1,
-            _phantom: PhantomData,
+            bytespp: format.bpp().checked_div(8).expect("PixelFormat bpp must be a multiple of 8"),
         }
     }
 
     #[inline(always)]
-    pub const fn push_channel(&mut self, c: C::StorageType) {
+    pub const fn push_channel(&mut self, c: u8) {
         self.buffer[self.index] = c;
         self.index += 1;
     }
@@ -65,13 +29,9 @@ impl<'a, C: Channel, const F: u8> OutputWriter<'a, C, F> {
     pub const fn remaining(&self) -> usize {
         self.buffer.len().saturating_sub(self.index)
     }
-    #[inline(always)]
-    pub const fn remaining_bytes(&self) -> usize {
-        self.remaining() * C::StorageType::BYTE_DEPTH as usize
-    }
 
     pub const fn set_stride(&mut self, pixels: usize) {
-        self.stride = (pixels - 1) * F as usize;
+        self.stride = (pixels - 1) * self.bytespp as usize;
     }
     #[inline(always)]
     pub const fn pushed_pixel(&mut self) {
@@ -79,7 +39,7 @@ impl<'a, C: Channel, const F: u8> OutputWriter<'a, C, F> {
     }
     #[inline(always)]
     pub const fn advance(&mut self, pixels: usize) {
-        self.index += pixels * F as usize;
+        self.index += pixels * self.bytespp as usize;
     }
     pub const fn reset(&mut self) {
         self.index = 0;
@@ -87,9 +47,6 @@ impl<'a, C: Channel, const F: u8> OutputWriter<'a, C, F> {
 
     pub const fn len(&self) -> usize {
         self.index
-    }
-    pub const fn bytes_len(&self) -> usize {
-        self.index * C::StorageType::BYTE_DEPTH as usize
     }
 
     pub const fn is_full(&self) -> bool {
@@ -107,168 +64,20 @@ impl<'a, C: Channel, const F: u8> OutputWriter<'a, C, F> {
     pub const fn capacity(&self) -> usize {
         self.buffer.len()
     }
-    pub const fn bytes_capacity(&self) -> usize {
-        self.buffer.len() * C::StorageType::BYTE_DEPTH as usize
-    }
 
-    pub fn remaining_mut_slice(&mut self) -> &mut [C::StorageType] {
+    pub fn remaining_mut_slice(&mut self) -> &mut [u8] {
         &mut self.buffer[self.index..]
     }
-}
 
-pub fn get_out_writer_func<C: Channel, const F: u8>(
-    sample_size: u8,
-    format: u8,
-    signed: bool,
-) -> OutputConverter<C, F> {
-    match sample_size {
-        1 => packed!(1, format),
-        2 => packed!(2, format),
-        4 => packed!(4, format),
-        8 => {
-            if signed {
-                aligned!(i8, format)
-            } else {
-                aligned!(u8, format)
-            }
-        }
-        16 => {
-            if signed {
-                aligned!(i16, format)
-            } else {
-                aligned!(u16, format)
-            }
-        }
-        32 => {
-            if signed {
-                aligned!(i32, format)
-            } else {
-                aligned!(u32, format)
-            }
-        }
-        _ => todo!(),
-    }
-}
-
-pub fn push_packed_slice<DC: Channel, const DF: u8, const SC: u8, const SF: u8>(
-    slice: &[u8],
-    out: &mut OutputWriter<'_, DC, DF>,
-    padding: u8,
-    alpha_color: Option<(i64, i64, i64)>,
-) where
-    [(); SF as usize]:,
-{
-    let mut pixels = CursorVec::<u8>::new(match SF {
-        3 => 24,
-        _ => 8,
-    });
-
-    unpack_constant::<SC, true>(slice, padding, |bytes| {
-        pixels.write_all(bytes).unwrap();
-
-        if pixels.is_full() {
-            push_aligned_slice::<DC, DF, u8, SF>(pixels.get_ref().as_slice(), out, 0, alpha_color);
-            pixels.rewind().unwrap();
-        }
-    });
-
-    if pixels.position() != 0 {
-        push_aligned_slice::<DC, DF, u8, SF>(
-            &pixels.get_ref()[..pixels.cursor()],
-            out,
-            0,
-            alpha_color,
-        );
-    }
-}
-
-// DC + DF = dest channel + format, SC + SF = source sample size + format
-pub fn push_aligned_slice<DC: Channel, const DF: u8, SC: Channel, const SF: u8>(
-    slice: &[u8],
-    out: &mut OutputWriter<'_, DC, DF>,
-    _padding: u8,
-    alpha_color: Option<(i64, i64, i64)>,
-) where
-    [(); SF as usize]:,
-{
-    let bytespp = bytespp::<SC, SF>() as usize;
-
-    let mut samples = SC::StorageType::iterate_bytes_be(slice);
-
-    for _ in 0..(slice.len() / bytespp) {
-        convert_pixel::<SC, DF, SF>(&mut samples, alpha_color, |c| {
-            let converted = convert_channel::<SC, DC>(c);
-
-            out.push_channel(converted);
-        });
-
-        out.pushed_pixel();
-    }
-}
-
-#[inline(always)]
-#[allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::cast_precision_loss,
-    clippy::cast_possible_wrap
-)]
-fn convert_channel<SC: Channel, DC: Channel>(value: SC::StorageType) -> DC::StorageType {
-    let value: i64 = value.into();
-
-    // Normalize input to 0.0..1.0 integer space
-    let normalized = (value - SC::MIN) as u64 * DC::MAX / (SC::MAX as i64 - SC::MIN) as u64;
-
-    DC::StorageType::try_from(normalized as i64 + DC::MIN).unwrap()
-}
-
-#[inline(always)]
-fn convert_pixel<C: Channel, const DF: u8, const SF: u8>(
-    samples: &mut impl Iterator<Item = C::StorageType>,
-    alpha_color: Option<(i64, i64, i64)>,
-    mut out: impl FnMut(C::StorageType),
-) {
-    let color = if is_gray(DF) {
-        let gray = if is_gray(SF) {
-            samples.next().unwrap()
+    pub fn write_slice(&mut self, slice: &[u8]) {
+        if self.stride == 0 {
+            self.buffer[self.index..self.index + slice.len()].copy_from_slice(slice);
+            self.index += slice.len();
         } else {
-            let [r, g, b] = [
-                samples.next().unwrap(),
-                samples.next().unwrap(),
-                samples.next().unwrap(),
-            ];
-            let (r, g, b): (i64, i64, i64) = (r.into(), g.into(), b.into());
-            ((299 * r + 587 * g + 114 * b) / 1000).try_into().unwrap()
-        };
-
-        out(gray);
-
-        (gray.into(), gray.into(), gray.into())
-    } else {
-        let rgb = if is_rgb(SF) {
-            &[
-                samples.next().unwrap(),
-                samples.next().unwrap(),
-                samples.next().unwrap(),
-            ]
-        } else {
-            let g = samples.next().unwrap();
-            &[g, g, g]
-        };
-        for c in rgb {
-            out(*c);
-        }
-
-        (rgb[0].into(), rgb[1].into(), rgb[2].into())
-    };
-
-    if has_alpha(DF) {
-        if has_alpha(SF) {
-            out(samples.next().unwrap());
-        } else if Some(color) == alpha_color {
-            out(C::StorageType::try_from(C::MIN).unwrap());
-        } else {
-            out(C::StorageType::try_from(C::MAX).unwrap());
+            for pixel in slice.chunks(self.bytespp as usize) {
+                self.buffer[self.index..self.index + pixel.len()].copy_from_slice(pixel);
+                self.index += pixel.len() + self.stride;
+            }
         }
     }
 }

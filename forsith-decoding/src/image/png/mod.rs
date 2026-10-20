@@ -3,7 +3,7 @@ use crate::{
     bit::BitReader,
     buffers::CursorVec,
     image::{
-        Channel, ImageDecoder, PixelFormat, bitspp,
+        ChannelLayout, ImageDecoder, PixelFormat,
         outputconverting::OutputWriter,
         png::{
             checksums::Adler32,
@@ -44,33 +44,25 @@ enum ColorType {
     GrayscaleAlpha = 4,
     TruecolorAlpha = 6,
 }
-#[allow(clippy::from_over_into)]
-impl From<ColorType> for PixelFormat {
-    fn from(f: ColorType) -> Self {
-        match f {
-            ColorType::Grayscale => Self::Grayscale,
-            ColorType::Truecolor | ColorType::Indexed => Self::Truecolor,
-            ColorType::GrayscaleAlpha => Self::GrayscaleAlpha,
-            ColorType::TruecolorAlpha => Self::TruecolorAlpha,
-        }
-    }
-}
 
-pub struct PngDecoder<'a, C: Channel, const F: u8> {
+pub struct PngDecoder<'a> {
     compressed_data: BitReader<CursorVec<u8>>,
     deflate_buffer: CursorVec<u8>,
     scanline_multiples: usize,
-    postprocessor: PostProcessor<C, F>,
-    phantom: std::marker::PhantomData<&'a C>,
+    postprocessor: PostProcessor,
     ihdr: Ihdr,
     cur_block: deflate::Block,
     deflate_buffer_tail: usize,
     last_adler_update_i: usize,
     adler: Adler32,
+    phantom: std::marker::PhantomData<&'a ()>,
 }
 
-impl<'a, C: Channel, const F: u8> ImageDecoder<'a, C, F> for PngDecoder<'a, C, F> {
-    fn open_validated<R: Read>(mut reader: R) -> Result<Self, DecodingError> {
+impl<'a> ImageDecoder<'a> for PngDecoder<'a> {
+    fn open<R: Read>(
+        mut reader: R,
+        pereferred_pixel_format: PixelFormat,
+    ) -> Result<Self, DecodingError> {
         check_header(&mut reader)?;
 
         let mut chunk_parser = ChunkParser::new(reader);
@@ -83,13 +75,13 @@ impl<'a, C: Channel, const F: u8> ImageDecoder<'a, C, F> for PngDecoder<'a, C, F
             compressed_data: BitReader::default(),
             deflate_buffer: CursorVec::default(),
             scanline_multiples: 0,
-            phantom: std::marker::PhantomData,
             postprocessor,
             ihdr,
             cur_block: deflate::Block::default(),
             deflate_buffer_tail: 0,
             last_adler_update_i: 0,
             adler: Adler32::default(),
+            phantom: std::marker::PhantomData,
         };
 
         chunk_parser.parse_chunks(|h, d, ()| decoder.update_with_chunk(h, d))?;
@@ -109,12 +101,12 @@ impl<'a, C: Channel, const F: u8> ImageDecoder<'a, C, F> for PngDecoder<'a, C, F
     }
 
     #[cold]
-    fn read(&mut self, dest: &mut [C::StorageType]) -> Result<usize, DecodingError> {
+    fn read(&mut self, dest: &mut [u8]) -> Result<usize, DecodingError> {
         if dest.len() < self.min_buf_size() {
             return Err(DecodingError::TinyDestBuf(dest.len()));
         }
 
-        let mut dest = OutputWriter::new(dest);
+        let mut dest = OutputWriter::new(dest, self.output_format());
         self.postprocessor.update_dest(&mut dest);
 
         while !dest.is_full() {
@@ -154,6 +146,7 @@ impl<'a, C: Channel, const F: u8> ImageDecoder<'a, C, F> for PngDecoder<'a, C, F
     fn image_dimensions(&self) -> (usize, usize) {
         (self.ihdr.width as _, self.ihdr.height as _)
     }
+
     fn min_buf_size(&self) -> usize {
         if self.ihdr.interlace_method == 1 {
             return self.max_buf_size();
@@ -161,33 +154,28 @@ impl<'a, C: Channel, const F: u8> ImageDecoder<'a, C, F> for PngDecoder<'a, C, F
 
         let min_inflate_capacity = self.scanline_pixel_bytes().max(MAX_BACKREF_LEN);
 
-        (min_inflate_capacity * 8 * F as usize * 8 / self.stored_bpp()).div_ceil(8)
+        (min_inflate_capacity * 8 * self.output_format().bpp() as usize / self.stored_format().bpp() as usize).div_ceil(8)
     }
 
-    fn source_bit_depth(&self) -> u8 {
-        self.stored_channel_depth()
-    }
-
-    fn source_pixel_format(&self) -> PixelFormat {
+    fn pixel_format(&self) -> PixelFormat {
         self.stored_format()
     }
 }
 
-impl<C: Channel, const F: u8> PngDecoder<'_, C, F> {
-    fn can_drain_scanline(&self, dest: &OutputWriter<'_, C, F>) -> bool {
-        dest.remaining_bytes() * 8 / bitspp::<C, F>() as usize * self.stored_bpp()
+impl PngDecoder<'_> {
+    fn can_drain_scanline(&self, dest: &OutputWriter<'_>) -> bool {
+        dest.remaining() * 8 / self.output_format().bpp() as usize
+            * self.stored_format().bpp() as usize
             >= self.scanline_pixel_bytes() * 8
             || self.ihdr.interlace_method == 1
     }
 
-    fn stored_bpp(&self) -> usize {
-        self.postprocessor.stored_bpp()
-    }
     fn stored_format(&self) -> PixelFormat {
         self.postprocessor.stored_format()
     }
-    const fn stored_channel_depth(&self) -> u8 {
-        self.postprocessor.stored_channel_depth()
+
+    fn output_format(&self) -> PixelFormat {
+        self.postprocessor.output_format()
     }
 
     #[cold]
@@ -232,10 +220,7 @@ impl<C: Channel, const F: u8> PngDecoder<'_, C, F> {
     }
 
     #[cold]
-    fn drain_deflate_buffer(
-        &mut self,
-        dest: &mut OutputWriter<'_, C, F>,
-    ) -> Result<(), DecodingError> {
+    fn drain_deflate_buffer(&mut self, dest: &mut OutputWriter<'_>) -> Result<(), DecodingError> {
         self.update_adler();
 
         let mut drained_bytes = 0;
@@ -267,7 +252,7 @@ impl<C: Channel, const F: u8> PngDecoder<'_, C, F> {
     fn consume_inflated_scanline(
         &mut self,
         start: usize,
-        dest: &mut OutputWriter<'_, C, F>,
+        dest: &mut OutputWriter<'_>,
     ) -> Result<usize, DecodingError> {
         let prev_scanline_bytes = self.max_scanline_bytes() + MAX_STRIDE;
         let scanline_bytes = self.scanline_bytes();
@@ -311,7 +296,7 @@ impl<C: Channel, const F: u8> PngDecoder<'_, C, F> {
     fn read_uncompressed_chunk(
         &mut self,
         len: u16,
-        dest: &mut OutputWriter<'_, C, F>,
+        dest: &mut OutputWriter<'_>,
     ) -> Result<(), DecodingError> {
         self.compressed_data.unconsume_bitbuf();
 
@@ -346,10 +331,11 @@ impl<C: Channel, const F: u8> PngDecoder<'_, C, F> {
     #[cold]
     fn read_compressed_chunk<const STATIC: bool>(
         &mut self,
-        dest: &mut OutputWriter<'_, C, F>,
+        dest: &mut OutputWriter<'_>,
     ) -> Result<(), DecodingError> {
         loop {
-            let buffer_full = self.deflate_buffer.cursor() + MAX_BACKREF_LEN >= self.deflate_buffer.capacity();
+            let buffer_full =
+                self.deflate_buffer.cursor() + MAX_BACKREF_LEN >= self.deflate_buffer.capacity();
 
             if std::hint::unlikely(buffer_full) {
                 if self.can_drain_scanline(dest) {

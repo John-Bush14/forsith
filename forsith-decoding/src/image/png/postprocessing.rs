@@ -3,8 +3,8 @@ use crate::{
     DecodingError,
     bit::unpack,
     image::{
-        Channel, PixelFormat, PngDecoder, has_alpha,
-        outputconverting::{OutputConverter, OutputWriter, get_out_writer_func},
+        ChannelLayout, PixelFormat, PngDecoder, SampleType,
+        outputconverting::{ OutputWriter},
         png::{
             ColorType,
             chunks::{ColorPalette, Ihdr},
@@ -15,7 +15,7 @@ use core::simd::prelude::*;
 
 pub const MAX_STRIDE: usize = 8;
 
-impl<C: Channel, const F: u8> PngDecoder<'_, C, F> {
+impl PngDecoder<'_> {
     #[inline(always)]
     #[must_use]
     pub const fn scanline_bytes(&self) -> usize {
@@ -43,38 +43,47 @@ pub const fn calculate_scanline_bytes(width: u32, bitspp: u8) -> (usize, u8) {
 }
 
 #[derive(Debug)]
-pub struct PostProcessor<C: Channel, const F: u8> {
+pub struct PostProcessor {
     scanline_bytes: usize,
     max_scanline_bytes: usize,
     stride: usize,
     palette: Option<ColorPalette>,
     color_type: ColorType,
-    bitspp: u8,
+    stored_format: PixelFormat,
+    output_format: PixelFormat,
     scanline_padding: u8, // in bits
     channel_depth: u8,
-    out_writer: OutputConverter<C, F>,
     alpha_color: Option<(i64, i64, i64)>,
     adam7_pass: Pass,
 }
 
-impl<C: Channel, const F: u8> PostProcessor<C, F> {
+impl PostProcessor {
     pub fn new(width: u32, color_type: ColorType, channel_depth: u8) -> Self {
-        let bitspp = PixelFormat::from(color_type) as u8 * channel_depth;
-
-        let (scanline_bytes, scanline_padding) = calculate_scanline_bytes(
-            width,
-            if color_type == ColorType::Indexed {
-                channel_depth
-            } else {
-                bitspp
+        let stored_format = PixelFormat::new(
+            SampleType::from_bit_depth_unsigned(channel_depth).unwrap(),
+            match color_type {
+                ColorType::Grayscale => ChannelLayout::Grayscale,
+                ColorType::Truecolor => ChannelLayout::Truecolor,
+                ColorType::GrayscaleAlpha => ChannelLayout::GrayscaleAlpha,
+                ColorType::TruecolorAlpha => ChannelLayout::TruecolorAlpha,
+                ColorType::Indexed => ChannelLayout::Grayscale,
             },
         );
 
-        let stride = (bitspp as usize).div_ceil(8);
+        let output_format = PixelFormat::new(
+            match color_type {
+                ColorType::Indexed => SampleType::U8,
+                _ => stored_format.sample,
+            },
+            match color_type {
+                ColorType::Indexed => ChannelLayout::TruecolorAlpha,
+                _ => stored_format.layout,
+            },
+        );
 
-        let out_format = outputted_pixel_format::<F>(color_type) as u8;
-        let out_channel_depth = outputted_channel_depth(channel_depth, color_type);
-        let out_writer = get_out_writer_func::<C, F>(out_channel_depth, out_format, false);
+        let stored_bitspp = stored_format.bpp();
+        let (scanline_bytes, scanline_padding) = calculate_scanline_bytes(width, stored_bitspp);
+        let stride = (stored_bitspp as usize).div_ceil(8);
 
         Self {
             scanline_bytes,
@@ -82,12 +91,12 @@ impl<C: Channel, const F: u8> PostProcessor<C, F> {
             stride,
             palette: None,
             color_type,
-            bitspp,
             scanline_padding,
             channel_depth,
-            out_writer,
             alpha_color: None,
             adam7_pass: Pass::default(),
+            stored_format,
+            output_format,
         }
     }
 
@@ -95,7 +104,7 @@ impl<C: Channel, const F: u8> PostProcessor<C, F> {
         &mut self,
         scanlines: &mut [u8],
         mut i: usize,
-        dest: &mut OutputWriter<'_, C, F>,
+        dest: &mut OutputWriter<'_>,
     ) -> Result<(), DecodingError> {
         let filter = scanlines[i];
         i += 1;
@@ -118,30 +127,26 @@ impl<C: Channel, const F: u8> PostProcessor<C, F> {
         Ok(())
     }
 
-    pub fn emit_filtered_scanline(&self, scanline: &[u8], dest: &mut OutputWriter<'_, C, F>) {
+    pub fn emit_filtered_scanline(&self, scanline: &[u8], dest: &mut OutputWriter<'_>) {
         match self.color_type {
             ColorType::Indexed => self.emit_indexed_scanline(scanline, dest),
             _ => self.write_slice(scanline, dest, self.scanline_padding),
         }
     }
 
-    pub fn emit_indexed_scanline(&self, scanline: &[u8], dest: &mut OutputWriter<'_, C, F>) {
+    pub fn emit_indexed_scanline(&self, scanline: &[u8], dest: &mut OutputWriter<'_>) {
         let palette = self.palette.as_ref().unwrap();
-        let index_bits = self.bitspp / 3;
+        let sample_ty = self.stored_format().sample;
 
         let mut push_index = |index: u8| {
             let pixel = palette[index as usize].to_le_bytes();
 
-            if has_alpha(F) {
-                self.write_slice(&pixel, dest, 0);
-            } else {
-                self.write_slice(&pixel[..3], dest, 0);
-            }
+            self.write_slice(&pixel, dest, 0);
         };
 
-        match index_bits {
-            8 => scanline.iter().copied().for_each(push_index),
-            _ => unpack::<false>(scanline, index_bits, self.scanline_padding, |bs| {
+        match sample_ty {
+            SampleType::U8 => scanline.iter().copied().for_each(push_index),
+            _ => unpack::<false>(scanline, sample_ty.bit_depth(), self.scanline_padding, |bs| {
                 for &b in bs {
                     push_index(b);
                 }
@@ -150,8 +155,12 @@ impl<C: Channel, const F: u8> PostProcessor<C, F> {
     }
 
     #[inline(always)]
-    fn write_slice(&self, slice: &[u8], dest: &mut OutputWriter<'_, C, F>, padding: u8) {
-        (self.out_writer)(slice, dest, padding, self.alpha_color);
+    fn write_slice(&self, slice: &[u8], dest: &mut OutputWriter<'_>, _padding: u8) {
+        if self.stored_format().sample.bit_depth() < 8 {
+            todo!()
+        }
+
+        dest.write_slice(slice);
     }
 
     fn filter_scanline_inplace<const FILTER: u8>(&self, scanlines: &mut [u8], i: usize) {
@@ -281,16 +290,14 @@ impl<C: Channel, const F: u8> PostProcessor<C, F> {
     }
 
     pub fn stored_bpp(&self) -> usize {
-        self.channel_depth as usize * self.stored_format() as usize
+        self.stored_format.bpp() as usize
     }
     pub fn stored_format(&self) -> PixelFormat {
-        match self.color_type() {
-            ColorType::Indexed => PixelFormat::Grayscale,
-            _ => PixelFormat::from(self.color_type),
-        }
+        self.stored_format
     }
-    pub const fn stored_channel_depth(&self) -> u8 {
-        self.channel_depth
+
+    pub fn output_format(&self) -> PixelFormat {
+        self.output_format
     }
 
     #[inline]
@@ -329,17 +336,12 @@ impl<C: Channel, const F: u8> PostProcessor<C, F> {
     pub fn setup_interlacing(&mut self, ihdr: &Ihdr) {
         self.adam7_pass = Pass::new(ihdr, self);
     }
-    pub const fn update_dest(&self, dest: &mut OutputWriter<'_, C, F>) {
+    pub const fn update_dest(&self, dest: &mut OutputWriter<'_>) {
         self.adam7_pass.update_dest(dest);
     }
 
     #[inline(always)]
-    fn scanline_passed(
-        &mut self,
-        scanlines: &mut [u8],
-        i: usize,
-        dest: &mut OutputWriter<'_, C, F>,
-    ) {
+    fn scanline_passed(&mut self, scanlines: &mut [u8], i: usize, dest: &mut OutputWriter<'_>) {
         let pass = &mut self.adam7_pass;
 
         if pass.end_scanline_skip == 0 {
@@ -358,12 +360,7 @@ impl<C: Channel, const F: u8> PostProcessor<C, F> {
         }
     }
 
-    fn next_adam7_pass(
-        &mut self,
-        scanlines: &mut [u8],
-        i: usize,
-        dest: &mut OutputWriter<'_, C, F>,
-    ) {
+    fn next_adam7_pass(&mut self, scanlines: &mut [u8], i: usize, dest: &mut OutputWriter<'_>) {
         let pass = &mut self.adam7_pass;
         pass.cur += 1;
 
@@ -400,21 +397,6 @@ const PASSES: [((usize, usize), usize, u8); 7] = [
     ((0, 1), 1, 2),
 ];
 
-pub fn outputted_pixel_format<const F: u8>(color_type: ColorType) -> PixelFormat {
-    if color_type == ColorType::Indexed && has_alpha(F) {
-        PixelFormat::TruecolorAlpha
-    } else {
-        PixelFormat::from(color_type)
-    }
-}
-pub fn outputted_channel_depth(channel_depth: u8, color_type: ColorType) -> u8 {
-    if color_type == ColorType::Indexed {
-        8
-    } else {
-        channel_depth
-    }
-}
-
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 const fn paeth_predictor(a: u8, b: u8, c: u8) -> u8 {
     let (a, b, c) = (a as i16, b as i16, c as i16);
@@ -443,9 +425,9 @@ pub struct Pass {
 }
 
 impl Pass {
-    fn update<const F: u8>(
+    fn update(
         &mut self,
-        dest: &mut OutputWriter<'_, impl Channel, F>,
+        dest: &mut OutputWriter<'_>,
         start: (usize, usize),
         stride: usize,
         passed_scanlines: u8,
@@ -453,7 +435,7 @@ impl Pass {
         self.cur_scanline = start.1;
         self.end_scanline_scanlines_passed = passed_scanlines;
         self.stride = stride;
-        dest.set_stride(self.stride);
+        self.update_dest(dest);
         dest.reset();
         dest.advance(start.0 + start.1 * self.dim.0);
 
@@ -480,15 +462,13 @@ impl Pass {
         clippy::cast_sign_loss,
         clippy::cast_possible_wrap
     )]
-    fn new<const F: u8>(ihdr: &Ihdr, postprocessor: &mut PostProcessor<impl Channel, F>) -> Self {
+    fn new(ihdr: &Ihdr, postprocessor: &mut PostProcessor) -> Self {
         let (end_scanline_skip, stride) = if ihdr.interlace_method == 1 {
             let width = (ihdr.width - 1).div_euclid(8) + 1;
             let alignment = ihdr.width as isize - width as isize * 8;
 
-            let (new_scanline_bytes, padding) = calculate_scanline_bytes(
-                width,
-                postprocessor.stored_bpp() as u8,
-            );
+            let (new_scanline_bytes, padding) =
+                calculate_scanline_bytes(width, postprocessor.stored_bpp() as u8);
             postprocessor.scanline_padding = padding;
 
             postprocessor.scanline_bytes = new_scanline_bytes;
@@ -508,7 +488,7 @@ impl Pass {
         }
     }
 
-    pub const fn update_dest<const F: u8>(&self, dest: &mut OutputWriter<'_, impl Channel, F>) {
+    pub const fn update_dest(&self, dest: &mut OutputWriter<'_>) {
         dest.set_stride(self.stride);
     }
 }
@@ -532,7 +512,7 @@ pub const fn open_simd(slice: &[u8]) -> Simd<u8, { SIMD_WIDTH }> {
     Simd::from_slice(slice)
 }
 
-impl<C: Channel, const F: u8> PostProcessor<C, F> {
+impl PostProcessor {
     #[inline(always)]
     pub fn filter_simd<const FILTER: u8, const STRIDE: usize>(
         &self,

@@ -2,7 +2,7 @@ use crate::{
     DecodingError::{self, InvalidChunk},
     buffers::CursorVec,
     image::{
-        Channel, PngDecoder,
+        PngDecoder,
         png::{ColorType, parser::ChunkHeader, postprocessing::MAX_STRIDE},
     },
 };
@@ -97,8 +97,8 @@ impl Ihdr {
 }
 
 pub trait ChunkData: Any {
-    fn update_decoder<C: Channel, const F: u8>(
-        decoder: &mut PngDecoder<'_, C, F>,
+    fn update_decoder(
+        decoder: &mut PngDecoder<'_>,
         chunk_header: &ChunkHeader,
         data: &mut CursorVec<u8>,
     ) -> Result<(), DecodingError>
@@ -109,8 +109,8 @@ pub trait ChunkData: Any {
 // Will be read as IDAT chunk data
 pub struct ZlibDataStream {}
 impl ChunkData for ZlibDataStream {
-    fn update_decoder<C: Channel, const F: u8>(
-        decoder: &mut PngDecoder<'_, C, F>,
+    fn update_decoder(
+        decoder: &mut PngDecoder<'_>,
         chunk_header: &ChunkHeader,
         data: &mut CursorVec<u8>,
     ) -> Result<(), DecodingError>
@@ -176,8 +176,8 @@ impl ColorPalette {
 }
 
 impl ChunkData for ColorPalette {
-    fn update_decoder<C: Channel, const F: u8>(
-        decoder: &mut PngDecoder<'_, C, F>,
+    fn update_decoder(
+        decoder: &mut PngDecoder<'_>,
         chunk_header: &ChunkHeader,
         reader: &mut CursorVec<u8>,
     ) -> Result<(), DecodingError>
@@ -212,8 +212,8 @@ impl ChunkData for ColorPalette {
 pub struct tRNS {}
 impl ChunkData for tRNS {
     #[allow(clippy::cast_possible_truncation)]
-    fn update_decoder<C: Channel, const F: u8>(
-        decoder: &mut PngDecoder<'_, C, F>,
+    fn update_decoder(
+        decoder: &mut PngDecoder<'_>,
         chunk_header: &ChunkHeader,
         reader: &mut CursorVec<u8>,
     ) -> Result<(), DecodingError>
@@ -223,14 +223,16 @@ impl ChunkData for tRNS {
         let len = chunk_header.len();
 
         if decoder.postprocessor.color_type() != ColorType::Indexed {
-            let mask =
-                ((1u32 << u32::from(decoder.postprocessor.stored_channel_depth())) - 1) as u16;
+            let stored_depth = decoder.postprocessor.stored_format().sample.bit_depth();
 
-            let channel_max = (1 << decoder.postprocessor.stored_channel_depth()) - 1;
+            let mask =
+                ((1u32 << u32::from(stored_depth)) - 1) as u16;
+
+            let channel_max = (1 << stored_depth) - 1;
             let mut read_val = || -> Result<i64, DecodingError> {
                 let d = i64::from(reader.read_be::<u16>()? & mask);
 
-                Ok(if decoder.postprocessor.stored_channel_depth() < 8 {
+                Ok(if stored_depth < 8 {
                     d * 255 / channel_max
                 } else {
                     d
@@ -248,6 +250,8 @@ impl ChunkData for tRNS {
             };
 
             decoder.postprocessor.set_alpha_color(alpha_color);
+
+            todo!();
 
             return Ok(());
         }

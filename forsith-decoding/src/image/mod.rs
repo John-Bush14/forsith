@@ -17,95 +17,117 @@ pub use jpeg::JpegDecoder;
 #[allow(dead_code)]
 mod outputconverting;
 
-#[repr(u8)]
-#[derive(TryFromNum, IntoNum, IsVariant)]
-pub enum PixelFormat {
-    Native = 0,
-    Grayscale = 1,
-    Truecolor = 3,
-    GrayscaleAlpha = 2,
-    TruecolorAlpha = 4,
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PixelFormat {
+    pub layout: ChannelLayout,
+    pub sample: SampleType,
 }
 
-const fn has_alpha(format: u8) -> bool {
-    matches!(format, 2 | 4)
-}
-const fn is_rgb(format: u8) -> bool {
-    matches!(format, 3 | 4)
-}
-const fn is_gray(format: u8) -> bool {
-    matches!(format, 1 | 2)
+#[derive(Clone, Copy, Debug, PartialEq, Eq, IsVariant)]
+pub enum ChannelLayout {
+    Grayscale,
+    Truecolor,
+    GrayscaleAlpha,
+    TruecolorAlpha,
 }
 
-pub(crate) const fn bitspp<C: Channel, const F: u8>() -> u8 {
-    C::BIT_DEPTH * F
-}
-pub(crate) const fn bytespp<C: Channel, const F: u8>() -> u8 {
-    C::BIT_DEPTH * F / 8
+#[derive(Clone, Copy, Debug, PartialEq, Eq, IsVariant)]
+pub enum SampleType {
+    U1,
+    U2,
+    U4,
+    U8,
+    U16,
+    U32,
+    U64,
+    F32,
+    F64,
 }
 
-pub trait ImageDecoder<'a, C: Channel, const F: u8> {
-    fn open_validated<R: Read>(data: R) -> Result<Self, DecodingError>
-    where
-        Self: Sized;
-    fn open<R: Read>(data: R) -> Result<Self, DecodingError>
-    where
-        Self: Sized,
-    {
-        assert!((C::BIT_DEPTH * F).is_multiple_of(8));
-        assert!(PixelFormat::try_from(F).is_ok());
-
-        Self::open_validated(data)
+impl SampleType {
+    #[must_use]
+    pub const fn bit_depth(self) -> u8 {
+        match self {
+            Self::U1 => 1,
+            Self::U2 => 2,
+            Self::U4 => 4,
+            Self::U8 => 8,
+            Self::U16 => 16,
+            Self::U32 | Self::F32 => 32,
+            Self::U64 | Self::F64 => 64,
+        }
     }
 
-    fn read(&mut self, buf: &mut [C::StorageType]) -> Result<usize, DecodingError>;
+    #[must_use]
+    pub const fn from_bit_depth_unsigned(bit_depth: u8) -> Option<Self> {
+        match bit_depth {
+            1 => Some(Self::U1),
+            2 => Some(Self::U2),
+            4 => Some(Self::U4),
+            8 => Some(Self::U8),
+            16 => Some(Self::U16),
+            32 => Some(Self::U32),
+            64 => Some(Self::U64),
+            _ => None,
+        }
+    }
+}
+
+impl ChannelLayout {
+    #[must_use]
+    pub const fn channel_count(self) -> u8 {
+        match self {
+            Self::Grayscale => 1,
+            Self::Truecolor => 3,
+            Self::GrayscaleAlpha => 2,
+            Self::TruecolorAlpha => 4,
+        }
+    }
+
+    #[must_use]
+    pub const fn has_color(self) -> bool {
+        matches!(
+            self,
+            Self::Truecolor | Self::TruecolorAlpha
+        )
+    }
+
+    #[must_use]
+    pub const fn has_alpha(self) -> bool {
+        matches!(
+            self,
+            Self::GrayscaleAlpha | Self::TruecolorAlpha
+        )
+    }
+}
+
+impl PixelFormat {
+    /// bits per pixel
+    #[must_use]
+    pub const fn bpp(self) -> u8 {
+        self.layout.channel_count() * self.sample.bit_depth()
+    }
+
+    #[must_use]
+    pub const fn new(sample: SampleType, layout: ChannelLayout) -> Self {
+        Self { layout, sample }
+    }
+}
+
+pub trait ImageDecoder<'a>: Sized {
+    fn open<R: Read>(data: R, preffered_format: PixelFormat) -> Result<Self, DecodingError>;
+
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, DecodingError>;
 
     fn image_dimensions(&self) -> (usize, usize);
 
-    fn min_buf_size(&self) -> usize;
+    fn pixel_format(&self) -> PixelFormat;
+
+    fn min_buf_size(&self) -> usize {
+        self.max_buf_size()
+    }
     fn max_buf_size(&self) -> usize {
         let dim = self.image_dimensions();
-        dim.0 * dim.1 * F as usize
+        (dim.0 * dim.1 * self.pixel_format().bpp() as usize).div_ceil(8)
     }
-
-    fn source_bit_depth(&self) -> u8;
-    fn source_pixel_format(&self) -> PixelFormat;
-}
-
-#[derive(Debug, PartialEq, Eq, IsVariant)]
-pub enum ChannelType {
-    Unsigned,
-    Signed,
-    // Float,
-    // NormalizedFloat
-}
-
-pub trait Channel
-where
-    <Self::StorageType as TryFrom<i64>>::Error: Debug,
-    <Self::StorageType as TryFrom<u64>>::Error: Debug,
-{
-    type StorageType: Int;
-    const BIT_DEPTH: u8;
-    const MAX: u64;
-    const MIN: i64;
-    const TYPE: ChannelType;
-}
-
-impl<I: Int> Channel for I
-where
-    <I as TryFrom<i64>>::Error: Debug,
-    <I as TryFrom<u64>>::Error: Debug,
-{
-    type StorageType = I;
-    const BIT_DEPTH: u8 = I::BIT_DEPTH;
-    const MAX: u64 = I::MAX;
-    const MIN: i64 = I::MIN;
-    const TYPE: ChannelType = {
-        if I::SIGNED {
-            ChannelType::Signed
-        } else {
-            ChannelType::Unsigned
-        }
-    };
 }

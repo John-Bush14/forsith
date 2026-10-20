@@ -4,7 +4,7 @@ use criterion::{
     BenchmarkGroup, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main,
     measurement::Measurement,
 };
-use forsith_decoding::{ImageDecoder, PngDecoder, image::PixelFormat};
+use forsith_decoding::{ImageDecoder, PngDecoder, image::ChannelLayout};
 
 criterion_group!(benches, png_decode_benchmarks);
 criterion_main!(benches);
@@ -40,7 +40,7 @@ fn benchmark_decoding<const BUFFERED: bool>(
     filename: String,
     data: &[u8],
 ) {
-    let info_decoder = PngDecoder::<u8, { PixelFormat::TruecolorAlpha as u8 }>::open(data).unwrap();
+    let info_decoder = PngDecoder::<u8, { ChannelLayout::TruecolorAlpha as u8 }>::open(data).unwrap();
 
     let size = if BUFFERED {
         info_decoder.min_buf_size()
@@ -63,7 +63,7 @@ fn benchmark_decoding<const BUFFERED: bool>(
         |b| {
             b.iter(|| {
                 let mut decoder =
-                    PngDecoder::<u8, { PixelFormat::TruecolorAlpha as u8 }>::open(data).unwrap();
+                    PngDecoder::<u8, { ChannelLayout::TruecolorAlpha as u8 }>::open(data).unwrap();
                 while decoder.read(&mut buf).unwrap() > 0 {}
             })
         },
