@@ -1,8 +1,5 @@
 use crate::{
-    DecodingError,
-    bit::BitReader,
-    buffers::CursorVec,
-    image::{
+    DecodingError, bit::BitReader, buffers::CursorVec, decompression::deflate::DeflateDecoder, image::{
         ChannelLayout, ImageDecoder, PixelFormat,
         outputconverting::OutputWriter,
         png::{
@@ -14,8 +11,7 @@ use crate::{
             },
             postprocessing::{MAX_STRIDE, PostProcessor},
         },
-    },
-    parsing::SegmentParser,
+    }, parsing::SegmentParser,
 };
 use forsith_proc::IsVariant;
 use forsith_proc::TryFromNum;
@@ -50,10 +46,10 @@ pub struct PngDecoder<'a> {
     scanline_multiples: usize,
     postprocessor: PostProcessor,
     ihdr: Ihdr,
-    cur_block: deflate::Block,
     deflate_buffer_tail: usize,
     last_adler_update_i: usize,
     adler: Adler32,
+    deflate: DeflateDecoder,
     phantom: std::marker::PhantomData<&'a ()>,
 }
 
@@ -76,7 +72,7 @@ impl<'a> ImageDecoder<'a> for PngDecoder<'a> {
             scanline_multiples: 0,
             postprocessor,
             ihdr,
-            cur_block: deflate::Block::default(),
+            deflate: DeflateDecoder::default(),
             deflate_buffer_tail: 0,
             last_adler_update_i: 0,
             adler: Adler32::default(),
@@ -94,7 +90,7 @@ impl<'a> ImageDecoder<'a> for PngDecoder<'a> {
         }
 
         decoder.postprocessor.setup_interlacing(&decoder.ihdr);
-        decoder.cur_block.load_block(&mut decoder.compressed_data)?;
+        decoder.next_block()?;
 
         Ok(decoder)
     }
@@ -109,7 +105,7 @@ impl<'a> ImageDecoder<'a> for PngDecoder<'a> {
         self.postprocessor.update_dest(&mut dest);
 
         while !dest.is_full() {
-            match self.cur_block.r#type {
+            match self.deflate.cur_block().ty {
                 BlockType::Uncompressed(len) => {
                     self.read_uncompressed_chunk(len, &mut dest)?;
                 }
@@ -181,11 +177,9 @@ impl PngDecoder<'_> {
 
     #[cold]
     fn next_block(&mut self) -> Result<(), DecodingError> {
-        if self.cur_block.last {
-            return self.finish_decoding();
+        if self.deflate.next_block(&mut self.compressed_data)? {
+            self.finish_decoding()?;
         }
-
-        self.cur_block.load_block(&mut self.compressed_data)?;
 
         Ok(())
     }
@@ -196,8 +190,6 @@ impl PngDecoder<'_> {
 
         self.compressed_data.unconsume_bitbuf();
         self.adler.validate(self.compressed_data.read_be()?)?;
-
-        self.cur_block.r#type = BlockType::Finished;
 
         Ok(())
     }
@@ -312,7 +304,7 @@ impl PngDecoder<'_> {
             // self.compressed_data.align()?;
             self.next_block()?;
         } else {
-            self.cur_block.r#type = BlockType::Uncompressed(len - decoded_bytes);
+            self.deflate.set_uncompressed_len(len - decoded_bytes);
             dest.set_full();
         }
         Ok(())
@@ -336,17 +328,9 @@ impl PngDecoder<'_> {
                 }
             }
 
-            let (litlen_tree, distance_tree) = if STATIC {
-                (&STATIC_LITLEN_TREE, &STATIC_DISTANCE_TREE)
-            } else {
-                (&self.cur_block.litlen_tree, &self.cur_block.distance_tree)
-            };
-
-            if deflate::decode_compressed(
-                litlen_tree,
-                distance_tree,
+            if self.deflate.decode_compressed::<STATIC>(
                 &mut self.compressed_data,
-                &mut self.deflate_buffer,
+                &mut self.deflate_buffer
             ) {
                 self.next_block()?;
                 break

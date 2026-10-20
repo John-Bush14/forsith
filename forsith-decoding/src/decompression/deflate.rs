@@ -1,7 +1,7 @@
-use forsith_proc::IsVariant;
+use forsith_proc::{Deref, IsVariant};
 use forsith_shared::{buffers::CursorVec, const_for};
 
-use crate::{DecodingError, bit::BitRead, decompression::HuffmanTree};
+use crate::{DecodingError, bit::BitRead, checksums::Adler32, decompression::HuffmanTree};
 
 const CODE_LENGTH_ORDER: [u8; 19] = [
     16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15,
@@ -77,103 +77,42 @@ pub const STATIC_DISTANCE_TREE: DistanceTree = {
     tree
 };
 
-#[inline(always)]
-pub fn decode_compressed(
-    litlen_tree: &LitLenTree,
-    distance_tree: &DistanceTree,
-    reader: &mut impl BitRead,
-    buf: &mut CursorVec<u8>,
-) -> bool {
-    let symbol = litlen_tree.decode_symbol(reader);
-
-    if symbol < 256 {
-        buf.write_fast_single(u8::try_from(symbol).unwrap());
-    } else if std::hint::unlikely(symbol == 256) {
-        return true;
-    } else {
-        let length = decode_length(symbol, reader);
-        let dist_code = distance_tree.decode_symbol(reader);
-        let distance = decode_distance(dist_code, reader);
-
-        if distance as usize >= length as usize {
-            copy_backreference(buf, length as usize, distance as usize);
-        } else if distance == 1 {
-            let fill = buf.get_ref()[buf.cursor() - 1];
-            buf.take_mut_slice(length as usize).fill(fill);
-        } else {
-            for _ in 0..length - distance {
-                let byte = buf.get_ref()[buf.cursor() - distance as usize];
-                buf.write_fast_single(byte);
-            }
-
-            copy_backreference(buf, distance as usize, distance as usize);
-        }
-    }
-
-    false
-}
-
-#[inline]
-fn copy_backreference(buf: &mut CursorVec<u8>, length: usize, distance: usize) {
-    let i = buf.cursor();
-
-    buf.get_mut()
-        .copy_within(i - distance..i - distance + length, i);
-
-    buf.consume(length);
-}
-
-#[inline(always)]
-#[allow(clippy::cast_possible_truncation)]
-pub fn decode_length<R: BitRead>(symbol: u16, reader: &mut R) -> u16 {
-    let (base, extra) = LENGTH_TABLE[(symbol - 257) as usize];
-    base + reader.read_bits_nobranch(extra) as u16
-}
-
-#[inline(always)]
-#[allow(clippy::cast_possible_truncation)]
-pub fn decode_distance<R: BitRead>(code: u16, reader: &mut R) -> u16 {
-    let (base, extra) = DISTANCE_TABLE[code as usize];
-    base + reader.read_bits_nobranch(extra) as u16
-}
-
-#[derive(Debug, Default, PartialEq, Eq, IsVariant)]
-pub enum BlockType {
-    Uncompressed(u16),
-    CompressedFixed,
-    CompressedDynamic,
-    #[default]
-    Finished,
-}
-#[derive(Debug)]
-pub struct Block {
-    pub last: bool,
-    pub r#type: BlockType,
+pub struct DeflateDecoder {
     pub litlen_tree: LitLenTree,
     pub distance_tree: DistanceTree,
     pub codlen_tree: CodlenTree,
+    pub block: Block
 }
-impl Default for Block {
+
+impl Default for DeflateDecoder {
     fn default() -> Self {
         Self {
-            last: Default::default(),
-            r#type: BlockType::default(),
-            litlen_tree: HuffmanTree::default(),
-            distance_tree: HuffmanTree::default(),
-            codlen_tree: HuffmanTree::default(),
+            litlen_tree: LitLenTree::default(),
+            distance_tree: DistanceTree::default(),
+            codlen_tree: CodlenTree::default(),
+            block: Block::default()
         }
     }
 }
-impl Block {
-    pub fn load_block<R: BitRead>(&mut self, reader: &mut R) -> Result<(), DecodingError> {
-        self.last = reader.read_bits(1) == 1;
-        self.load_compression_type(reader)?;
 
-        if self.r#type == BlockType::CompressedDynamic {
+impl DeflateDecoder {
+    pub fn cur_block(&self) -> &Block {
+        &self.block
+    }
+
+    pub fn next_block(&mut self, reader: &mut impl BitRead) -> Result<bool, DecodingError> {
+        if self.block.last {
+            self.block.ty = BlockType::Finished;
+            return Ok(true);
+        }
+
+        self.block.load_block(reader);
+
+        if self.block.is_compressed_dynamic() {
             self.load_trees(reader)?;
         }
 
-        Ok(())
+        Ok(false)
     }
 
     #[allow(clippy::cast_possible_truncation)]
@@ -223,6 +162,109 @@ impl Block {
         Ok(())
     }
 
+    #[inline(always)]
+    pub fn decode_compressed<const STATIC: bool>(
+        &mut self,
+        reader: &mut impl BitRead,
+        buf: &mut CursorVec<u8>,
+    ) -> bool {
+        let (litlen_tree, distance_tree) = if STATIC {
+            (&STATIC_LITLEN_TREE, &STATIC_DISTANCE_TREE)
+        } else {
+            (&self.litlen_tree, &self.distance_tree)
+        };
+
+        let symbol = litlen_tree.decode_symbol(reader);
+
+        if symbol < 256 {
+            buf.write_fast_single(u8::try_from(symbol).unwrap());
+        } else if std::hint::unlikely(symbol == 256) {
+            return true;
+        } else {
+            let length = decode_length(symbol, reader);
+            let dist_code = distance_tree.decode_symbol(reader);
+            let distance = decode_distance(dist_code, reader);
+
+            if distance as usize >= length as usize {
+                copy_backreference(buf, length as usize, distance as usize);
+            } else if distance == 1 {
+                let fill = buf.get_ref()[buf.cursor() - 1];
+                buf.take_mut_slice(length as usize).fill(fill);
+            } else {
+                for _ in 0..length - distance {
+                    let byte = buf.get_ref()[buf.cursor() - distance as usize];
+                    buf.write_fast_single(byte);
+                }
+
+                copy_backreference(buf, distance as usize, distance as usize);
+            }
+        }
+
+        false
+    }
+
+    pub fn set_uncompressed_len(&mut self, len: u16) {
+        #[cfg(debug_assertions)]
+        assert!(matches!(self.block.ty, BlockType::Uncompressed(_)));
+
+        self.block.ty = BlockType::Uncompressed(len);
+    }
+}
+
+#[inline]
+fn copy_backreference(buf: &mut CursorVec<u8>, length: usize, distance: usize) {
+    let i = buf.cursor();
+
+    buf.get_mut()
+        .copy_within(i - distance..i - distance + length, i);
+
+    buf.consume(length);
+}
+
+#[inline(always)]
+#[allow(clippy::cast_possible_truncation)]
+pub fn decode_length<R: BitRead>(symbol: u16, reader: &mut R) -> u16 {
+    let (base, extra) = LENGTH_TABLE[(symbol - 257) as usize];
+    base + reader.read_bits_nobranch(extra) as u16
+}
+
+#[inline(always)]
+#[allow(clippy::cast_possible_truncation)]
+pub fn decode_distance<R: BitRead>(code: u16, reader: &mut R) -> u16 {
+    let (base, extra) = DISTANCE_TABLE[code as usize];
+    base + reader.read_bits_nobranch(extra) as u16
+}
+
+#[derive(Debug, Default, PartialEq, Eq, IsVariant)]
+pub enum BlockType {
+    Uncompressed(u16),
+    CompressedFixed,
+    CompressedDynamic,
+    #[default]
+    Finished,
+}
+#[derive(Debug, Deref)]
+pub struct Block {
+    pub last: bool,
+    #[deref]
+    pub ty: BlockType,
+}
+impl Default for Block {
+    fn default() -> Self {
+        Self {
+            last: Default::default(),
+            ty: BlockType::default(),
+        }
+    }
+}
+impl Block {
+    pub fn load_block<R: BitRead>(&mut self, reader: &mut R) -> Result<(), DecodingError> {
+        self.last = reader.read_bits(1) == 1;
+        self.load_compression_type(reader)?;
+
+        Ok(())
+    }
+
     #[allow(clippy::cast_possible_truncation)]
     fn load_compression_type<R: BitRead>(&mut self, reader: &mut R) -> Result<(), DecodingError> {
         match reader.read_bits(2) {
@@ -237,10 +279,10 @@ impl Block {
                     return Err(DecodingError::BlockLengthMismatch(len, nlen));
                 }
 
-                self.r#type = BlockType::Uncompressed(len);
+                self.ty = BlockType::Uncompressed(len);
             }
-            1 => self.r#type = BlockType::CompressedFixed,
-            2 => self.r#type = BlockType::CompressedDynamic,
+            1 => self.ty = BlockType::CompressedFixed,
+            2 => self.ty = BlockType::CompressedDynamic,
             _ => return Err(DecodingError::ReservedCompressionMethod),
         }
 
