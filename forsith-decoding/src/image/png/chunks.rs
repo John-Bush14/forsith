@@ -225,8 +225,7 @@ impl ChunkData for tRNS {
         if decoder.postprocessor.color_type() != ColorType::Indexed {
             let stored_depth = decoder.postprocessor.stored_format().sample.bit_depth();
 
-            let mask =
-                ((1u32 << u32::from(stored_depth)) - 1) as u16;
+            let mask = ((1u32 << u32::from(stored_depth)) - 1) as u16;
 
             let channel_max = (1 << stored_depth) - 1;
             let mut read_val = || -> Result<i64, DecodingError> {

@@ -1,6 +1,5 @@
 use crate::image::PixelFormat;
 
-
 pub struct OutputWriter<'a> {
     buffer: &'a mut [u8],
     index: usize,
@@ -16,7 +15,10 @@ impl<'a> OutputWriter<'a> {
             index: 0,
             full: false,
             stride: 1,
-            bytespp: format.bpp().checked_div(8).expect("PixelFormat bpp must be a multiple of 8"),
+            bytespp: format
+                .bpp()
+                .checked_div(8)
+                .expect("PixelFormat bpp must be a multiple of 8"),
         }
     }
 

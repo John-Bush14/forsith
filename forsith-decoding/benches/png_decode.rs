@@ -40,7 +40,8 @@ fn benchmark_decoding<const BUFFERED: bool>(
     filename: String,
     data: &[u8],
 ) {
-    let info_decoder = PngDecoder::<u8, { ChannelLayout::TruecolorAlpha as u8 }>::open(data).unwrap();
+    let info_decoder =
+        PngDecoder::<u8, { ChannelLayout::TruecolorAlpha as u8 }>::open(data).unwrap();
 
     let size = if BUFFERED {
         info_decoder.min_buf_size()

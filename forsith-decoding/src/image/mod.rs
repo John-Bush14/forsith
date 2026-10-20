@@ -86,18 +86,12 @@ impl ChannelLayout {
 
     #[must_use]
     pub const fn has_color(self) -> bool {
-        matches!(
-            self,
-            Self::Truecolor | Self::TruecolorAlpha
-        )
+        matches!(self, Self::Truecolor | Self::TruecolorAlpha)
     }
 
     #[must_use]
     pub const fn has_alpha(self) -> bool {
-        matches!(
-            self,
-            Self::GrayscaleAlpha | Self::TruecolorAlpha
-        )
+        matches!(self, Self::GrayscaleAlpha | Self::TruecolorAlpha)
     }
 }
 

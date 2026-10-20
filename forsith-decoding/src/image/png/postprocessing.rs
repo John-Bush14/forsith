@@ -4,7 +4,7 @@ use crate::{
     bit::unpack,
     image::{
         ChannelLayout, PixelFormat, PngDecoder, SampleType,
-        outputconverting::{ OutputWriter},
+        outputconverting::OutputWriter,
         png::{
             ColorType,
             chunks::{ColorPalette, Ihdr},
@@ -146,11 +146,16 @@ impl PostProcessor {
 
         match sample_ty {
             SampleType::U8 => scanline.iter().copied().for_each(push_index),
-            _ => unpack::<false>(scanline, sample_ty.bit_depth(), self.scanline_padding, |bs| {
-                for &b in bs {
-                    push_index(b);
-                }
-            }),
+            _ => unpack::<false>(
+                scanline,
+                sample_ty.bit_depth(),
+                self.scanline_padding,
+                |bs| {
+                    for &b in bs {
+                        push_index(b);
+                    }
+                },
+            ),
         }
     }
 

@@ -1,48 +1,74 @@
+use forsith_decoding::image::{ChannelLayout, SampleType};
+use forsith_decoding::{
+    DecodingError,
+    image::{ImageDecoder, PixelFormat, PngDecoder},
+};
 use std::error::Error;
 use std::io::BufRead;
 use std::{fs::File, io::BufReader, path::PathBuf};
-use forsith_decoding::image::{ChannelLayout, SampleType};
-use forsith_decoding::{DecodingError, image::{ImageDecoder, PixelFormat, PngDecoder}};
 
 include!("generated_png_tests.rs");
 
 fn test_image(path: &str, solution_filepath: &str) -> Result<(), Box<dyn Error>> {
-
     let test_file = File::open(path).unwrap();
 
     let id = PathBuf::from(path).file_name().unwrap().to_str().unwrap()[..3].to_string();
 
-    let mut decoder = match PngDecoder::open(BufReader::new(test_file), PixelFormat::new(SampleType::U8, ChannelLayout::TruecolorAlpha)) {
+    let mut decoder = match PngDecoder::open(
+        BufReader::new(test_file),
+        PixelFormat::new(SampleType::U8, ChannelLayout::TruecolorAlpha),
+    ) {
         Ok(d) => d,
-        Err(e) => {if is_correct_err(&e, &id) {return Ok(())} else {return Err(Box::from(e))}}
+        Err(e) => {
+            if is_correct_err(&e, &id) {
+                return Ok(());
+            } else {
+                return Err(Box::from(e));
+            }
+        }
     };
 
     if decoder.pixel_format() != PixelFormat::new(SampleType::U8, ChannelLayout::TruecolorAlpha) {
         return Ok(()); // skip tests that don't match the preffered format
     }
 
-    let solution: Option<Vec<u8>> =
-        if decoder.pixel_format().sample.bit_depth() <= 8 {parse_solution(solution_filepath, |s| s.parse::<u8>().unwrap())}
-        else {parse_solution(solution_filepath, |s| s.parse::<u16>().unwrap()).map(|s| s.iter().map(|&v| (v as u32 * 255 / u16::MAX as u32) as u8).collect())};
+    let solution: Option<Vec<u8>> = if decoder.pixel_format().sample.bit_depth() <= 8 {
+        parse_solution(solution_filepath, |s| s.parse::<u8>().unwrap())
+    } else {
+        parse_solution(solution_filepath, |s| s.parse::<u16>().unwrap()).map(|s| {
+            s.iter()
+                .map(|&v| (v as u32 * 255 / u16::MAX as u32) as u8)
+                .collect()
+        })
+    };
 
     let mut decoded_bytes = 0;
     let mut decoded_buf: Vec<u8> = vec![0u8; decoder.min_buf_size()];
     while match decoder.read(&mut decoded_buf) {
         Ok(len) => {
-            let solution = solution.as_ref().unwrap_or_else(|| panic!("test that should fail succeeded!"));
+            let solution = solution
+                .as_ref()
+                .unwrap_or_else(|| panic!("test that should fail succeeded!"));
 
             let decoded = &decoded_buf[..len];
 
-            if decoded_bytes+len > solution.len() {
+            if decoded_bytes + len > solution.len() {
                 panic!("decoded image contained more data than solution?");
             }
 
-            let solution = &solution[decoded_bytes..decoded_bytes+len];
+            let solution = &solution[decoded_bytes..decoded_bytes + len];
 
-            if !decoded.iter().zip(solution.iter()).all(|(d, &c)| d.abs_diff(c) <= 1) {
+            if !decoded
+                .iter()
+                .zip(solution.iter())
+                .all(|(d, &c)| d.abs_diff(c) <= 1)
+            {
                 for i in 0..len {
                     if decoded[i] != solution[i] {
-                        panic!("Mismatch at byte {}: decoded = {}, solution = {}", i, decoded[i], solution[i]);
+                        panic!(
+                            "Mismatch at byte {}: decoded = {}, solution = {}",
+                            i, decoded[i], solution[i]
+                        );
                     }
                 }
 
@@ -51,15 +77,21 @@ fn test_image(path: &str, solution_filepath: &str) -> Result<(), Box<dyn Error>>
                 println!("Decoded data matches solution data for {} bytes", len);
             }
 
-            decoded_bytes += len; len
-        },
+            decoded_bytes += len;
+            len
+        }
         Err(e) => {
-            if is_correct_err(&e, &id) {return Ok(());}
-            if solution.is_some() {return Err(Box::from(e));}
+            if is_correct_err(&e, &id) {
+                return Ok(());
+            }
+            if solution.is_some() {
+                return Err(Box::from(e));
+            }
 
             panic!("Failed with incorrect error {e}");
         }
-    } > 0 {}
+    } > 0
+    {}
 
     if decoded_bytes != solution.unwrap().len() {
         panic!("Solution file has more data than decoded data");
@@ -69,16 +101,20 @@ fn test_image(path: &str, solution_filepath: &str) -> Result<(), Box<dyn Error>>
 }
 
 fn is_correct_err(err: &DecodingError, id: &str) -> bool {
-    matches!((id, err),
+    matches!(
+        (id, err),
         ("xs1", DecodingError::InccorectHeader(_))
-        | ("xs2", DecodingError::InccorectHeader(_))
-        | ("xs4", DecodingError::InccorectHeader(_))
-        | ("xs7", DecodingError::InccorectHeader(_))
-        | ("xhd", DecodingError::CRCMismatch(_, _))
-        | ("xc1" | "xc9" | "xd0" | "xd3" | "xd9", DecodingError::InvalidChunk(_))
-        | ("xdt", DecodingError::NoIDAT)
-        | ("xcs", DecodingError::CRCMismatch(_, _))
-        | ("xcr" | "xlf", _)
+            | ("xs2", DecodingError::InccorectHeader(_))
+            | ("xs4", DecodingError::InccorectHeader(_))
+            | ("xs7", DecodingError::InccorectHeader(_))
+            | ("xhd", DecodingError::CRCMismatch(_, _))
+            | (
+                "xc1" | "xc9" | "xd0" | "xd3" | "xd9",
+                DecodingError::InvalidChunk(_)
+            )
+            | ("xdt", DecodingError::NoIDAT)
+            | ("xcs", DecodingError::CRCMismatch(_, _))
+            | ("xcr" | "xlf", _)
     )
 }
 
@@ -94,7 +130,11 @@ fn parse_solution<T>(filepath: &str, parse_t: fn(&str) -> T) -> Option<Vec<T>> {
         reader.read_until(b',', &mut buf).unwrap();
 
         let start = buf.iter().position(|&b| !b.is_ascii_whitespace()).unwrap();
-        let end = buf[start..].iter().position(|&b| b.is_ascii_whitespace() || b == b',' || b == b']').unwrap() + start;
+        let end = buf[start..]
+            .iter()
+            .position(|&b| b.is_ascii_whitespace() || b == b',' || b == b']')
+            .unwrap()
+            + start;
 
         solution.push(parse_t(str::from_utf8(&buf[start..end]).unwrap()));
 
@@ -107,4 +147,3 @@ fn parse_solution<T>(filepath: &str, parse_t: fn(&str) -> T) -> Option<Vec<T>> {
 
     Some(solution)
 }
-
