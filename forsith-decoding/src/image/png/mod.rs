@@ -28,8 +28,7 @@ mod parser;
 pub use parser::{ChunkHeader, ChunkParser};
 
 use crate::checksums;
-
-mod deflate;
+use crate::decompression::deflate;
 
 mod postprocessing;
 
