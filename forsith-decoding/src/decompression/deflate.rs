@@ -1,5 +1,5 @@
 use forsith_proc::IsVariant;
-use forsith_shared::const_for;
+use forsith_shared::{buffers::CursorVec, const_for};
 
 use crate::{DecodingError, bit::BitRead, decompression::HuffmanTree};
 
@@ -76,6 +76,52 @@ pub const STATIC_DISTANCE_TREE: DistanceTree = {
 
     tree
 };
+
+#[inline(always)]
+pub fn decode_compressed(
+    litlen_tree: &LitLenTree,
+    distance_tree: &DistanceTree,
+    reader: &mut impl BitRead,
+    buf: &mut CursorVec<u8>,
+) -> bool {
+    let symbol = litlen_tree.decode_symbol(reader);
+
+    if symbol < 256 {
+        buf.write_fast_single(u8::try_from(symbol).unwrap());
+    } else if std::hint::unlikely(symbol == 256) {
+        return true;
+    } else {
+        let length = decode_length(symbol, reader);
+        let dist_code = distance_tree.decode_symbol(reader);
+        let distance = decode_distance(dist_code, reader);
+
+        if distance as usize >= length as usize {
+            copy_backreference(buf, length as usize, distance as usize);
+        } else if distance == 1 {
+            let fill = buf.get_ref()[buf.cursor() - 1];
+            buf.take_mut_slice(length as usize).fill(fill);
+        } else {
+            for _ in 0..length - distance {
+                let byte = buf.get_ref()[buf.cursor() - distance as usize];
+                buf.write_fast_single(byte);
+            }
+
+            copy_backreference(buf, distance as usize, distance as usize);
+        }
+    }
+
+    false
+}
+
+#[inline]
+fn copy_backreference(buf: &mut CursorVec<u8>, length: usize, distance: usize) {
+    let i = buf.cursor();
+
+    buf.get_mut()
+        .copy_within(i - distance..i - distance + length, i);
+
+    buf.consume(length);
+}
 
 #[inline(always)]
 #[allow(clippy::cast_possible_truncation)]

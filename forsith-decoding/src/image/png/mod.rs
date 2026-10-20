@@ -153,7 +153,9 @@ impl<'a> ImageDecoder<'a> for PngDecoder<'a> {
 
         let min_inflate_capacity = self.scanline_pixel_bytes().max(MAX_BACKREF_LEN);
 
-        (min_inflate_capacity * 8 * self.output_format().bpp() as usize / self.stored_format().bpp() as usize).div_ceil(8)
+        (min_inflate_capacity * 8 * self.output_format().bpp() as usize
+            / self.stored_format().bpp() as usize)
+            .div_ceil(8)
     }
 
     fn pixel_format(&self) -> PixelFormat {
@@ -198,17 +200,6 @@ impl PngDecoder<'_> {
         self.cur_block.r#type = BlockType::Finished;
 
         Ok(())
-    }
-
-    #[inline]
-    fn emit_backreferenced_inflated_bytes(&mut self, length: usize, distance: usize) {
-        let i = self.deflate_buffer.cursor();
-
-        self.deflate_buffer
-            .get_mut()
-            .copy_within(i - distance..i - distance + length, i);
-
-        self.deflate_buffer.consume(length);
     }
 
     fn update_adler(&mut self) {
@@ -334,7 +325,7 @@ impl PngDecoder<'_> {
     ) -> Result<(), DecodingError> {
         loop {
             let buffer_full =
-                self.deflate_buffer.cursor() + MAX_BACKREF_LEN >= self.deflate_buffer.capacity();
+                self.deflate_buffer.cursor() + deflate::MAX_BACKREF_LEN >= self.deflate_buffer.capacity();
 
             if std::hint::unlikely(buffer_full) {
                 if self.can_drain_scanline(dest) {
@@ -351,37 +342,14 @@ impl PngDecoder<'_> {
                 (&self.cur_block.litlen_tree, &self.cur_block.distance_tree)
             };
 
-            let symbol = litlen_tree.decode_symbol(&mut self.compressed_data);
-
-            if symbol < 256 {
-                self.deflate_buffer
-                    .write_fast_single(u8::try_from(symbol).unwrap());
-            } else if std::hint::unlikely(symbol == 256) {
+            if deflate::decode_compressed(
+                litlen_tree,
+                distance_tree,
+                &mut self.compressed_data,
+                &mut self.deflate_buffer,
+            ) {
                 self.next_block()?;
-                break;
-            } else {
-                let length = decode_length(symbol, &mut self.compressed_data);
-                let dist_code = distance_tree.decode_symbol(&mut self.compressed_data);
-                let distance = decode_distance(dist_code, &mut self.compressed_data);
-
-                if distance as usize >= length as usize {
-                    self.emit_backreferenced_inflated_bytes(length as usize, distance as usize);
-                } else if distance == 1 {
-                    let i = self.deflate_buffer.cursor();
-
-                    let fill = self.deflate_buffer.get_ref()[i - 1];
-                    self.deflate_buffer
-                        .take_mut_slice(length as usize)
-                        .fill(fill);
-                } else {
-                    for _ in 0..length - distance {
-                        let byte = self.deflate_buffer.get_ref()
-                            [self.deflate_buffer.cursor() - distance as usize];
-                        self.deflate_buffer.write_fast_single(byte);
-                    }
-
-                    self.emit_backreferenced_inflated_bytes(distance as usize, distance as usize);
-                }
+                break
             }
         }
         Ok(())
