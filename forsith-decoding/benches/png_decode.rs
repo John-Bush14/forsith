@@ -4,7 +4,7 @@ use criterion::{
     BenchmarkGroup, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main,
     measurement::Measurement,
 };
-use forsith_decoding::{ImageDecoder, PngDecoder, image::ChannelLayout};
+use forsith_decoding::image::{ChannelLayout, ImageDecoder, PixelFormat, PngDecoder};
 
 criterion_group!(benches, png_decode_benchmarks);
 criterion_main!(benches);
@@ -41,7 +41,7 @@ fn benchmark_decoding<const BUFFERED: bool>(
     data: &[u8],
 ) {
     let info_decoder =
-        PngDecoder::<u8, { ChannelLayout::TruecolorAlpha as u8 }>::open(data).unwrap();
+        PngDecoder::open(data, PixelFormat::default()).unwrap();
 
     let size = if BUFFERED {
         info_decoder.min_buf_size()
@@ -55,8 +55,7 @@ fn benchmark_decoding<const BUFFERED: bool>(
     g.throughput(Throughput::Bytes(
         (dim.0
             * dim.1
-            * info_decoder.source_pixel_format() as usize
-            * info_decoder.source_bit_depth() as usize
+            * info_decoder.pixel_format().bpp() as usize
             / 8) as u64,
     ));
     g.bench_function(
@@ -64,7 +63,7 @@ fn benchmark_decoding<const BUFFERED: bool>(
         |b| {
             b.iter(|| {
                 let mut decoder =
-                    PngDecoder::<u8, { ChannelLayout::TruecolorAlpha as u8 }>::open(data).unwrap();
+                    PngDecoder::open(data, PixelFormat::default()).unwrap();
                 while decoder.read(&mut buf).unwrap() > 0 {}
             })
         },

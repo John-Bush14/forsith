@@ -71,10 +71,7 @@ impl PostProcessor {
         );
 
         let output_format = PixelFormat::new(
-            match color_type {
-                ColorType::Indexed => SampleType::U8,
-                _ => stored_format.sample,
-            },
+            stored_format.sample,
             match color_type {
                 ColorType::Indexed => ChannelLayout::TruecolorAlpha,
                 _ => stored_format.layout,

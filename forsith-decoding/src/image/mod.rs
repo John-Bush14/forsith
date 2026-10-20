@@ -23,6 +23,15 @@ pub struct PixelFormat {
     pub sample: SampleType,
 }
 
+impl Default for PixelFormat {
+    fn default() -> Self {
+        Self {
+            layout: ChannelLayout::TruecolorAlpha,
+            sample: SampleType::U8,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, IsVariant)]
 pub enum ChannelLayout {
     Grayscale,
