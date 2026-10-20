@@ -1,3 +1,5 @@
+use std::io::Read;
+
 use forsith_proc::{Deref, IsVariant};
 use forsith_shared::{buffers::CursorVec, const_for};
 
@@ -208,6 +210,26 @@ impl DeflateDecoder {
         assert!(matches!(self.block.ty, BlockType::Uncompressed(_)));
 
         self.block.ty = BlockType::Uncompressed(len);
+    }
+
+    pub fn open_stream(&mut self, reader: &mut impl Read) -> Result<usize, DecodingError> {
+        let cmf = reader.read_le::<u8>()?;
+        let flg = reader.read_le::<u8>()?;
+        // reader.align()?;
+
+        let compression_method = cmf & 0b0000_1111;
+        let compression_info = (cmf & 0b1111_0000) >> 4;
+        let dict = flg & 0b0010_0000 == 0b0010_0000;
+
+        if compression_method != 8
+            || compression_info > 7
+            || dict
+            || !(u16::from(cmf) * 256 + u16::from(flg)).is_multiple_of(31)
+        {
+            return Err(DecodingError::InvalidZlibHeader(cmf, flg));
+        }
+
+        Ok(1 << (compression_info + 8))
     }
 }
 

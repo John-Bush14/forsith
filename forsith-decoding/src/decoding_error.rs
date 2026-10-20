@@ -23,6 +23,8 @@ pub enum DecodingError {
     Adler32Mismatch(u32, u32), // calculated, store
     #[display("Provided dest buf of size less than min_buf_size ({_0})")]
     TinyDestBuf(usize),
+    #[display("Invalid zlib header ({_0:#04X}, {_1:#04X})")]
+    InvalidZlibHeader(u8, u8),
 
     // JPEG specific
     #[display("No marker found in expected position")]
