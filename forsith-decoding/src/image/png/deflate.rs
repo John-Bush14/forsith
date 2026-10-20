@@ -17,71 +17,36 @@ const MAX_DISTANCE_SUBTABLE_ENTRIES: usize = 80;
 pub const MAX_BACKREF_LEN: usize = 258;
 
 // (base, extra_bits) for length symbols 257..=285
-const LENGTH_TABLE: [(u16, u8); 29] = [
-    (3, 0),
-    (4, 0),
-    (5, 0),
-    (6, 0),
-    (7, 0),
-    (8, 0),
-    (9, 0),
-    (10, 0),
-    (11, 1),
-    (13, 1),
-    (15, 1),
-    (17, 1),
-    (19, 2),
-    (23, 2),
-    (27, 2),
-    (31, 2),
-    (35, 3),
-    (43, 3),
-    (51, 3),
-    (59, 3),
-    (67, 4),
-    (83, 4),
-    (99, 4),
-    (115, 4),
-    (131, 5),
-    (163, 5),
-    (195, 5),
-    (227, 5),
-    (258, 0),
-];
+const LENGTH_TABLE: [(u16, u8); 29] = {
+    let mut table = [(0u16, 0u8); 29];
+
+    let mut base = 3;
+    const_for!(i in 0..28u8 => {
+        let extra_bits = (i.saturating_sub(4)) / 4;
+
+        table[i as usize] = (base, extra_bits);
+        base += 1 << extra_bits;
+    });
+
+    table[28] = (258, 0);
+
+    table
+};
 
 // (base, extra_bits) for distance codes 0..=29
-const DISTANCE_TABLE: [(u16, u8); 30] = [
-    (1, 0),
-    (2, 0),
-    (3, 0),
-    (4, 0),
-    (5, 1),
-    (7, 1),
-    (9, 2),
-    (13, 2),
-    (17, 3),
-    (25, 3),
-    (33, 4),
-    (49, 4),
-    (65, 5),
-    (97, 5),
-    (129, 6),
-    (193, 6),
-    (257, 7),
-    (385, 7),
-    (513, 8),
-    (769, 8),
-    (1025, 9),
-    (1537, 9),
-    (2049, 10),
-    (3073, 10),
-    (4097, 11),
-    (6145, 11),
-    (8193, 12),
-    (12289, 12),
-    (16385, 13),
-    (24577, 13),
-];
+const DISTANCE_TABLE: [(u16, u8); 30] = {
+    let mut table = [(0u16, 0u8); 30];
+
+    let mut base = 1;
+    const_for!(i in 0..30u8 => {
+        let extra_bits = (i.saturating_sub(2)) / 2;
+
+        table[i as usize] = (base, extra_bits);
+        base += 1 << extra_bits;
+    });
+
+    table
+};
 
 pub const STATIC_LITLEN_TREE: LitLenTree = {
     let mut tree = HuffmanTree::default();
@@ -99,6 +64,7 @@ pub const STATIC_LITLEN_TREE: LitLenTree = {
 
     tree
 };
+
 pub const STATIC_DISTANCE_TREE: DistanceTree = {
     let mut tree = HuffmanTree::default();
 
