@@ -1,15 +1,10 @@
 use crate::{
     DecodingError, bit::BitReader, buffers::CursorVec, decompression::deflate::DeflateDecoder, image::{
-        ChannelLayout, ImageDecoder, PixelFormat,
-        outputconverting::OutputWriter,
-        png::{
-            checksums::Adler32,
-            chunks::{ColorPalette, Ihdr, ZlibDataStream, tRNS},
-            deflate::{
+        ChannelLayout, ImageDecoder, PixelFormat, outputconverting::OutputWriter, png::{
+            checksums::Adler32, chunks::{ColorPalette, Ihdr, ZlibDataStream, tRNS}, deflate::{
                 BlockType, MAX_BACKREF_LEN, STATIC_DISTANCE_TREE, STATIC_LITLEN_TREE,
                 decode_distance, decode_length,
-            },
-            postprocessing::{MAX_STRIDE, PostProcessor},
+            }, filtering::InplaceDefilterer, postprocessing::{MAX_STRIDE, PostProcessor},
         },
     }, parsing::SegmentParser,
 };
@@ -27,6 +22,8 @@ use crate::checksums;
 use crate::decompression::deflate;
 
 mod postprocessing;
+
+mod filtering;
 
 const PNG_HEADER: [u8; 8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
 
@@ -239,14 +236,18 @@ impl PngDecoder<'_> {
         let prev_scanline_bytes = self.max_scanline_bytes() + MAX_STRIDE;
         let scanline_bytes = self.scanline_bytes();
 
-        let prev_and_cur_scanline =
-            &mut self.deflate_buffer.get_mut()[start - prev_scanline_bytes..start + scanline_bytes];
-
-        self.postprocessor.filter_inflated_scanline(
-            prev_and_cur_scanline,
+        let mut defilterer = InplaceDefilterer::open(
+            self.deflate_buffer.get_mut(),
+            self.postprocessor.stride(),
+            start,
+            scanline_bytes,
             prev_scanline_bytes,
-            dest,
-        )?;
+        );
+
+        defilterer.defilter()?;
+
+        self.postprocessor.emit_filtered_scanline(defilterer.filtered_scanline(), dest);
+        self.postprocessor.scanline_passed(defilterer.both_scanlines(), prev_scanline_bytes+1, dest);
 
         Ok(scanline_bytes)
     }
