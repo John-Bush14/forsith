@@ -4,9 +4,12 @@ use std::io::{Read, Seek};
 use crate::{
     DecodingError,
     buffers::CursorVec,
-    image::png::{
-        ChunkType::{self},
-        checksums::CRC32,
+    image::{
+        PngDecoder,
+        png::{
+            ChunkType::{self},
+            checksums::CRC32,
+        },
     },
     parsing::{SegmentHeader, SegmentParser},
 };
@@ -18,6 +21,15 @@ pub struct ChunkParser<R: Read> {
     reader: R,
     buffer: CursorVec<u8>,
     header: ChunkHeader,
+}
+
+impl PngDecoder<'_> {
+    pub fn parse_everything(
+        &mut self,
+        mut chunk_parser: ChunkParser<impl Read>,
+    ) -> Result<(), DecodingError> {
+        chunk_parser.parse_chunks(|h, d, ()| self.update_with_chunk(h, d))
+    }
 }
 
 impl<R: Read> ChunkParser<R> {

@@ -1,19 +1,30 @@
 use crate::{
-    DecodingError, bit::BitReader, buffers::CursorVec, checksums, decompression::deflate::{self, DeflateDecoder}, image::{
-        ChannelLayout, ImageDecoder, PixelFormat, SampleType, outputconverting::OutputWriter, png::{
-            adam7_pass::Adam7Pass, checksums::Adler32, chunks::{ColorPalette, Ihdr, ZlibDataStream, tRNS}, deflate::{BlockType, MAX_BACKREF_LEN}, filtering::InplaceDefilterer, output::PngOutputWriter,
+    DecodingError,
+    bit::BitReader,
+    buffers::CursorVec,
+    checksums,
+    decompression::deflate::{self, DeflateDecoder},
+    image::{
+        ChannelLayout, ImageDecoder, PixelFormat, SampleType,
+        outputconverting::OutputWriter,
+        png::{
+            adam7_pass::Adam7Pass,
+            checksums::Adler32,
+            chunks::{ColorType, Ihdr},
+            deflate::{BlockType, MAX_BACKREF_LEN},
+            filtering::InplaceDefilterer,
+            output::PngOutputWriter,
         },
-    }, parsing::SegmentParser,
+    },
+    parsing::SegmentParser,
 };
-
-use forsith_proc::{IsVariant, TryFromNum};
 use std::io::Read;
 
 mod chunks;
-pub use chunks::{ChunkData, ChunkType};
+pub use chunks::ChunkType;
 
 mod parser;
-pub use parser::{ChunkHeader, ChunkParser};
+pub use parser::ChunkParser;
 
 mod filtering;
 
@@ -23,16 +34,6 @@ mod adam7_pass;
 
 const PNG_HEADER: [u8; 8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
 const MAX_STRIDE: usize = 8;
-
-#[repr(u8)]
-#[derive(Debug, TryFromNum, Clone, Copy, PartialEq, Eq, IsVariant)]
-enum ColorType {
-    Grayscale = 0,
-    Truecolor = 2,
-    Indexed = 3,
-    GrayscaleAlpha = 4,
-    TruecolorAlpha = 6,
-}
 
 pub struct PngDecoder<'a> {
     compressed_data: BitReader<CursorVec<u8>>,
@@ -68,7 +69,7 @@ impl<'a> ImageDecoder<'a> for PngDecoder<'a> {
             scanline_multiples: 0,
             output: PngOutputWriter::new(ihdr.color_type, stored_format),
             pass: Adam7Pass::new(&ihdr, stored_format),
-            stride: stride(&stored_format),
+            stride: stride(stored_format),
             stored_format,
             ihdr,
             deflate: DeflateDecoder::default(),
@@ -78,16 +79,8 @@ impl<'a> ImageDecoder<'a> for PngDecoder<'a> {
             phantom: std::marker::PhantomData,
         };
 
-        chunk_parser.parse_chunks(|h, d, ()| decoder.update_with_chunk(h, d))?;
-
-        if decoder.output.palette().is_none() && decoder.ihdr.color_type.is_indexed() {
-            return Err(DecodingError::NoPallete);
-        }
-
-        if decoder.deflate_buffer.get_ref().is_empty() {
-            return Err(DecodingError::NoIDAT);
-        }
-
+        decoder.parse_everything(chunk_parser)?;
+        decoder.validate_before_decoding()?;
         decoder.next_block()?;
 
         Ok(decoder)
@@ -169,10 +162,6 @@ impl PngDecoder<'_> {
         self.stored_format
     }
 
-    const fn output_format(&self) -> PixelFormat {
-        self.output.format()
-    }
-
     #[cold]
     fn next_block(&mut self) -> Result<(), DecodingError> {
         if self.deflate.next_block(&mut self.compressed_data)? {
@@ -192,23 +181,23 @@ impl PngDecoder<'_> {
         Ok(())
     }
 
+    fn validate_before_decoding(&self) -> Result<(), DecodingError> {
+        if self.output.palette().is_none() && self.ihdr.color_type.is_indexed() {
+            return Err(DecodingError::NoPallete);
+        }
+
+        if self.deflate_buffer.get_ref().is_empty() {
+            return Err(DecodingError::NoIDAT);
+        }
+
+        Ok(())
+    }
+
     fn update_adler(&mut self) {
         self.adler.update(
             &self.deflate_buffer.get_ref()[self.last_adler_update_i..self.deflate_buffer.cursor()],
         );
         self.last_adler_update_i = self.deflate_buffer.cursor();
-    }
-
-    const fn scanline_bytes(&self) -> usize {
-        self.pass.scanline_bytes()
-    }
-
-    const fn max_scanline_bytes(&self) -> usize {
-        self.pass.max_scanline_bytes()
-    }
-
-    const fn scanline_pixel_bytes(&self) -> usize {
-        self.pass.scanline_pixel_bytes()
     }
 
     #[cold]
@@ -259,7 +248,8 @@ impl PngDecoder<'_> {
 
         defilterer.defilter()?;
 
-        self.output.write_scanline(defilterer.filtered_scanline(), dest);
+        self.output
+            .write_scanline(defilterer.filtered_scanline(), dest);
         self.pass.scanline_passed(
             defilterer.both_scanlines(),
             prev_scanline_bytes + 1,
@@ -268,29 +258,6 @@ impl PngDecoder<'_> {
         );
 
         Ok(scanline_bytes)
-    }
-
-    pub fn update_with_chunk(
-        &mut self,
-        chunk_header: &ChunkHeader,
-        chunk_data: &mut CursorVec<u8>,
-    ) -> Result<(), DecodingError> {
-        let result = match chunk_header.r#type() {
-            ChunkType::Iend | ChunkType::UnkownAncillerary => {
-                chunk_data.consume(chunk_header.len());
-                Ok(())
-            }
-            ChunkType::Ihdr => Err(DecodingError::MultipleChunks(ChunkType::Ihdr)),
-            ChunkType::Idat => ZlibDataStream::update_decoder(self, chunk_header, chunk_data),
-            ChunkType::Plte => ColorPalette::update_decoder(self, chunk_header, chunk_data),
-            ChunkType::tRNS => tRNS::update_decoder(self, chunk_header, chunk_data),
-        };
-
-        if chunk_header.is_critical() {
-            result
-        } else {
-            Ok(())
-        }
     }
 
     #[cold]
@@ -376,12 +343,11 @@ fn read_ihdr<R: Read>(parser: &mut ChunkParser<R>) -> Result<Ihdr, DecodingError
     }
 
     let ihdr = Ihdr::read(&mut chunk_data, chunk_header.len())?;
-    ihdr.validate()?;
 
     Ok(ihdr)
 }
 
-fn stored_format(ihdr: &Ihdr) -> PixelFormat {
+const fn stored_format(ihdr: &Ihdr) -> PixelFormat {
     PixelFormat::new(
         SampleType::from_bit_depth_unsigned(ihdr.channel_depth).unwrap(),
         match ihdr.color_type {
@@ -393,7 +359,7 @@ fn stored_format(ihdr: &Ihdr) -> PixelFormat {
     )
 }
 
-fn stride(format: &PixelFormat) -> usize {
+const fn stride(format: PixelFormat) -> usize {
     let bitspp = format.bpp();
     (bitspp as usize).div_ceil(8)
 }

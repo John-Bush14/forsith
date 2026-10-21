@@ -1,6 +1,9 @@
 use crate::{
-    DecodingError::{self, InvalidChunk}, buffers::CursorVec, image::{
-        ChannelLayout, PngDecoder, png::{ColorType, parser::ChunkHeader, MAX_STRIDE},
+    DecodingError::{self, InvalidChunk},
+    buffers::CursorVec,
+    image::{
+        ChannelLayout, PngDecoder,
+        png::{MAX_STRIDE, parser::ChunkHeader},
     },
 };
 use forsith_proc::{Deref, Index, IsVariant};
@@ -37,41 +40,51 @@ impl ChunkType {
     }
 }
 
+impl PngDecoder<'_> {
+    pub fn update_with_chunk(
+        &mut self,
+        chunk_header: &ChunkHeader,
+        chunk_data: &mut CursorVec<u8>,
+    ) -> Result<(), DecodingError> {
+        let result = match chunk_header.r#type() {
+            ChunkType::Iend | ChunkType::UnkownAncillerary => {
+                chunk_data.consume(chunk_header.len());
+                Ok(())
+            }
+            ChunkType::Ihdr => Err(DecodingError::MultipleChunks(ChunkType::Ihdr)),
+            ChunkType::Idat => ZlibDataStream::update_decoder(self, chunk_header, chunk_data),
+            ChunkType::Plte => ColorPalette::update_decoder(self, chunk_header, chunk_data),
+            ChunkType::tRNS => tRNS::update_decoder(self, chunk_header, chunk_data),
+        };
+
+        if chunk_header.is_critical() {
+            result
+        } else {
+            Ok(())
+        }
+    }
+}
+
+#[repr(u8)]
+#[derive(Debug, TryFromNum, Clone, Copy, PartialEq, Eq, IsVariant)]
+pub enum ColorType {
+    Grayscale = 0,
+    Truecolor = 2,
+    Indexed = 3,
+    GrayscaleAlpha = 4,
+    TruecolorAlpha = 6,
+}
+
 #[derive(Debug)]
 pub struct Ihdr {
     pub width: u32,
     pub height: u32,
     pub channel_depth: u8,
     pub color_type: ColorType,
-    pub compression_method: u8,
-    pub filter_method: u8,
     pub interlace_method: u8,
 }
 
 impl Ihdr {
-    pub const fn validate(&self) -> Result<(), DecodingError> {
-        if !matches!(
-            (
-                self.compression_method,
-                self.filter_method,
-                self.interlace_method
-            ),
-            (0, 0, 0 | 1)
-        ) {
-            return Err(DecodingError::InvalidChunk(ChunkType::Ihdr));
-        }
-
-        match (&self.channel_depth, &self.color_type) {
-            (1 | 2 | 4 | 8 | 16, ColorType::Grayscale)
-            | (
-                8 | 16,
-                ColorType::Truecolor | ColorType::GrayscaleAlpha | ColorType::TruecolorAlpha,
-            )
-            | (1 | 2 | 4 | 8, ColorType::Indexed) => Ok(()),
-            _ => Err(DecodingError::InvalidChunk(ChunkType::Ihdr)),
-        }
-    }
-
     pub fn read<R: Read>(reader: &mut R, len: usize) -> Result<Self, DecodingError>
     where
         Self: Sized,
@@ -80,16 +93,35 @@ impl Ihdr {
             return Err(InvalidChunk(ChunkType::Idat));
         }
 
-        Ok(Self {
+        let mut ihdr = Self {
             width: reader.read_be::<u32>()?,
             height: reader.read_be::<u32>()?,
             channel_depth: reader.read_be::<u8>()?,
             color_type: ColorType::try_from(reader.read_be::<u8>()?)
                 .map_err(|()| DecodingError::InvalidChunk(ChunkType::Ihdr))?,
-            compression_method: reader.read_be::<u8>()?,
-            filter_method: reader.read_be::<u8>()?,
-            interlace_method: reader.read_be::<u8>()?,
-        })
+            interlace_method: 0,
+        };
+
+        let compression_method = reader.read_be::<u8>()?;
+        let filter_method = reader.read_be::<u8>()?;
+        ihdr.interlace_method = reader.read_be::<u8>()?;
+
+        if !matches!(
+            (compression_method, filter_method, ihdr.interlace_method),
+            (0, 0, 0 | 1)
+        ) {
+            return Err(DecodingError::InvalidChunk(ChunkType::Ihdr));
+        }
+
+        match (&ihdr.channel_depth, &ihdr.color_type) {
+            (1 | 2 | 4 | 8 | 16, ColorType::Grayscale)
+            | (
+                8 | 16,
+                ColorType::Truecolor | ColorType::GrayscaleAlpha | ColorType::TruecolorAlpha,
+            )
+            | (1 | 2 | 4 | 8, ColorType::Indexed) => Ok(ihdr),
+            _ => Err(DecodingError::InvalidChunk(ChunkType::Ihdr)),
+        }
     }
 }
 
@@ -204,7 +236,8 @@ impl ChunkData for tRNS {
     {
         let len = chunk_header.len();
 
-        let is_indexed = decoder.stored_format().is_grayscale() && decoder.output_format().has_color();
+        let is_indexed =
+            decoder.stored_format().is_grayscale() && decoder.output_format().has_color();
         if !is_indexed {
             let stored_depth = decoder.stored_format().sample.bit_depth();
 

@@ -1,4 +1,4 @@
-use crate::image::{PixelFormat, outputconverting::OutputWriter, png::{chunks::Ihdr, }};
+use crate::image::{PixelFormat, PngDecoder, outputconverting::OutputWriter, png::chunks::Ihdr};
 
 const PASSES: [((usize, usize), usize, u8); 7] = [
     ((0, 0), 8, 8),
@@ -23,6 +23,23 @@ pub struct Adam7Pass {
     scanline_padding: u8, // in bits
 }
 
+impl PngDecoder<'_> {
+    #[must_use]
+    pub const fn scanline_bytes(&self) -> usize {
+        self.pass.scanline_bytes()
+    }
+
+    #[must_use]
+    pub const fn max_scanline_bytes(&self) -> usize {
+        self.pass.max_scanline_bytes()
+    }
+
+    #[must_use]
+    pub const fn scanline_pixel_bytes(&self) -> usize {
+        self.pass.scanline_pixel_bytes()
+    }
+}
+
 impl Adam7Pass {
     pub const fn scanline_bytes(&self) -> usize {
         self.cur_scanline_bytes
@@ -33,7 +50,13 @@ impl Adam7Pass {
     }
 
     #[inline(always)]
-    pub fn scanline_passed(&mut self, scanlines: &mut [u8], i: usize, bpp: u8, dest: &mut OutputWriter<'_>) {
+    pub fn scanline_passed(
+        &mut self,
+        scanlines: &mut [u8],
+        i: usize,
+        bpp: u8,
+        dest: &mut OutputWriter<'_>,
+    ) {
         if self.end_scanline_skip == 0 {
             return;
         }
@@ -50,7 +73,13 @@ impl Adam7Pass {
         }
     }
 
-    fn next_adam7_pass(&mut self, scanlines: &mut [u8], i: usize, bpp: u8, dest: &mut OutputWriter<'_>) {
+    fn next_adam7_pass(
+        &mut self,
+        scanlines: &mut [u8],
+        i: usize,
+        bpp: u8,
+        dest: &mut OutputWriter<'_>,
+    ) {
         self.cur += 1;
 
         let (start, stride, passed_scanlines) = PASSES[self.cur as usize];
@@ -69,8 +98,7 @@ impl Adam7Pass {
 
     #[allow(clippy::cast_possible_truncation)]
     fn update_scanline_bytes(&mut self, width: u32, scanlines: &mut [u8], i: usize, bpp: u8) {
-        let (scanline_bytes, scanline_padding) =
-            calculate_scanline_bytes(width, bpp);
+        let (scanline_bytes, scanline_padding) = calculate_scanline_bytes(width, bpp);
 
         let end = i + self.scanline_pixel_bytes();
         scanlines[end - self.stride - (scanline_bytes - 1)..end].fill(0);
@@ -117,20 +145,21 @@ impl Adam7Pass {
         clippy::cast_possible_wrap
     )]
     pub const fn new(ihdr: &Ihdr, format: PixelFormat) -> Self {
-        let (max_scanline_bytes, scanline_padding) = calculate_scanline_bytes(ihdr.width, format.bpp() as u8);
+        let (max_scanline_bytes, scanline_padding) =
+            calculate_scanline_bytes(ihdr.width, format.bpp());
 
-        let (scanline_bytes, scanline_padding, end_scanline_skip, stride) = if ihdr.interlace_method == 1 {
-            let width = (ihdr.width - 1).div_euclid(8) + 1;
-            let alignment = ihdr.width as isize - width as isize * 8;
-            let end_scanline_skip = ((ihdr.width as usize * 7) as isize + alignment) as usize;
+        let (scanline_bytes, scanline_padding, end_scanline_skip, stride) =
+            if ihdr.interlace_method == 1 {
+                let width = (ihdr.width - 1).div_euclid(8) + 1;
+                let alignment = ihdr.width as isize - width as isize * 8;
+                let end_scanline_skip = ((ihdr.width as usize * 7) as isize + alignment) as usize;
 
-            let (new_scanline_bytes, padding) =
-                calculate_scanline_bytes(width, format.bpp() as u8);
+                let (new_scanline_bytes, padding) = calculate_scanline_bytes(width, format.bpp());
 
-            (new_scanline_bytes, padding, end_scanline_skip, 8)
-        } else {
-            (max_scanline_bytes, scanline_padding, 0, 1)
-        };
+                (new_scanline_bytes, padding, end_scanline_skip, 8)
+            } else {
+                (max_scanline_bytes, scanline_padding, 0, 1)
+            };
 
         Self {
             cur: 0,

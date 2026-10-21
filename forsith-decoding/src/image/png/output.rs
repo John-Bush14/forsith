@@ -1,9 +1,20 @@
-use crate::image::{ChannelLayout, PixelFormat, outputconverting::OutputWriter, png::{ColorType, chunks::ColorPalette}};
+use crate::image::{
+    ChannelLayout, PixelFormat, PngDecoder,
+    outputconverting::OutputWriter,
+    png::{ColorType, chunks::ColorPalette},
+};
 
 pub struct PngOutputWriter {
     format: PixelFormat,
     alpha_color: Option<(i64, i64, i64)>,
     palette: Option<ColorPalette>,
+}
+
+impl PngDecoder<'_> {
+    #[must_use]
+    pub const fn output_format(&self) -> PixelFormat {
+        self.output.format()
+    }
 }
 
 impl PngOutputWriter {
