@@ -1,21 +1,9 @@
 use crate::{
-    DecodingError,
-    bit::BitReader,
-    buffers::CursorVec,
-    checksums,
-    decompression::deflate::{self, DeflateDecoder},
-    image::{
-        ImageDecoder, PixelFormat,
-        outputconverting::OutputWriter,
-        png::{
-            checksums::Adler32,
-            chunks::{ColorPalette, Ihdr, ZlibDataStream, tRNS},
-            deflate::{BlockType, MAX_BACKREF_LEN},
-            filtering::InplaceDefilterer,
-            postprocessing::{MAX_STRIDE, PostProcessor},
+    DecodingError, bit::BitReader, buffers::CursorVec, checksums, decompression::deflate::{self, DeflateDecoder}, image::{
+        ImageDecoder, PixelFormat, outputconverting::OutputWriter, png::{
+            checksums::Adler32, chunks::{ColorPalette, Ihdr, ZlibDataStream, tRNS}, deflate::{BlockType, MAX_BACKREF_LEN}, filtering::InplaceDefilterer, output::PngOutputWriter, postprocessing::{MAX_STRIDE, PostProcessor},
         },
-    },
-    parsing::SegmentParser,
+    }, parsing::SegmentParser,
 };
 
 use forsith_proc::{IsVariant, TryFromNum};
@@ -30,6 +18,8 @@ pub use parser::{ChunkHeader, ChunkParser};
 mod postprocessing;
 
 mod filtering;
+
+mod output;
 
 const PNG_HEADER: [u8; 8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
 
@@ -53,6 +43,7 @@ pub struct PngDecoder<'a> {
     last_adler_update_i: usize,
     adler: Adler32,
     deflate: DeflateDecoder,
+    output: PngOutputWriter,
     phantom: std::marker::PhantomData<&'a ()>,
 }
 
@@ -73,6 +64,7 @@ impl<'a> ImageDecoder<'a> for PngDecoder<'a> {
             compressed_data: BitReader::default(),
             deflate_buffer: CursorVec::default(),
             scanline_multiples: 0,
+            output: PngOutputWriter::new(ihdr.color_type, postprocessor.stored_format()),
             postprocessor,
             ihdr,
             deflate: DeflateDecoder::default(),
@@ -84,7 +76,7 @@ impl<'a> ImageDecoder<'a> for PngDecoder<'a> {
 
         chunk_parser.parse_chunks(|h, d, ()| decoder.update_with_chunk(h, d))?;
 
-        if decoder.postprocessor.palette().is_none() && decoder.ihdr.color_type.is_indexed() {
+        if decoder.output.palette().is_none() && decoder.ihdr.color_type.is_indexed() {
             return Err(DecodingError::NoPallete);
         }
 
@@ -175,7 +167,7 @@ impl PngDecoder<'_> {
     }
 
     const fn output_format(&self) -> PixelFormat {
-        self.postprocessor.output_format()
+        self.output.format()
     }
 
     #[cold]
@@ -252,8 +244,7 @@ impl PngDecoder<'_> {
 
         defilterer.defilter()?;
 
-        self.postprocessor
-            .emit_filtered_scanline(defilterer.filtered_scanline(), dest);
+        self.output.write_scanline(defilterer.filtered_scanline(), dest);
         self.postprocessor.scanline_passed(
             defilterer.both_scanlines(),
             prev_scanline_bytes + 1,

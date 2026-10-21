@@ -82,4 +82,12 @@ impl<'a> OutputWriter<'a> {
             }
         }
     }
+
+    pub fn write_paletted(&self, _data: &[u8], _palette: &[u32]) {
+        todo!()
+    }
+
+    pub fn write_alpha_color(&self, _data: &[u8], _alpha_color: (i64, i64, i64)) {
+        todo!()
+    }
 }

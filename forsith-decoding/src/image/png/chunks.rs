@@ -6,7 +6,7 @@ use crate::{
         png::{ColorType, parser::ChunkHeader, postprocessing::MAX_STRIDE},
     },
 };
-use forsith_proc::{Index, IsVariant};
+use forsith_proc::{Deref, Index, IsVariant};
 use forsith_proc::{IntoNum, TryFromNum};
 use std::{any::Any, fmt::Display, io::Read};
 
@@ -144,9 +144,10 @@ impl ChunkData for ZlibDataStream {
     }
 }
 
-#[derive(Debug, Index)]
+#[derive(Debug, Index, Deref)]
 pub struct ColorPalette {
     #[index]
+    #[deref]
     palette: [u32; 256],
     len: u16,
 }
@@ -187,7 +188,7 @@ impl ChunkData for ColorPalette {
             palette.palette[i] = u32::from_le_bytes(rgba);
         }
 
-        decoder.postprocessor.set_palette(palette);
+        decoder.output.set_palette(palette);
         Ok(())
     }
 }
@@ -232,7 +233,7 @@ impl ChunkData for tRNS {
                 _ => return Ok(()),
             };
 
-            decoder.postprocessor.set_alpha_color(alpha_color);
+            decoder.output.set_alpha_color(alpha_color);
 
             todo!();
 
@@ -240,11 +241,11 @@ impl ChunkData for tRNS {
             return Ok(());
         }
 
-        if decoder.postprocessor.palette().is_none() || len == 0 || len > 256 {
+        if decoder.output.palette().is_none() || len == 0 || len > 256 {
             return Err(InvalidChunk(ChunkType::tRNS));
         }
 
-        let palette = decoder.postprocessor.palette_mut().unwrap();
+        let palette = decoder.output.palette_mut().unwrap();
         for i in 0..len {
             let a = reader.read_le::<u8>()?;
 

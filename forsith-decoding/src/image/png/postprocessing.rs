@@ -44,12 +44,9 @@ pub struct PostProcessor {
     scanline_bytes: usize,
     max_scanline_bytes: usize,
     stride: usize,
-    palette: Option<ColorPalette>,
     color_type: ColorType,
     stored_format: PixelFormat,
-    output_format: PixelFormat,
     scanline_padding: u8, // in bits
-    alpha_color: Option<(i64, i64, i64)>,
     adam7_pass: Pass,
 }
 
@@ -65,14 +62,6 @@ impl PostProcessor {
             },
         );
 
-        let output_format = PixelFormat::new(
-            stored_format.sample,
-            match color_type {
-                ColorType::Indexed => ChannelLayout::TruecolorAlpha,
-                _ => stored_format.layout,
-            },
-        );
-
         let stored_bitspp = stored_format.bpp();
         let (scanline_bytes, scanline_padding) = calculate_scanline_bytes(width, stored_bitspp);
         let stride = (stored_bitspp as usize).div_ceil(8);
@@ -81,56 +70,13 @@ impl PostProcessor {
             scanline_bytes,
             max_scanline_bytes: scanline_bytes,
             stride,
-            palette: None,
             color_type,
             scanline_padding,
-            alpha_color: None,
             adam7_pass: Pass::default(),
             stored_format,
-            output_format,
         }
     }
 
-    pub fn emit_filtered_scanline(&self, scanline: &[u8], dest: &mut OutputWriter<'_>) {
-        match self.color_type {
-            ColorType::Indexed => self.emit_indexed_scanline(scanline, dest),
-            _ => self.write_slice(scanline, dest, self.scanline_padding),
-        }
-    }
-
-    pub fn emit_indexed_scanline(&self, scanline: &[u8], dest: &mut OutputWriter<'_>) {
-        let palette = self.palette.as_ref().unwrap();
-        let sample_ty = self.stored_format().sample;
-
-        let mut push_index = |index: u8| {
-            let pixel = palette[index as usize].to_le_bytes();
-
-            self.write_slice(&pixel, dest, 0);
-        };
-
-        match sample_ty {
-            SampleType::U8 => scanline.iter().copied().for_each(push_index),
-            _ => unpack::<false>(
-                scanline,
-                sample_ty.bit_depth(),
-                self.scanline_padding,
-                |bs| {
-                    for &b in bs {
-                        push_index(b);
-                    }
-                },
-            ),
-        }
-    }
-
-    #[inline(always)]
-    fn write_slice(&self, slice: &[u8], dest: &mut OutputWriter<'_>, _padding: u8) {
-        if self.stored_format().sample.bit_depth() < 8 {
-            todo!()
-        }
-
-        dest.write_slice(slice);
-    }
 
     #[must_use]
     pub const fn scanline_bytes(&self) -> usize {
@@ -153,25 +99,6 @@ impl PostProcessor {
     }
     pub const fn stored_format(&self) -> PixelFormat {
         self.stored_format
-    }
-
-    pub const fn output_format(&self) -> PixelFormat {
-        self.output_format
-    }
-
-    pub const fn set_palette(&mut self, palette: ColorPalette) {
-        self.palette = Some(palette);
-    }
-
-    pub const fn palette(&self) -> Option<&ColorPalette> {
-        self.palette.as_ref()
-    }
-    pub const fn palette_mut(&mut self) -> Option<&mut ColorPalette> {
-        self.palette.as_mut()
-    }
-
-    pub const fn set_alpha_color(&mut self, c: (i64, i64, i64)) {
-        self.alpha_color = Some(c);
     }
 
     pub const fn setup_interlacing(&mut self, ihdr: &Ihdr) {
