@@ -1,7 +1,6 @@
-use crate::{DecodingError, int::Int};
-use forsith_proc::{IntoNum, IsVariant, TryFromNum};
-use std::fmt::Debug;
-use std::io::Read;
+use crate::DecodingError;
+use forsith_proc::IsVariant;
+use std::{fmt::Debug, io::Read};
 
 #[cfg(feature = "png")]
 pub(crate) mod png;

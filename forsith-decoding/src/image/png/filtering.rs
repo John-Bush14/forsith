@@ -9,7 +9,13 @@ pub struct InplaceDefilterer<'a> {
 }
 
 impl<'a> InplaceDefilterer<'a> {
-    pub fn open(buffer: &'a mut [u8], stride: usize, start: usize, scanline_bytes: usize, prev_scanline_bytes: usize) -> Self {
+    pub fn open(
+        buffer: &'a mut [u8],
+        stride: usize,
+        start: usize,
+        scanline_bytes: usize,
+        prev_scanline_bytes: usize,
+    ) -> Self {
         let scanlines = &mut buffer[start - prev_scanline_bytes..start + scanline_bytes];
 
         Self {
@@ -20,8 +26,8 @@ impl<'a> InplaceDefilterer<'a> {
         }
     }
 
-    pub fn both_scanlines(&mut self) -> &mut [u8] {
-        &mut self.scanlines
+    pub const fn both_scanlines(&mut self) -> &mut [u8] {
+        self.scanlines
     }
 
     pub fn filtered_scanline(&mut self) -> &mut [u8] {
@@ -51,11 +57,7 @@ impl<'a> InplaceDefilterer<'a> {
         let scanline_bytes = self.handle_border_bytes::<FILTER>(&mut cur, &mut up);
 
         if !should_use_simd::<FILTER>(self.stride) {
-            self.filter_inplace_scalar::<FILTER, false>(
-                scanline_bytes,
-                &mut cur,
-                &mut up,
-            );
+            self.filter_inplace_scalar::<FILTER, false>(scanline_bytes, &mut cur, &mut up);
 
             return;
         }
@@ -95,11 +97,7 @@ impl<'a> InplaceDefilterer<'a> {
     }
 
     #[inline]
-    fn handle_border_bytes<const FILTER: u8>(
-        &mut self,
-        cur: &mut usize,
-        up: &mut usize,
-    ) -> usize {
+    fn handle_border_bytes<const FILTER: u8>(&mut self, cur: &mut usize, up: &mut usize) -> usize {
         if FILTER == 4 {
             self.scanlines[*up - self.stride..*up].fill(0);
         }
@@ -143,18 +141,11 @@ impl<'a> InplaceDefilterer<'a> {
     }
 
     #[inline(always)]
-    fn filter<const FILTER: u8, const BORDER: bool>(
-        &mut self,
-        cur: usize,
-        up: usize,
-    ) {
+    fn filter<const FILTER: u8, const BORDER: bool>(&mut self, cur: usize, up: usize) {
         let r = match FILTER {
             1 => self.left_byte::<BORDER>(cur),
             2 => self.upper_byte(up),
-            3 => u8::midpoint(
-                self.left_byte::<BORDER>(cur),
-                self.upper_byte(up),
-            ),
+            3 => u8::midpoint(self.left_byte::<BORDER>(cur), self.upper_byte(up)),
             4 => paeth_predictor(
                 self.left_byte::<BORDER>(cur),
                 self.upper_byte(up),
@@ -166,14 +157,13 @@ impl<'a> InplaceDefilterer<'a> {
         self.scanlines[cur] = self.scanlines[cur].wrapping_add(r);
     }
 
-    fn scanline_pixel_bytes(&self) -> usize {
+    const fn scanline_pixel_bytes(&self) -> usize {
         self.scanline_bytes - 1
     }
 
-    fn scanline_bytes(&self) -> usize {
+    const fn scanline_bytes(&self) -> usize {
         self.scanline_bytes
     }
-
 }
 
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
@@ -192,7 +182,6 @@ const fn paeth_predictor(a: u8, b: u8, c: u8) -> u8 {
         c
     }) as u8
 }
-
 
 pub const fn should_use_simd<const FILTER: u8>(stride: usize) -> bool {
     if FILTER == 1 && stride >= 3 {
@@ -215,11 +204,7 @@ pub const fn open_simd(slice: &[u8]) -> Simd<u8, { SIMD_WIDTH }> {
 
 impl InplaceDefilterer<'_> {
     #[inline(always)]
-    pub fn filter_simd<const FILTER: u8, const STRIDE: usize>(
-        &mut self,
-        cur: usize,
-        up: usize,
-    ) {
+    pub fn filter_simd<const FILTER: u8, const STRIDE: usize>(&mut self, cur: usize, up: usize) {
         let raw_bytes = open_simd(&self.scanlines[cur..]);
 
         let result = match FILTER {
@@ -238,20 +223,13 @@ impl InplaceDefilterer<'_> {
     }
 
     #[allow(clippy::unused_self)]
-    fn left_pixel<const STRIDE: usize>(
-        &self,
-        cur: usize,
-    ) -> &[u8; STRIDE] {
+    fn left_pixel<const STRIDE: usize>(&self, cur: usize) -> &[u8; STRIDE] {
         (&self.scanlines[cur - STRIDE..cur]).try_into().unwrap()
     }
     /// only first {self.stride} pixels correct, others 0
-    fn left_pixels<const STRIDE: usize>(
-        &self,
-        cur: usize,
-    ) -> Simd<u8, SIMD_WIDTH> {
+    fn left_pixels<const STRIDE: usize>(&self, cur: usize) -> Simd<u8, SIMD_WIDTH> {
         let mut left_pixels = Simd::splat(0);
-        left_pixels.as_mut_array()[..STRIDE]
-            .copy_from_slice(self.left_pixel::<STRIDE>(cur));
+        left_pixels.as_mut_array()[..STRIDE].copy_from_slice(self.left_pixel::<STRIDE>(cur));
         left_pixels
     }
     #[allow(clippy::unused_self)]

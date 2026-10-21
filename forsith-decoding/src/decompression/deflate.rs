@@ -1,9 +1,7 @@
-use std::io::Read;
-
+use crate::{DecodingError, bit::BitRead, decompression::HuffmanTree};
 use forsith_proc::{Deref, IsVariant};
 use forsith_shared::{buffers::CursorVec, const_for};
-
-use crate::{DecodingError, bit::BitRead, checksums::Adler32, decompression::HuffmanTree};
+use std::io::Read;
 
 const CODE_LENGTH_ORDER: [u8; 19] = [
     16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15,
@@ -83,7 +81,7 @@ pub struct DeflateDecoder {
     pub litlen_tree: LitLenTree,
     pub distance_tree: DistanceTree,
     pub codlen_tree: CodlenTree,
-    pub block: Block
+    pub block: Block,
 }
 
 impl Default for DeflateDecoder {
@@ -92,13 +90,13 @@ impl Default for DeflateDecoder {
             litlen_tree: LitLenTree::default(),
             distance_tree: DistanceTree::default(),
             codlen_tree: CodlenTree::default(),
-            block: Block::default()
+            block: Block::default(),
         }
     }
 }
 
 impl DeflateDecoder {
-    pub fn cur_block(&self) -> &Block {
+    pub const fn cur_block(&self) -> &Block {
         &self.block
     }
 
@@ -108,7 +106,7 @@ impl DeflateDecoder {
             return Ok(true);
         }
 
-        self.block.load_block(reader);
+        self.block.load_block(reader)?;
 
         if self.block.is_compressed_dynamic() {
             self.load_trees(reader)?;
@@ -166,7 +164,7 @@ impl DeflateDecoder {
 
     #[inline(always)]
     pub fn decode_compressed<const STATIC: bool>(
-        &mut self,
+        &self,
         reader: &mut impl BitRead,
         buf: &mut CursorVec<u8>,
     ) -> bool {
@@ -212,6 +210,7 @@ impl DeflateDecoder {
         self.block.ty = BlockType::Uncompressed(len);
     }
 
+    #[allow(clippy::needless_pass_by_ref_mut, clippy::unused_self)]
     pub fn open_stream(&mut self, reader: &mut impl Read) -> Result<usize, DecodingError> {
         let cmf = reader.read_le::<u8>()?;
         let flg = reader.read_le::<u8>()?;
@@ -265,20 +264,13 @@ pub enum BlockType {
     #[default]
     Finished,
 }
-#[derive(Debug, Deref)]
+#[derive(Debug, Deref, Default)]
 pub struct Block {
     pub last: bool,
     #[deref]
     pub ty: BlockType,
 }
-impl Default for Block {
-    fn default() -> Self {
-        Self {
-            last: Default::default(),
-            ty: BlockType::default(),
-        }
-    }
-}
+
 impl Block {
     pub fn load_block<R: BitRead>(&mut self, reader: &mut R) -> Result<(), DecodingError> {
         self.last = reader.read_bits(1) == 1;

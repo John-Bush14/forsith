@@ -1,9 +1,9 @@
 use std::io;
 
-#[cfg(feature = "jpg")]
+#[cfg(feature = "jpeg")]
 use crate::image::jpeg::markers::MarkerType;
 use crate::{checksums::CRC32, image::png::ChunkType};
-#[cfg(not(feature = "jpg"))]
+#[cfg(not(feature = "jpeg"))]
 type MarkerType = ();
 use forsith_proc::{Display, Error, IsVariant};
 

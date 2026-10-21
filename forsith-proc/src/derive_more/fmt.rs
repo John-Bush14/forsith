@@ -27,6 +27,7 @@ fmt_traits!(
     Display, Octal, LowerHex, UpperHex, Binary, Pointer, LowerExp, UpperExp
 );
 
+#[allow(clippy::match_wildcard_for_single_variants)]
 fn derive_fmt_trait(input: TokenStream, r#trait: Ident) -> TokenStream {
     match parse_derive_input(input) {
         DeriveInput::Enum(def) => derive_fmt_trait_item(&def, r#trait, derive_fmt_body_enum),

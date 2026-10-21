@@ -236,6 +236,7 @@ impl ChunkData for tRNS {
 
             todo!();
 
+            #[allow(unreachable_code)]
             return Ok(());
         }
 

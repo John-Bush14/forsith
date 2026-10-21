@@ -1,6 +1,4 @@
-pub use crate::SIMD_WIDTH;
 use crate::{
-    DecodingError,
     bit::unpack,
     image::{
         ChannelLayout, PixelFormat, PngDecoder, SampleType,
@@ -11,7 +9,6 @@ use crate::{
         },
     },
 };
-use core::simd::prelude::*;
 
 pub const MAX_STRIDE: usize = 8;
 
@@ -52,7 +49,6 @@ pub struct PostProcessor {
     stored_format: PixelFormat,
     output_format: PixelFormat,
     scanline_padding: u8, // in bits
-    channel_depth: u8,
     alpha_color: Option<(i64, i64, i64)>,
     adam7_pass: Pass,
 }
@@ -62,11 +58,10 @@ impl PostProcessor {
         let stored_format = PixelFormat::new(
             SampleType::from_bit_depth_unsigned(channel_depth).unwrap(),
             match color_type {
-                ColorType::Grayscale => ChannelLayout::Grayscale,
                 ColorType::Truecolor => ChannelLayout::Truecolor,
                 ColorType::GrayscaleAlpha => ChannelLayout::GrayscaleAlpha,
                 ColorType::TruecolorAlpha => ChannelLayout::TruecolorAlpha,
-                ColorType::Indexed => ChannelLayout::Grayscale,
+                ColorType::Grayscale | ColorType::Indexed => ChannelLayout::Grayscale,
             },
         );
 
@@ -89,7 +84,6 @@ impl PostProcessor {
             palette: None,
             color_type,
             scanline_padding,
-            channel_depth,
             alpha_color: None,
             adam7_pass: Pass::default(),
             stored_format,
@@ -138,7 +132,6 @@ impl PostProcessor {
         dest.write_slice(slice);
     }
 
-
     #[must_use]
     pub const fn scanline_bytes(&self) -> usize {
         self.scanline_bytes
@@ -155,14 +148,14 @@ impl PostProcessor {
         self.color_type
     }
 
-    pub fn stored_bpp(&self) -> usize {
+    pub const fn stored_bpp(&self) -> usize {
         self.stored_format.bpp() as usize
     }
-    pub fn stored_format(&self) -> PixelFormat {
+    pub const fn stored_format(&self) -> PixelFormat {
         self.stored_format
     }
 
-    pub fn output_format(&self) -> PixelFormat {
+    pub const fn output_format(&self) -> PixelFormat {
         self.output_format
     }
 
@@ -181,7 +174,7 @@ impl PostProcessor {
         self.alpha_color = Some(c);
     }
 
-    pub fn setup_interlacing(&mut self, ihdr: &Ihdr) {
+    pub const fn setup_interlacing(&mut self, ihdr: &Ihdr) {
         self.adam7_pass = Pass::new(ihdr, self);
     }
     pub const fn update_dest(&self, dest: &mut OutputWriter<'_>) {
@@ -234,7 +227,9 @@ impl PostProcessor {
         self.scanline_padding = scanline_padding;
     }
 
-    pub fn stride(&self) -> usize {self.stride}
+    pub const fn stride(&self) -> usize {
+        self.stride
+    }
 }
 
 const PASSES: [((usize, usize), usize, u8); 7] = [
@@ -295,7 +290,7 @@ impl Pass {
         clippy::cast_sign_loss,
         clippy::cast_possible_wrap
     )]
-    fn new(ihdr: &Ihdr, postprocessor: &mut PostProcessor) -> Self {
+    const fn new(ihdr: &Ihdr, postprocessor: &mut PostProcessor) -> Self {
         let (end_scanline_skip, stride) = if ihdr.interlace_method == 1 {
             let width = (ihdr.width - 1).div_euclid(8) + 1;
             let alignment = ihdr.width as isize - width as isize * 8;

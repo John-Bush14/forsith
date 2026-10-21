@@ -14,8 +14,6 @@
         read_array,
         read_le,
         integer_widen_truncate,
-        loop_hints,
-        option_reference_flattening
     )
 )]
 #![forbid(unsafe_code)]
@@ -37,7 +35,7 @@ pub mod xml;
 #[cfg(feature = "image")]
 pub(crate) use forsith_shared as utils;
 #[cfg(feature = "image")]
-pub(crate) use utils::{bit, buffers, int};
+pub(crate) use utils::{bit, buffers};
 
 #[cfg(feature = "image")]
 mod decoding_error;

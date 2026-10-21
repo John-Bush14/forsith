@@ -40,8 +40,7 @@ fn benchmark_decoding<const BUFFERED: bool>(
     filename: String,
     data: &[u8],
 ) {
-    let info_decoder =
-        PngDecoder::open(data, PixelFormat::default()).unwrap();
+    let info_decoder = PngDecoder::open(data, PixelFormat::default()).unwrap();
 
     let size = if BUFFERED {
         info_decoder.min_buf_size()
@@ -53,17 +52,13 @@ fn benchmark_decoding<const BUFFERED: bool>(
 
     let dim = info_decoder.image_dimensions();
     g.throughput(Throughput::Bytes(
-        (dim.0
-            * dim.1
-            * info_decoder.pixel_format().bpp() as usize
-            / 8) as u64,
+        (dim.0 * dim.1 * info_decoder.pixel_format().bpp() as usize / 8) as u64,
     ));
     g.bench_function(
         BenchmarkId::new(if BUFFERED { "buffered" } else { "full" }, filename),
         |b| {
             b.iter(|| {
-                let mut decoder =
-                    PngDecoder::open(data, PixelFormat::default()).unwrap();
+                let mut decoder = PngDecoder::open(data, PixelFormat::default()).unwrap();
                 while decoder.read(&mut buf).unwrap() > 0 {}
             })
         },

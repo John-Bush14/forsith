@@ -1,15 +1,24 @@
 use crate::{
-    DecodingError, bit::BitReader, buffers::CursorVec, decompression::deflate::DeflateDecoder, image::{
-        ChannelLayout, ImageDecoder, PixelFormat, outputconverting::OutputWriter, png::{
-            checksums::Adler32, chunks::{ColorPalette, Ihdr, ZlibDataStream, tRNS}, deflate::{
-                BlockType, MAX_BACKREF_LEN, STATIC_DISTANCE_TREE, STATIC_LITLEN_TREE,
-                decode_distance, decode_length,
-            }, filtering::InplaceDefilterer, postprocessing::{MAX_STRIDE, PostProcessor},
+    DecodingError,
+    bit::BitReader,
+    buffers::CursorVec,
+    checksums,
+    decompression::deflate::{self, DeflateDecoder},
+    image::{
+        ImageDecoder, PixelFormat,
+        outputconverting::OutputWriter,
+        png::{
+            checksums::Adler32,
+            chunks::{ColorPalette, Ihdr, ZlibDataStream, tRNS},
+            deflate::{BlockType, MAX_BACKREF_LEN},
+            filtering::InplaceDefilterer,
+            postprocessing::{MAX_STRIDE, PostProcessor},
         },
-    }, parsing::SegmentParser,
+    },
+    parsing::SegmentParser,
 };
-use forsith_proc::IsVariant;
-use forsith_proc::TryFromNum;
+
+use forsith_proc::{IsVariant, TryFromNum};
 use std::io::Read;
 
 mod chunks;
@@ -17,9 +26,6 @@ pub use chunks::{ChunkData, ChunkType};
 
 mod parser;
 pub use parser::{ChunkHeader, ChunkParser};
-
-use crate::checksums;
-use crate::decompression::deflate;
 
 mod postprocessing;
 
@@ -53,7 +59,7 @@ pub struct PngDecoder<'a> {
 impl<'a> ImageDecoder<'a> for PngDecoder<'a> {
     fn open<R: Read>(
         mut reader: R,
-        pereferred_pixel_format: PixelFormat,
+        _pereferred_pixel_format: PixelFormat,
     ) -> Result<Self, DecodingError> {
         check_header(&mut reader)?;
 
@@ -157,18 +163,18 @@ impl<'a> ImageDecoder<'a> for PngDecoder<'a> {
 }
 
 impl PngDecoder<'_> {
-    fn can_drain_scanline(&self, dest: &OutputWriter<'_>) -> bool {
+    const fn can_drain_scanline(&self, dest: &OutputWriter<'_>) -> bool {
         dest.remaining() * 8 / self.output_format().bpp() as usize
             * self.stored_format().bpp() as usize
             >= self.scanline_pixel_bytes() * 8
             || self.ihdr.interlace_method == 1
     }
 
-    fn stored_format(&self) -> PixelFormat {
+    const fn stored_format(&self) -> PixelFormat {
         self.postprocessor.stored_format()
     }
 
-    fn output_format(&self) -> PixelFormat {
+    const fn output_format(&self) -> PixelFormat {
         self.postprocessor.output_format()
     }
 
@@ -246,8 +252,13 @@ impl PngDecoder<'_> {
 
         defilterer.defilter()?;
 
-        self.postprocessor.emit_filtered_scanline(defilterer.filtered_scanline(), dest);
-        self.postprocessor.scanline_passed(defilterer.both_scanlines(), prev_scanline_bytes+1, dest);
+        self.postprocessor
+            .emit_filtered_scanline(defilterer.filtered_scanline(), dest);
+        self.postprocessor.scanline_passed(
+            defilterer.both_scanlines(),
+            prev_scanline_bytes + 1,
+            dest,
+        );
 
         Ok(scanline_bytes)
     }
@@ -317,8 +328,8 @@ impl PngDecoder<'_> {
         dest: &mut OutputWriter<'_>,
     ) -> Result<(), DecodingError> {
         loop {
-            let buffer_full =
-                self.deflate_buffer.cursor() + deflate::MAX_BACKREF_LEN >= self.deflate_buffer.capacity();
+            let buffer_full = self.deflate_buffer.cursor() + deflate::MAX_BACKREF_LEN
+                >= self.deflate_buffer.capacity();
 
             if std::hint::unlikely(buffer_full) {
                 if self.can_drain_scanline(dest) {
@@ -329,12 +340,12 @@ impl PngDecoder<'_> {
                 }
             }
 
-            if self.deflate.decode_compressed::<STATIC>(
-                &mut self.compressed_data,
-                &mut self.deflate_buffer
-            ) {
+            if self
+                .deflate
+                .decode_compressed::<STATIC>(&mut self.compressed_data, &mut self.deflate_buffer)
+            {
                 self.next_block()?;
-                break
+                break;
             }
         }
         Ok(())
