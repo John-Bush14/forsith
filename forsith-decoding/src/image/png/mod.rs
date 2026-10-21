@@ -1,7 +1,7 @@
 use crate::{
     DecodingError, bit::BitReader, buffers::CursorVec, checksums, decompression::deflate::{self, DeflateDecoder}, image::{
-        ImageDecoder, PixelFormat, outputconverting::OutputWriter, png::{
-            adam7_pass::Adam7Pass, checksums::Adler32, chunks::{ColorPalette, Ihdr, ZlibDataStream, tRNS}, deflate::{BlockType, MAX_BACKREF_LEN}, filtering::InplaceDefilterer, output::PngOutputWriter, postprocessing::{MAX_STRIDE, PostProcessor},
+        ChannelLayout, ImageDecoder, PixelFormat, SampleType, outputconverting::OutputWriter, png::{
+            adam7_pass::Adam7Pass, checksums::Adler32, chunks::{ColorPalette, Ihdr, ZlibDataStream, tRNS}, deflate::{BlockType, MAX_BACKREF_LEN}, filtering::InplaceDefilterer, output::PngOutputWriter,
         },
     }, parsing::SegmentParser,
 };
@@ -15,8 +15,6 @@ pub use chunks::{ChunkData, ChunkType};
 mod parser;
 pub use parser::{ChunkHeader, ChunkParser};
 
-mod postprocessing;
-
 mod filtering;
 
 mod output;
@@ -24,6 +22,7 @@ mod output;
 mod adam7_pass;
 
 const PNG_HEADER: [u8; 8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+const MAX_STRIDE: usize = 8;
 
 #[repr(u8)]
 #[derive(Debug, TryFromNum, Clone, Copy, PartialEq, Eq, IsVariant)]
@@ -39,8 +38,9 @@ pub struct PngDecoder<'a> {
     compressed_data: BitReader<CursorVec<u8>>,
     deflate_buffer: CursorVec<u8>,
     scanline_multiples: usize,
-    postprocessor: PostProcessor,
     ihdr: Ihdr,
+    stride: usize,
+    stored_format: PixelFormat,
     deflate_buffer_tail: usize,
     last_adler_update_i: usize,
     adler: Adler32,
@@ -60,16 +60,16 @@ impl<'a> ImageDecoder<'a> for PngDecoder<'a> {
         let mut chunk_parser = ChunkParser::new(reader);
 
         let ihdr = read_ihdr(&mut chunk_parser)?;
-
-        let postprocessor = PostProcessor::new(&ihdr);
+        let stored_format = stored_format(&ihdr);
 
         let mut decoder = Self {
             compressed_data: BitReader::default(),
             deflate_buffer: CursorVec::default(),
             scanline_multiples: 0,
-            output: PngOutputWriter::new(ihdr.color_type, postprocessor.stored_format()),
-            pass: Adam7Pass::new(&ihdr, &postprocessor),
-            postprocessor,
+            output: PngOutputWriter::new(ihdr.color_type, stored_format),
+            pass: Adam7Pass::new(&ihdr, stored_format),
+            stride: stride(&stored_format),
+            stored_format,
             ihdr,
             deflate: DeflateDecoder::default(),
             deflate_buffer_tail: 0,
@@ -166,7 +166,7 @@ impl PngDecoder<'_> {
     }
 
     const fn stored_format(&self) -> PixelFormat {
-        self.postprocessor.stored_format()
+        self.stored_format
     }
 
     const fn output_format(&self) -> PixelFormat {
@@ -197,6 +197,18 @@ impl PngDecoder<'_> {
             &self.deflate_buffer.get_ref()[self.last_adler_update_i..self.deflate_buffer.cursor()],
         );
         self.last_adler_update_i = self.deflate_buffer.cursor();
+    }
+
+    const fn scanline_bytes(&self) -> usize {
+        self.pass.scanline_bytes()
+    }
+
+    const fn max_scanline_bytes(&self) -> usize {
+        self.pass.max_scanline_bytes()
+    }
+
+    const fn scanline_pixel_bytes(&self) -> usize {
+        self.pass.scanline_pixel_bytes()
     }
 
     #[cold]
@@ -239,7 +251,7 @@ impl PngDecoder<'_> {
 
         let mut defilterer = InplaceDefilterer::open(
             self.deflate_buffer.get_mut(),
-            self.postprocessor.stride(),
+            self.stride,
             start,
             scanline_bytes,
             prev_scanline_bytes,
@@ -251,7 +263,7 @@ impl PngDecoder<'_> {
         self.pass.scanline_passed(
             defilterer.both_scanlines(),
             prev_scanline_bytes + 1,
-            self.postprocessor.stored_format().bpp(),
+            self.stored_format.bpp(),
             dest,
         );
 
@@ -367,4 +379,21 @@ fn read_ihdr<R: Read>(parser: &mut ChunkParser<R>) -> Result<Ihdr, DecodingError
     ihdr.validate()?;
 
     Ok(ihdr)
+}
+
+fn stored_format(ihdr: &Ihdr) -> PixelFormat {
+    PixelFormat::new(
+        SampleType::from_bit_depth_unsigned(ihdr.channel_depth).unwrap(),
+        match ihdr.color_type {
+            ColorType::Truecolor => ChannelLayout::Truecolor,
+            ColorType::GrayscaleAlpha => ChannelLayout::GrayscaleAlpha,
+            ColorType::TruecolorAlpha => ChannelLayout::TruecolorAlpha,
+            ColorType::Grayscale | ColorType::Indexed => ChannelLayout::Grayscale,
+        },
+    )
+}
+
+fn stride(format: &PixelFormat) -> usize {
+    let bitspp = format.bpp();
+    (bitspp as usize).div_ceil(8)
 }

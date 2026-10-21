@@ -1,4 +1,4 @@
-use crate::image::{outputconverting::OutputWriter, png::{chunks::Ihdr, postprocessing::{PostProcessor, }}};
+use crate::image::{PixelFormat, outputconverting::OutputWriter, png::{chunks::Ihdr, }};
 
 const PASSES: [((usize, usize), usize, u8); 7] = [
     ((0, 0), 8, 8),
@@ -116,8 +116,8 @@ impl Adam7Pass {
         clippy::cast_sign_loss,
         clippy::cast_possible_wrap
     )]
-    pub const fn new(ihdr: &Ihdr, postprocessor: &PostProcessor) -> Self {
-        let (max_scanline_bytes, scanline_padding) = calculate_scanline_bytes(ihdr.width, postprocessor.stored_bpp() as u8);
+    pub const fn new(ihdr: &Ihdr, format: PixelFormat) -> Self {
+        let (max_scanline_bytes, scanline_padding) = calculate_scanline_bytes(ihdr.width, format.bpp() as u8);
 
         let (scanline_bytes, scanline_padding, end_scanline_skip, stride) = if ihdr.interlace_method == 1 {
             let width = (ihdr.width - 1).div_euclid(8) + 1;
@@ -125,7 +125,7 @@ impl Adam7Pass {
             let end_scanline_skip = ((ihdr.width as usize * 7) as isize + alignment) as usize;
 
             let (new_scanline_bytes, padding) =
-                calculate_scanline_bytes(width, postprocessor.stored_bpp() as u8);
+                calculate_scanline_bytes(width, format.bpp() as u8);
 
             (new_scanline_bytes, padding, end_scanline_skip, 8)
         } else {
