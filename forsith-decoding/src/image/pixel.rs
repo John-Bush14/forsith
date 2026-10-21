@@ -1,7 +1,8 @@
-use forsith_proc::IsVariant;
+use forsith_proc::{Deref, IsVariant};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deref)]
 pub struct PixelFormat {
+    #[deref]
     pub layout: ChannelLayout,
     pub sample: SampleType,
 }

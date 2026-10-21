@@ -1,7 +1,7 @@
 use crate::{
     DecodingError, bit::BitReader, buffers::CursorVec, checksums, decompression::deflate::{self, DeflateDecoder}, image::{
         ImageDecoder, PixelFormat, outputconverting::OutputWriter, png::{
-            checksums::Adler32, chunks::{ColorPalette, Ihdr, ZlibDataStream, tRNS}, deflate::{BlockType, MAX_BACKREF_LEN}, filtering::InplaceDefilterer, output::PngOutputWriter, postprocessing::{MAX_STRIDE, PostProcessor},
+            adam7_pass::Adam7Pass, checksums::Adler32, chunks::{ColorPalette, Ihdr, ZlibDataStream, tRNS}, deflate::{BlockType, MAX_BACKREF_LEN}, filtering::InplaceDefilterer, output::PngOutputWriter, postprocessing::{MAX_STRIDE, PostProcessor},
         },
     }, parsing::SegmentParser,
 };
@@ -20,6 +20,8 @@ mod postprocessing;
 mod filtering;
 
 mod output;
+
+mod adam7_pass;
 
 const PNG_HEADER: [u8; 8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
 
@@ -42,6 +44,7 @@ pub struct PngDecoder<'a> {
     deflate_buffer_tail: usize,
     last_adler_update_i: usize,
     adler: Adler32,
+    pass: Adam7Pass,
     deflate: DeflateDecoder,
     output: PngOutputWriter,
     phantom: std::marker::PhantomData<&'a ()>,
@@ -58,13 +61,14 @@ impl<'a> ImageDecoder<'a> for PngDecoder<'a> {
 
         let ihdr = read_ihdr(&mut chunk_parser)?;
 
-        let postprocessor = PostProcessor::new(ihdr.width, ihdr.color_type, ihdr.channel_depth);
+        let postprocessor = PostProcessor::new(&ihdr);
 
         let mut decoder = Self {
             compressed_data: BitReader::default(),
             deflate_buffer: CursorVec::default(),
             scanline_multiples: 0,
             output: PngOutputWriter::new(ihdr.color_type, postprocessor.stored_format()),
+            pass: Adam7Pass::new(&ihdr, &postprocessor),
             postprocessor,
             ihdr,
             deflate: DeflateDecoder::default(),
@@ -84,7 +88,6 @@ impl<'a> ImageDecoder<'a> for PngDecoder<'a> {
             return Err(DecodingError::NoIDAT);
         }
 
-        decoder.postprocessor.setup_interlacing(&decoder.ihdr);
         decoder.next_block()?;
 
         Ok(decoder)
@@ -97,7 +100,7 @@ impl<'a> ImageDecoder<'a> for PngDecoder<'a> {
         }
 
         let mut dest = OutputWriter::new(dest, self.output_format());
-        self.postprocessor.update_dest(&mut dest);
+        self.pass.update_dest(&mut dest);
 
         while !dest.is_full() {
             match self.deflate.cur_block().ty {
@@ -245,9 +248,10 @@ impl PngDecoder<'_> {
         defilterer.defilter()?;
 
         self.output.write_scanline(defilterer.filtered_scanline(), dest);
-        self.postprocessor.scanline_passed(
+        self.pass.scanline_passed(
             defilterer.both_scanlines(),
             prev_scanline_bytes + 1,
+            self.postprocessor.stored_format().bpp(),
             dest,
         );
 

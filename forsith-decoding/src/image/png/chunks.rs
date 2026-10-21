@@ -1,9 +1,6 @@
 use crate::{
-    DecodingError::{self, InvalidChunk},
-    buffers::CursorVec,
-    image::{
-        PngDecoder,
-        png::{ColorType, parser::ChunkHeader, postprocessing::MAX_STRIDE},
+    DecodingError::{self, InvalidChunk}, buffers::CursorVec, image::{
+        ChannelLayout, PngDecoder, png::{ColorType, parser::ChunkHeader, postprocessing::MAX_STRIDE},
     },
 };
 use forsith_proc::{Deref, Index, IsVariant};
@@ -207,7 +204,8 @@ impl ChunkData for tRNS {
     {
         let len = chunk_header.len();
 
-        if decoder.postprocessor.color_type() != ColorType::Indexed {
+        let is_indexed = decoder.stored_format().is_grayscale() && decoder.output_format().has_color();
+        if !is_indexed {
             let stored_depth = decoder.postprocessor.stored_format().sample.bit_depth();
 
             let mask = ((1u32 << u32::from(stored_depth)) - 1) as u16;
@@ -223,13 +221,13 @@ impl ChunkData for tRNS {
                 })
             };
 
-            let alpha_color = match decoder.postprocessor.color_type() {
-                ColorType::Grayscale => {
+            let alpha_color = match decoder.postprocessor.stored_format().layout {
+                ChannelLayout::Grayscale => {
                     let g = read_val()?;
 
                     (g, g, g)
                 }
-                ColorType::Truecolor => (read_val()?, read_val()?, read_val()?),
+                ChannelLayout::TruecolorAlpha => (read_val()?, read_val()?, read_val()?),
                 _ => return Ok(()),
             };
 
