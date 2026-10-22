@@ -3,15 +3,14 @@ use crate::{
     bit::BitReader,
     buffers::CursorVec,
     checksums,
-    decompression::deflate::{self, DeflateDecoder},
+    decompression::deflate::{self},
     image::{
         ChannelLayout, ImageDecoder, PixelFormat, SampleType,
         outputconverting::OutputWriter,
         png::{
-            checksums::Adler32,
             chunks::{ColorType, Ihdr},
-            deflate::{BlockType, MAX_BACKREF_LEN},
-            filtering::{InplaceDefilterer, ScanlinePair},
+            decode::DecodingState,
+            deflate::MAX_BACKREF_LEN,
             interlace::InterlaceState,
             output::PngOutputWriter,
         },
@@ -32,22 +31,19 @@ mod output;
 
 mod interlace;
 
+mod decode;
+
 const PNG_HEADER: [u8; 8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
 const MAX_STRIDE: usize = 8;
 
 pub struct PngDecoder<'a> {
     compressed_data: BitReader<CursorVec<u8>>,
-    deflate_buffer: CursorVec<u8>,
-    scanline_multiples: usize,
     ihdr: Ihdr,
     stride: usize,
     stored_format: PixelFormat,
-    deflate_buffer_tail: usize,
-    last_adler_update_i: usize,
-    adler: Adler32,
     interlace: InterlaceState,
-    deflate: DeflateDecoder,
     output: PngOutputWriter,
+    decode: DecodingState,
     phantom: std::marker::PhantomData<&'a ()>,
 }
 
@@ -65,23 +61,17 @@ impl<'a> ImageDecoder<'a> for PngDecoder<'a> {
 
         let mut decoder = Self {
             compressed_data: BitReader::default(),
-            deflate_buffer: CursorVec::default(),
-            scanline_multiples: 0,
+            decode: DecodingState::default(),
             output: PngOutputWriter::new(ihdr.color_type, stored_format),
             interlace: InterlaceState::new(&ihdr, stored_format),
             stride: stride(stored_format),
             stored_format,
             ihdr,
-            deflate: DeflateDecoder::default(),
-            deflate_buffer_tail: 0,
-            last_adler_update_i: 0,
-            adler: Adler32::default(),
             phantom: std::marker::PhantomData,
         };
 
         decoder.parse_everything(chunk_parser)?;
-        decoder.validate_before_decoding()?;
-        decoder.next_block()?;
+        decoder.prepare_for_decoding()?;
 
         Ok(decoder)
     }
@@ -95,34 +85,9 @@ impl<'a> ImageDecoder<'a> for PngDecoder<'a> {
         let mut dest = OutputWriter::new(dest, self.output_format());
         self.interlace.update_dest(&mut dest);
 
-        while !dest.is_full() {
-            match self.deflate.cur_block().ty {
-                BlockType::Uncompressed(len) => {
-                    self.read_uncompressed_chunk(len, &mut dest)?;
-                }
-                BlockType::CompressedFixed => {
-                    self.read_compressed_chunk::<true>(&mut dest)?;
-                }
-                BlockType::CompressedDynamic => {
-                    self.read_compressed_chunk::<false>(&mut dest)?;
-                }
-                BlockType::Finished => {
-                    while self.can_drain_scanline(&dest)
-                        && self.deflate_buffer.cursor() - self.deflate_buffer_tail
-                            >= self.scanline_bytes()
-                    {
-                        let consumed_bytes =
-                            self.consume_inflated_scanline(self.deflate_buffer_tail, &mut dest)?;
+        while !dest.is_full() && !self.decode_chunk(&mut dest)? {}
 
-                        self.deflate_buffer_tail += consumed_bytes;
-                    }
-
-                    break;
-                }
-            }
-        }
-
-        if self.ihdr.interlace_method == 1 && !dest.is_empty() {
+        if self.interlace.interlacing_enabled() && !dest.is_empty() {
             Ok(self.max_buf_size())
         } else {
             Ok(dest.len())
@@ -151,176 +116,8 @@ impl<'a> ImageDecoder<'a> for PngDecoder<'a> {
 }
 
 impl PngDecoder<'_> {
-    const fn can_drain_scanline(&self, dest: &OutputWriter<'_>) -> bool {
-        dest.remaining() * 8 / self.output_format().bpp() as usize
-            * self.stored_format().bpp() as usize
-            >= self.scanline_pixel_bytes() * 8
-            || self.ihdr.interlace_method == 1
-    }
-
     const fn stored_format(&self) -> PixelFormat {
         self.stored_format
-    }
-
-    #[cold]
-    fn next_block(&mut self) -> Result<(), DecodingError> {
-        if self.deflate.next_block(&mut self.compressed_data)? {
-            self.finish_decoding()?;
-        }
-
-        Ok(())
-    }
-
-    #[cold]
-    fn finish_decoding(&mut self) -> Result<(), DecodingError> {
-        self.update_adler();
-
-        self.compressed_data.unconsume_bitbuf();
-        self.adler.validate(self.compressed_data.read_be()?)?;
-
-        Ok(())
-    }
-
-    fn validate_before_decoding(&self) -> Result<(), DecodingError> {
-        if self.output.palette().is_none() && self.ihdr.color_type.is_indexed() {
-            return Err(DecodingError::NoPallete);
-        }
-
-        if self.deflate_buffer.get_ref().is_empty() {
-            return Err(DecodingError::NoIDAT);
-        }
-
-        Ok(())
-    }
-
-    fn update_adler(&mut self) {
-        self.adler.update(
-            &self.deflate_buffer.get_ref()[self.last_adler_update_i..self.deflate_buffer.cursor()],
-        );
-        self.last_adler_update_i = self.deflate_buffer.cursor();
-    }
-
-    #[cold]
-    fn drain_deflate_buffer(&mut self, dest: &mut OutputWriter<'_>) -> Result<(), DecodingError> {
-        self.update_adler();
-
-        let mut drained_bytes = 0;
-
-        for _ in 0..self.scanline_multiples {
-            if !self.can_drain_scanline(dest) {
-                break;
-            }
-
-            drained_bytes += self.consume_inflated_scanline(self.deflate_buffer_tail, dest)?;
-        }
-
-        self.deflate_buffer_remove(drained_bytes);
-
-        Ok(())
-    }
-
-    fn deflate_buffer_remove(&mut self, bytes: usize) {
-        let prev_scanline = self.max_scanline_bytes() + MAX_STRIDE;
-        let range = self.deflate_buffer_tail + bytes - prev_scanline..self.deflate_buffer.cursor();
-
-        self.last_adler_update_i -= self.deflate_buffer.cursor() - range.len();
-
-        self.deflate_buffer.set_cursor(range.len());
-        self.deflate_buffer.get_mut().copy_within(range, 0);
-    }
-
-    #[inline(always)]
-    fn consume_inflated_scanline(
-        &mut self,
-        start: usize,
-        dest: &mut OutputWriter<'_>,
-    ) -> Result<usize, DecodingError> {
-        let prev_scanline_bytes = self.max_scanline_bytes() + MAX_STRIDE;
-        let scanline_bytes = self.scanline_bytes();
-
-        let scanline_pair = ScanlinePair::open(
-            self.deflate_buffer.get_mut(),
-            start,
-            scanline_bytes,
-            prev_scanline_bytes,
-        );
-
-        let mut defilterer = InplaceDefilterer::open(scanline_pair, self.stride);
-        defilterer.defilter()?;
-        let mut scanline_pair = defilterer.decompose();
-
-        self.output
-            .write_scanline(scanline_pair.filtered_scanline_pixels(), dest);
-
-        self.interlace
-            .scanline_passed(scanline_pair, self.stored_format.bpp(), dest);
-
-        Ok(scanline_bytes)
-    }
-
-    #[cold]
-    fn read_uncompressed_chunk(
-        &mut self,
-        len: u16,
-        dest: &mut OutputWriter<'_>,
-    ) -> Result<(), DecodingError> {
-        self.compressed_data.unconsume_bitbuf();
-
-        let mut decoded_bytes = 0;
-
-        loop {
-            let chunk_len =
-                (len - decoded_bytes).min(self.deflate_buffer.remaining().saturating_truncate());
-
-            self.deflate_buffer
-                .read_from(&mut **self.compressed_data, chunk_len as usize)?;
-
-            decoded_bytes += chunk_len;
-
-            if decoded_bytes >= len || !self.can_drain_scanline(dest) {
-                break;
-            }
-
-            self.drain_deflate_buffer(dest)?;
-        }
-
-        if len == decoded_bytes {
-            // self.compressed_data.align()?;
-            self.next_block()?;
-        } else {
-            self.deflate.set_uncompressed_len(len - decoded_bytes);
-            dest.set_full();
-        }
-        Ok(())
-    }
-
-    #[cold]
-    fn read_compressed_chunk<const STATIC: bool>(
-        &mut self,
-        dest: &mut OutputWriter<'_>,
-    ) -> Result<(), DecodingError> {
-        loop {
-            let buffer_full = self.deflate_buffer.cursor() + deflate::MAX_BACKREF_LEN
-                >= self.deflate_buffer.capacity();
-
-            if std::hint::unlikely(buffer_full) {
-                if self.can_drain_scanline(dest) {
-                    self.drain_deflate_buffer(dest)?;
-                } else {
-                    dest.set_full();
-                    break;
-                }
-            }
-
-            if self
-                .deflate
-                .decode_compressed::<STATIC>(&mut self.compressed_data, &mut self.deflate_buffer)
-            {
-                self.next_block()?;
-                break;
-            }
-        }
-        Ok(())
     }
 }
 

@@ -77,6 +77,7 @@ pub const STATIC_DISTANCE_TREE: DistanceTree = {
     tree
 };
 
+#[derive(Debug)]
 pub struct DeflateDecoder {
     pub litlen_tree: LitLenTree,
     pub distance_tree: DistanceTree,

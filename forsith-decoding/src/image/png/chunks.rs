@@ -149,27 +149,11 @@ impl ChunkData for ZlibDataStream {
         data.get_mut().shrink_to(chunk_header.len());
 
         std::mem::swap(&mut *decoder.compressed_data, data);
-        let reader = &mut decoder.compressed_data;
 
-        let lz77_buffer_size = decoder.deflate.open_stream(&mut **reader)?;
-
-        let scanline_padding = decoder.max_scanline_bytes() + MAX_STRIDE;
-        decoder.deflate_buffer = CursorVec::new(
-            scanline_padding
-                + lz77_buffer_size
-                + lz77_buffer_size.next_multiple_of(decoder.max_scanline_bytes()),
-        );
-
-        decoder.deflate_buffer.consume(scanline_padding);
-        decoder.deflate_buffer_tail = scanline_padding;
-        decoder.last_adler_update_i = scanline_padding;
-
-        decoder.scanline_multiples =
-            (decoder.deflate_buffer.capacity() - lz77_buffer_size - MAX_STRIDE)
-                / decoder.max_scanline_bytes()
-                - 1;
-
-        Ok(())
+        let max_scanline_bytes = decoder.max_scanline_bytes();
+        decoder
+            .decode
+            .open_deflate_stream(&mut **decoder.compressed_data, max_scanline_bytes)
     }
 }
 
