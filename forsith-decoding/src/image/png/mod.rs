@@ -8,11 +8,11 @@ use crate::{
         ChannelLayout, ImageDecoder, PixelFormat, SampleType,
         outputconverting::OutputWriter,
         png::{
-            adam7_pass::Adam7Pass,
             checksums::Adler32,
             chunks::{ColorType, Ihdr},
             deflate::{BlockType, MAX_BACKREF_LEN},
-            filtering::InplaceDefilterer,
+            filtering::{InplaceDefilterer, ScanlinePair},
+            interlace::InterlaceState,
             output::PngOutputWriter,
         },
     },
@@ -30,7 +30,7 @@ mod filtering;
 
 mod output;
 
-mod adam7_pass;
+mod interlace;
 
 const PNG_HEADER: [u8; 8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
 const MAX_STRIDE: usize = 8;
@@ -45,7 +45,7 @@ pub struct PngDecoder<'a> {
     deflate_buffer_tail: usize,
     last_adler_update_i: usize,
     adler: Adler32,
-    pass: Adam7Pass,
+    interlace: InterlaceState,
     deflate: DeflateDecoder,
     output: PngOutputWriter,
     phantom: std::marker::PhantomData<&'a ()>,
@@ -68,7 +68,7 @@ impl<'a> ImageDecoder<'a> for PngDecoder<'a> {
             deflate_buffer: CursorVec::default(),
             scanline_multiples: 0,
             output: PngOutputWriter::new(ihdr.color_type, stored_format),
-            pass: Adam7Pass::new(&ihdr, stored_format),
+            interlace: InterlaceState::new(&ihdr, stored_format),
             stride: stride(stored_format),
             stored_format,
             ihdr,
@@ -93,7 +93,7 @@ impl<'a> ImageDecoder<'a> for PngDecoder<'a> {
         }
 
         let mut dest = OutputWriter::new(dest, self.output_format());
-        self.pass.update_dest(&mut dest);
+        self.interlace.update_dest(&mut dest);
 
         while !dest.is_full() {
             match self.deflate.cur_block().ty {
@@ -238,24 +238,22 @@ impl PngDecoder<'_> {
         let prev_scanline_bytes = self.max_scanline_bytes() + MAX_STRIDE;
         let scanline_bytes = self.scanline_bytes();
 
-        let mut defilterer = InplaceDefilterer::open(
+        let scanline_pair = ScanlinePair::open(
             self.deflate_buffer.get_mut(),
-            self.stride,
             start,
             scanline_bytes,
             prev_scanline_bytes,
         );
 
+        let mut defilterer = InplaceDefilterer::open(scanline_pair, self.stride);
         defilterer.defilter()?;
+        let mut scanline_pair = defilterer.decompose();
 
         self.output
-            .write_scanline(defilterer.filtered_scanline(), dest);
-        self.pass.scanline_passed(
-            defilterer.both_scanlines(),
-            prev_scanline_bytes + 1,
-            self.stored_format.bpp(),
-            dest,
-        );
+            .write_scanline(scanline_pair.filtered_scanline_pixels(), dest);
+
+        self.interlace
+            .scanline_passed(scanline_pair, self.stored_format.bpp(), dest);
 
         Ok(scanline_bytes)
     }

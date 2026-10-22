@@ -1,42 +1,73 @@
 use crate::{DecodingError, SIMD_WIDTH};
 use core::simd::Simd;
 
-pub struct InplaceDefilterer<'a> {
-    scanlines: &'a mut [u8],
-    stride: usize,
-    scanline_bytes: usize,
-    start: usize,
+#[derive(Debug)]
+pub struct ScanlinePair<'a>(&'a mut [u8], usize);
+
+impl<R: core::slice::SliceIndex<[u8]>> core::ops::Index<R> for ScanlinePair<'_> {
+    type Output = <[u8] as core::ops::Index<R>>::Output;
+
+    fn index(&self, index: R) -> &Self::Output {
+        &self.0[index]
+    }
 }
 
-impl<'a> InplaceDefilterer<'a> {
+impl<R: core::slice::SliceIndex<[u8]>> core::ops::IndexMut<R> for ScanlinePair<'_> {
+    fn index_mut(&mut self, index: R) -> &mut Self::Output {
+        &mut self.0[index]
+    }
+}
+
+impl ScanlinePair<'_> {
     pub fn open(
-        buffer: &'a mut [u8],
-        stride: usize,
+        buf: &mut [u8],
         start: usize,
         scanline_bytes: usize,
         prev_scanline_bytes: usize,
-    ) -> Self {
-        let scanlines = &mut buffer[start - prev_scanline_bytes..start + scanline_bytes];
-
-        Self {
-            scanlines,
-            stride,
-            scanline_bytes,
-            start: prev_scanline_bytes,
-        }
+    ) -> ScanlinePair<'_> {
+        ScanlinePair(
+            &mut buf[start - prev_scanline_bytes..start + scanline_bytes],
+            prev_scanline_bytes,
+        )
     }
 
     pub const fn both_scanlines(&mut self) -> &mut [u8] {
-        self.scanlines
+        self.0
     }
 
     pub fn filtered_scanline(&mut self) -> &mut [u8] {
-        &mut self.scanlines[self.start..self.start + self.scanline_bytes - 1]
+        &mut self.0[self.1..]
+    }
+
+    pub fn filtered_scanline_pixels(&mut self) -> &mut [u8] {
+        &mut self.0[self.1 + 1..]
+    }
+
+    pub const fn scanline_bytes(&self) -> usize {
+        self.0.len() - self.1
+    }
+
+    pub const fn prev_scanline_bytes(&self) -> usize {
+        self.1
+    }
+}
+
+pub struct InplaceDefilterer<'a> {
+    scanlines: ScanlinePair<'a>,
+    stride: usize,
+}
+
+impl<'a> InplaceDefilterer<'a> {
+    pub const fn open(scanlines: ScanlinePair<'a>, stride: usize) -> Self {
+        Self { scanlines, stride }
+    }
+
+    pub const fn decompose(self) -> ScanlinePair<'a> {
+        self.scanlines
     }
 
     pub fn defilter(&mut self) -> Result<(), DecodingError> {
-        let filter = self.scanlines[self.start];
-        self.start += 1;
+        let filter = self.scanlines.filtered_scanline()[0];
 
         match filter {
             0 => (),
@@ -51,8 +82,8 @@ impl<'a> InplaceDefilterer<'a> {
     }
 
     fn defilter_inplace<const FILTER: u8>(&mut self) {
-        let mut cur = self.start;
-        let mut up = self.start - self.scanline_bytes();
+        let mut cur = self.start_scanline_pixels();
+        let mut up = cur - self.scanline_bytes();
 
         let scanline_bytes = self.handle_border_bytes::<FILTER>(&mut cur, &mut up);
 
@@ -79,7 +110,7 @@ impl<'a> InplaceDefilterer<'a> {
     }
 
     #[inline]
-    pub const fn left_byte<const BORDER: bool>(&self, cur: usize) -> u8 {
+    pub fn left_byte<const BORDER: bool>(&self, cur: usize) -> u8 {
         if BORDER {
             0
         } else {
@@ -88,11 +119,11 @@ impl<'a> InplaceDefilterer<'a> {
     }
     #[inline]
     #[allow(clippy::unused_self)]
-    pub const fn upper_byte(&self, up: usize) -> u8 {
+    pub fn upper_byte(&self, up: usize) -> u8 {
         self.scanlines[up]
     }
     #[inline]
-    pub const fn left_upper_byte(&self, up: usize) -> u8 {
+    pub fn left_upper_byte(&self, up: usize) -> u8 {
         self.scanlines[up - self.stride]
     }
 
@@ -157,12 +188,20 @@ impl<'a> InplaceDefilterer<'a> {
         self.scanlines[cur] = self.scanlines[cur].wrapping_add(r);
     }
 
+    const fn start_scanline(&self) -> usize {
+        self.scanlines.prev_scanline_bytes()
+    }
+
+    const fn start_scanline_pixels(&self) -> usize {
+        self.start_scanline() + 1
+    }
+
     const fn scanline_pixel_bytes(&self) -> usize {
-        self.scanline_bytes - 1
+        self.scanline_bytes() - 1
     }
 
     const fn scanline_bytes(&self) -> usize {
-        self.scanline_bytes
+        self.scanlines.scanline_bytes()
     }
 }
 
