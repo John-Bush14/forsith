@@ -58,6 +58,15 @@ pub struct InplaceDefilterer<'a> {
 }
 
 impl<'a> InplaceDefilterer<'a> {
+    pub fn defilter_scanline(
+        scanlines: ScanlinePair<'a>,
+        stride: usize,
+    ) -> Result<ScanlinePair<'a>, DecodingError> {
+        let mut defilterer = Self::open(scanlines, stride);
+        defilterer.defilter()?;
+        Ok(defilterer.decompose())
+    }
+
     pub const fn open(scanlines: ScanlinePair<'a>, stride: usize) -> Self {
         Self { scanlines, stride }
     }
@@ -88,23 +97,23 @@ impl<'a> InplaceDefilterer<'a> {
         let scanline_bytes = self.handle_border_bytes::<FILTER>(&mut cur, &mut up);
 
         if !should_use_simd::<FILTER>(self.stride) {
-            self.filter_inplace_scalar::<FILTER, false>(scanline_bytes, &mut cur, &mut up);
+            self.defilter_inplace_scalar::<FILTER, false>(scanline_bytes, &mut cur, &mut up);
 
             return;
         }
 
         let alignment_bytes = scanline_bytes % SIMD_WIDTH;
 
-        self.filter_inplace_scalar::<FILTER, false>(alignment_bytes, &mut cur, &mut up);
+        self.defilter_inplace_scalar::<FILTER, false>(alignment_bytes, &mut cur, &mut up);
 
         let simd_iterations = (scanline_bytes - alignment_bytes) / SIMD_WIDTH;
         match self.stride {
-            1 => self.filter_inplace_simd::<FILTER, 1>(simd_iterations, cur, up),
-            2 => self.filter_inplace_simd::<FILTER, 2>(simd_iterations, cur, up),
-            3 => self.filter_inplace_simd::<FILTER, 3>(simd_iterations, cur, up),
-            4 => self.filter_inplace_simd::<FILTER, 4>(simd_iterations, cur, up),
-            6 => self.filter_inplace_simd::<FILTER, 6>(simd_iterations, cur, up),
-            8 => self.filter_inplace_simd::<FILTER, 8>(simd_iterations, cur, up),
+            1 => self.defilter_inplace_simd::<FILTER, 1>(simd_iterations, cur, up),
+            2 => self.defilter_inplace_simd::<FILTER, 2>(simd_iterations, cur, up),
+            3 => self.defilter_inplace_simd::<FILTER, 3>(simd_iterations, cur, up),
+            4 => self.defilter_inplace_simd::<FILTER, 4>(simd_iterations, cur, up),
+            6 => self.defilter_inplace_simd::<FILTER, 6>(simd_iterations, cur, up),
+            8 => self.defilter_inplace_simd::<FILTER, 8>(simd_iterations, cur, up),
             _ => unreachable!(),
         }
     }
@@ -136,7 +145,7 @@ impl<'a> InplaceDefilterer<'a> {
         if FILTER == 2 {
             self.scanline_pixel_bytes()
         } else {
-            self.filter_inplace_scalar::<FILTER, true>(
+            self.defilter_inplace_scalar::<FILTER, true>(
                 self.stride.min(self.scanline_pixel_bytes()),
                 cur,
                 up,
@@ -146,33 +155,33 @@ impl<'a> InplaceDefilterer<'a> {
     }
 
     #[inline]
-    fn filter_inplace_scalar<const FILTER: u8, const BORDER: bool>(
+    fn defilter_inplace_scalar<const FILTER: u8, const BORDER: bool>(
         &mut self,
         n: usize,
         cur: &mut usize,
         up: &mut usize,
     ) {
         for _ in 0..n {
-            self.filter::<FILTER, BORDER>(*cur, *up);
+            self.filter_byte::<FILTER, BORDER>(*cur, *up);
             (*cur, *up) = (*cur + 1, *up + 1);
         }
     }
 
-    fn filter_inplace_simd<const FILTER: u8, const STRIDE: usize>(
+    fn defilter_inplace_simd<const FILTER: u8, const STRIDE: usize>(
         &mut self,
         n: usize,
         mut cur: usize,
         mut up: usize,
     ) {
         for _ in 0..n {
-            self.filter_simd::<FILTER, STRIDE>(cur, up);
+            self.defilter_simd::<FILTER, STRIDE>(cur, up);
 
             (cur, up) = (cur + SIMD_WIDTH, up + SIMD_WIDTH);
         }
     }
 
     #[inline(always)]
-    fn filter<const FILTER: u8, const BORDER: bool>(&mut self, cur: usize, up: usize) {
+    fn filter_byte<const FILTER: u8, const BORDER: bool>(&mut self, cur: usize, up: usize) {
         let r = match FILTER {
             1 => self.left_byte::<BORDER>(cur),
             2 => self.upper_byte(up),
@@ -243,13 +252,13 @@ pub const fn open_simd(slice: &[u8]) -> Simd<u8, { SIMD_WIDTH }> {
 
 impl InplaceDefilterer<'_> {
     #[inline(always)]
-    pub fn filter_simd<const FILTER: u8, const STRIDE: usize>(&mut self, cur: usize, up: usize) {
+    pub fn defilter_simd<const FILTER: u8, const STRIDE: usize>(&mut self, cur: usize, up: usize) {
         let raw_bytes = open_simd(&self.scanlines[cur..]);
 
         let result = match FILTER {
-            1 => sub_filter::<STRIDE>(raw_bytes, self.left_pixel::<STRIDE>(cur)),
+            1 => simd_sub_filter::<STRIDE>(raw_bytes, self.left_pixel::<STRIDE>(cur)),
             2 => raw_bytes + self.upper_pixels(up),
-            3 => average_filter::<STRIDE>(
+            3 => simd_average_filter::<STRIDE>(
                 raw_bytes,
                 self.left_pixels::<STRIDE>(cur),
                 self.upper_pixels(up),
@@ -277,7 +286,7 @@ impl InplaceDefilterer<'_> {
     }
 }
 
-fn average_filter<const STRIDE: usize>(
+fn simd_average_filter<const STRIDE: usize>(
     mut raw_bytes: Simd<u8, SIMD_WIDTH>,
     left_pixels: Simd<u8, SIMD_WIDTH>,
     mut upper_pixels: Simd<u8, SIMD_WIDTH>,
@@ -301,7 +310,7 @@ fn simd_average(a: Simd<u8, SIMD_WIDTH>, b: Simd<u8, SIMD_WIDTH>) -> Simd<u8, SI
 }
 
 #[inline]
-fn sub_filter<const STRIDE: usize>(
+fn simd_sub_filter<const STRIDE: usize>(
     mut raw_bytes: Simd<u8, SIMD_WIDTH>,
     left_pixel: &[u8; STRIDE],
 ) -> Simd<u8, SIMD_WIDTH> {

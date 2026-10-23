@@ -110,7 +110,6 @@ impl<K: Hash + PartialEq, V, H: BuildHasher> SwissTable<K, V, H> {
 
     pub fn capacity(&self) -> usize {
         let cap = self.content.len() / (1 + core::mem::size_of::<(K, V)>());
-        println!("capacity: {cap}");
         cap
     }
 

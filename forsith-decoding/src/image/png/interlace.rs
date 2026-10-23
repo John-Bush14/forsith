@@ -41,6 +41,7 @@ pub struct InterlaceState {
     cur_scanline_bytes: usize,
     max_scanline_bytes: usize,
     scanline_padding: u8, // in bits
+    bpp: u8,              // stored bits per pixel
 }
 
 impl PngDecoder<'_> {
@@ -74,12 +75,7 @@ impl InterlaceState {
     }
 
     #[inline(always)]
-    pub fn scanline_passed(
-        &mut self,
-        scanlines: ScanlinePair<'_>,
-        bpp: u8,
-        dest: &mut OutputWriter<'_>,
-    ) {
+    pub fn scanline_passed(&mut self, scanlines: ScanlinePair<'_>, dest: &mut OutputWriter<'_>) {
         if !self.interlacing_enabled() {
             return;
         }
@@ -91,26 +87,21 @@ impl InterlaceState {
         }
 
         if self.cur_scanline >= self.dim.1 {
-            return self.next_adam7_pass(scanlines, bpp, dest);
+            return self.next_adam7_pass(scanlines, dest);
         }
 
         dest.advance(self.end_scanline_skip);
     }
 
-    fn next_adam7_pass(
-        &mut self,
-        scanlines: ScanlinePair<'_>,
-        bpp: u8,
-        dest: &mut OutputWriter<'_>,
-    ) {
+    fn next_adam7_pass(&mut self, scanlines: ScanlinePair<'_>, dest: &mut OutputWriter<'_>) {
         self.cur += 1;
 
         let pass = &PASSES[self.cur as usize];
         if pass.start.0 >= self.dim.0 || pass.start.1 >= self.dim.1 {
-            return self.scanline_passed(scanlines, bpp, dest);
+            return self.scanline_passed(scanlines, dest);
         }
 
-        self.update_state(pass, bpp, Some(scanlines));
+        self.update_state(pass, Some(scanlines));
         self.update_dest_state(dest, Some(pass));
     }
 
@@ -118,7 +109,7 @@ impl InterlaceState {
         self.cur_scanline_bytes - 1
     }
 
-    fn update_state(&mut self, pass: &InterlacePass, bpp: u8, scanlines: Option<ScanlinePair<'_>>) {
+    fn update_state(&mut self, pass: &InterlacePass, scanlines: Option<ScanlinePair<'_>>) {
         let width = (self.dim.0 - pass.start.0 - 1).div_euclid(pass.stride) + 1;
 
         self.cur_scanline = pass.start.1;
@@ -127,7 +118,7 @@ impl InterlaceState {
         self.end_scanline_skip =
             usize::from(pass.passed_scanlines) * self.dim.0 - width * pass.stride;
 
-        let (scanline_bytes, scanline_padding) = calculate_scanline_bytes(width, bpp);
+        let (scanline_bytes, scanline_padding) = calculate_scanline_bytes(width, self.bpp);
 
         if let Some(mut scanlines) = scanlines {
             let end = scanlines.both_scanlines().len();
@@ -152,10 +143,11 @@ impl InterlaceState {
             cur_scanline_bytes: max_scanline_bytes,
             max_scanline_bytes,
             scanline_padding,
+            bpp: format.bpp(),
         };
 
         if ihdr.interlace_method == 1 {
-            state.update_state(&PASSES[0], format.bpp(), None);
+            state.update_state(&PASSES[0], None);
         }
 
         state

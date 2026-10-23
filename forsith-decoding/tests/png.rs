@@ -9,8 +9,19 @@ use std::{fs::File, io::BufReader, path::PathBuf};
 
 include!("generated_png_tests.rs");
 
+#[test]
+fn test_decode_big() {
+    match test_image(
+        "/home/goppe-struyck/Documents/forsith/forsith-decoding/tests/big.png",
+        "/home/goppe-struyck/Documents/forsith/forsith-decoding/tests/big.json",
+    ) {
+        Ok(_) => (),
+        Err(err) => panic!("{err}"),
+    };
+}
+
 fn test_image(path: &str, solution_filepath: &str) -> Result<(), Box<dyn Error>> {
-    let test_file = File::open(path).unwrap();
+    let test_file = File::open(path).expect("Test image path doesn't exist");
 
     let id = PathBuf::from(path).file_name().unwrap().to_str().unwrap()[..3].to_string();
 
@@ -28,7 +39,9 @@ fn test_image(path: &str, solution_filepath: &str) -> Result<(), Box<dyn Error>>
         }
     };
 
-    if decoder.pixel_format() != PixelFormat::new(SampleType::U8, ChannelLayout::TruecolorAlpha) {
+    if decoder.pixel_format() != PixelFormat::new(SampleType::U8, ChannelLayout::TruecolorAlpha)
+        && !path.ends_with("big.png")
+    {
         return Ok(()); // skip tests that don't match the preffered format
     }
 

@@ -1,10 +1,7 @@
 use crate::{
     DecodingError::{self, InvalidChunk},
     buffers::CursorVec,
-    image::{
-        ChannelLayout, PngDecoder,
-        png::{MAX_STRIDE, parser::ChunkHeader},
-    },
+    image::{ChannelLayout, PngDecoder, png::parser::ChunkHeader},
 };
 use forsith_proc::{Deref, Index, IsVariant};
 use forsith_proc::{IntoNum, TryFromNum};
@@ -150,10 +147,9 @@ impl ChunkData for ZlibDataStream {
 
         std::mem::swap(&mut *decoder.compressed_data, data);
 
-        let max_scanline_bytes = decoder.max_scanline_bytes();
         decoder
             .decode
-            .open_deflate_stream(&mut **decoder.compressed_data, max_scanline_bytes)
+            .open_deflate_stream(&mut **decoder.compressed_data)
     }
 }
 

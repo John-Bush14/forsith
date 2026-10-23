@@ -69,7 +69,7 @@ impl CRC32 {
         let calculated_crc = !self;
 
         if calculated_crc != stored_crc {
-            return Err(DecodingError::CRCMismatch(calculated_crc, stored_crc));
+            return Err(DecodingError::CRCMismatch(stored_crc, calculated_crc));
         }
 
         Ok(())

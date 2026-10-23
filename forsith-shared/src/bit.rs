@@ -54,6 +54,28 @@ impl Iterator for Bitmask {
     }
 }
 
+impl<T: BitRead> BitRead for &mut T {
+    fn fill_bitbuf(&mut self) {
+        (**self).fill_bitbuf();
+    }
+
+    fn peek_bits(&mut self, n: u8) -> u64 {
+        (**self).peek_bits(n)
+    }
+
+    fn peek_bits_nobranch(&mut self, n: u8) -> u64 {
+        (**self).peek_bits_nobranch(n)
+    }
+
+    fn consume_bits(&mut self, n: u8) {
+        (**self).consume_bits(n);
+    }
+
+    fn remaining_bits(&self) -> u8 {
+        (**self).remaining_bits()
+    }
+}
+
 pub trait BitRead {
     fn fill_bitbuf(&mut self);
     fn peek_bits(&mut self, n: u8) -> u64;
@@ -75,6 +97,16 @@ pub trait BitRead {
         Self: Sized,
     {
         BitIterator { reader: self }
+    }
+}
+
+pub trait BitReadExt: BitRead + Read {
+    fn unconsume_bitbuf(&mut self);
+}
+
+impl BitReadExt for BitReader<CursorVec<u8>> {
+    fn unconsume_bitbuf(&mut self) {
+        self.unconsume_bitbuf();
     }
 }
 
@@ -136,6 +168,12 @@ pub struct BitReader<T: Read + Seek> {
     bit_buf: BitBuffer,
 }
 
+impl<T: Read + Seek> Read for BitReader<T> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        self.buffer.read(buf)
+    }
+}
+
 impl<T: Read + Seek> BitReader<T> {
     pub fn new(buffer: T) -> Self {
         Self {
@@ -147,7 +185,7 @@ impl<T: Read + Seek> BitReader<T> {
     /// # Panics
     /// Panics if `seek_relative` fails
     pub fn unconsume_bitbuf(&mut self) {
-        let bitbuf_bytes = self.bit_buf.bits_remaining().div_euclid(8);
+        let bitbuf_bytes = self.bit_buf.bits_remaining() / 8;
 
         self.buffer.seek_relative(-i64::from(bitbuf_bytes)).unwrap();
         self.bit_buf.consume(self.bit_buf.bits_remaining());

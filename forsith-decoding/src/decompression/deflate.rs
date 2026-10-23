@@ -1,6 +1,6 @@
 use crate::{DecodingError, bit::BitRead, decompression::HuffmanTree};
 use forsith_proc::{Deref, IsVariant};
-use forsith_shared::{buffers::CursorVec, const_for};
+use forsith_shared::{bit::BitReadExt, buffers::CursorVec, const_for};
 use std::io::Read;
 
 const CODE_LENGTH_ORDER: [u8; 19] = [
@@ -101,10 +101,10 @@ impl DeflateDecoder {
         &self.block
     }
 
-    pub fn next_block(&mut self, reader: &mut impl BitRead) -> Result<bool, DecodingError> {
+    pub fn next_block(&mut self, reader: &mut impl BitRead) -> Result<(), DecodingError> {
         if self.block.last {
             self.block.ty = BlockType::Finished;
-            return Ok(true);
+            return Ok(());
         }
 
         self.block.load_block(reader)?;
@@ -113,7 +113,7 @@ impl DeflateDecoder {
             self.load_trees(reader)?;
         }
 
-        Ok(false)
+        Ok(())
     }
 
     #[allow(clippy::cast_possible_truncation)]
@@ -161,6 +161,85 @@ impl DeflateDecoder {
         self.distance_tree.load(&all_codelengths[hlit..])?;
 
         Ok(())
+    }
+
+    pub(crate) fn decode_untill_full(
+        &mut self,
+        src: &mut impl BitReadExt,
+        buf: &mut CursorVec<u8>,
+        mut drain: impl FnMut(&mut CursorVec<u8>) -> Result<bool, DecodingError>,
+    ) -> Result<(), DecodingError> {
+        while !self.decode_chunk(src, buf, &mut drain)? {}
+
+        Ok(())
+    }
+
+    fn decode_chunk(
+        &mut self,
+        src: &mut impl BitReadExt,
+        buf: &mut CursorVec<u8>,
+        drain: &mut impl FnMut(&mut CursorVec<u8>) -> Result<bool, DecodingError>,
+    ) -> Result<bool, DecodingError> {
+        match self.cur_block().ty {
+            BlockType::Uncompressed(len) => self.read_uncompressed_chunk(len, src, buf, drain),
+            BlockType::CompressedFixed => self.read_compressed_chunk::<true>(src, buf, drain),
+            BlockType::CompressedDynamic => self.read_compressed_chunk::<false>(src, buf, drain),
+            BlockType::Finished => Ok(true),
+        }
+    }
+
+    #[cold]
+    fn read_uncompressed_chunk(
+        &mut self,
+        len: u16,
+        src: &mut impl BitReadExt,
+        buf: &mut CursorVec<u8>,
+        drain: &mut impl FnMut(&mut CursorVec<u8>) -> Result<bool, DecodingError>,
+    ) -> Result<bool, DecodingError> {
+        src.unconsume_bitbuf();
+
+        let mut decoded_bytes = 0;
+
+        loop {
+            let chunk_len = (len - decoded_bytes).min(buf.remaining().saturating_truncate());
+
+            buf.read_from(src, chunk_len as usize)?;
+
+            decoded_bytes += chunk_len;
+
+            if decoded_bytes >= len || !drain(buf)? {
+                break;
+            }
+        }
+
+        if len == decoded_bytes {
+            self.next_block(src)?;
+            Ok(false)
+        } else {
+            self.set_uncompressed_len(len - decoded_bytes);
+            Ok(true)
+        }
+    }
+
+    #[cold]
+    fn read_compressed_chunk<const STATIC: bool>(
+        &mut self,
+        src: &mut impl BitReadExt,
+        buf: &mut CursorVec<u8>,
+        drain: &mut impl FnMut(&mut CursorVec<u8>) -> Result<bool, DecodingError>,
+    ) -> Result<bool, DecodingError> {
+        loop {
+            let buffer_full = buf.cursor() + MAX_BACKREF_LEN >= buf.capacity();
+
+            if core::hint::unlikely(buffer_full) && !drain(buf)? {
+                return Ok(true);
+            }
+
+            if self.decode_compressed::<STATIC>(src, buf) {
+                self.next_block(src)?;
+                return Ok(false);
+            }
+        }
     }
 
     #[inline(always)]
@@ -230,6 +309,10 @@ impl DeflateDecoder {
         }
 
         Ok(1 << (compression_info + 8))
+    }
+
+    pub const fn is_finished(&self) -> bool {
+        matches!(self.block.ty, BlockType::Finished)
     }
 }
 
