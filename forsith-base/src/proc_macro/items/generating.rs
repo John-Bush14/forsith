@@ -1,20 +1,16 @@
 use crate::{
     proc_macro::{
-        TokenStream,
-        items::{FunctionDefinition, Indirection, ItemDefinition, TypeAliasDefinition, Visibility},
-    },
-    quote,
+        TokenStream, items::{FunctionDefinition, Indirection, ItemDefinition, TypeAliasDefinition, Visibility}, quote::ToTokens,
+    }, quote,
 };
 
-impl Visibility {
-    /// produces the complete visibility definition for an item, e.g. `pub` or `pub(crate)`.
-    #[must_use]
-    pub fn definition(&self) -> TokenStream {
-        match self {
-            Self::Public => quote! { pub },
-            Self::SpecializedPublic(vis) => quote! { pub (@ vis.clone()) },
-            Self::Private => TokenStream::new(),
-        }
+impl ToTokens for &Visibility {
+    fn to_tokens(self, ts: &mut TokenStream) {
+        ts.extend(match self {
+            Visibility::Public => quote! { pub },
+            Visibility::SpecializedPublic(vis) => quote! { pub (@ vis) },
+            Visibility::Private => TokenStream::new(),
+        });
     }
 }
 
@@ -56,15 +52,13 @@ impl Indirection {
     }
 }
 
-impl TypeAliasDefinition {
-    /// produces the complete type alias definition, e.g. `type MyType<T> = Vec<T>;`.
-    #[must_use]
-    pub fn definition(&self) -> TokenStream {
+impl ToTokens for &TypeAliasDefinition {
+    fn to_tokens(self, ts: &mut TokenStream) {
         let generics = self.generics();
 
-        quote! {
-            (@ self.visibility.definition()) type (@ self.name().clone()) (@ generics.param_definition()) (@ generics.where_clause_definition()) = (@ self.ty.clone());
-        }
+        ts.extend(quote! {
+            (@ &self.visibility) type (@ self.name()) (@ generics.param_definition()) (@ generics.where_clause_definition()) = (@ &self.ty);
+        });
     }
 }
 
@@ -78,31 +72,31 @@ pub fn impl_item(
     let r#trait = r#trait.map_or_default(|t| quote! { (@ t) for });
 
     quote! {
-        impl (@ generics.param_definition()) (@ generics.where_clause_definition()) (@ r#trait) (@ item.name().clone()) (@ generics.param_usage(None)) {
+        impl (@ generics.param_definition()) (@ generics.where_clause_definition()) (@ r#trait) (@ item.name()) (@ generics.param_usage(None)) {
             (@ body)
         }
     }
 }
 
-impl FunctionDefinition {
-    /// produces the complete function definition, e.g. `fn my_function<T>(arg: T) -> T where T: ... { ... }`.
-    #[must_use]
-    pub fn definition(&self) -> TokenStream {
-        quote! {
-            (@ self.visibility.definition()) fn (@ self.name.clone()) (@ self.generics.param_definition()) (@ self.params_def()) (@ self.return_def()) (@ self.generics.where_clause_definition()) (@ self.body_def())
-        }
+impl ToTokens for &FunctionDefinition {
+    fn to_tokens(self, ts: &mut TokenStream) {
+        ts.extend(quote! {
+            (@ &self.visibility) fn (@ &self.name) (@ self.generics.param_definition()) (@ self.params_def()) (@ self.return_def()) (@ self.generics.where_clause_definition()) (@ self.body_def())
+        });
     }
+}
 
+impl FunctionDefinition {
     fn return_def(&self) -> TokenStream {
         self.ret_ty
             .as_ref()
-            .map_or_else(TokenStream::new, |ret_ty| quote! { -> (@ ret_ty.clone()) })
+            .map_or_else(TokenStream::new, |ret_ty| quote! { -> (@ ret_ty) })
     }
 
     fn body_def(&self) -> TokenStream {
         self.body
             .as_ref()
-            .map_or_else(|| quote! {;}, |body| quote! {{ (@ body.clone()) }})
+            .map_or_else(|| quote! {;}, |body| quote! {{ (@ body) }})
     }
 
     fn params_def(&self) -> TokenStream {
@@ -110,7 +104,7 @@ impl FunctionDefinition {
             .params
             .iter()
             .map(|param| {
-                quote! { (@ param.pattern.clone()): (@ param.ty.clone()), }
+                quote! { (@ &param.pattern): (@ &param.ty), }
             })
             .collect::<TokenStream>();
 
@@ -132,7 +126,7 @@ impl FunctionDefinition {
     #[must_use]
     pub fn signature(&self) -> TokenStream {
         quote! {
-            fn (@ self.name.clone()) (@ self.generics.param_definition()) (@ self.params_def()) (@ self.return_def())
+            fn (@ &self.name) (@ self.generics.param_definition()) (@ self.params_def()) (@ self.return_def())
         }
     }
 

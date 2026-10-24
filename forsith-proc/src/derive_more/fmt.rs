@@ -82,14 +82,14 @@ fn derive_fmt_body_enum(enum_def: &EnumDefinition, attribute: &Ident) -> TokenSt
                     || todo!(),
                     |attr| {
                         attr.args
-                            .clone()
+                            .as_ref()
                             .expect("fmt attribute must have arguments")
-                            .take_stream()
+                            .stream()
                     },
                 );
 
             quote! {
-                Self::(@ variant_ident.clone()) (@ variant.unpack_pattern()) => format!((@ attr)),
+                Self::(@ variant_ident) (@ variant.unpack_pattern()) => format!((@ attr)),
             }
         })
         .collect::<TokenStream>();

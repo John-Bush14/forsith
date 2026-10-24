@@ -33,7 +33,7 @@ pub fn derive_is_variant(input: TokenStream) -> TokenStream {
             #[doc = concat!("Returns `true` if the enum is the variant `", stringify!(#variant_ident), "`.")]
             #[inline]
             pub const fn (@ func_name)(&self) -> bool {
-                matches!(self, Self::(@ variant.ident.clone()){..})
+                matches!(self, Self::(@ &variant.ident){..})
             }
         )
     }).collect();
@@ -75,9 +75,9 @@ pub fn handle_from_attributes_enum(enum_def: &EnumDefinition) -> TokenStream {
             let ty = &field.ty;
 
             Some(quote! {
-                (@ impl_item(enum_def, Some(quote!(core::convert::From<(@ ty.clone())>)), quote!(
-                    fn from(value: (@ ty.clone())) -> Self {
-                        Self::(@ variant.ident.clone())(value)
+                (@ impl_item(enum_def, Some(quote!(core::convert::From<(@ ty)>)), quote!(
+                    fn from(value: (@ ty)) -> Self {
+                        Self::(@ &variant.ident)(value)
                     }
                 )))
             })

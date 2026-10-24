@@ -87,7 +87,7 @@ impl WhereClause {
     #[must_use]
     pub fn definition(&self) -> TokenStream {
         quote! {
-            (@ self.0.clone()) : (@ self.1.clone())
+            (@ &self.0) : (@ &self.1)
         }
     }
 }
@@ -240,7 +240,7 @@ impl GenericParam {
                 TokenTree::Ident(ident.clone()),
             ]),
             Self::Type(ident, bounds) => quote! {
-                (@ ident.clone()) : (@ bounds.clone())
+                (@ ident) : (@ bounds)
             },
         }
     }
@@ -252,10 +252,10 @@ impl GenericParam {
             Self::Lifetime(ident) => {
                 let mut tt =
                     TokenStream::from_iter([TokenTree::Punct(Punct::new(PunctChar::Qoute, true))]);
-                tt.extend(expr.unwrap_or_else(|| quote! {(@ ident.clone())}));
+                tt.extend(expr.unwrap_or_else(|| quote! {(@ ident)}));
                 tt
             }
-            Self::Type(ident, _) => expr.unwrap_or_else(|| quote! {(@ ident.clone())}),
+            Self::Type(ident, _) => expr.unwrap_or_else(|| quote! {(@ ident)}),
         }
     }
 }

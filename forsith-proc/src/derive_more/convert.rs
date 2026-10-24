@@ -77,7 +77,7 @@ pub fn generate_into_discriminant_match_arms(
             if result {
                 discriminant = quote!(Ok((@ discriminant)));
             }
-            quote!((@ variant.ident.clone()) => (@ discriminant),)
+            quote!((@ &variant.ident) => (@ discriminant),)
         })
         .collect::<TokenStream>()
 }
@@ -89,8 +89,8 @@ pub fn generate_from_discriminant_match_arms(
     variants
         .iter()
         .map(|variant| {
-            let discriminant = variant.discriminant.clone().unwrap();
-            let mut variant = quote!(Self::(@ variant.ident.clone()));
+            let discriminant = variant.discriminant.as_ref().unwrap();
+            let mut variant = quote!(Self::(@ &variant.ident));
             if result {
                 variant = quote!(Ok((@ variant)));
             }
@@ -118,7 +118,7 @@ pub fn derive_into_num(input: TokenStream) -> TokenStream {
         &enum_def,
         quote!((@ repr)),
         quote! {
-            use (@ enum_def.name.clone())::*;
+            use (@ &enum_def.name)::*;
             match value {
                 (@ match_arms)
             }
@@ -133,7 +133,7 @@ pub fn impl_from_def_for(
     body: TokenStream,
     fallible: bool,
 ) -> TokenStream {
-    let def_type = quote!((@ def.name().clone())<(@ def.generics().inner_param_usage(None))>);
+    let def_type = quote!((@ def.name())<(@ def.generics().inner_param_usage(None))>);
 
     let (trait_, fn_, ret) = if fallible {
         (
@@ -146,7 +146,7 @@ pub fn impl_from_def_for(
     };
 
     quote! {
-        impl(@ def.generics().param_definition()) (@ def.generics().where_clause_definition()) (@ trait_)<(@ def_type.clone())> for (@ target) {
+        impl(@ def.generics().param_definition()) (@ def.generics().where_clause_definition()) (@ trait_)<(@ &def_type)> for (@ target) {
             fn (@ fn_)(value: (@ def_type)) -> (@ ret) {
                 (@ body)
             }
@@ -168,7 +168,7 @@ pub fn derive_try_into_num(input: TokenStream) -> TokenStream {
         &enum_def,
         quote!((@ repr)),
         quote! {
-            use (@ enum_def.name.clone())::*;
+            use (@ &enum_def.name)::*;
             match value {
                 (@ match_arms)
                 _ => Err(()),
@@ -196,12 +196,12 @@ pub fn derive_from_num(input: TokenStream) -> TokenStream {
 
     impl_item(
         &enum_def,
-        Some(quote!(std::convert::From<(@ repr.clone())>)),
+        Some(quote!(std::convert::From<(@ &repr)>)),
         quote!(
             fn from(value: (@ repr)) -> Self {
                 match value {
                     (@ match_arms)
-                    _ => Self::(@ wildcard.ident.clone())
+                    _ => Self::(@ &wildcard.ident)
                 }
             }
         ),
@@ -220,7 +220,7 @@ pub fn derive_try_from_num(input: TokenStream) -> TokenStream {
 
     impl_item(
         &enum_def,
-        Some(quote!(std::convert::TryFrom<(@ repr.clone())>)),
+        Some(quote!(std::convert::TryFrom<(@ &repr)>)),
         quote!(
             type Error = ();
 

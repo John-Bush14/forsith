@@ -61,7 +61,7 @@ pub fn derive_deref(input: TokenStream) -> TokenStream {
             struct_def,
             Some(quote!(std::ops::Deref)),
             quote!(
-                type Target = (@ deref_field.ty.clone());
+                type Target = (@ deref_field.ty);
 
                 fn deref(&self) -> &Self::Target {
                     &self.(@ deref_field.name)
@@ -91,7 +91,7 @@ pub fn derive_index(input: TokenStream) -> TokenStream {
             struct_def,
             Some(quote!(std::ops::Index<usize>)),
             quote!(
-                type Output = <(@ index_field.ty.clone()) as std::ops::Index<usize>>::Output;
+                type Output = <(@ index_field.ty) as std::ops::Index<usize>>::Output;
 
                 fn index(&self, index: usize) -> &Self::Output {
                     &self.(@ index_field.name)[index]
@@ -126,7 +126,7 @@ pub fn derive_not(input: TokenStream) -> TokenStream {
                 #[allow(clippy::needless_update)]
                 fn not(self) -> Self::Output {
                     Self {
-                        (@ not_field.name.clone()): !self.(@ not_field.name),
+                        (@ &not_field.name): !self.(@ not_field.name),
                         ..self
                     }
                 }
