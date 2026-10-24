@@ -1,7 +1,10 @@
 use crate::{
     proc_macro::{
-        TokenStream, items::{FunctionDefinition, Indirection, ItemDefinition, TypeAliasDefinition, Visibility}, quote::ToTokens,
-    }, quote,
+        TokenStream,
+        items::{FunctionDefinition, Indirection, ItemDefinition, TypeAliasDefinition, Visibility},
+        quote::ToTokens,
+    },
+    quote,
 };
 
 impl ToTokens for &Visibility {

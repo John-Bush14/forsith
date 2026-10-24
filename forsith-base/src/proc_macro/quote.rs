@@ -74,7 +74,10 @@ impl_to_tokens_for_ref!(Ident, Literal, Punct, Group, TokenTree, TokenStream);
 pub trait ToTokens {
     fn to_tokens(self, ts: &mut TokenStream);
 
-    fn to_token_stream(self) -> TokenStream where Self: Sized {
+    fn to_token_stream(self) -> TokenStream
+    where
+        Self: Sized,
+    {
         let mut ts = TokenStream::new();
         self.to_tokens(&mut ts);
         ts
