@@ -114,7 +114,7 @@ impl<K, V> Default for Btree<K, V> {
     }
 }
 
-struct UnkownNode<K, V>(NonNull<LeafNode<K, V>>, usize);
+struct UnkownNode<K, V>(NonNull<LeafNode<K, V>>);
 impl<K, V> UnkownNode<K, V> {
     const fn as_leaf(&self) -> &LeafNode<K, V> {
         unsafe { self.0.as_ref() }
@@ -164,18 +164,14 @@ impl<K, V> UnkownNode<K, V> {
     }
 
     fn from_leaf(node: LeafNode<K, V>) -> Self {
-        Self(Box::into_non_null(Box::new(node)), 0)
+        Self(Box::into_non_null(Box::new(node)))
     }
 
     fn from_internal(node: InternalNode<K, V>) -> Self {
-        unsafe {Self(NonNull::new_unchecked(Box::into_raw(Box::new(node)).cast::<LeafNode<K, V>>()), 0)}
+        unsafe {Self(NonNull::new_unchecked(Box::into_raw(Box::new(node)).cast::<LeafNode<K, V>>()))}
     }
 
     fn drop(&mut self, depth: u8) {
-        assert_eq!(self.1, 0, "Attempted to drop a node that has already been dropped");
-
-        self.1 += 1;
-
         if depth == 0 {
             self.as_leaf_mut().drop_keyvals();
             unsafe {
