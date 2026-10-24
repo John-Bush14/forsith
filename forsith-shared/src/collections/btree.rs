@@ -56,7 +56,6 @@ impl<K, V> Btree<K, V> {
             let parent = unsafe {NonNull::new_unchecked(&raw mut *self.root)};
 
             if self.depth == 0 {
-                println!("splitting root as leaf");
                 let mut right = self.root.node.split_right();
                 let middle = self.root.node.remove_keyval(MIN_KEYS);
                 let mut left = replace(&mut self.root.node, LeafNode {
@@ -71,7 +70,6 @@ impl<K, V> Btree<K, V> {
                 self.root.children[0] = MaybeUninit::new(UnkownNode::from_leaf(left));
                 self.root.insert_keyvalchild(0, middle.0, middle.1, UnkownNode::from_leaf(right));
             } else {
-                println!("splitting root as internal");
                 let mut right = self.root.split_right();
                 let middle = self.root.node.remove_keyval(MIN_KEYS);
                 let mut left = replace(&mut *self.root, InternalNode {
@@ -469,7 +467,28 @@ mod btree_tests {
     }
 
     #[test]
-    fn test_btree_inser_and_get_random() {
+    fn test_empty_btree_get() {
+        let btree: Btree<u64, u64> = Btree::new();
+        assert_eq!(btree.get(&1), None);
+    }
+
+    #[test]
+    fn test_btree_drop_safety() {
+        let mut btree = Btree::new();
+
+        for i in 0..100 {
+            btree.insert(i.to_string(), (i*10).to_string());
+        }
+
+        for i in 0..100 {
+            assert_eq!(btree.get(&i.to_string()), Some(&(i*10).to_string()));
+        }
+
+        drop(btree);
+    }
+
+    #[test]
+    fn test_btree_insert_and_get_random() {
         let mut btree = Btree::new();
 
         let keys: Vec<u64> = (0..100).map(|_| SimpleRng::random()).collect();
