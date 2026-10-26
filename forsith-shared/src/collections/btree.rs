@@ -68,7 +68,6 @@ impl<K, V> Btree<K, V> {
             }
             new_root.dealloc(0);
         } else {
-            new_root.parent = None;
             self.root.dealloc(self.depth);
             self.root = new_root;
         }
@@ -239,14 +238,10 @@ impl<K, V> UnkownNode<K, V> {
     where
         K: Ord,
     {
-        let (mut left, middle, mut right) = match depth {
+        let (left, middle, right) = match depth {
             0 => self.as_leaf_mut().split_as_root(),
             _ => unsafe { self.assume_internal_mut() }.split_as_root(),
         };
-
-        let parent = unsafe { NonNull::new_unchecked(&raw mut *self.assume_internal_mut()) };
-        left.parent = Some(parent);
-        right.parent = Some(parent);
 
         let root = unsafe { self.assume_internal_mut() };
         root.node.len = 0;
@@ -266,7 +261,6 @@ impl<K, V> UnkownNode<K, V> {
 }
 
 struct LeafNode<K, V> {
-    parent: Option<NonNull<InternalNode<K, V>>>,
     keys: [MaybeUninit<K>; MAX_KEYS as usize],
     values: [MaybeUninit<V>; MAX_KEYS as usize],
     len: u8,
@@ -275,7 +269,6 @@ struct LeafNode<K, V> {
 impl<K, V> Default for LeafNode<K, V> {
     fn default() -> Self {
         Self {
-            parent: None,
             keys: unsafe { MaybeUninit::uninit().assume_init() },
             values: unsafe { MaybeUninit::uninit().assume_init() },
             len: 0,
@@ -286,7 +279,6 @@ impl<K, V> Default for LeafNode<K, V> {
 impl<K: Debug, V: Debug> Debug for LeafNode<K, V> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("LeafNode")
-            .field("parent", &self.parent)
             .field("len", &self.len)
             .field(
                 "keys",
@@ -357,7 +349,6 @@ impl<K, V> LeafNode<K, V> {
 
     fn split_right(&mut self) -> Self {
         let mut right = Self {
-            parent: self.parent,
             keys: unsafe { MaybeUninit::uninit().assume_init() },
             values: unsafe { MaybeUninit::uninit().assume_init() },
             len: MIN_KEYS,
