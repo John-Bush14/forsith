@@ -1,6 +1,5 @@
 use core::{
-    fmt::{Debug, Display},
-    ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Rem, Shl, Shr, Sub},
+    fmt::{Debug, Display}, ops::{Add, AddAssign, BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Div, DivAssign, Mul, MulAssign, Rem, RemAssign, Shl, ShlAssign, Shr, ShrAssign, Sub, SubAssign},
 };
 
 pub trait ArithmeticOperations:
@@ -12,6 +11,11 @@ pub trait ArithmeticOperations:
     + Div<Output = Self>
     + Rem<Output = Self>
     + Mul<Output = Self>
+    + AddAssign
+    + SubAssign
+    + DivAssign
+    + RemAssign
+    + MulAssign
 {
 }
 
@@ -22,6 +26,11 @@ pub trait BitOperations:
     + BitXor<Output = Self>
     + Shl<usize, Output = Self>
     + Shr<usize, Output = Self>
+    + BitAndAssign
+    + BitOrAssign
+    + BitXorAssign
+    + ShlAssign
+    + ShrAssign
 {
 }
 
