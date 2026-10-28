@@ -11,10 +11,34 @@ use core::iter::Peekable;
 pub enum GenericParam {
     Lifetime(Ident),
     Type(Ident, TokenStream),
+    Const(Ident, TokenStream),
 }
 
 impl GenericParam {
-    fn parse_type(stream: &mut Peekable<impl Iterator<Item = TokenTree>>, ident: Ident) -> Self {
+    fn parse_const(
+        stream: &mut Peekable<impl Iterator<Item = TokenTree>>,
+    ) -> Self {
+        Self::Const(
+            stream
+                .next()
+                .expect("Expected const generic identifier after `const`")
+                .ident()
+                .expect("Expected identifier after `const`"),
+            {
+                assert!(stream.next().is_some_and(|tt| tt.is_punct(PunctChar::Colon)), "Expected `:` after const generic identifier");
+                parse_type_until(
+                    stream,
+                    |tt| tt.is_punct(PunctChar::Comma) || tt.is_punct(PunctChar::GreaterThan),
+                    false,
+                )
+            }
+        )
+    }
+
+    fn parse_type(
+        stream: &mut Peekable<impl Iterator<Item = TokenTree>>,
+        ident: Ident,
+    ) -> Self {
         Self::Type(
             ident,
             match stream.peek() {
@@ -112,7 +136,11 @@ impl GenericsDefinition {
         while let token = ts.next().expect("Generic param list ended unexpectedly") {
             match token {
                 TokenTree::Ident(ident) => {
-                    params.push(GenericParam::parse_type(ts, ident));
+                    if &*ident == "const" {
+                        params.push(GenericParam::parse_const(ts));
+                    } else {
+                        params.push(GenericParam::parse_type(ts, ident));
+                    }
                 }
                 TokenTree::Punct(punct) if punct.char() == PunctChar::Qoute => {
                     params.push(GenericParam::parse_lifetime(ts));
@@ -242,6 +270,9 @@ impl GenericParam {
             Self::Type(ident, bounds) => quote! {
                 (@ ident) : (@ bounds)
             },
+            Self::Const(ident, ty) => quote! {
+                const (@ ident) : (@ ty)
+            }
         }
     }
 
@@ -256,6 +287,7 @@ impl GenericParam {
                 tt
             }
             Self::Type(ident, _) => expr.unwrap_or_else(|| quote! {(@ ident)}),
+            Self::Const(ident, _) => expr.unwrap_or_else(|| quote! {(@ ident)}),
         }
     }
 }
