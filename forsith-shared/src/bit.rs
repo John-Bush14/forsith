@@ -1,4 +1,4 @@
-use crate::{buffers::CursorVec, int::Int};
+use crate::{buffers::CursorVec, int::{UInt}};
 use forsith_proc::{Deref, DerefMut};
 use std::io::{Read, Seek};
 
@@ -147,15 +147,8 @@ impl BitBuffer {
 
     #[inline(always)]
     #[allow(clippy::missing_panics_doc)] // constant assertion, will never (or always) panic
-    pub fn push<T: Int>(&mut self, value: T) {
-        assert!(
-            T::MIN == 0,
-            "BitBuffer.push should only be called with unsigned ints"
-        );
-
-        let value: u64 = value.try_into().unwrap_or_else(|_| unreachable!());
-
-        self.buf |= value << self.bits_remaining as usize;
+    pub fn push<T: UInt>(&mut self, value: T) {
+        self.buf |= value.into() << self.bits_remaining as usize;
         self.bits_remaining += T::BIT_DEPTH;
     }
 }

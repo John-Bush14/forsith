@@ -1,13 +1,44 @@
-use core::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Rem, Shl, Shr, Sub};
+use core::{
+    fmt::{Debug, Display},
+    ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Rem, Shl, Shr, Sub},
+};
 
-macro_rules! int_types {
-    ($($num:ty),+) => {
-        pub trait Int: Sized + Copy + Default + PartialEq + Eq + core::fmt::Debug + From<bool> $( + TryFrom<$num> ) +
-        + BitAnd<Output=Self> + BitOr<Output=Self> + BitXor<Output=Self> + Shl<usize, Output=Self> + Rem<Output=Self>
-        + Shr<usize, Output=Self> + Add<Output=Self> + Sub<Output=Self> + Div<Output=Self> + Mul<Output=Self> + Into<i64>
-        + TryFrom<i64> + TryFrom<u64> + TryInto<u64> + TryInto<i64>
+pub trait ArithmeticOperations:
+    PartialEq
+    + PartialOrd
+    + From<bool>
+    + Add<Output = Self>
+    + Sub<Output = Self>
+    + Div<Output = Self>
+    + Rem<Output = Self>
+    + Mul<Output = Self>
+{
+}
+
+pub trait BitOperations:
+    From<bool>
+    + BitAnd<Output = Self>
+    + BitOr<Output = Self>
+    + BitXor<Output = Self>
+    + Shl<usize, Output = Self>
+    + Shr<usize, Output = Self>
+{
+}
+
+pub trait UInt: Int + From<u8> + Into<u64> {}
+pub trait SInt: Int + From<i8> + Into<i64> {}
+
+macro_rules! num_types {
+    (unsigned: [$($unum:ty),+], signed: [$($snum:ty),+]) => {
+        pub trait Int:
+            ArithmeticOperations
+            + BitOperations
+            + Debug
+            + Display
+            + Copy
+            $(+ TryFrom<$snum> + TryInto<$snum>)+
+            $(+ TryFrom<$unum> + TryInto<$unum>)+
         {
-            fn iterate_bytes_be(slice: &[u8]) -> impl Iterator<Item=Self>;
             const BYTE_DEPTH: u8;
             const BIT_DEPTH: u8;
             const MAX: u64;
@@ -16,20 +47,36 @@ macro_rules! int_types {
         }
 
         $(
-        #[allow(clippy::cast_possible_truncation)]
-        impl Int for $num {
-            const BYTE_DEPTH: u8 = core::mem::size_of::<Self>() as u8;
-            const BIT_DEPTH: u8 = Self::BYTE_DEPTH * 8;
-            const MAX: u64 = Self::MAX as _;
-            const MIN: i64 = Self::MIN as _;
-            const SIGNED: bool = <$num>::MIN != 0;
-            #[inline(always)]
-            fn iterate_bytes_be(slice: &[u8]) -> impl Iterator<Item=Self> {
-                slice.chunks_exact(Self::BYTE_DEPTH as usize).map(|b| Self::from_be_bytes(b.try_into().unwrap()))
+            impl ArithmeticOperations for $unum {}
+            impl BitOperations for $unum {}
+            #[allow(clippy::cast_possible_truncation)]
+            impl Int for $unum {
+                const BYTE_DEPTH: u8 = core::mem::size_of::<$unum>() as u8;
+                const BIT_DEPTH: u8 = Self::BYTE_DEPTH * 8;
+                const MAX: u64 = <$unum>::MAX as u64;
+                const MIN: i64 = 0;
+                const SIGNED: bool = false;
             }
-        }
+            impl UInt for $unum {}
+        )+
+        $(
+            impl ArithmeticOperations for $snum {}
+            impl BitOperations for $snum {}
+            #[allow(clippy::cast_possible_truncation)]
+            impl Int for $snum {
+                const BYTE_DEPTH: u8 = core::mem::size_of::<$snum>() as u8;
+                const BIT_DEPTH: u8 = Self::BYTE_DEPTH * 8;
+                const MAX: u64 = <$snum>::MAX as u64;
+                const MIN: i64 = <$snum>::MIN as i64;
+                const SIGNED: bool = true;
+            }
+            impl SInt for $snum {}
         )+
     };
+
 }
 
-int_types!(u32, u16, u8, i8, i16, i32);
+num_types!(
+    unsigned: [u8, u16, u32, u64],
+    signed: [i8, i16, i32, i64]
+);
