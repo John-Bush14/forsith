@@ -4,6 +4,8 @@ use core::{
     ptr::NonNull,
 };
 
+use crate::collections::inline::InlineArray;
+
 const MAX_KEYS: u8 = 11;
 const MIN_KEYS: u8 = MAX_KEYS / 2;
 const MIDDLE: u8 = MIN_KEYS + 1;
@@ -260,8 +262,8 @@ impl<K, V> UnkownNode<K, V> {
 }
 
 struct Entries<K, V> {
-    keys: [MaybeUninit<K>; MAX_KEYS as usize],
-    values: [MaybeUninit<V>; MAX_KEYS as usize],
+    keys: InlineArray<K, { MAX_KEYS as usize }>,
+    values: InlineArray<V, { MAX_KEYS as usize }>,
     len: u8,
 }
 
@@ -285,7 +287,7 @@ impl<K, V> Entries<K, V> {
         }
     }
 
-    const fn get(&self, idx: u8) -> Option<(&K, &V)> {
+    fn get(&self, idx: u8) -> Option<(&K, &V)> {
         if idx >= self.len {
             return None;
         }
@@ -296,7 +298,7 @@ impl<K, V> Entries<K, V> {
         ))
     }
 
-    const fn get_mut(&mut self, idx: u8) -> Option<(&mut K, &mut V)> {
+    fn get_mut(&mut self, idx: u8) -> Option<(&mut K, &mut V)> {
         if idx >= self.len {
             return None;
         }
@@ -329,7 +331,7 @@ impl<K, V> Entries<K, V> {
             .map(|k| unsafe { k.assume_init_ref() })
     }
 
-    const fn get_val(&self, idx: u8) -> Option<&V> {
+    fn get_val(&self, idx: u8) -> Option<&V> {
         if idx >= self.len {
             return None;
         }
@@ -359,7 +361,7 @@ impl<K, V> Entries<K, V> {
         }
     }
 
-    const fn get_val_mut(&mut self, idx: u8) -> Option<&mut V> {
+    fn get_val_mut(&mut self, idx: u8) -> Option<&mut V> {
         if idx >= self.len {
             return None;
         }
@@ -381,7 +383,7 @@ impl<K, V> Entries<K, V> {
         self.len += 1;
     }
 
-    const fn allocate_slice(&mut self, idx: u8, len: u8) {
+    fn allocate_slice(&mut self, idx: u8, len: u8) {
         let keys_src = unsafe { self.keys.as_ptr().add(idx as usize) };
         let keys_dst = unsafe { self.keys.as_mut_ptr().add((idx + len) as usize) };
         let values_src = unsafe { self.values.as_ptr().add(idx as usize) };

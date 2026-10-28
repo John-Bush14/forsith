@@ -1,5 +1,9 @@
 use core::{
-    fmt::{Debug, Display}, ops::{Add, AddAssign, BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Div, DivAssign, Mul, MulAssign, Rem, RemAssign, Shl, ShlAssign, Shr, ShrAssign, Sub, SubAssign},
+    fmt::{Debug, Display},
+    ops::{
+        Add, AddAssign, BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Div,
+        DivAssign, Mul, MulAssign, Rem, RemAssign, Shl, ShlAssign, Shr, ShrAssign, Sub, SubAssign,
+    },
 };
 
 pub trait ArithmeticOperations:
@@ -61,6 +65,8 @@ macro_rules! num_types {
             fn as_u64(self) -> u64 {
                 self.try_into().unwrap_or_else(|_| panic!("Value {} cannot be converted to u64", self))
             }
+
+            fn checked_sub(self, rhs: Self) -> Option<Self>;
         }
 
         $(
@@ -73,6 +79,9 @@ macro_rules! num_types {
                 const MAX: u64 = <$unum>::MAX as u64;
                 const MIN: i64 = 0;
                 const SIGNED: bool = false;
+                fn checked_sub(self, rhs: Self) -> Option<Self> {
+                    self.checked_sub(rhs)
+                }
             }
             impl UInt for $unum {}
         )+
@@ -86,6 +95,9 @@ macro_rules! num_types {
                 const MAX: u64 = <$snum>::MAX as u64;
                 const MIN: i64 = <$snum>::MIN as i64;
                 const SIGNED: bool = true;
+                fn checked_sub(self, rhs: Self) -> Option<Self> {
+                    self.checked_sub(rhs)
+                }
             }
             impl SInt for $snum {}
         )+

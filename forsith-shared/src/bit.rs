@@ -1,4 +1,4 @@
-use crate::{buffers::CursorVec, int::{UInt}};
+use crate::{buffers::CursorVec, int::UInt};
 use forsith_proc::{Deref, DerefMut};
 use std::io::{Read, Seek};
 

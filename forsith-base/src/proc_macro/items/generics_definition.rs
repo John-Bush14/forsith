@@ -15,9 +15,7 @@ pub enum GenericParam {
 }
 
 impl GenericParam {
-    fn parse_const(
-        stream: &mut Peekable<impl Iterator<Item = TokenTree>>,
-    ) -> Self {
+    fn parse_const(stream: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Self {
         Self::Const(
             stream
                 .next()
@@ -25,20 +23,22 @@ impl GenericParam {
                 .ident()
                 .expect("Expected identifier after `const`"),
             {
-                assert!(stream.next().is_some_and(|tt| tt.is_punct(PunctChar::Colon)), "Expected `:` after const generic identifier");
+                assert!(
+                    stream
+                        .next()
+                        .is_some_and(|tt| tt.is_punct(PunctChar::Colon)),
+                    "Expected `:` after const generic identifier"
+                );
                 parse_type_until(
                     stream,
                     |tt| tt.is_punct(PunctChar::Comma) || tt.is_punct(PunctChar::GreaterThan),
                     false,
                 )
-            }
+            },
         )
     }
 
-    fn parse_type(
-        stream: &mut Peekable<impl Iterator<Item = TokenTree>>,
-        ident: Ident,
-    ) -> Self {
+    fn parse_type(stream: &mut Peekable<impl Iterator<Item = TokenTree>>, ident: Ident) -> Self {
         Self::Type(
             ident,
             match stream.peek() {
@@ -272,7 +272,7 @@ impl GenericParam {
             },
             Self::Const(ident, ty) => quote! {
                 const (@ ident) : (@ ty)
-            }
+            },
         }
     }
 
