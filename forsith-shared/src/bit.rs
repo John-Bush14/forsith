@@ -148,7 +148,7 @@ impl BitBuffer {
     #[inline(always)]
     #[allow(clippy::missing_panics_doc)] // constant assertion, will never (or always) panic
     pub fn push<T: UInt>(&mut self, value: T) {
-        self.buf |= value.into() << self.bits_remaining as usize;
+        self.buf |= value.as_u64() << self.bits_remaining as usize;
         self.bits_remaining += T::BIT_DEPTH;
     }
 }

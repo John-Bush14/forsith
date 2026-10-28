@@ -34,8 +34,8 @@ pub trait BitOperations:
 {
 }
 
-pub trait UInt: Int + From<u8> + Into<u64> {}
-pub trait SInt: Int + From<i8> + Into<i64> {}
+pub trait UInt: Int + From<u8> {}
+pub trait SInt: Int + From<i8> {}
 
 macro_rules! num_types {
     (unsigned: [$($unum:ty),+], signed: [$($snum:ty),+]) => {
@@ -53,6 +53,14 @@ macro_rules! num_types {
             const MAX: u64;
             const MIN: i64;
             const SIGNED: bool;
+
+            fn as_usize(self) -> usize {
+                self.try_into().unwrap_or_else(|_| panic!("Value {} cannot be converted to usize", self))
+            }
+
+            fn as_u64(self) -> u64 {
+                self.try_into().unwrap_or_else(|_| panic!("Value {} cannot be converted to u64", self))
+            }
         }
 
         $(
@@ -86,6 +94,6 @@ macro_rules! num_types {
 }
 
 num_types!(
-    unsigned: [u8, u16, u32, u64],
-    signed: [i8, i16, i32, i64]
+    unsigned: [u8, u16, u32, u64, usize],
+    signed: [i8, i16, i32, i64, isize]
 );
