@@ -1,8 +1,11 @@
 use core::{
     fmt::Debug,
-    mem::{MaybeUninit, replace},
+    mem::MaybeUninit,
+    ops::Deref,
     ptr::NonNull,
 };
+
+use forsith_proc::{Deref, DerefMut, IsVariant};
 
 use crate::collections::inline::InlineArray;
 
@@ -59,8 +62,12 @@ impl<K, V> Btree<K, V> {
     }
 
     fn flatten(&mut self) {
-        let mut new_root =
-            unsafe { self.root.assume_internal_mut().children[0].assume_init_read() };
+        let mut new_root = unsafe {
+            self.root
+                .assume_internal_mut()
+                .entries
+                .take_child(ChildIdx::left(0))
+        };
 
         if self.depth == 1 {
             let len = new_root.entries.len;
@@ -132,14 +139,18 @@ impl<K, V> UnkownNode<K, V> {
         if depth == 0 {
             self.as_leaf_mut().entries.remove(len - 1).unwrap()
         } else {
-            let child =
-                unsafe { self.assume_internal_mut().children[len as usize].assume_init_mut() };
+            let child = unsafe {
+                self.assume_internal_mut()
+                    .entries
+                    .get_child_mut(ChildIdx::left(len))
+                    .unwrap()
+            };
 
             let kv = child.remove_rightmost_keyval(depth - 1);
 
             if child.entries.len < MIN_KEYS {
                 let len = self.entries.len;
-                unsafe { self.assume_internal_mut() }.grow_child(len, depth);
+                unsafe { self.assume_internal_mut() }.grow_child(ChildIdx::left(len), depth);
             }
 
             kv
@@ -245,9 +256,9 @@ impl<K, V> UnkownNode<K, V> {
         };
 
         let root = unsafe { self.assume_internal_mut() };
-        root.node.entries.len = 0;
-        root.children[0] = MaybeUninit::new(left);
-        root.insert_keyvalchild(0, middle.0, middle.1, right, true);
+        root.entries.len = 0;
+        root.entries.set_child(ChildIdx::left(0), left);
+        root.entries.insert(ChildIdx::right(0), middle, right);
     }
 
     fn remove(&mut self, key: &K, depth: u8) -> Option<(K, V)>
@@ -388,6 +399,7 @@ where
 }
 
 #[derive(Debug)]
+#[repr(transparent)]
 struct LeafNode<K, V> {
     entries: Entries<K, V>,
 }
@@ -481,87 +493,197 @@ impl<K, V> LeafNode<K, V> {
 }
 
 #[repr(C)]
+#[derive(Deref, DerefMut)]
+struct ChildEntries<K, V> {
+    #[deref]
+    #[deref_mut]
+    entries: Entries<K, V>,
+    children: InlineArray<UnkownNode<K, V>, { MAX_KEYS as usize + 1 }>,
+}
+
+impl<K, V> Default for ChildEntries<K, V> {
+    fn default() -> Self {
+        Self {
+            entries: Entries::default(),
+            children: InlineArray::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, IsVariant)]
+enum Side {
+    Left,
+    Right,
+}
+#[derive(Debug, Clone, Copy)]
+struct ChildIdx {
+    idx: u8,
+    side: Side,
+}
+impl ChildIdx {
+    fn idx(&self) -> u8 {
+        self.idx
+    }
+
+    fn side(&self) -> Side {
+        self.side
+    }
+
+    fn children_idx_u8(&self) -> u8 {
+        self.idx + u8::from(self.side.is_right())
+    }
+
+    fn children_idx(&self) -> usize {
+        self.idx as usize + usize::from(self.side.is_right())
+    }
+
+    fn new(idx: u8, side: Side) -> Self {
+        Self { idx, side }
+    }
+
+    fn left(idx: u8) -> Self {
+        Self::new(idx, Side::Left)
+    }
+
+    fn right(idx: u8) -> Self {
+        Self::new(idx, Side::Right)
+    }
+
+    fn next(&self) -> Self {
+        match self.side {
+            Side::Left => Self::new(self.idx, Side::Right),
+            Side::Right => Self::new(self.idx + 1, Side::Left),
+        }
+    }
+
+    fn add(&self, i: u8) -> ChildIdx {
+        Self::new(self.idx + i, self.side)
+    }
+}
+
+impl<K, V> ChildEntries<K, V> {
+    fn len(&self) -> u8 {
+        self.entries.len
+    }
+
+    fn get_child(&self, idx: ChildIdx) -> Option<&UnkownNode<K, V>> {
+        (idx.children_idx_u8() <= self.entries.len)
+            .then(|| unsafe { self.children.get(idx.children_idx()) })
+    }
+
+    fn get_child_mut(&mut self, idx: ChildIdx) -> Option<&mut UnkownNode<K, V>> {
+        (idx.children_idx_u8() <= self.entries.len)
+            .then(|| unsafe { self.children.get_mut(idx.children_idx()) })
+    }
+
+    fn set_child(&mut self, idx: ChildIdx, child: UnkownNode<K, V>) {
+        self.children.set(idx.children_idx(), child)
+    }
+
+    fn remove(&mut self, idx: ChildIdx) -> (UnkownNode<K, V>, (K, V)) {
+        (
+            unsafe {
+                self.children
+                    .shift_left(idx.children_idx()..self.len() as usize + 1, None)
+            },
+            self.entries.remove(idx.idx()).unwrap(),
+        )
+    }
+
+    fn take_child(&mut self, idx: ChildIdx) -> UnkownNode<K, V> {
+        unsafe { self.children.remove(idx.children_idx()) }
+    }
+
+    fn insert(&mut self, idx: ChildIdx, (k, v): (K, V), child: UnkownNode<K, V>) {
+        self.entries.insert(idx.idx(), k, v);
+
+        self.children
+            .shift_right_to_uninit(idx.children_idx()..self.entries.len as usize + 1, child);
+    }
+}
+
+#[repr(C)]
 struct InternalNode<K, V> {
-    node: LeafNode<K, V>,
-    children: [MaybeUninit<UnkownNode<K, V>>; MAX_KEYS as usize + 1],
+    entries: ChildEntries<K, V>,
 }
 
 impl<K, V> Default for InternalNode<K, V> {
     fn default() -> Self {
         Self {
-            node: LeafNode::default(),
-            children: unsafe { MaybeUninit::uninit().assume_init() },
+            entries: ChildEntries::default(),
         }
     }
 }
 
+impl<K, V> Deref for InternalNode<K, V> {
+    type Target = LeafNode<K, V>;
+
+    fn deref(&self) -> &Self::Target {
+        self.as_node()
+    }
+}
+
 impl<K, V> InternalNode<K, V> {
-    fn remove_keyvalchild(&mut self, idx: u8, right: bool) -> (K, V, UnkownNode<K, V>) {
-        let child = unsafe { self.children[idx as usize + usize::from(right)].assume_init_read() };
-        self.children[idx as usize + usize::from(right)..=self.node.entries.len as usize]
-            .shift_left([MaybeUninit::uninit(); 1]);
-
-        let keyval = self.node.entries.remove(idx).unwrap();
-
-        (keyval.0, keyval.1, child)
+    fn as_node(&self) -> &LeafNode<K, V> {
+        unsafe { &*(self as *const Self as *const LeafNode<K, V>) }
     }
 
-    fn fmt(&self, depth: u8, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+    fn fmt(&self, _depth: u8, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
     where
         K: Debug,
         V: Debug,
     {
-        f.debug_struct("InternalNode")
-            .field("node", &self.node)
-            .field_with("children", |f| {
-                self.children
-                    .iter()
-                    .take(self.node.entries.len as usize + 1)
-                    .try_for_each(|c| unsafe { c.assume_init_ref().fmt(f, depth - 1) })
-            })
-            .finish()
+        f.debug_struct("InternalNode").finish()
     }
 
     fn get(&self, key: &K, depth: u8) -> Option<&V>
     where
         K: Ord,
     {
-        let idx = self.node.partition_point(key);
+        let idx = self.partition_point(key);
 
-        if self.node.idx_eq_key(idx, key) {
-            return Some(self.node.entries.get_val(idx).unwrap());
+        if self.idx_eq_key(idx.idx(), key) {
+            return Some(self.entries.get_val(idx.idx()).unwrap());
         }
 
-        let child = unsafe { self.children[idx as usize].assume_init_ref() };
+        let child = self.entries.get_child(idx).unwrap();
         child.get(key, depth - 1)
+    }
+
+    fn partition_point(&self, key: &K) -> ChildIdx
+    where
+        K: Ord,
+    {
+        ChildIdx::left(self.as_node().partition_point(key))
     }
 
     fn remove(&mut self, key: &K, depth: u8) -> Option<(K, V)>
     where
         K: Ord,
     {
-        let idx = self.node.partition_point(key);
+        let idx = self.partition_point(key);
 
-        if self.node.idx_eq_key(idx, key) {
-            let left_child = unsafe { self.children[idx as usize].assume_init_mut() };
+        if self.idx_eq_key(idx.idx(), key) {
+            let left_child = self.entries.get_child_mut(idx).unwrap();
             let (pred_key, pred_value) = left_child.remove_rightmost_keyval(depth - 1);
             let kv = self
-                .node
                 .entries
-                .replace(idx, pred_key, pred_value)
+                .replace(idx.idx(), pred_key, pred_value)
                 .unwrap();
 
-            let left_child = unsafe { self.children[idx as usize].assume_init_mut() };
+            let left_child = self.entries.get_child_mut(idx).unwrap();
             if left_child.entries.len < MIN_KEYS {
                 self.grow_child(idx, depth);
             }
 
             return Some(kv);
         }
-        let kv = unsafe { self.children[idx as usize].assume_init_mut() }.remove(key, depth - 1);
-        let child_len = unsafe { self.children[idx as usize].assume_init_ref() }
+        let kv = self
             .entries
-            .len;
+            .get_child_mut(idx)
+            .unwrap()
+            .remove(key, depth - 1);
+        let child_len = self.entries.get_child(idx).unwrap().entries.len;
 
         let child_idx = if child_len < MIN_KEYS {
             self.grow_child(idx, depth)
@@ -569,7 +691,7 @@ impl<K, V> InternalNode<K, V> {
             idx
         };
 
-        let child = unsafe { self.children[child_idx as usize].assume_init_mut() };
+        let child = self.entries.get_child(child_idx).unwrap();
         assert!(
             child.entries.len >= MIN_KEYS,
             "child must have at least MIN_KEYS after growing"
@@ -578,7 +700,12 @@ impl<K, V> InternalNode<K, V> {
         kv
     }
 
-    fn grow_child(&mut self, idx: u8, depth: u8) -> u8 {
+    fn grow_child(&mut self, idx: ChildIdx, depth: u8) -> ChildIdx {
+        let idx = ChildIdx::left(
+            (idx.children_idx() as u8).min(self.entries.len),
+        );
+        let child_len = self.entries.get_child(idx).unwrap().entries.len;
+
         let Some((side, Some(sibling))) = self
             .child_siblings(idx)
             .into_iter()
@@ -588,91 +715,111 @@ impl<K, V> InternalNode<K, V> {
             unreachable!("child should have a sibling");
         };
 
-        let left = side == 0;
-        let right = side == 1;
+        let side = match side {
+            0 => Side::Left,
+            1 => Side::Right,
+            _ => unreachable!(),
+        };
+
+        let child_add = match side {
+            Side::Left => ChildIdx::left(0),
+            Side::Right => ChildIdx::right(child_len),
+        };
+
+        let splitting_key = idx.children_idx_u8() - u8::from(side.is_left());
+
         if sibling.entries.len > MIN_KEYS {
-            let sibling_remove = if left { sibling.entries.len - 1 } else { 0 };
+            let sibling_remove = match side {
+                Side::Left => ChildIdx::right(sibling.entries.len - 1),
+                Side::Right => ChildIdx::left(0),
+            };
 
             if depth - 1 == 0 {
-                let kv = sibling.entries.remove(sibling_remove).unwrap();
+                let kv = sibling.entries.remove(sibling_remove.idx()).unwrap();
+
                 let kv = self
-                    .node
                     .entries
-                    .replace(idx - u8::from(left), kv.0, kv.1)
+                    .replace(splitting_key, kv.0, kv.1)
                     .unwrap();
 
-                let child = unsafe { self.children[idx as usize].assume_init_mut() };
+                let child = self.entries.get_child_mut(idx).unwrap();
 
-                let child_add = if left { 0 } else { child.entries.len };
-                child.entries.insert(child_add, kv.0, kv.1);
+                child.entries.insert(child_add.idx(), kv.0, kv.1);
             } else {
                 let sibling = unsafe { sibling.assume_internal_mut() };
-                let (k, v, c) = sibling.remove_keyvalchild(sibling_remove, left);
+                let (c, (k, v)) = sibling.entries.remove(sibling_remove);
 
-                let (k, v) = self
-                    .node
-                    .entries
-                    .replace(idx - u8::from(left), k, v)
-                    .unwrap();
+                let kv = self.entries.replace(splitting_key, k, v).unwrap();
 
                 let child = unsafe {
-                    self.children[idx as usize]
-                        .assume_init_mut()
+                    self.entries
+                        .get_child_mut(idx)
+                        .unwrap()
                         .assume_internal_mut()
                 };
-                let child_add = if left { 0 } else { child.node.entries.len };
-                child.insert_keyvalchild(child_add, k, v, c, right);
+                child.entries.insert(child_add, kv, c);
             }
             idx
         } else {
-            let (k, v, mut sibling) = self.remove_keyvalchild(idx - u8::from(left), right);
-            let child =
-                unsafe { self.children[idx as usize - usize::from(left)].assume_init_mut() };
-            let child_add = if left { 0 } else { child.entries.len };
+            let (mut sibling, (k, v)) = self.entries.remove(ChildIdx::new(splitting_key, side));
+            let child_idx = match side {
+                Side::Left => ChildIdx::left(idx.idx() - 1),
+                Side::Right => idx,
+            };
+            let child = self.entries.get_child_mut(child_idx).unwrap();
 
             if depth - 1 == 0 {
-                child.entries.insert(child_add, k, v);
+                child.entries.insert(child_add.idx(), k, v);
 
                 let len = sibling.entries.len;
-                sibling
-                    .entries
-                    .drain_into(0, len, &mut child.entries, child_add + u8::from(right));
+                sibling.entries.drain_into(
+                    0,
+                    len,
+                    &mut child.entries,
+                    child_add.idx() + u8::from(side.is_right()),
+                );
             } else {
                 let child = unsafe { child.assume_internal_mut() };
                 let sibling = unsafe { sibling.assume_internal_mut() };
-                let sibling_len = sibling.node.entries.len;
+                let sibling_len = sibling.entries.len;
 
-                let c = unsafe {
-                    replace(
-                        &mut sibling.children[sibling_len as usize],
-                        MaybeUninit::uninit(),
-                    )
-                    .assume_init_read()
+                let c = sibling
+                    .entries
+                    .take_child(ChildIdx::left(sibling_len));
+                child.entries.insert(child_add, (k, v), c);
+
+                let child_add = match child_add.side() {
+                    Side::Left => ChildIdx::left(child_add.idx()),
+                    Side::Right => ChildIdx::left(child_add.idx() + 1),
                 };
-                child.insert_keyvalchild(child_add, k, v, c, right);
 
                 for i in 0..sibling_len {
-                    let (k, v, c) = sibling.remove_keyvalchild(0, false);
-                    child.insert_keyvalchild(child_add + u8::from(right) + i, k, v, c, false);
+                    let (c, kv) = sibling.entries.remove(ChildIdx::left(0));
+                    child.entries.insert(child_add.add(i), kv, c);
                 }
             }
 
             sibling.dealloc(depth - 1);
-            idx - u8::from(left)
+            match side {
+                Side::Left => ChildIdx::left(idx.idx() - 1),
+                Side::Right => idx,
+            }
         }
     }
 
-    fn child_siblings(&mut self, idx: u8) -> [Option<&mut UnkownNode<K, V>>; 2] {
-        if idx == 0 {
-            [None, Some(unsafe { self.children[1].assume_init_mut() })]
-        } else if idx == self.node.entries.len {
+    fn child_siblings(&mut self, idx: ChildIdx) -> [Option<&mut UnkownNode<K, V>>; 2] {
+        if idx.children_idx() == 0 {
+            [None, Some(self.entries.get_child_mut(idx.next()).unwrap())]
+        } else if idx.children_idx() == self.entries.len() as usize {
             [
-                Some(unsafe { self.children[idx as usize - 1].assume_init_mut() }),
+                (idx.idx() > 0)
+                    .then(|| self.entries.get_child_mut(ChildIdx::left(idx.idx() - 1)).unwrap()),
                 None,
             ]
         } else {
-            self.children
-                .get_disjoint_mut([idx as usize - 1, idx as usize + 1])
+            self.entries
+                .children
+                .get_disjoint_mut([idx.children_idx() - 1, idx.children_idx() + 1])
                 .map(|[left, right]| {
                     [
                         Some(unsafe { left.assume_init_mut() }),
@@ -683,30 +830,18 @@ impl<K, V> InternalNode<K, V> {
         }
     }
 
-    fn insert_keyvalchild(
-        &mut self,
-        idx: u8,
-        key: K,
-        value: V,
-        child: UnkownNode<K, V>,
-        right: bool,
-    ) {
-        self.children[idx as usize + usize::from(right)..=self.node.entries.len as usize + 1]
-            .shift_right([MaybeUninit::new(child); 1]);
-
-        self.node.entries.insert(idx, key, value);
-    }
-
     fn split_right(&mut self) -> Self {
         let mut right = Self {
-            node: self.node.split_right(),
-            children: unsafe { MaybeUninit::uninit().assume_init() },
+            entries: ChildEntries {
+                entries: self.as_node_mut().split_right().entries,
+                children: Default::default(),
+            },
         };
 
-        for i in 0..=MIN_KEYS as usize {
-            right.children[i] = replace(
-                &mut self.children[MIDDLE as usize + i],
-                MaybeUninit::uninit(),
+        for i in 0..=MIN_KEYS as u8 {
+            right.entries.set_child(
+                ChildIdx::left(i),
+                self.entries.take_child(ChildIdx::left(MIDDLE + i)),
             );
         }
 
@@ -717,42 +852,46 @@ impl<K, V> InternalNode<K, V> {
     where
         K: Ord,
     {
-        let mut idx = self.node.partition_point(&key);
+        let mut idx = self.partition_point(&key);
 
-        if self.node.idx_eq_key(idx, &key) {
+        if self.idx_eq_key(idx.idx(), &key) {
             return Some(core::mem::replace(
-                self.node.entries.get_val_mut(idx).unwrap(),
+                self.entries.get_val_mut(idx.idx()).unwrap(),
                 value,
             ));
         }
 
-        let child = unsafe { self.children[idx as usize].assume_init_mut() };
+        let child = self.entries.get_child_mut(idx).unwrap();
 
         if child.entries.len == MAX_KEYS {
             let right = child.split_right(depth - 1);
             let middle = child.entries.remove(MIN_KEYS).unwrap();
 
-            self.insert_keyvalchild(idx, middle.0, middle.1, right, true);
-            idx = self.node.partition_point(&key);
+            self.entries.insert(idx.next(), middle, right);
+            idx = self.partition_point(&key);
 
-            if self.node.idx_eq_key(idx, &key) {
+            if self.idx_eq_key(idx.idx(), &key) {
                 return Some(core::mem::replace(
-                    self.node.entries.get_val_mut(idx).unwrap(),
+                    self.entries.get_val_mut(idx.idx()).unwrap(),
                     value,
                 ));
             }
         }
 
-        let child = unsafe { self.children[idx as usize].assume_init_mut() };
-        child.insert(key, value, depth - 1)
+        self.entries
+            .get_child_mut(idx)
+            .unwrap()
+            .insert(key, value, depth - 1)
     }
 
     fn drop_children(&mut self, depth: u8) {
-        self.node.entries.drop();
+        self.entries.drop();
 
-        for i in 0..=self.node.entries.len as usize {
-            let child = unsafe { self.children[i].assume_init_mut() };
-            child.drop(depth - 1);
+        for i in 0..=self.entries.len {
+            self.entries
+                .get_child_mut(ChildIdx::left(i))
+                .unwrap()
+                .drop(depth - 1);
         }
     }
 
@@ -761,10 +900,14 @@ impl<K, V> InternalNode<K, V> {
         K: Ord,
     {
         let right = self.split_right();
-        let middle = self.node.entries.remove(MIN_KEYS).unwrap();
+        let middle = self.as_node_mut().entries.remove(MIN_KEYS).unwrap();
         let left = core::mem::take(&mut *self);
 
         (left.into(), middle, right.into())
+    }
+
+    fn as_node_mut(&mut self) -> &mut LeafNode<K, V> {
+        unsafe { &mut *(&raw mut *self).cast::<LeafNode<K, V>>() }
     }
 }
 
