@@ -1,7 +1,7 @@
 use crate::int::UInt;
 use core::{
     mem::MaybeUninit,
-    ops::{Index, RangeBounds},
+    ops::{Index, Range, RangeBounds},
     slice::SliceIndex,
 };
 use forsith_proc::{Deref, DerefMut};
@@ -49,6 +49,32 @@ impl<T, const N: usize> InlineArray<T, N> {
                 range.len(),
             );
         };
+    }
+
+    /// # Safety
+    /// The caller must ensure the last element of the range is initialized, and that the range is
+    /// within bounds.
+    pub unsafe fn shift_right(&mut self, range: Range<usize>, fill: Option<T>) -> T {
+        self.0[range]
+            .shift_right([fill.map_or(MaybeUninit::uninit(), |fill| MaybeUninit::new(fill))])[0]
+            .assume_init_read()
+    }
+
+    pub fn shift_right_to_uninit(&mut self, range: Range<usize>, fill: T) {
+        self.0[range].shift_right([MaybeUninit::new(fill)]);
+    }
+
+    /// # Safety
+    /// The caller must ensure the first element of the range is initialized, and that the range
+    /// is within bounds.
+    pub unsafe fn shift_left(&mut self, range: Range<usize>, fill: Option<T>) -> T {
+        self.0[range]
+            .shift_left([fill.map_or(MaybeUninit::uninit(), |fill| MaybeUninit::new(fill))])[0]
+            .assume_init_read()
+    }
+
+    pub fn shift_left_to_uninit(&mut self, range: Range<usize>, fill: T) {
+        self.0[range].shift_left([MaybeUninit::new(fill)]);
     }
 
     pub fn move_to_other(
@@ -122,7 +148,7 @@ impl<T, const N: usize, L: UInt> InlineVec<T, N, L> {
     pub fn remove(&mut self, index: L) -> Option<T> {
         (index < self.len).then(|| {
             let range = index.as_usize()..self.len.as_usize();
-            unsafe { self.array[range].shift_left([MaybeUninit::uninit()])[0].assume_init_read() }
+            unsafe { self.array.shift_left(range, None) }
         })
     }
 

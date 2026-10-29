@@ -261,6 +261,30 @@ impl<K, V> UnkownNode<K, V> {
     }
 }
 
+macro_rules! both {
+    (($self:expr => $($tt:tt)*)) => {
+        ($self.keys$($tt)* $self.values$($tt)*)
+    };
+    ($self:expr $(, $other:ident)? $(; $x:ident = $k:ident,$v:ident)? => $($tt:tt)*) => {{
+        {
+            $(let $other = &mut $other.keys;)?
+            $(let $x = $k;)?
+            $self.keys$($tt)*
+        }
+        $(let $other = &mut $other.values;)?
+        $(let $x = $v;)?
+        $self.values$($tt)*
+    }};
+}
+
+macro_rules! unsafe_both {
+    ($($tt:tt)*) => {
+        unsafe {
+            both!($($tt)*)
+        }
+    };
+}
+
 struct Entries<K, V> {
     keys: InlineArray<K, { MAX_KEYS as usize }>,
     values: InlineArray<V, { MAX_KEYS as usize }>,
@@ -281,47 +305,26 @@ impl<K, V> Entries<K, V> {
     fn drop(&mut self) {
         for i in 0..self.len {
             unsafe {
-                self.keys[i as usize].assume_init_drop();
-                self.values[i as usize].assume_init_drop();
+                both!(self => [i as usize].assume_init_drop(););
             }
         }
     }
 
     fn get(&self, idx: u8) -> Option<(&K, &V)> {
-        if idx >= self.len {
-            return None;
-        }
-
-        Some((
-            unsafe { self.keys[idx as usize].assume_init_ref() },
-            unsafe { self.values[idx as usize].assume_init_ref() },
-        ))
+        (idx < self.len).then(|| unsafe_both!((self => .get(idx as usize),)))
     }
 
     fn get_mut(&mut self, idx: u8) -> Option<(&mut K, &mut V)> {
-        if idx >= self.len {
-            return None;
-        }
-
-        Some((
-            unsafe { self.keys[idx as usize].assume_init_mut() },
-            unsafe { self.values[idx as usize].assume_init_mut() },
-        ))
+        (idx < self.len).then(|| unsafe_both!((self => .get_mut(idx as usize),)))
     }
 
     fn remove(&mut self, idx: u8) -> Option<(K, V)> {
-        if idx >= self.len {
-            return None;
-        }
-
-        let range = idx as usize..self.len as usize;
-        let [key] = self.keys[range.clone()].shift_left([MaybeUninit::uninit(); 1]);
-        let [value] = self.values[range].shift_left([MaybeUninit::uninit(); 1]);
-        self.len -= 1;
-
-        Some((unsafe { key.assume_init_read() }, unsafe {
-            value.assume_init_read()
-        }))
+        (idx < self.len && self.len > 0).then(|| {
+            self.len -= 1;
+            unsafe_both!((
+                self => .shift_left(idx as usize..self.len as usize + 1, None),
+            ))
+        })
     }
 
     fn iter_keys(&self) -> impl Iterator<Item = &K> {
@@ -332,41 +335,22 @@ impl<K, V> Entries<K, V> {
     }
 
     fn get_val(&self, idx: u8) -> Option<&V> {
-        if idx >= self.len {
-            return None;
-        }
-
-        Some(unsafe { self.values[idx as usize].assume_init_ref() })
+        (idx < self.len).then(|| unsafe { self.values.get(idx as usize) })
     }
 
     fn drain_into(&mut self, idx: u8, len: u8, other: &mut Self, other_idx: u8) {
-        assert!(len <= self.len, "drain range out of bounds");
-
+        self.len -= len;
         other.allocate_slice(other_idx, len);
 
-        self.len -= len;
-
-        unsafe {
-            self.keys.as_ptr().add(idx as usize).copy_to_nonoverlapping(
-                other.keys.as_mut_ptr().add(other_idx as usize),
-                len as usize,
-            );
-            self.values
-                .as_ptr()
-                .add(idx as usize)
-                .copy_to_nonoverlapping(
-                    other.values.as_mut_ptr().add(other_idx as usize),
-                    len as usize,
-                );
-        }
+        both!(self, other => .move_to_other(
+            idx as usize..(idx + len) as usize,
+            other,
+            other_idx as usize
+        ););
     }
 
     fn get_val_mut(&mut self, idx: u8) -> Option<&mut V> {
-        if idx >= self.len {
-            return None;
-        }
-
-        unsafe { Some(self.values[idx as usize].assume_init_mut()) }
+        (idx < self.len).then(|| unsafe { self.values.get_mut(idx as usize) })
     }
 
     fn replace(&mut self, idx: u8, key: K, value: V) -> Option<(K, V)> {
@@ -376,24 +360,15 @@ impl<K, V> Entries<K, V> {
 
     fn insert(&mut self, idx: u8, key: K, value: V) {
         assert!(idx <= self.len, "insert index out of bounds");
-
-        let range = idx as usize..=self.len as usize;
-        self.keys[range.clone()].shift_right([MaybeUninit::new(key); 1]);
-        self.values[range].shift_right([MaybeUninit::new(value); 1]);
         self.len += 1;
+        both!(self; x = key,value => .shift_right_to_uninit(idx as usize..self.len as usize, x););
     }
 
     fn allocate_slice(&mut self, idx: u8, len: u8) {
-        let keys_src = unsafe { self.keys.as_ptr().add(idx as usize) };
-        let keys_dst = unsafe { self.keys.as_mut_ptr().add((idx + len) as usize) };
-        let values_src = unsafe { self.values.as_ptr().add(idx as usize) };
-        let values_dst = unsafe { self.values.as_mut_ptr().add((idx + len) as usize) };
-
-        unsafe {
-            keys_src.copy_to(keys_dst, (self.len - idx) as usize);
-            values_src.copy_to(values_dst, (self.len - idx) as usize);
-        }
-
+        both!(self => .move_within(
+            idx as usize..self.len as usize,
+            (idx + len) as usize
+        ));
         self.len += len;
     }
 }
