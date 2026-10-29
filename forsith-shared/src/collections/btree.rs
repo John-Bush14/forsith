@@ -381,24 +381,8 @@ where
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("Entries")
             .field("len", &self.len)
-            .field(
-                "keys",
-                &self
-                    .keys
-                    .iter()
-                    .take(self.len as usize)
-                    .map(|k| unsafe { k.assume_init_ref() })
-                    .collect::<Vec<_>>(),
-            )
-            .field(
-                "values",
-                &self
-                    .values
-                    .iter()
-                    .take(self.len as usize)
-                    .map(|v| unsafe { v.assume_init_ref() })
-                    .collect::<Vec<_>>(),
-            )
+            .field_with("keys", |f| unsafe { self.keys.fmt(f, self.len.into()) })
+            .field_with("values", |f| unsafe { self.values.fmt(f, self.len.into()) })
             .finish()
     }
 }

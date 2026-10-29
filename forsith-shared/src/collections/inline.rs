@@ -91,6 +91,17 @@ impl<T, const N: usize> InlineArray<T, N> {
             );
         };
     }
+
+    /// # Safety
+    /// All elements up until len must be initialized.
+    pub unsafe fn fmt(&self, f: &mut core::fmt::Formatter<'_>, len: usize) -> core::fmt::Result
+    where
+        T: core::fmt::Debug,
+    {
+        f.debug_list()
+            .entries((&*(&raw const self.0[..len]).cast::<[T; N]>()).iter())
+            .finish()
+    }
 }
 
 pub struct InlineVec<T, const N: usize, L: UInt> {
