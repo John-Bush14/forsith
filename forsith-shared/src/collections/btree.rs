@@ -34,11 +34,7 @@ impl<K, V> Btree<K, V> {
     where
         K: Ord,
     {
-        if self.root.entries.len == MAX_KEYS {
-            self.root.split_as_root(self.depth);
-            self.depth += 1;
-        }
-
+        self.split_if_needed();
         self.root.insert(key, value, self.depth)
     }
 
@@ -47,13 +43,65 @@ impl<K, V> Btree<K, V> {
         K: Ord,
     {
         self.root.remove(key, self.depth).map(|(_, v)| {
-            if self.root.entries.len == 0 && self.depth > 0 {
-                self.root.flatten_as_root(self.depth);
-                self.depth -= 1;
-            }
+            self.flatten_if_needed();
 
             v
         })
+    }
+
+    fn flatten_if_needed(&mut self) {
+        if self.root.entries.len == 0 && self.depth > 0 {
+            self.root.flatten_as_root(self.depth);
+            self.depth -= 1;
+        }
+    }
+
+    #[must_use]
+    pub fn max(&self) -> Option<(&K, &V)> {
+        (!self.root.entries.is_empty()).then(|| self.root.get_max(self.depth))
+    }
+
+    #[must_use]
+    pub fn min(&self) -> Option<(&K, &V)> {
+        (!self.root.entries.is_empty()).then(|| self.root.get_min(self.depth))
+    }
+
+    #[must_use]
+    pub fn max_mut(&mut self) -> Option<&mut V> {
+        (!self.root.entries.is_empty()).then(|| self.root.get_max_mut(self.depth))
+    }
+
+    #[must_use]
+    pub fn min_mut(&mut self) -> Option<&mut V> {
+        (!self.root.entries.is_empty()).then(|| self.root.get_min_mut(self.depth))
+    }
+
+    pub fn remove_max(&mut self) -> Option<(K, V)> {
+        (!self.root.entries.is_empty()).then(|| {
+            let kv = self.root.remove_max(self.depth);
+            self.flatten_if_needed();
+
+            kv
+        })
+    }
+
+    pub fn remove_min(&mut self) -> Option<(K, V)> {
+        (!self.root.entries.is_empty()).then(|| {
+            let kv = self.root.remove_min(self.depth);
+            self.flatten_if_needed();
+
+            kv
+        })
+    }
+
+    fn split_if_needed(&mut self)
+    where
+        K: Ord,
+    {
+        if self.root.entries.len == MAX_KEYS {
+            self.root.split_as_root(self.depth);
+            self.depth += 1;
+        }
     }
 }
 
@@ -123,26 +171,54 @@ impl<K, V> UnkownNode<K, V> {
         }
     }
 
-    fn with_leaf<T>(
-        &mut self,
+    fn with_leaf<'a, T: 'a>(
+        &'a self,
         side: Side,
         depth: u8,
-        grow: bool,
-        f: impl FnOnce(&mut LeafNode<K, V>) -> T,
+        f: impl FnOnce(&'a LeafNode<K, V>) -> T,
     ) -> T {
+        if depth == 0 {
+            return f(self);
+        }
+
+        unsafe { self.as_internal() }
+            .entries
+            .get_child(side.child_edge(self.entries.len))
+            .unwrap()
+            .with_leaf(side, depth - 1, f)
+    }
+
+    fn with_leaf_mut<'a, T: 'a>(
+        &'a mut self,
+        side: Side,
+        depth: u8,
+        f: impl FnOnce(&'a mut LeafNode<K, V>) -> T,
+    ) -> T {
+        if depth == 0 {
+            return f(self);
+        }
+
+        let idx = side.child_edge(self.entries.len);
+        unsafe { self.as_internal_mut() }
+            .entries
+            .get_child_mut(idx)
+            .unwrap()
+            .with_leaf_mut(side, depth - 1, f)
+    }
+
+    fn remove_extremity(&mut self, side: Side, depth: u8) -> (K, V) {
         let idx = side.child_edge(self.entries.len);
 
         if depth == 0 {
-            return f(self);
-        };
+            return self.as_leaf_mut().entries.remove(idx.idx()).unwrap();
+        }
 
         let internal = unsafe { self.as_internal_mut() };
         let child = internal.entries.get_child_mut(idx).unwrap();
-        let val = child.with_leaf(side, depth - 1, grow, f);
 
-        if grow {
-            internal.grow_if_needed(side.child_edge(internal.entries.len), depth);
-        }
+        let val = child.remove_extremity(side, depth - 1);
+
+        internal.grow_if_needed(side.child_edge(internal.entries.len), depth);
 
         val
     }
@@ -244,9 +320,31 @@ impl<K, V> UnkownNode<K, V> {
     }
 
     fn remove_max(&mut self, depth: u8) -> (K, V) {
-        self.with_leaf(Side::Right, depth, true, |leaf| {
-            leaf.entries.remove(leaf.entries.len - 1).unwrap()
+        self.remove_extremity(Side::Right, depth)
+    }
+
+    fn remove_min(&mut self, depth: u8) -> (K, V) {
+        self.remove_extremity(Side::Left, depth)
+    }
+
+    fn get_max(&self, depth: u8) -> (&K, &V) {
+        self.with_leaf(Side::Right, depth, |leaf| {
+            leaf.entries.get(leaf.entries.len - 1).unwrap()
         })
+    }
+
+    fn get_min(&self, depth: u8) -> (&K, &V) {
+        self.with_leaf(Side::Left, depth, |leaf| leaf.entries.get(0).unwrap())
+    }
+
+    fn get_max_mut(&mut self, depth: u8) -> &mut V {
+        self.with_leaf_mut(Side::Right, depth, |leaf| {
+            leaf.entries.get_mut(leaf.entries.len - 1).unwrap().1
+        })
+    }
+
+    fn get_min_mut(&mut self, depth: u8) -> &mut V {
+        self.with_leaf_mut(Side::Left, depth, |leaf| leaf.entries.get_mut(0).unwrap().1)
     }
 }
 
@@ -289,6 +387,10 @@ impl<K, V> Default for Entries<K, V> {
 }
 
 impl<K, V> Entries<K, V> {
+    const fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
     fn drop(&mut self) {
         for i in 0..self.len {
             unsafe {
@@ -997,6 +1099,46 @@ mod btree_tests {
     use crate::rng::Rng;
     use crate::rng::SimpleRng;
 
+    fn assert_get_remove_extremities<K: Ord + Eq + Debug + Copy, V: Eq + Debug + Copy>(
+        btree: &mut Btree<K, V>,
+        expected_max: Option<(K, V)>,
+        expected_min: Option<(K, V)>,
+    ) {
+        assert_eq!(btree.max().map(|(&k, &v)| (k, v)), expected_max);
+        assert_eq!(btree.min().map(|(&k, &v)| (k, v)), expected_min);
+        assert_eq!(
+            btree.max_mut().map(|&mut v| v),
+            expected_max.map(|(_, v)| v)
+        );
+        assert_eq!(
+            btree.min_mut().map(|&mut v| v),
+            expected_min.map(|(_, v)| v)
+        );
+        assert_eq!(btree.remove_max(), expected_max);
+        assert_eq!(btree.remove_min(), expected_min);
+    }
+
+    #[test]
+    fn test_extremity_removal_and_getting() {
+        let mut btree = Btree::default();
+
+        assert_get_remove_extremities(&mut btree, None, None);
+
+        for i in 0..100 {
+            btree.insert(i, i * 10);
+        }
+
+        for i in 0..50 {
+            assert_get_remove_extremities(
+                &mut btree,
+                Some((99 - i, (99 - i) * 10)),
+                Some((i, i * 10)),
+            );
+        }
+
+        assert_get_remove_extremities(&mut btree, None, None);
+    }
+
     #[test]
     fn test_btree_insert_and_get() {
         let mut btree = Btree::default();
@@ -1099,10 +1241,12 @@ mod btree_tests {
             let key = SimpleRng::random() % 255;
             let value = SimpleRng::random();
 
-            match SimpleRng::random() % 3 {
+            match SimpleRng::random() % 5 {
                 0 => assert_eq!(btree.insert(key, value), std.insert(key, value)),
                 1 => assert_eq!(btree.remove(&key), std.remove(&key)),
                 2 => assert_eq!(btree.get(&key), std.get(&key)),
+                3 => assert_eq!(btree.max(), std.iter().next_back()),
+                4 => assert_eq!(btree.min(), std.iter().next()),
                 _ => unreachable!(),
             }
         }
