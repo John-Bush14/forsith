@@ -485,7 +485,7 @@ impl<K, V> Default for ChildEntries<K, V> {
     }
 }
 
-#[derive(Debug, Clone, Copy, IsVariant)]
+#[derive(Debug, Clone, Copy, IsVariant, PartialEq, Eq)]
 enum Side {
     Left,
     Right,
@@ -514,7 +514,7 @@ impl Side {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct ChildIdx {
     idx: u8,
     side: Side,
@@ -552,6 +552,13 @@ impl ChildIdx {
         Self::new(idx, Side::Right)
     }
 
+    const fn next_idx(self) -> Option<Self> {
+        match self.side {
+            Side::Left => None,
+            Side::Right => Some(Self::new(self.idx + 1, Side::Left)),
+        }
+    }
+
     const fn next(self) -> Self {
         match self.side {
             Side::Left => Self::new(self.idx, Side::Right),
@@ -563,6 +570,17 @@ impl ChildIdx {
         match self.side {
             Side::Left => Self::new(self.idx - 1, Side::Left),
             Side::Right => Self::new(self.idx, Side::Left),
+        }
+    }
+
+    const fn with(self, side: Side) -> Self {
+        Self::new(self.idx, side)
+    }
+
+    const fn sibling(self, side: Side) -> Self {
+        match side {
+            Side::Left => self.prev(),
+            Side::Right => self.next(),
         }
     }
 }
@@ -596,10 +614,10 @@ impl<K, V> ChildEntries<K, V> {
 
     fn get_children_disjoint_mut<const N: usize>(
         &mut self,
-        idxs: [usize; N],
+        idxs: [ChildIdx; N],
     ) -> Option<[&mut UnkownNode<K, V>; N]> {
         self.children
-            .get_disjoint_mut(idxs)
+            .get_disjoint_mut(idxs.map(ChildIdx::child_idx_usize))
             .ok()
             .map(|arr| unsafe { arr.map(|c| c.assume_init_mut()) })
     }
@@ -798,59 +816,13 @@ impl<K, V> InternalNode<K, V> {
     }
 
     fn grow_child(&mut self, idx: ChildIdx, depth: u8) -> ChildIdx {
-        let child_len = self.entries.get_child(idx).unwrap().entries.len;
-
         let (side, sibling) = self.biggest_sibling(idx);
 
-        let child_add = side.child_edge(child_len + 1);
-        let splitting_kv = side.merged_child(idx).idx();
-
         if sibling.entries.len > MIN_KEYS {
-            let sibling_remove = side.flipped().child_edge(sibling.entries.len);
-
-            if depth == 1 {
-                let kv = sibling.entries.remove(sibling_remove.idx()).unwrap();
-
-                let kv = self.entries.replace(splitting_kv, kv).unwrap();
-
-                let child = self.entries.get_child_mut(idx).unwrap();
-
-                child.entries.insert(child_add.idx(), kv);
-            } else {
-                let sibling = unsafe { sibling.as_internal_mut() };
-                let (c, kv) = sibling.entries.remove(sibling_remove);
-
-                let kv = self.entries.replace(splitting_kv, kv).unwrap();
-
-                let child = unsafe { self.entries.get_child_mut(idx).unwrap().as_internal_mut() };
-                child.entries.insert(child_add, kv, c);
-            }
+            self.grow_from_sibling(idx, side, depth);
             idx
         } else {
-            let (mut sibling, kv) = self.entries.remove(ChildIdx::new(splitting_kv, side));
-            let idx = side.merged_child(idx);
-            let child = self.entries.get_child_mut(idx).unwrap();
-
-            child.entries.insert(child_add.idx(), kv);
-
-            let child_add = match side {
-                Side::Left => child_add,
-                Side::Right => ChildIdx::left(child_add.idx() + 1),
-            };
-
-            if depth == 1 {
-                sibling
-                    .entries
-                    .drain_fully(&mut child.entries, child_add.idx());
-            } else {
-                let child = unsafe { child.as_internal_mut() };
-                let sibling = unsafe { sibling.as_internal_mut() };
-
-                sibling.entries.drain_fully(&mut child.entries, child_add);
-            }
-
-            sibling.dealloc(depth - 1);
-            idx
+            self.merge_child(idx, side, depth)
         }
     }
 
@@ -862,7 +834,7 @@ impl<K, V> InternalNode<K, V> {
         }
 
         self.entries
-            .get_children_disjoint_mut([idx.child_idx_usize() - 1, idx.child_idx_usize() + 1])
+            .get_children_disjoint_mut([idx.prev(), idx.next()])
             .map(|[left, right]| [Some(left), Some(right)])
             .unwrap()
     }
@@ -950,6 +922,58 @@ impl<K, V> InternalNode<K, V> {
 
     fn as_node_mut(&mut self) -> &mut LeafNode<K, V> {
         unsafe { &mut *(&raw mut *self).cast::<LeafNode<K, V>>() }
+    }
+
+    fn merge_child(&mut self, idx: ChildIdx, side: Side, depth: u8) -> ChildIdx {
+        let idx = side.merged_child(idx);
+        let (mut sibling, kv) = self.entries.remove(idx.with(side));
+        let child = self.entries.get_child_mut(idx).unwrap();
+
+        let mut dest = side.child_edge(child.entries.len + 1);
+
+        child.entries.insert(dest.idx(), kv);
+        if side.is_right() {
+            dest = dest.next_idx().unwrap();
+        }
+
+        if depth == 1 {
+            sibling.entries.drain_fully(&mut child.entries, dest.idx());
+        } else {
+            let child = unsafe { child.as_internal_mut() };
+            let sibling = unsafe { sibling.as_internal_mut() };
+
+            sibling.entries.drain_fully(&mut child.entries, dest);
+        }
+
+        sibling.dealloc(depth - 1);
+        idx
+    }
+
+    fn grow_from_sibling(&mut self, idx: ChildIdx, side: Side, depth: u8) {
+        let child_len = self.entries.get_child(idx).unwrap().entries.len;
+        let child_add = side.child_edge(child_len + 1);
+        let splitting_kv = side.merged_child(idx).idx();
+
+        let sibling = self.entries.get_child_mut(idx.sibling(side)).unwrap();
+        let sibling_remove = side.flipped().child_edge(sibling.entries.len);
+
+        if depth == 1 {
+            let kv = sibling.entries.remove(sibling_remove.idx()).unwrap();
+            let kv = self.entries.replace(splitting_kv, kv).unwrap();
+
+            let child = self.entries.get_child_mut(idx).unwrap();
+
+            child.entries.insert(child_add.idx(), kv);
+        } else {
+            let sibling = unsafe { sibling.as_internal_mut() };
+
+            let (c, kv) = sibling.entries.remove(sibling_remove);
+            let kv = self.entries.replace(splitting_kv, kv).unwrap();
+
+            let child = unsafe { self.entries.get_child_mut(idx).unwrap().as_internal_mut() };
+
+            child.entries.insert(child_add, kv, c);
+        }
     }
 }
 
