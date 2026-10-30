@@ -123,21 +123,28 @@ impl<K, V> UnkownNode<K, V> {
         }
     }
 
-    fn remove_max(&mut self, depth: u8) -> (K, V) {
-        let last = ChildIdx::right(self.entries.len - 1);
+    fn with_leaf<T>(
+        &mut self,
+        side: Side,
+        depth: u8,
+        grow: bool,
+        f: impl FnOnce(&mut LeafNode<K, V>) -> T,
+    ) -> T {
+        let idx = side.child_edge(self.entries.len);
 
         if depth == 0 {
-            return self.as_leaf_mut().entries.remove(last.idx()).unwrap();
-        }
+            return f(self);
+        };
 
         let internal = unsafe { self.as_internal_mut() };
-        let child = internal.entries.get_child_mut(last).unwrap();
-        let max = child.remove_max(depth - 1);
+        let child = internal.entries.get_child_mut(idx).unwrap();
+        let val = child.with_leaf(side, depth - 1, grow, f);
 
-        let last = ChildIdx::right(internal.entries.len - 1);
-        internal.grow_if_needed(last, depth);
+        if grow {
+            internal.grow_if_needed(side.child_edge(internal.entries.len), depth);
+        }
 
-        max
+        val
     }
 
     const fn as_leaf_mut(&mut self) -> &mut LeafNode<K, V> {
@@ -234,6 +241,12 @@ impl<K, V> UnkownNode<K, V> {
             0 => self.as_leaf_mut().remove(key),
             _ => unsafe { self.as_internal_mut().remove(key, depth) },
         }
+    }
+
+    fn remove_max(&mut self, depth: u8) -> (K, V) {
+        self.with_leaf(Side::Right, depth, true, |leaf| {
+            leaf.entries.remove(leaf.entries.len - 1).unwrap()
+        })
     }
 }
 
@@ -750,6 +763,7 @@ impl<K, V> InternalNode<K, V> {
 
     fn remove_predecessor(&mut self, idx: ChildIdx, depth: u8) -> (K, V) {
         let left_child = self.entries.get_child_mut(idx).unwrap();
+
         left_child.remove_max(depth - 1)
     }
 
