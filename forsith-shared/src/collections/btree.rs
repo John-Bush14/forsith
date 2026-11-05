@@ -164,7 +164,7 @@ impl<K, V> UnkownNode<K, V> {
 
         if depth == 1 {
             new_root.entries.drain_fully(&mut internal.entries, 0);
-            new_root.dealloc(depth);
+            new_root.dealloc(depth-1);
         } else {
             self.dealloc(depth);
             self.0 = new_root.0;

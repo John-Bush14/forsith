@@ -42,10 +42,12 @@ impl<T, const N: usize> InlineArray<T, N> {
     }
 
     pub fn move_within(&mut self, range: core::ops::Range<usize>, new_index: usize) {
+        let ptr = self.0.as_mut_ptr();
+
         unsafe {
             core::ptr::copy(
-                self.0.as_ptr().add(range.start),
-                self.0.as_mut_ptr().add(new_index),
+                ptr.add(range.start),
+                ptr.add(new_index),
                 range.len(),
             );
         };
@@ -99,7 +101,7 @@ impl<T, const N: usize> InlineArray<T, N> {
         T: core::fmt::Debug,
     {
         f.debug_list()
-            .entries((&*(&raw const self.0[..len]).cast::<[T; N]>()).iter())
+            .entries(self.iter().take(len).map(|x| x.assume_init_ref()))
             .finish()
     }
 }
