@@ -1,8 +1,6 @@
-use core::{fmt::Debug, mem::MaybeUninit, ops::Deref, ops::DerefMut, ptr::NonNull};
-
-use forsith_proc::{Deref, DerefMut, IsVariant};
-
 use crate::collections::inline::InlineArray;
+use core::{fmt::Debug, mem::MaybeUninit, ops::Deref, ops::DerefMut, ptr::NonNull};
+use forsith_proc::{Deref, DerefMut, IsVariant};
 
 const MAX_KEYS: u8 = 11;
 const MIN_KEYS: u8 = MAX_KEYS / 2;
@@ -49,49 +47,25 @@ impl<K, V> Btree<K, V> {
         })
     }
 
+    fn min(&self) -> Cursor<'_, K, V> where K: Ord {
+        let mut cursor = Cursor::open(self.root.clone(), ChildIdx::left(0), self.depth);
+        cursor.descend_to_leaf(Side::Left);
+
+        cursor
+    }
+
+    fn max(&self) -> Cursor<'_, K, V> where K: Ord {
+        let mut cursor = Cursor::open(self.root.clone(), ChildIdx::right(self.root.entries.len - 1), self.depth);
+        cursor.descend_to_leaf(Side::Right);
+
+        cursor
+    }
+
     fn flatten_if_needed(&mut self) {
         if self.root.entries.len == 0 && self.depth > 0 {
             self.root.flatten_as_root(self.depth);
             self.depth -= 1;
         }
-    }
-
-    #[must_use]
-    pub fn max(&self) -> Option<(&K, &V)> {
-        (!self.root.entries.is_empty()).then(|| self.root.get_max(self.depth))
-    }
-
-    #[must_use]
-    pub fn min(&self) -> Option<(&K, &V)> {
-        (!self.root.entries.is_empty()).then(|| self.root.get_min(self.depth))
-    }
-
-    #[must_use]
-    pub fn max_mut(&mut self) -> Option<&mut V> {
-        (!self.root.entries.is_empty()).then(|| self.root.get_max_mut(self.depth))
-    }
-
-    #[must_use]
-    pub fn min_mut(&mut self) -> Option<&mut V> {
-        (!self.root.entries.is_empty()).then(|| self.root.get_min_mut(self.depth))
-    }
-
-    pub fn remove_max(&mut self) -> Option<(K, V)> {
-        (!self.root.entries.is_empty()).then(|| {
-            let kv = self.root.remove_max(self.depth);
-            self.flatten_if_needed();
-
-            kv
-        })
-    }
-
-    pub fn remove_min(&mut self) -> Option<(K, V)> {
-        (!self.root.entries.is_empty()).then(|| {
-            let kv = self.root.remove_min(self.depth);
-            self.flatten_if_needed();
-
-            kv
-        })
     }
 
     fn split_if_needed(&mut self)
@@ -121,7 +95,132 @@ impl<K, V> Default for Btree<K, V> {
     }
 }
 
+pub struct Cursor<'btree, K, V> {
+    node: UnkownNode<K, V>,
+    idx: ChildIdx,
+    depth: u8,
+    _phantom: core::marker::PhantomData<&'btree ()>,
+}
+
+impl<K, V> Cursor<'_, K, V> {
+    const fn open(node: UnkownNode<K, V>, idx: ChildIdx, depth: u8) -> Self {
+        Self {
+            node,
+            idx,
+            depth,
+            _phantom: core::marker::PhantomData,
+        }
+    }
+
+    fn ascend(&mut self) -> Option<()>
+    where
+        K: Ord,
+    {
+        println!("Ascending from depth: {}, idx: {:?}, with len {}", self.depth, self.idx, self.node.entries.len);
+        let (key, _) = self.node.entries.get(0).unwrap();
+
+        let parent = unsafe { self.node.parent?.as_mut() };
+        self.idx = parent.partition_point(key);
+        self.node = parent.into();
+        self.depth += 1;
+
+        println!("Ascended to depth: {}, idx: {:?}, with len {}", self.depth, self.idx, self.node.entries.len);
+
+        Some(())
+    }
+
+    fn descend(&mut self, side: Side)
+    where
+        K: Ord,
+    {
+        println!("Descending from depth: {}, idx: {:?}, with len {}", self.depth, self.idx, self.node.entries.len);
+        assert!(self.depth > 0, "cannot descend from a leaf node");
+
+        self.node = unsafe { self.node.as_internal_mut() }
+            .entries
+            .get_child_mut(self.idx)
+            .unwrap()
+            .clone();
+        self.idx = side.child_edge(self.node.entries.len);
+        self.depth -= 1;
+
+        println!("Descended to depth: {}, idx: {:?}, with len {}", self.depth, self.idx, self.node.entries.len);
+    }
+
+    fn descend_to_leaf(&mut self, side: Side)
+    where
+        K: Ord,
+    {
+        while self.depth > 0 {
+            self.descend(side);
+        }
+    }
+
+    pub fn back_inorder(&mut self) -> Option<(&K, &V)>
+    where
+        K: Ord,
+    {
+        if self.idx.idx() == 0 {
+            if self.depth == 0 {
+                while self.idx.idx() == 0 {
+                    if self.ascend().is_none() {
+                        self.descend_to_leaf(Side::Left);
+                        return None;
+                    }
+                }
+
+                self.idx = self.idx - 1;
+            } else {
+                self.descend_to_leaf(Side::Right);
+            }
+        } else {
+            if self.depth > 0 {
+                self.descend_to_leaf(Side::Right);
+            } else {
+                self.idx = self.idx - 1;
+            }
+        }
+
+        Some(self.node.entries.get(self.idx.idx()).unwrap())
+    }
+
+    pub fn next_inorder(&mut self) -> Option<(&K, &V)>
+    where
+        K: Ord,
+    {
+        self.idx = self.idx + 1;
+
+        if self.depth == 0 {
+            while self.idx.idx() >= self.node.entries.len {
+                if self.ascend().is_none() {
+                    self.descend_to_leaf(Side::Right);
+
+                    return None;
+                }
+            }
+        } else {
+            while self.idx.idx() > self.node.entries.len {
+                if self.ascend().is_none() {
+                    self.descend_to_leaf(Side::Right);
+
+                    return None;
+                }
+            }
+
+            self.descend_to_leaf(Side::Left);
+        }
+
+        Some(self.node.entries.get(self.idx.idx()).unwrap())
+    }
+}
+
 struct UnkownNode<K, V>(NonNull<LeafNode<K, V>>);
+
+impl<K, V> Clone for UnkownNode<K, V> {
+    fn clone(&self) -> Self {
+        Self(self.0)
+    }
+}
 
 impl<K, V> Deref for UnkownNode<K, V> {
     type Target = LeafNode<K, V>;
@@ -134,6 +233,22 @@ impl<K, V> Deref for UnkownNode<K, V> {
 impl<K, V> DerefMut for UnkownNode<K, V> {
     fn deref_mut(&mut self) -> &mut LeafNode<K, V> {
         self.as_leaf_mut()
+    }
+}
+
+impl<K, V> From<&mut LeafNode<K, V>> for UnkownNode<K, V> {
+    fn from(node: &mut LeafNode<K, V>) -> Self {
+        Self(NonNull::from(node))
+    }
+}
+
+impl<K, V> From<&mut InternalNode<K, V>> for UnkownNode<K, V> {
+    fn from(node: &mut InternalNode<K, V>) -> Self {
+        unsafe {
+            Self(NonNull::new_unchecked(
+                node as *mut _ as *mut LeafNode<K, V>,
+            ))
+        }
     }
 }
 
@@ -164,47 +279,47 @@ impl<K, V> UnkownNode<K, V> {
 
         if depth == 1 {
             new_root.entries.drain_fully(&mut internal.entries, 0);
-            new_root.dealloc(depth-1);
+            new_root.dealloc(depth - 1);
         } else {
             self.dealloc(depth);
             self.0 = new_root.0;
         }
     }
 
-    fn with_leaf<'a, T: 'a>(
-        &'a self,
-        side: Side,
-        depth: u8,
-        f: impl FnOnce(&'a LeafNode<K, V>) -> T,
-    ) -> T {
-        if depth == 0 {
-            return f(self);
-        }
-
-        unsafe { self.as_internal() }
-            .entries
-            .get_child(side.child_edge(self.entries.len))
-            .unwrap()
-            .with_leaf(side, depth - 1, f)
-    }
-
-    fn with_leaf_mut<'a, T: 'a>(
-        &'a mut self,
-        side: Side,
-        depth: u8,
-        f: impl FnOnce(&'a mut LeafNode<K, V>) -> T,
-    ) -> T {
-        if depth == 0 {
-            return f(self);
-        }
-
-        let idx = side.child_edge(self.entries.len);
-        unsafe { self.as_internal_mut() }
-            .entries
-            .get_child_mut(idx)
-            .unwrap()
-            .with_leaf_mut(side, depth - 1, f)
-    }
+    // fn with_leaf<'a, T: 'a>(
+    //     &'a self,
+    //     side: Side,
+    //     depth: u8,
+    //     f: impl FnOnce(&'a LeafNode<K, V>) -> T,
+    // ) -> T {
+    //     if depth == 0 {
+    //         return f(self);
+    //     }
+    //
+    //     unsafe { self.as_internal() }
+    //         .entries
+    //         .get_child(side.child_edge(self.entries.len))
+    //         .unwrap()
+    //         .with_leaf(side, depth - 1, f)
+    // }
+    //
+    // fn with_leaf_mut<'a, T: 'a>(
+    //     &'a mut self,
+    //     side: Side,
+    //     depth: u8,
+    //     f: impl FnOnce(&'a mut LeafNode<K, V>) -> T,
+    // ) -> T {
+    //     if depth == 0 {
+    //         return f(self);
+    //     }
+    //
+    //     let idx = side.child_edge(self.entries.len);
+    //     unsafe { self.as_internal_mut() }
+    //         .entries
+    //         .get_child_mut(idx)
+    //         .unwrap()
+    //         .with_leaf_mut(side, depth - 1, f)
+    // }
 
     fn remove_extremity(&mut self, side: Side, depth: u8) -> (K, V) {
         let idx = side.child_edge(self.entries.len);
@@ -294,14 +409,31 @@ impl<K, V> UnkownNode<K, V> {
         self.dealloc(depth);
     }
 
-    fn split_as_root(&mut self, depth: u8)
+    fn split_as_root(&mut self, height: u8)
     where
         K: Ord,
     {
-        let (left, middle, right) = match depth {
-            0 => self.as_leaf_mut().split_as_root(),
-            _ => unsafe { self.as_internal_mut() }.split_as_root(),
+        let (middle, mut right) = match height {
+            0 => self.as_leaf_mut().split(),
+            _ => unsafe { self.as_internal_mut() }.split(),
         };
+
+        let mut left = if height > 0 {
+            unsafe { right.as_internal_mut() }.adopt_children();
+
+            core::mem::replace(self, InternalNode::default().into())
+        } else {
+            unsafe {
+                core::mem::transmute_prefix::<_, LeafNode<K, V>>(core::mem::take(
+                    self.as_internal_mut(),
+                ))
+                .into()
+            }
+        };
+
+        let parent = Some(self.0.cast::<InternalNode<K, V>>());
+        left.parent = parent;
+        right.parent = parent;
 
         let root = unsafe { self.as_internal_mut() };
         root.entries.len = 0;
@@ -323,29 +455,29 @@ impl<K, V> UnkownNode<K, V> {
         self.remove_extremity(Side::Right, depth)
     }
 
-    fn remove_min(&mut self, depth: u8) -> (K, V) {
-        self.remove_extremity(Side::Left, depth)
-    }
-
-    fn get_max(&self, depth: u8) -> (&K, &V) {
-        self.with_leaf(Side::Right, depth, |leaf| {
-            leaf.entries.get(leaf.entries.len - 1).unwrap()
-        })
-    }
-
-    fn get_min(&self, depth: u8) -> (&K, &V) {
-        self.with_leaf(Side::Left, depth, |leaf| leaf.entries.get(0).unwrap())
-    }
-
-    fn get_max_mut(&mut self, depth: u8) -> &mut V {
-        self.with_leaf_mut(Side::Right, depth, |leaf| {
-            leaf.entries.get_mut(leaf.entries.len - 1).unwrap().1
-        })
-    }
-
-    fn get_min_mut(&mut self, depth: u8) -> &mut V {
-        self.with_leaf_mut(Side::Left, depth, |leaf| leaf.entries.get_mut(0).unwrap().1)
-    }
+    // fn remove_min(&mut self, depth: u8) -> (K, V) {
+    //     self.remove_extremity(Side::Left, depth)
+    // }
+    //
+    // fn get_max(&self, depth: u8) -> (&K, &V) {
+    //     self.with_leaf(Side::Right, depth, |leaf| {
+    //         leaf.entries.get(leaf.entries.len - 1).unwrap()
+    //     })
+    // }
+    //
+    // fn get_min(&self, depth: u8) -> (&K, &V) {
+    //     self.with_leaf(Side::Left, depth, |leaf| leaf.entries.get(0).unwrap())
+    // }
+    //
+    // fn get_max_mut(&mut self, depth: u8) -> &mut V {
+    //     self.with_leaf_mut(Side::Right, depth, |leaf| {
+    //         leaf.entries.get_mut(leaf.entries.len - 1).unwrap().1
+    //     })
+    // }
+    //
+    // fn get_min_mut(&mut self, depth: u8) -> &mut V {
+    //     self.with_leaf_mut(Side::Left, depth, |leaf| leaf.entries.get_mut(0).unwrap().1)
+    // }
 }
 
 macro_rules! both {
@@ -387,10 +519,6 @@ impl<K, V> Default for Entries<K, V> {
 }
 
 impl<K, V> Entries<K, V> {
-    const fn is_empty(&self) -> bool {
-        self.len == 0
-    }
-
     fn drop(&mut self) {
         for i in 0..self.len {
             unsafe {
@@ -484,15 +612,17 @@ where
     }
 }
 
+#[repr(C)]
 #[derive(Debug)]
-#[repr(transparent)]
 struct LeafNode<K, V> {
+    parent: Option<NonNull<InternalNode<K, V>>>,
     entries: Entries<K, V>,
 }
 
 impl<K, V> Default for LeafNode<K, V> {
     fn default() -> Self {
         Self {
+            parent: None,
             entries: Entries::default(),
         }
     }
@@ -530,7 +660,10 @@ impl<K, V> LeafNode<K, V> {
     }
 
     fn split_right(&mut self) -> Self {
-        let mut right = Self::default();
+        let mut right = Self {
+            parent: self.parent,
+            ..Default::default()
+        };
         self.entries
             .drain(self.entries.len - MIN_KEYS, MIN_KEYS, &mut right.entries, 0);
         right
@@ -570,15 +703,14 @@ impl<K, V> LeafNode<K, V> {
             .unwrap()
     }
 
-    fn split_as_root(&mut self) -> (UnkownNode<K, V>, (K, V), UnkownNode<K, V>)
+    fn split(&mut self) -> ((K, V), UnkownNode<K, V>)
     where
         K: Ord,
     {
         let right = self.split_right();
         let middle = self.entries.remove(MIN_KEYS).unwrap();
-        let left = core::mem::take(self);
 
-        (left.into(), middle, right.into())
+        (middle, right.into())
     }
 }
 
@@ -627,6 +759,13 @@ impl Side {
             Self::Right => Self::Left,
         }
     }
+
+    fn edge(&self, len: u8) -> u8 {
+        match self {
+            Self::Left => 0,
+            Self::Right => len - 1,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -634,6 +773,15 @@ struct ChildIdx {
     idx: u8,
     side: Side,
 }
+
+impl core::ops::Sub<u8> for ChildIdx {
+    type Output = Self;
+
+    fn sub(self, rhs: u8) -> Self::Output {
+        Self::new(self.idx - rhs, self.side)
+    }
+}
+
 impl core::ops::Add<u8> for ChildIdx {
     type Output = Self;
 
@@ -808,12 +956,14 @@ impl<K, V> ChildEntries<K, V> {
 
 #[repr(C)]
 struct InternalNode<K, V> {
+    parent: Option<NonNull<InternalNode<K, V>>>,
     entries: ChildEntries<K, V>,
 }
 
 impl<K, V> Default for InternalNode<K, V> {
     fn default() -> Self {
         Self {
+            parent: None,
             entries: ChildEntries::default(),
         }
     }
@@ -957,6 +1107,7 @@ impl<K, V> InternalNode<K, V> {
 
     fn split_right(&mut self) -> Self {
         let mut right = Self {
+            parent: self.parent,
             entries: ChildEntries {
                 entries: self.as_node_mut().split_right().entries,
                 children: InlineArray::default(),
@@ -1025,15 +1176,14 @@ impl<K, V> InternalNode<K, V> {
             .for_each(|c| c.drop(depth - 1));
     }
 
-    fn split_as_root(&mut self) -> (UnkownNode<K, V>, (K, V), UnkownNode<K, V>)
+    fn split(&mut self) -> ((K, V), UnkownNode<K, V>)
     where
         K: Ord,
     {
         let right = self.split_right();
         let middle = self.as_node_mut().entries.remove(MIN_KEYS).unwrap();
-        let left = core::mem::take(&mut *self);
 
-        (left.into(), middle, right.into())
+        (middle, right.into())
     }
 
     fn as_node_mut(&mut self) -> &mut LeafNode<K, V> {
@@ -1091,6 +1241,16 @@ impl<K, V> InternalNode<K, V> {
             child.entries.insert(child_add, kv, c);
         }
     }
+
+    fn adopt_children(&mut self) {
+        let parent = Some(self.into());
+
+        let grandchildren = self.entries.children_mut().iter_mut();
+
+        for grandchild in grandchildren {
+            grandchild.parent = parent;
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1099,44 +1259,92 @@ mod btree_tests {
     use crate::rng::Rng;
     use crate::rng::SimpleRng;
 
-    fn assert_get_remove_extremities<K: Ord + Eq + Debug + Copy, V: Eq + Debug + Copy>(
-        btree: &mut Btree<K, V>,
-        expected_max: Option<(K, V)>,
-        expected_min: Option<(K, V)>,
-    ) {
-        assert_eq!(btree.max().map(|(&k, &v)| (k, v)), expected_max);
-        assert_eq!(btree.min().map(|(&k, &v)| (k, v)), expected_min);
-        assert_eq!(
-            btree.max_mut().map(|&mut v| v),
-            expected_max.map(|(_, v)| v)
-        );
-        assert_eq!(
-            btree.min_mut().map(|&mut v| v),
-            expected_min.map(|(_, v)| v)
-        );
-        assert_eq!(btree.remove_max(), expected_max);
-        assert_eq!(btree.remove_min(), expected_min);
-    }
+    // fn assert_get_remove_extremities<K: Ord + Eq + Debug + Copy, V: Eq + Debug + Copy>(
+    //     btree: &mut Btree<K, V>,
+    //     expected_max: Option<(K, V)>,
+    //     expected_min: Option<(K, V)>,
+    // ) {
+    //     assert_eq!(btree.max().map(|(&k, &v)| (k, v)), expected_max);
+    //     assert_eq!(btree.min().map(|(&k, &v)| (k, v)), expected_min);
+    //     assert_eq!(
+    //         btree.max_mut().map(|&mut v| v),
+    //         expected_max.map(|(_, v)| v)
+    //     );
+    //     assert_eq!(
+    //         btree.min_mut().map(|&mut v| v),
+    //         expected_min.map(|(_, v)| v)
+    //     );
+    //     assert_eq!(btree.remove_max(), expected_max);
+    //     assert_eq!(btree.remove_min(), expected_min);
+    // }
+    //
+    // #[test]
+    // fn test_extremity_removal_and_getting() {
+    //     let mut btree = Btree::default();
+    //
+    //     assert_get_remove_extremities(&mut btree, None, None);
+    //
+    //     for i in 0..100 {
+    //         btree.insert(i, i * 10);
+    //     }
+    //
+    //     for i in 0..50 {
+    //         assert_get_remove_extremities(
+    //             &mut btree,
+    //             Some((99 - i, (99 - i) * 10)),
+    //             Some((i, i * 10)),
+    //         );
+    //     }
+    //
+    //     assert_get_remove_extremities(&mut btree, None, None);
+    // }
 
     #[test]
-    fn test_extremity_removal_and_getting() {
+    fn test_btree_cursor() {
         let mut btree = Btree::default();
-
-        assert_get_remove_extremities(&mut btree, None, None);
 
         for i in 0..100 {
             btree.insert(i, i * 10);
         }
 
-        for i in 0..50 {
-            assert_get_remove_extremities(
-                &mut btree,
-                Some((99 - i, (99 - i) * 10)),
-                Some((i, i * 10)),
-            );
+        let mut max = btree.max();
+        let mut min = btree.min();
+
+        assert_eq!(max.next_inorder(), None);
+        assert_eq!(min.back_inorder(), None);
+
+        for i in 1..100 {
+            assert_eq!(max.back_inorder(), Some((&(99 - i), &((99 - i) * 10))));
+            assert_eq!(min.next_inorder(), Some((&i, &(i * 10))));
         }
 
-        assert_get_remove_extremities(&mut btree, None, None);
+        assert_eq!(max.back_inorder(), None);
+        assert_eq!(min.next_inorder(), None);
+    }
+
+    #[test]
+    fn test_btree_cursor_interleaved() {
+        let mut btree = Btree::default();
+
+        for i in 0..1000 {
+            btree.insert(i, i * 10);
+        }
+
+        let mut cursor = btree.min();
+        let mut i = 0;
+        for _ in 0..1000 {
+            if SimpleRng::random() % 2 == 0 {
+                i -= 1;
+
+                assert_eq!(cursor.back_inorder().map(|(&k, &v)| (k, v)), if i >= 0 {Some((i, i * 10))} else {None});
+            } else {
+                i += 1;
+
+                assert_eq!(cursor.next_inorder().map(|(&k, &v)| (k, v)), if i < 1000 {Some((i, i * 10))} else {None});
+            }
+
+            i = i.clamp(0, 999);
+        }
     }
 
     #[test]
@@ -1241,12 +1449,12 @@ mod btree_tests {
             let key = SimpleRng::random() % 255;
             let value = SimpleRng::random();
 
-            match SimpleRng::random() % 5 {
+            match SimpleRng::random() % 3 {
                 0 => assert_eq!(btree.insert(key, value), std.insert(key, value)),
                 1 => assert_eq!(btree.remove(&key), std.remove(&key)),
                 2 => assert_eq!(btree.get(&key), std.get(&key)),
-                3 => assert_eq!(btree.max(), std.iter().next_back()),
-                4 => assert_eq!(btree.min(), std.iter().next()),
+                // 3 => assert_eq!(btree.max(), std.iter().next_back()),
+                // 4 => assert_eq!(btree.min(), std.iter().next()),
                 _ => unreachable!(),
             }
         }

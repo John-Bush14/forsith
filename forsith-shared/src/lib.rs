@@ -1,4 +1,4 @@
-#![feature(portable_simd, likely_unlikely, slice_shift)]
+#![feature(portable_simd, likely_unlikely, slice_shift, transmute_prefix)]
 #![cfg_attr(not(feature = "std"), no_std)]
 #![warn(clippy::all, clippy::pedantic, clippy::nursery)]
 #![allow(clippy::inline_always, clippy::missing_errors_doc)]

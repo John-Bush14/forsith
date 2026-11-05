@@ -45,11 +45,7 @@ impl<T, const N: usize> InlineArray<T, N> {
         let ptr = self.0.as_mut_ptr();
 
         unsafe {
-            core::ptr::copy(
-                ptr.add(range.start),
-                ptr.add(new_index),
-                range.len(),
-            );
+            core::ptr::copy(ptr.add(range.start), ptr.add(new_index), range.len());
         };
     }
 
