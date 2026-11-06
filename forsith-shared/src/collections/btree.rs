@@ -73,7 +73,7 @@ impl<K, V> Btree<K, V> {
         K: Ord,
     {
         let mut cursor = Cursor::open(self.root.clone(), ChildIdx::left(0), self.depth);
-        cursor.descend_to_leaf(Side::Left);
+        cursor.descend_to_leaf(|_| ChildIdx::left(0));
 
         cursor
     }
@@ -87,7 +87,7 @@ impl<K, V> Btree<K, V> {
             ChildIdx::right(self.root.entries.len - 1),
             self.depth,
         );
-        cursor.descend_to_leaf(Side::Right);
+        cursor.descend_to_leaf(|cursor| cursor.node().last_child_idx());
 
         cursor
     }
@@ -200,20 +200,20 @@ impl<'btree, K, V> Cursor<'btree, K, V> {
         Some(())
     }
 
-    fn descend(&mut self, side: Side)
+    fn descend(&mut self, idx_chooser: impl FnOnce(&Self) -> ChildIdx)
     where
         K: Ord,
     {
         self.node.descend(self.idx);
-        self.idx = side.child_edge(self.node().entries.len);
+        self.idx = idx_chooser(self);
     }
 
-    fn descend_to_leaf(&mut self, side: Side)
+    fn descend_to_leaf(&mut self, mut idx_chooser: impl FnMut(&Self) -> ChildIdx)
     where
         K: Ord,
     {
         while self.node.depth > 0 {
-            self.descend(side);
+            self.descend(&mut idx_chooser);
         }
     }
 
@@ -223,11 +223,11 @@ impl<'btree, K, V> Cursor<'btree, K, V> {
         K: Ord,
     {
         if self.node.depth > 0 {
-            self.descend_to_leaf(Side::Right);
+            self.descend_to_leaf(|cursor| cursor.node().last_child_idx());
         } else {
             while self.idx.idx() == 0 {
                 if self.ascend().is_none() {
-                    self.descend_to_leaf(Side::Left);
+                    self.descend_to_leaf(|_| ChildIdx::left(0));
                     return None;
                 }
             }
@@ -248,14 +248,14 @@ impl<'btree, K, V> Cursor<'btree, K, V> {
         let is_internal = self.node.depth > 0;
         while self.idx.idx() >= self.node().entries.len + u8::from(is_internal) {
             if self.ascend().is_none() {
-                self.descend_to_leaf(Side::Right);
+                self.descend_to_leaf(|cursor| cursor.node().last_child_idx());
 
                 return None;
             }
         }
 
         if is_internal {
-            self.descend_to_leaf(Side::Left);
+            self.descend_to_leaf(|_| ChildIdx::left(0));
         }
 
         Some(self.keyval().unwrap())
@@ -329,6 +329,10 @@ impl<K, V> UnkownNode<K, V> {
             0 => self.as_leaf().assert_invariants(),
             _ => unsafe { self.as_internal().assert_invariants(depth) },
         }
+    }
+
+    fn last_child_idx(&self) -> ChildIdx {
+        ChildIdx::right(self.entries.len - 1)
     }
 
     fn flatten_as_root(&mut self, depth: u8) {
@@ -411,7 +415,7 @@ impl<K, V> UnkownNode<K, V> {
                 _ => {}
             }
 
-            cursor.descend(Side::Left);
+            cursor.descend(|_| ChildIdx::left(0));
         }
     }
 
@@ -504,7 +508,6 @@ impl<K, V> UnkownNode<K, V> {
     const fn reborrow<'a, 'b>(&'a self) -> &'b Self {
         unsafe { &*(&raw const *self) }
     }
-
 }
 
 macro_rules! both {
