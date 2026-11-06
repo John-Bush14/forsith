@@ -1,5 +1,10 @@
 use crate::collections::inline::InlineArray;
-use core::{fmt::Debug, mem::MaybeUninit, ops::Deref, ops::DerefMut, ptr::NonNull};
+use core::{
+    fmt::{Debug, Display, Write},
+    mem::MaybeUninit,
+    ops::{Deref, DerefMut},
+    ptr::NonNull,
+};
 use forsith_proc::{Deref, DerefMut, IsVariant};
 
 const MAX_KEYS: u8 = 11;
@@ -17,6 +22,13 @@ impl<K: Debug, V: Debug> Debug for Btree<K, V> {
             .field("depth", &self.depth)
             .field_with("root", |f| self.root.fmt(f, self.depth))
             .finish()
+    }
+}
+
+impl<K: Display, V: Display> Display for Btree<K, V> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str("Btree \n")?;
+        f.write_str(&self.root.display(self.depth))
     }
 }
 
@@ -47,15 +59,25 @@ impl<K, V> Btree<K, V> {
         })
     }
 
-    fn min(&self) -> Cursor<'_, K, V> where K: Ord {
+    fn min(&self) -> Cursor<'_, K, V>
+    where
+        K: Ord,
+    {
         let mut cursor = Cursor::open(self.root.clone(), ChildIdx::left(0), self.depth);
         cursor.descend_to_leaf(Side::Left);
 
         cursor
     }
 
-    fn max(&self) -> Cursor<'_, K, V> where K: Ord {
-        let mut cursor = Cursor::open(self.root.clone(), ChildIdx::right(self.root.entries.len - 1), self.depth);
+    fn max(&self) -> Cursor<'_, K, V>
+    where
+        K: Ord,
+    {
+        let mut cursor = Cursor::open(
+            self.root.clone(),
+            ChildIdx::right(self.root.entries.len - 1),
+            self.depth,
+        );
         cursor.descend_to_leaf(Side::Right);
 
         cursor
@@ -116,7 +138,10 @@ impl<K, V> Cursor<'_, K, V> {
     where
         K: Ord,
     {
-        println!("Ascending from depth: {}, idx: {:?}, with len {}", self.depth, self.idx, self.node.entries.len);
+        println!(
+            "Ascending from depth: {}, idx: {:?}, with len {}",
+            self.depth, self.idx, self.node.entries.len
+        );
         let (key, _) = self.node.entries.get(0).unwrap();
 
         let parent = unsafe { self.node.parent?.as_mut() };
@@ -124,7 +149,10 @@ impl<K, V> Cursor<'_, K, V> {
         self.node = parent.into();
         self.depth += 1;
 
-        println!("Ascended to depth: {}, idx: {:?}, with len {}", self.depth, self.idx, self.node.entries.len);
+        println!(
+            "Ascended to depth: {}, idx: {:?}, with len {}",
+            self.depth, self.idx, self.node.entries.len
+        );
 
         Some(())
     }
@@ -133,7 +161,10 @@ impl<K, V> Cursor<'_, K, V> {
     where
         K: Ord,
     {
-        println!("Descending from depth: {}, idx: {:?}, with len {}", self.depth, self.idx, self.node.entries.len);
+        println!(
+            "Descending from depth: {}, idx: {:?}, with len {}",
+            self.depth, self.idx, self.node.entries.len
+        );
         assert!(self.depth > 0, "cannot descend from a leaf node");
 
         self.node = unsafe { self.node.as_internal_mut() }
@@ -144,7 +175,10 @@ impl<K, V> Cursor<'_, K, V> {
         self.idx = side.child_edge(self.node.entries.len);
         self.depth -= 1;
 
-        println!("Descended to depth: {}, idx: {:?}, with len {}", self.depth, self.idx, self.node.entries.len);
+        println!(
+            "Descended to depth: {}, idx: {:?}, with len {}",
+            self.depth, self.idx, self.node.entries.len
+        );
     }
 
     fn descend_to_leaf(&mut self, side: Side)
@@ -455,6 +489,17 @@ impl<K, V> UnkownNode<K, V> {
         self.remove_extremity(Side::Right, depth)
     }
 
+    fn display(&self, depth: u8) -> String
+    where
+        K: Display,
+        V: Display,
+    {
+        match depth {
+            0 => self.as_leaf().display(),
+            _ => unsafe { self.as_internal().display(depth) },
+        }
+    }
+
     // fn remove_min(&mut self, depth: u8) -> (K, V) {
     //     self.remove_extremity(Side::Left, depth)
     // }
@@ -542,6 +587,10 @@ impl<K, V> Entries<K, V> {
                 self => .shift_left(idx as usize..self.len as usize + 1, None),
             ))
         })
+    }
+
+    fn iter(&self) -> impl Iterator<Item = (&K, &V)> {
+        (0..self.len).map(|i| unsafe_both!((self => .get(i as usize),)))
     }
 
     fn iter_keys(&self) -> impl Iterator<Item = &K> {
@@ -712,6 +761,23 @@ impl<K, V> LeafNode<K, V> {
 
         (middle, right.into())
     }
+
+    fn display(&self) -> String
+    where
+        K: Display,
+        V: Display,
+    {
+        let mut s = String::from('[');
+
+        self.entries
+            .iter()
+            .map(|(k, v)| format!("{k}: {v}, "))
+            .collect_into(&mut s);
+
+        s.replace_range(s.len() - 2..s.len(), "]");
+
+        s
+    }
 }
 
 #[repr(C)]
@@ -853,6 +919,10 @@ impl<K, V> ChildEntries<K, V> {
         self.entries.len
     }
 
+    fn iter_children(&self) -> impl Iterator<Item = &UnkownNode<K, V>> {
+        (0..=self.entries.len).map(|i| unsafe { self.children.get(i as usize) })
+    }
+
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>, depth: u8) -> core::fmt::Result
     where
         K: Debug,
@@ -956,7 +1026,7 @@ impl<K, V> ChildEntries<K, V> {
 
 #[repr(C)]
 struct InternalNode<K, V> {
-    parent: Option<NonNull<InternalNode<K, V>>>,
+    parent: Option<NonNull<Self>>,
     entries: ChildEntries<K, V>,
 }
 
@@ -990,6 +1060,42 @@ impl<K, V> InternalNode<K, V> {
         f.debug_struct("InternalNode")
             .field_with("entries", |f| self.entries.fmt(f, depth))
             .finish()
+    }
+
+    fn display(&self, depth: u8) -> String
+    where
+        K: Display,
+        V: Display,
+    {
+        let mut s = String::from("[");
+
+        self.entries
+            .iter()
+            .map(|(k, v)| format!("{k}: {v} | "))
+            .collect_into(&mut s);
+
+        s.replace_range(s.len() - 3..s.len(), "]\n");
+
+        self.entries
+            .iter_children()
+            .enumerate()
+            .for_each(|(i, child)| {
+                let child = child.display(depth - 1);
+
+                let (start_prefix, prefix) = if i == self.entries.len() as usize {
+                    ("└── ", "   ")
+                } else {
+                    ("├── ", "│  ")
+                };
+
+                child.lines().enumerate().for_each(|(i, line)| {
+                    let prefix = if i == 0 { start_prefix } else { prefix };
+
+                    writeln!(s, "{prefix}{line}").unwrap();
+                });
+            });
+
+        s
     }
 
     fn get(&self, key: &K, depth: u8) -> Option<&V>
@@ -1336,11 +1442,21 @@ mod btree_tests {
             if SimpleRng::random() % 2 == 0 {
                 i -= 1;
 
-                assert_eq!(cursor.back_inorder().map(|(&k, &v)| (k, v)), if i >= 0 {Some((i, i * 10))} else {None});
+                println!("back_inorder: i = {i}");
+
+                assert_eq!(
+                    cursor.back_inorder().map(|(&k, &v)| (k, v)),
+                    if i >= 0 { Some((i, i * 10)) } else { None }
+                );
             } else {
                 i += 1;
 
-                assert_eq!(cursor.next_inorder().map(|(&k, &v)| (k, v)), if i < 1000 {Some((i, i * 10))} else {None});
+                println!("next_inorder: i = {i}");
+
+                assert_eq!(
+                    cursor.next_inorder().map(|(&k, &v)| (k, v)),
+                    if i < 1000 { Some((i, i * 10)) } else { None }
+                );
             }
 
             i = i.clamp(0, 999);
@@ -1401,6 +1517,8 @@ mod btree_tests {
         for i in 0..100 {
             btree.insert(i, i * 10);
         }
+
+        panic!("{btree}");
 
         for i in 0..100 {
             assert_eq!(btree.remove(&i), Some(i * 10));

@@ -1,5 +1,5 @@
+use crate::io::{Read, ReadBuf, Seek};
 use forsith_proc::{Deref, DerefMut};
-use crate::io::{Read, Seek, ReadBuf};
 use std::io::Cursor;
 
 #[derive(Debug, Deref, DerefMut)]
