@@ -1,6 +1,10 @@
 use crate::collections::inline::InlineArray;
 use core::{
-    cmp::Ordering, fmt::{Debug, Display, Write}, mem::MaybeUninit, ops::{Deref, DerefMut}, ptr::NonNull,
+    cmp::Ordering,
+    fmt::{Debug, Display, Write},
+    mem::MaybeUninit,
+    ops::{Deref, DerefMut},
+    ptr::NonNull,
 };
 use forsith_proc::{Deref, DerefMut, IsVariant};
 
@@ -45,6 +49,7 @@ impl<K, V> Btree<K, V> {
         self.root.insert(key, value, self.depth)
     }
 
+    #[cfg(test)]
     fn assert_invariants(&self)
     where
         K: Ord,
@@ -63,7 +68,7 @@ impl<K, V> Btree<K, V> {
         })
     }
 
-    fn min(&self) -> Cursor<'_, K, V>
+    pub fn min(&self) -> Cursor<'_, K, V>
     where
         K: Ord,
     {
@@ -121,18 +126,16 @@ impl<K, V> Default for Btree<K, V> {
     }
 }
 
-pub struct Cursor<'btree, K, V> {
+pub struct NodeCursor<'btree, K, V> {
     node: UnkownNode<K, V>,
-    idx: ChildIdx,
     depth: u8,
     _phantom: core::marker::PhantomData<&'btree ()>,
 }
 
-impl<K, V> Cursor<'_, K, V> {
-    const fn open(node: UnkownNode<K, V>, idx: ChildIdx, depth: u8) -> Self {
+impl<K, V> NodeCursor<'_, K, V> {
+    const fn open(node: UnkownNode<K, V>, depth: u8) -> Self {
         Self {
             node,
-            idx,
             depth,
             _phantom: core::marker::PhantomData,
         }
@@ -142,21 +145,53 @@ impl<K, V> Cursor<'_, K, V> {
     where
         K: Ord,
     {
-        println!(
-            "Ascending from depth: {}, idx: {:?}, with len {}",
-            self.depth, self.idx, self.node.entries.len
-        );
-        let (key, _) = self.node.entries.get(0).unwrap();
-
         let parent = unsafe { self.node.parent?.as_mut() };
-        self.idx = parent.partition_point(key);
         self.node = parent.into();
         self.depth += 1;
 
-        println!(
-            "Ascended to depth: {}, idx: {:?}, with len {}",
-            self.depth, self.idx, self.node.entries.len
-        );
+        Some(())
+    }
+
+    fn descend(&mut self, idx: ChildIdx) {
+        assert!(self.depth > 0, "cannot descend from a leaf node");
+
+        self.node = unsafe { self.node.as_internal_mut() }
+            .entries
+            .get_child_mut(idx)
+            .unwrap()
+            .clone();
+
+        self.depth -= 1;
+    }
+}
+
+pub struct Cursor<'btree, K, V> {
+    node: NodeCursor<'btree, K, V>,
+    idx: ChildIdx,
+    _phantom: core::marker::PhantomData<&'btree ()>,
+}
+
+impl<K, V> Cursor<'_, K, V> {
+    const fn node(&self) -> &UnkownNode<K, V> {
+        &self.node.node
+    }
+
+    const fn open(node: UnkownNode<K, V>, idx: ChildIdx, depth: u8) -> Self {
+        Self {
+            node: NodeCursor::open(node, depth),
+            idx,
+            _phantom: core::marker::PhantomData,
+        }
+    }
+
+    fn ascend(&mut self) -> Option<()>
+    where
+        K: Ord,
+    {
+        let (key, _) = self.node().reborrow().entries.get(0).unwrap();
+
+        self.node.ascend()?;
+        self.idx = unsafe { self.node().as_internal() }.partition_point(key);
 
         Some(())
     }
@@ -165,90 +200,61 @@ impl<K, V> Cursor<'_, K, V> {
     where
         K: Ord,
     {
-        println!(
-            "Descending from depth: {}, idx: {:?}, with len {}",
-            self.depth, self.idx, self.node.entries.len
-        );
-        assert!(self.depth > 0, "cannot descend from a leaf node");
-
-        self.node = unsafe { self.node.as_internal_mut() }
-            .entries
-            .get_child_mut(self.idx)
-            .unwrap()
-            .clone();
-        self.idx = side.child_edge(self.node.entries.len);
-        self.depth -= 1;
-
-        println!(
-            "Descended to depth: {}, idx: {:?}, with len {}",
-            self.depth, self.idx, self.node.entries.len
-        );
+        self.node.descend(self.idx);
+        self.idx = side.child_edge(self.node().entries.len);
     }
 
     fn descend_to_leaf(&mut self, side: Side)
     where
         K: Ord,
     {
-        while self.depth > 0 {
+        while self.node.depth > 0 {
             self.descend(side);
         }
     }
 
+    #[allow(clippy::missing_panics_doc)]
     pub fn back_inorder(&mut self) -> Option<(&K, &V)>
     where
         K: Ord,
     {
-        if self.idx.idx() == 0 {
-            if self.depth == 0 {
-                while self.idx.idx() == 0 {
-                    if self.ascend().is_none() {
-                        self.descend_to_leaf(Side::Left);
-                        return None;
-                    }
-                }
-
-                self.idx = self.idx - 1;
-            } else {
-                self.descend_to_leaf(Side::Right);
-            }
+        if self.node.depth > 0 {
+            self.descend_to_leaf(Side::Right);
         } else {
-            if self.depth > 0 {
-                self.descend_to_leaf(Side::Right);
-            } else {
-                self.idx = self.idx - 1;
+            while self.idx.idx() == 0 {
+                if self.ascend().is_none() {
+                    self.descend_to_leaf(Side::Left);
+                    return None;
+                }
             }
+
+            self.idx = self.idx - 1;
         }
 
-        Some(self.node.entries.get(self.idx.idx()).unwrap())
+        Some(self.node().entries.get(self.idx.idx()).unwrap())
     }
 
+    #[allow(clippy::missing_panics_doc)]
     pub fn next_inorder(&mut self) -> Option<(&K, &V)>
     where
         K: Ord,
     {
         self.idx = self.idx + 1;
 
-        if self.depth == 0 {
-            while self.idx.idx() >= self.node.entries.len {
-                if self.ascend().is_none() {
-                    self.descend_to_leaf(Side::Right);
+        let is_internal = self.node.depth > 0;
+        while self.idx.idx() >= self.node().entries.len + u8::from(is_internal) {
+            if self.ascend().is_none() {
+                self.descend_to_leaf(Side::Right);
 
-                    return None;
-                }
+                return None;
             }
-        } else {
-            while self.idx.idx() > self.node.entries.len {
-                if self.ascend().is_none() {
-                    self.descend_to_leaf(Side::Right);
+        }
 
-                    return None;
-                }
-            }
-
+        if is_internal {
             self.descend_to_leaf(Side::Left);
         }
 
-        Some(self.node.entries.get(self.idx.idx()).unwrap())
+        Some(self.node().entries.get(self.idx.idx()).unwrap())
     }
 }
 
@@ -256,9 +262,9 @@ struct UnkownNode<K, V>(NonNull<LeafNode<K, V>>);
 
 impl<K, V> Clone for UnkownNode<K, V> {
     fn clone(&self) -> Self {
+    }
         Self(self.0)
     }
-}
 
 impl<K, V> Deref for UnkownNode<K, V> {
     type Target = LeafNode<K, V>;
@@ -476,6 +482,10 @@ impl<K, V> UnkownNode<K, V> {
             0 => self.as_leaf().display(),
             _ => unsafe { self.as_internal().display(depth) },
         }
+    }
+
+    fn reborrow<'a, 'b>(&'a self) -> &'b Self {
+        unsafe { &*(&raw const *self) }
     }
 
     // fn remove_min(&mut self, depth: u8) -> (K, V) {
@@ -757,10 +767,16 @@ impl<K, V> LeafNode<K, V> {
         s
     }
 
-    fn assert_invariants(&self) where K: Ord {
+    fn assert_invariants(&self)
+    where
+        K: Ord,
+    {
         assert!(self.entries.iter_keys().is_sorted(), "keys are not sorted");
         assert!(self.entries.len <= MAX_KEYS, "too many keys in leaf node");
-        assert!(self.entries.len >= MIN_KEYS || self.parent.is_none(), "too few keys in leaf node");
+        assert!(
+            self.entries.len >= MIN_KEYS || self.parent.is_none(),
+            "too few keys in leaf node"
+        );
     }
 }
 
@@ -1004,12 +1020,8 @@ impl<K, V> ChildEntries<K, V> {
         );
 
         let range = idx.child_idx() as usize..(idx.child_idx() + len) as usize;
-        self.children.move_to_other(
-            range,
-            &mut other.children,
-            other_idx.child_idx() as usize,
-        );
-
+        self.children
+            .move_to_other(range, &mut other.children, other_idx.child_idx() as usize);
     }
 
     fn children(&self) -> &[UnkownNode<K, V>] {
@@ -1215,8 +1227,9 @@ impl<K, V> InternalNode<K, V> {
                 entries: self.as_node_mut().split_right().entries,
                 children: InlineArray::default(),
             },
-        }.into();
-        let right_parent = Some(NonNull::from(unsafe {right_box.as_internal_mut()}));
+        }
+        .into();
+        let right_parent = Some(NonNull::from(unsafe { right_box.as_internal_mut() }));
         let right = unsafe { right_box.as_internal_mut() };
 
         self.entries.drain_children(
@@ -1226,7 +1239,12 @@ impl<K, V> InternalNode<K, V> {
             ChildIdx::left(0),
         );
 
-        right.entries.children_mut().iter_mut().take(MIN_KEYS as usize + 1).for_each(|c| c.parent = right_parent);
+        right
+            .entries
+            .children_mut()
+            .iter_mut()
+            .take(MIN_KEYS as usize + 1)
+            .for_each(|c| c.parent = right_parent);
 
         right_box
     }
@@ -1352,7 +1370,10 @@ impl<K, V> InternalNode<K, V> {
         }
     }
 
-    fn assert_invariants(&self, depth: u8) where K: Ord {
+    fn assert_invariants(&self, depth: u8)
+    where
+        K: Ord,
+    {
         self.as_node().assert_invariants();
 
         let parent = Some(NonNull::from(self));
@@ -1368,9 +1389,13 @@ impl<K, V> InternalNode<K, V> {
             let key = self.entries.get(idx.idx()).unwrap().0;
             let ordering = idx.side.choose(Ordering::Less, Ordering::Greater);
 
-            child.entries.iter_keys().map(|k| k.cmp(key)).for_each(|ord| {
-                assert_eq!(ord, ordering, "child's keys are not in the correct range");
-            });
+            child
+                .entries
+                .iter_keys()
+                .map(|k| k.cmp(key))
+                .for_each(|ord| {
+                    assert_eq!(ord, ordering, "child's keys are not in the correct range");
+                });
 
             idx = idx.next();
         }
@@ -1380,7 +1405,8 @@ impl<K, V> InternalNode<K, V> {
         self.entries.drain_fully(&mut child.entries, dest);
 
         let parent = Some(NonNull::from(&mut *child));
-        child.entries
+        child
+            .entries
             .children_mut()
             .iter_mut()
             .for_each(|c| c.parent = parent);
@@ -1545,7 +1571,6 @@ mod btree_tests {
             btree.insert(key, key);
             btree.assert_invariants();
         }
-
 
         for &key in &keys {
             assert_eq!(btree.get(&key), Some(&(key)));
