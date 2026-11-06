@@ -1,5 +1,6 @@
 use forsith_proc::{Deref, DerefMut};
-use std::io::{BufRead, Cursor, Read, Seek};
+use crate::io::{Read, Seek, ReadBuf};
+use std::io::Cursor;
 
 #[derive(Debug, Deref, DerefMut)]
 pub struct CursorVec<T>(Cursor<Vec<T>>);
@@ -84,14 +85,14 @@ impl<T> CursorVec<T> {
     }
 }
 impl CursorVec<u8> {
-    pub fn fill_from(&mut self, reader: &mut impl Read, len: usize) -> std::io::Result<()> {
+    pub fn fill_from(&mut self, reader: &mut impl Read, len: usize) -> crate::io::Result<()> {
         let cursor = self.cursor();
         let buf = &mut self.0.get_mut()[cursor..cursor + len];
         reader.read_exact(buf)?;
 
         Ok(())
     }
-    pub fn read_from(&mut self, reader: &mut impl Read, len: usize) -> std::io::Result<()> {
+    pub fn read_from(&mut self, reader: &mut impl Read, len: usize) -> crate::io::Result<()> {
         self.fill_from(reader, len)?;
         self.consume(len);
         Ok(())
@@ -108,13 +109,13 @@ where
 }
 
 impl Read for CursorVec<u8> {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+    fn read(&mut self, buf: &mut [u8]) -> crate::io::Result<usize> {
         (**self).read(buf)
     }
 }
 
 impl Seek for CursorVec<u8> {
-    fn seek(&mut self, pos: std::io::SeekFrom) -> std::io::Result<u64> {
+    fn seek(&mut self, pos: crate::io::SeekPosition) -> crate::io::Result<u64> {
         (**self).seek(pos)
     }
 }

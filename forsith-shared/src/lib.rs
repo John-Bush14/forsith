@@ -18,7 +18,6 @@ pub mod collections;
 
 pub mod int;
 
-#[cfg(feature = "std")]
 pub mod bit;
 
 pub mod error;
@@ -28,3 +27,5 @@ pub mod ffi;
 pub mod rng;
 
 pub use forsith_base::{casing, const_for, proc_macro};
+
+pub mod io;

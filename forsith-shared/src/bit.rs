@@ -1,6 +1,5 @@
-use crate::{buffers::CursorVec, int::UInt};
+use crate::{buffers::CursorVec, int::UInt, io::Read, io::Seek};
 use forsith_proc::{Deref, DerefMut};
-use std::io::{Read, Seek};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Bitmask(u16);
@@ -162,7 +161,7 @@ pub struct BitReader<T: Read + Seek> {
 }
 
 impl<T: Read + Seek> Read for BitReader<T> {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+    fn read(&mut self, buf: &mut [u8]) -> crate::io::Result<usize> {
         self.buffer.read(buf)
     }
 }
