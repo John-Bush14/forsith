@@ -1,9 +1,6 @@
 use crate::collections::inline::InlineArray;
 use core::{
-    fmt::{Debug, Display, Write},
-    mem::MaybeUninit,
-    ops::{Deref, DerefMut},
-    ptr::NonNull,
+    cmp::Ordering, fmt::{Debug, Display, Write}, mem::MaybeUninit, ops::{Deref, DerefMut}, ptr::NonNull,
 };
 use forsith_proc::{Deref, DerefMut, IsVariant};
 
@@ -46,6 +43,13 @@ impl<K, V> Btree<K, V> {
     {
         self.split_if_needed();
         self.root.insert(key, value, self.depth)
+    }
+
+    fn assert_invariants(&self)
+    where
+        K: Ord,
+    {
+        self.root.assert_invariants(self.depth);
     }
 
     pub fn remove(&mut self, key: &K) -> Option<V>
@@ -307,6 +311,16 @@ impl<K, V> UnkownNode<K, V> {
         unsafe { self.0.as_ref() }
     }
 
+    fn assert_invariants(&self, depth: u8)
+    where
+        K: Ord,
+    {
+        match depth {
+            0 => self.as_leaf().assert_invariants(),
+            _ => unsafe { self.as_internal().assert_invariants(depth) },
+        }
+    }
+
     fn flatten_as_root(&mut self, depth: u8) {
         let internal = unsafe { self.as_internal_mut() };
         let mut new_root = internal.entries.take_child(ChildIdx::left(0));
@@ -316,8 +330,8 @@ impl<K, V> UnkownNode<K, V> {
             new_root.dealloc(depth - 1);
         } else {
             self.dealloc(depth);
-            self.0 = new_root.0;
-            new_root.parent = None;
+            *self = new_root;
+            self.parent = None;
         }
     }
 
@@ -777,6 +791,12 @@ impl<K, V> LeafNode<K, V> {
 
         s
     }
+
+    fn assert_invariants(&self) where K: Ord {
+        assert!(self.entries.iter_keys().is_sorted(), "keys are not sorted");
+        assert!(self.entries.len <= MAX_KEYS, "too many keys in leaf node");
+        assert!(self.entries.len >= MIN_KEYS || self.parent.is_none(), "too few keys in leaf node");
+    }
 }
 
 #[repr(C)]
@@ -829,6 +849,13 @@ impl Side {
         match self {
             Self::Left => 0,
             Self::Right => len - 1,
+        }
+    }
+
+    fn choose<T>(&self, left: T, right: T) -> T {
+        match self {
+            Self::Left => left,
+            Self::Right => right,
         }
     }
 }
@@ -1018,6 +1045,10 @@ impl<K, V> ChildEntries<K, V> {
             other_idx.child_idx() as usize,
         );
 
+    }
+
+    fn children(&self) -> &[UnkownNode<K, V>] {
+        unsafe { self.children.get(0..=self.len() as usize) }
     }
 
     fn children_mut(&mut self) -> &mut [UnkownNode<K, V>] {
@@ -1355,6 +1386,30 @@ impl<K, V> InternalNode<K, V> {
             child.entries.insert(child_add, kv, c);
         }
     }
+
+    fn assert_invariants(&self, depth: u8) where K: Ord {
+        self.as_node().assert_invariants();
+
+        let parent = Some(NonNull::from(self));
+
+        self.entries.children().iter().for_each(|c| {
+            assert_eq!(c.parent, parent, "child's parent pointer is incorrect");
+            c.assert_invariants(depth - 1);
+        });
+
+        let mut idx = ChildIdx::left(0);
+        while idx.child_idx() <= self.entries.len() {
+            let child = self.entries.get_child(idx).unwrap();
+            let key = self.entries.get(idx.idx()).unwrap().0;
+            let ordering = idx.side.choose(Ordering::Less, Ordering::Greater);
+
+            child.entries.iter_keys().map(|k| k.cmp(key)).for_each(|ord| {
+                assert_eq!(ord, ordering, "child's keys are not in the correct range");
+            });
+
+            idx = idx.next();
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1362,46 +1417,6 @@ mod btree_tests {
     use super::*;
     use crate::rng::Rng;
     use crate::rng::SimpleRng;
-
-    // fn assert_get_remove_extremities<K: Ord + Eq + Debug + Copy, V: Eq + Debug + Copy>(
-    //     btree: &mut Btree<K, V>,
-    //     expected_max: Option<(K, V)>,
-    //     expected_min: Option<(K, V)>,
-    // ) {
-    //     assert_eq!(btree.max().map(|(&k, &v)| (k, v)), expected_max);
-    //     assert_eq!(btree.min().map(|(&k, &v)| (k, v)), expected_min);
-    //     assert_eq!(
-    //         btree.max_mut().map(|&mut v| v),
-    //         expected_max.map(|(_, v)| v)
-    //     );
-    //     assert_eq!(
-    //         btree.min_mut().map(|&mut v| v),
-    //         expected_min.map(|(_, v)| v)
-    //     );
-    //     assert_eq!(btree.remove_max(), expected_max);
-    //     assert_eq!(btree.remove_min(), expected_min);
-    // }
-    //
-    // #[test]
-    // fn test_extremity_removal_and_getting() {
-    //     let mut btree = Btree::default();
-    //
-    //     assert_get_remove_extremities(&mut btree, None, None);
-    //
-    //     for i in 0..100 {
-    //         btree.insert(i, i * 10);
-    //     }
-    //
-    //     for i in 0..50 {
-    //         assert_get_remove_extremities(
-    //             &mut btree,
-    //             Some((99 - i, (99 - i) * 10)),
-    //             Some((i, i * 10)),
-    //         );
-    //     }
-    //
-    //     assert_get_remove_extremities(&mut btree, None, None);
-    // }
 
     #[test]
     fn test_btree_cursor() {
@@ -1467,6 +1482,7 @@ mod btree_tests {
 
         for i in 0..100 {
             btree.insert(i, i * 10);
+            btree.assert_invariants();
         }
 
         for i in 0..100 {
@@ -1481,15 +1497,18 @@ mod btree_tests {
         let mut btree = Btree::default();
 
         assert_eq!(btree.insert(1, 10), None);
+        btree.assert_invariants();
         assert_eq!(btree.get(&1), Some(&10));
 
         assert_eq!(btree.insert(1, 20), Some(10));
+        btree.assert_invariants();
         assert_eq!(btree.get(&1), Some(&20));
     }
 
     #[test]
     fn test_empty_btree_get() {
         let btree: Btree<u64, u64> = Btree::default();
+        btree.assert_invariants();
         assert_eq!(btree.get(&1), None);
     }
 
@@ -1499,6 +1518,7 @@ mod btree_tests {
 
         for i in 0..100 {
             btree.insert(i.to_string(), (i * 10).to_string());
+            btree.assert_invariants();
         }
 
         for i in 0..99 {
@@ -1518,6 +1538,7 @@ mod btree_tests {
 
         for i in 0..100 {
             assert_eq!(btree.remove(&i), Some(i * 10));
+            btree.assert_invariants();
             assert_eq!(btree.get(&i), None);
         }
     }
@@ -1534,6 +1555,7 @@ mod btree_tests {
 
         for &key in &keys {
             assert_eq!(btree.remove(&key), Some(key));
+            btree.assert_invariants();
             assert_eq!(btree.get(&key), None);
         }
     }
@@ -1546,7 +1568,9 @@ mod btree_tests {
 
         for &key in &keys {
             btree.insert(key, key);
+            btree.assert_invariants();
         }
+
 
         for &key in &keys {
             assert_eq!(btree.get(&key), Some(&(key)));
@@ -1569,6 +1593,8 @@ mod btree_tests {
                 2 => assert_eq!(btree.get(&key), std.get(&key)),
                 _ => unreachable!(),
             }
+
+            btree.assert_invariants();
         }
     }
 }
