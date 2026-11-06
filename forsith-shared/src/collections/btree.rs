@@ -335,41 +335,6 @@ impl<K, V> UnkownNode<K, V> {
         }
     }
 
-    // fn with_leaf<'a, T: 'a>(
-    //     &'a self,
-    //     side: Side,
-    //     depth: u8,
-    //     f: impl FnOnce(&'a LeafNode<K, V>) -> T,
-    // ) -> T {
-    //     if depth == 0 {
-    //         return f(self);
-    //     }
-    //
-    //     unsafe { self.as_internal() }
-    //         .entries
-    //         .get_child(side.child_edge(self.entries.len))
-    //         .unwrap()
-    //         .with_leaf(side, depth - 1, f)
-    // }
-    //
-    // fn with_leaf_mut<'a, T: 'a>(
-    //     &'a mut self,
-    //     side: Side,
-    //     depth: u8,
-    //     f: impl FnOnce(&'a mut LeafNode<K, V>) -> T,
-    // ) -> T {
-    //     if depth == 0 {
-    //         return f(self);
-    //     }
-    //
-    //     let idx = side.child_edge(self.entries.len);
-    //     unsafe { self.as_internal_mut() }
-    //         .entries
-    //         .get_child_mut(idx)
-    //         .unwrap()
-    //         .with_leaf_mut(side, depth - 1, f)
-    // }
-
     fn remove_extremity(&mut self, side: Side, depth: u8) -> (K, V) {
         let idx = side.child_edge(self.entries.len);
 
@@ -1351,7 +1316,7 @@ impl<K, V> InternalNode<K, V> {
             let child = unsafe { child.as_internal_mut() };
             let sibling = unsafe { sibling.as_internal_mut() };
 
-            sibling.entries.drain_fully(&mut child.entries, dest);
+            sibling.drain_fully(child, dest);
         }
 
         sibling.dealloc(depth - 1);
@@ -1409,6 +1374,16 @@ impl<K, V> InternalNode<K, V> {
 
             idx = idx.next();
         }
+    }
+
+    fn drain_fully(&mut self, child: &mut Self, dest: ChildIdx) {
+        self.entries.drain_fully(&mut child.entries, dest);
+
+        let parent = Some(NonNull::from(&mut *child));
+        child.entries
+            .children_mut()
+            .iter_mut()
+            .for_each(|c| c.parent = parent);
     }
 }
 
