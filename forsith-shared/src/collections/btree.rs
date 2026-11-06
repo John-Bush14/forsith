@@ -317,6 +317,7 @@ impl<K, V> UnkownNode<K, V> {
         } else {
             self.dealloc(depth);
             self.0 = new_root.0;
+            new_root.parent = None;
         }
     }
 
@@ -1232,7 +1233,12 @@ impl<K, V> InternalNode<K, V> {
 
     fn split_child(&mut self, idx: ChildIdx, depth: u8) {
         let child = self.entries.get_child_mut(idx).unwrap();
-        let right = child.split_right(depth - 1);
+        let mut right = child.split_right(depth - 1);
+
+        if depth > 1 {
+            unsafe { right.as_internal_mut() }.adopt_children();
+        }
+
         let middle = child.entries.remove(MIN_KEYS).unwrap();
 
         self.entries.insert(idx.next(), middle, right);
@@ -1315,6 +1321,7 @@ impl<K, V> InternalNode<K, V> {
             let sibling = unsafe { sibling.as_internal_mut() };
 
             sibling.entries.drain_fully(&mut child.entries, dest);
+            child.adopt_children();
         }
 
         sibling.dealloc(depth - 1);
@@ -1339,10 +1346,12 @@ impl<K, V> InternalNode<K, V> {
         } else {
             let sibling = unsafe { sibling.as_internal_mut() };
 
-            let (c, kv) = sibling.entries.remove(sibling_remove);
+            let (mut c, kv) = sibling.entries.remove(sibling_remove);
             let kv = self.entries.replace(splitting_kv, kv).unwrap();
 
             let child = unsafe { self.entries.get_child_mut(idx).unwrap().as_internal_mut() };
+
+            c.parent = Some(NonNull::from(&mut *child));
 
             child.entries.insert(child_add, kv, c);
         }
@@ -1438,7 +1447,7 @@ mod btree_tests {
 
         let mut cursor = btree.min();
         let mut i = 0;
-        for _ in 0..1000 {
+        for _ in 0..10000 {
             if SimpleRng::random() % 2 == 0 {
                 i -= 1;
 
@@ -1517,8 +1526,6 @@ mod btree_tests {
         for i in 0..100 {
             btree.insert(i, i * 10);
         }
-
-        panic!("{btree}");
 
         for i in 0..100 {
             assert_eq!(btree.remove(&i), Some(i * 10));
