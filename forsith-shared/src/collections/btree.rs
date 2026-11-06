@@ -171,9 +171,13 @@ pub struct Cursor<'btree, K, V> {
     _phantom: core::marker::PhantomData<&'btree ()>,
 }
 
-impl<K, V> Cursor<'_, K, V> {
-    const fn node(&self) -> &UnkownNode<K, V> {
-        &self.node.node
+impl<'btree, K, V> Cursor<'btree, K, V> {
+    fn node(&self) -> &'btree UnkownNode<K, V> {
+        self.node.node.reborrow()
+    }
+
+    fn keyval(&self) -> Option<(&'btree K, &'btree V)> {
+        self.node().entries.get(self.idx.idx())
     }
 
     const fn open(node: UnkownNode<K, V>, idx: ChildIdx, depth: u8) -> Self {
@@ -231,7 +235,7 @@ impl<K, V> Cursor<'_, K, V> {
             self.idx = self.idx - 1;
         }
 
-        Some(self.node().entries.get(self.idx.idx()).unwrap())
+        Some(self.keyval().unwrap())
     }
 
     #[allow(clippy::missing_panics_doc)]
@@ -254,7 +258,7 @@ impl<K, V> Cursor<'_, K, V> {
             self.descend_to_leaf(Side::Left);
         }
 
-        Some(self.node().entries.get(self.idx.idx()).unwrap())
+        Some(self.keyval().unwrap())
     }
 }
 
@@ -262,9 +266,9 @@ struct UnkownNode<K, V>(NonNull<LeafNode<K, V>>);
 
 impl<K, V> Clone for UnkownNode<K, V> {
     fn clone(&self) -> Self {
-    }
         Self(self.0)
     }
+}
 
 impl<K, V> Deref for UnkownNode<K, V> {
     type Target = LeafNode<K, V>;
@@ -373,7 +377,7 @@ impl<K, V> UnkownNode<K, V> {
     fn split_right(&mut self, depth: u8) -> Self {
         match depth {
             0 => self.as_leaf_mut().split_right().into(),
-            _ => unsafe { self.as_internal_mut().split_right().into() },
+            _ => unsafe { self.as_internal_mut().split_right() },
         }
     }
 
@@ -388,13 +392,26 @@ impl<K, V> UnkownNode<K, V> {
         }
     }
 
+    fn open_cursor(&self, idx: ChildIdx, depth: u8) -> Cursor<'_, K, V> {
+        Cursor::open(self.clone(), idx, depth)
+    }
+
     fn get(&self, key: &K, depth: u8) -> Option<&V>
     where
         K: Ord,
     {
-        match depth {
-            0 => self.as_leaf().get(key),
-            _ => unsafe { self.as_internal().get(key, depth) },
+        let mut cursor = self.open_cursor(ChildIdx::left(0), depth);
+
+        loop {
+            cursor.idx = ChildIdx::left(cursor.node().partition_point(key));
+
+            match cursor.keyval() {
+                Some((k, v)) if k == key => return Some(v),
+                _ if cursor.node.depth == 0 => return None,
+                _ => {}
+            }
+
+            cursor.descend(Side::Left);
         }
     }
 
@@ -484,33 +501,10 @@ impl<K, V> UnkownNode<K, V> {
         }
     }
 
-    fn reborrow<'a, 'b>(&'a self) -> &'b Self {
+    const fn reborrow<'a, 'b>(&'a self) -> &'b Self {
         unsafe { &*(&raw const *self) }
     }
 
-    // fn remove_min(&mut self, depth: u8) -> (K, V) {
-    //     self.remove_extremity(Side::Left, depth)
-    // }
-    //
-    // fn get_max(&self, depth: u8) -> (&K, &V) {
-    //     self.with_leaf(Side::Right, depth, |leaf| {
-    //         leaf.entries.get(leaf.entries.len - 1).unwrap()
-    //     })
-    // }
-    //
-    // fn get_min(&self, depth: u8) -> (&K, &V) {
-    //     self.with_leaf(Side::Left, depth, |leaf| leaf.entries.get(0).unwrap())
-    // }
-    //
-    // fn get_max_mut(&mut self, depth: u8) -> &mut V {
-    //     self.with_leaf_mut(Side::Right, depth, |leaf| {
-    //         leaf.entries.get_mut(leaf.entries.len - 1).unwrap().1
-    //     })
-    // }
-    //
-    // fn get_min_mut(&mut self, depth: u8) -> &mut V {
-    //     self.with_leaf_mut(Side::Left, depth, |leaf| leaf.entries.get_mut(0).unwrap().1)
-    // }
 }
 
 macro_rules! both {
@@ -684,16 +678,6 @@ impl<K, V> LeafNode<K, V> {
         }
 
         Some(self.entries.remove(idx).unwrap())
-    }
-
-    fn get(&self, key: &K) -> Option<&V>
-    where
-        K: Ord,
-    {
-        self.entries
-            .iter_keys()
-            .position(|k| k == key)
-            .map(|idx| self.entries.get_val(u8::try_from(idx).unwrap()).unwrap())
     }
 
     fn split_right(&mut self) -> Self {
@@ -1105,20 +1089,6 @@ impl<K, V> InternalNode<K, V> {
             });
 
         s
-    }
-
-    fn get(&self, key: &K, depth: u8) -> Option<&V>
-    where
-        K: Ord,
-    {
-        let idx = self.partition_point(key);
-
-        if self.eq_key(idx.idx(), key) {
-            return Some(self.entries.get_val(idx.idx()).unwrap());
-        }
-
-        let child = self.entries.get_child(idx).unwrap();
-        child.get(key, depth - 1)
     }
 
     fn partition_point(&self, key: &K) -> ChildIdx
