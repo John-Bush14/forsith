@@ -454,8 +454,6 @@ impl<K, V> UnkownNode<K, V> {
         };
 
         let mut left = if height > 0 {
-            unsafe { right.as_internal_mut() }.adopt_children();
-
             core::mem::replace(self, InternalNode::default().into())
         } else {
             unsafe {
@@ -1013,11 +1011,13 @@ impl<K, V> ChildEntries<K, V> {
             (other_idx.child_idx() + len) as usize,
         );
 
+        let range = idx.child_idx() as usize..(idx.child_idx() + len) as usize;
         self.children.move_to_other(
-            idx.child_idx() as usize..(idx.child_idx() + len) as usize,
+            range,
             &mut other.children,
             other_idx.child_idx() as usize,
         );
+
     }
 
     fn children_mut(&mut self) -> &mut [UnkownNode<K, V>] {
@@ -1212,14 +1212,16 @@ impl<K, V> InternalNode<K, V> {
             .unwrap()
     }
 
-    fn split_right(&mut self) -> Self {
-        let mut right = Self {
+    fn split_right(&mut self) -> UnkownNode<K, V> {
+        let mut right_box: UnkownNode<K, V> = Self {
             parent: self.parent,
             entries: ChildEntries {
                 entries: self.as_node_mut().split_right().entries,
                 children: InlineArray::default(),
             },
-        };
+        }.into();
+        let right_parent = Some(NonNull::from(unsafe {right_box.as_internal_mut()}));
+        let right = unsafe { right_box.as_internal_mut() };
 
         self.entries.drain_children(
             ChildIdx::left(MIDDLE),
@@ -1228,16 +1230,14 @@ impl<K, V> InternalNode<K, V> {
             ChildIdx::left(0),
         );
 
-        right
+        right.entries.children_mut().iter_mut().take(MIN_KEYS as usize + 1).for_each(|c| c.parent = right_parent);
+
+        right_box
     }
 
     fn split_child(&mut self, idx: ChildIdx, depth: u8) {
         let child = self.entries.get_child_mut(idx).unwrap();
-        let mut right = child.split_right(depth - 1);
-
-        if depth > 1 {
-            unsafe { right.as_internal_mut() }.adopt_children();
-        }
+        let right = child.split_right(depth - 1);
 
         let middle = child.entries.remove(MIN_KEYS).unwrap();
 
@@ -1295,7 +1295,7 @@ impl<K, V> InternalNode<K, V> {
         let right = self.split_right();
         let middle = self.as_node_mut().entries.remove(MIN_KEYS).unwrap();
 
-        (middle, right.into())
+        (middle, right)
     }
 
     fn as_node_mut(&mut self) -> &mut LeafNode<K, V> {
@@ -1321,7 +1321,6 @@ impl<K, V> InternalNode<K, V> {
             let sibling = unsafe { sibling.as_internal_mut() };
 
             sibling.entries.drain_fully(&mut child.entries, dest);
-            child.adopt_children();
         }
 
         sibling.dealloc(depth - 1);
@@ -1354,16 +1353,6 @@ impl<K, V> InternalNode<K, V> {
             c.parent = Some(NonNull::from(&mut *child));
 
             child.entries.insert(child_add, kv, c);
-        }
-    }
-
-    fn adopt_children(&mut self) {
-        let parent = Some(self.into());
-
-        let grandchildren = self.entries.children_mut().iter_mut();
-
-        for grandchild in grandchildren {
-            grandchild.parent = parent;
         }
     }
 }
@@ -1578,8 +1567,6 @@ mod btree_tests {
                 0 => assert_eq!(btree.insert(key, value), std.insert(key, value)),
                 1 => assert_eq!(btree.remove(&key), std.remove(&key)),
                 2 => assert_eq!(btree.get(&key), std.get(&key)),
-                // 3 => assert_eq!(btree.max(), std.iter().next_back()),
-                // 4 => assert_eq!(btree.min(), std.iter().next()),
                 _ => unreachable!(),
             }
         }
