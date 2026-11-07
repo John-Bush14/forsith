@@ -68,25 +68,25 @@ impl<K, V> Btree<K, V> {
         })
     }
 
-    pub fn min(&self) -> Cursor<'_, K, V>
+    fn open_cursor(&self, idx: ChildIdx) -> Cursor<'_, Immut, K, V> {
+        unsafe {Cursor::open(self.root.clone(), idx, self.depth)}
+    }
+
+    pub fn min(&self) -> Cursor<'_, Immut, K, V>
     where
         K: Ord,
     {
-        let mut cursor = Cursor::open(self.root.clone(), ChildIdx::left(0), self.depth);
+        let mut cursor = self.open_cursor(ChildIdx::left(0));
         cursor.descend_to_leaf(|_| ChildIdx::left(0));
 
         cursor
     }
 
-    fn max(&self) -> Cursor<'_, K, V>
+    fn max(&self) -> Cursor<'_, Immut, K, V>
     where
         K: Ord,
     {
-        let mut cursor = Cursor::open(
-            self.root.clone(),
-            ChildIdx::right(self.root.entries.len - 1),
-            self.depth,
-        );
+        let mut cursor = self.open_cursor(ChildIdx::right(self.root.entries.len - 1));
         cursor.descend_to_leaf(|cursor| cursor.node().last_child_idx());
 
         cursor
@@ -165,22 +165,27 @@ impl<K, V> NodeCursor<'_, K, V> {
     }
 }
 
-pub struct Cursor<'btree, K, V> {
+struct Mut;
+struct Immut;
+
+pub struct Cursor<'btree, M, K, V> {
     node: NodeCursor<'btree, K, V>,
     idx: ChildIdx,
-    _phantom: core::marker::PhantomData<&'btree ()>,
+    _phantom: core::marker::PhantomData<&'btree M>,
 }
 
-impl<'btree, K, V> Cursor<'btree, K, V> {
-    fn node(&self) -> &'btree UnkownNode<K, V> {
-        self.node.node.reborrow()
+impl<'btree, K, V> Cursor<'btree, Immut, K, V> {
+    fn node_longlived(&self) -> &'btree UnkownNode<K, V> {
+        unsafe { self.node.node.reborrow() }
     }
 
-    fn keyval(&self) -> Option<(&'btree K, &'btree V)> {
-        self.node().entries.get(self.idx.idx())
+    fn keyval_longlived(&self) -> Option<(&'btree K, &'btree V)> {
+        self.node_longlived().entries.get(self.idx.idx())
     }
+}
 
-    const fn open(node: UnkownNode<K, V>, idx: ChildIdx, depth: u8) -> Self {
+impl<'btree, M, K, V> Cursor<'btree, M, K, V> {
+    unsafe fn open(node: UnkownNode<K, V>, idx: ChildIdx, depth: u8) -> Self {
         Self {
             node: NodeCursor::open(node, depth),
             idx,
@@ -188,11 +193,20 @@ impl<'btree, K, V> Cursor<'btree, K, V> {
         }
     }
 
+    fn node(&self) -> &UnkownNode<K, V> {
+        &self.node.node
+    }
+
+    fn keyval(&self) -> Option<(&K, &V)> {
+        self.node().entries.get(self.idx.idx())
+    }
+
     fn ascend(&mut self) -> Option<()>
     where
         K: Ord,
     {
-        let (key, _) = self.node().reborrow().entries.get(0)?;
+        // ascend shouldn't mutate anything
+        let (key, _) = unsafe { self.node().reborrow() }.entries.get(0)?;
 
         self.node.ascend()?;
         self.idx = unsafe { self.node().as_internal() }.partition_point(key);
@@ -271,7 +285,7 @@ impl<'btree, K, V> Cursor<'btree, K, V> {
         Some(self.keyval().unwrap())
     }
 
-    pub fn find<'a>(&mut self, key: &'a K) -> Option<(&'btree K, &'btree V)>
+    pub fn find<'a>(&'a mut self, key: &K) -> Option<(&'a K, &'a V)>
     where
         K: Ord,
     {
@@ -288,7 +302,9 @@ impl<'btree, K, V> Cursor<'btree, K, V> {
             }
         }
     }
+}
 
+impl<K, V> Cursor<'_, Mut, K, V> {
     pub fn remove(&mut self) -> (K, V)
     where
         K: Ord,
@@ -431,6 +447,10 @@ impl<K, V> UnkownNode<K, V> {
         }
     }
 
+    const unsafe fn reborrow<'a, 'b>(&'a self) -> &'b Self {
+        unsafe { &*(&raw const *self) }
+    }
+
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>, depth: u8) -> core::fmt::Result
     where
         K: Debug,
@@ -442,15 +462,21 @@ impl<K, V> UnkownNode<K, V> {
         }
     }
 
-    fn open_cursor(&self, idx: ChildIdx, depth: u8) -> Cursor<'_, K, V> {
-        Cursor::open(self.clone(), idx, depth)
+    fn cursor(&self, idx: ChildIdx, depth: u8) -> Cursor<'_, Immut, K, V> {
+        unsafe { Cursor::open(self.clone(), idx, depth) }
+    }
+
+    fn cursor_mut(&mut self, idx: ChildIdx, depth: u8) -> Cursor<'_, Mut, K, V> {
+        unsafe { Cursor::open(self.clone(), idx, depth) }
     }
 
     fn get(&self, key: &K, depth: u8) -> Option<&V>
     where
         K: Ord,
     {
-        self.open_cursor(ChildIdx::left(0), depth).find(key).map(|(_, v)| v)
+        let mut cursor = self.cursor(ChildIdx::left(0), depth);
+        cursor.find(key)?;
+        Some(cursor.keyval_longlived().unwrap().1)
     }
 
     fn insert(&mut self, key: K, value: V, depth: u8) -> Option<V>
@@ -518,7 +544,7 @@ impl<K, V> UnkownNode<K, V> {
     where
         K: Ord,
     {
-        let mut cursor = self.open_cursor(ChildIdx::left(0), depth);
+        let mut cursor = self.cursor_mut(ChildIdx::left(0), depth);
         cursor.find(key)?;
         Some(cursor.remove())
     }
@@ -536,10 +562,6 @@ impl<K, V> UnkownNode<K, V> {
             0 => self.as_leaf().display(),
             _ => unsafe { self.as_internal().display(depth) },
         }
-    }
-
-    const fn reborrow<'a, 'b>(&'a self) -> &'b Self {
-        unsafe { &*(&raw const *self) }
     }
 }
 
