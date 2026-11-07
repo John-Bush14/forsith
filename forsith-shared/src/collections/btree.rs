@@ -271,6 +271,24 @@ impl<'btree, K, V> Cursor<'btree, K, V> {
         Some(self.keyval().unwrap())
     }
 
+    pub fn find<'a>(&mut self, key: &'a K) -> Option<(&'btree K, &'btree V)>
+    where
+        K: Ord,
+    {
+        loop {
+            self.idx = ChildIdx::left(self.node().partition_point(key));
+
+            match self.keyval() {
+                Some((k, v)) if k == key => return Some((k, v)),
+                _ => {}
+            }
+
+            if !self.descend_if_possible(|_| ChildIdx::left(0)) {
+                return None;
+            }
+        }
+    }
+
     pub fn remove(&mut self) -> (K, V)
     where
         K: Ord,
@@ -432,20 +450,7 @@ impl<K, V> UnkownNode<K, V> {
     where
         K: Ord,
     {
-        let mut cursor = self.open_cursor(ChildIdx::left(0), depth);
-
-        loop {
-            cursor.idx = ChildIdx::left(cursor.node().partition_point(key));
-
-            match cursor.keyval() {
-                Some((k, v)) if k == key => return Some(v),
-                _ => {}
-            }
-
-            cursor
-                .descend_if_possible(|_| ChildIdx::left(0))
-                .then_some(())?;
-        }
+        self.open_cursor(ChildIdx::left(0), depth).find(key).map(|(_, v)| v)
     }
 
     fn insert(&mut self, key: K, value: V, depth: u8) -> Option<V>
@@ -514,18 +519,8 @@ impl<K, V> UnkownNode<K, V> {
         K: Ord,
     {
         let mut cursor = self.open_cursor(ChildIdx::left(0), depth);
-
-        loop {
-            cursor.idx = ChildIdx::left(cursor.node().partition_point(key));
-
-            if cursor.node().eq_key(cursor.idx.idx(), key) {
-                return Some(cursor.remove());
-            }
-
-            cursor
-                .descend_if_possible(|_| ChildIdx::left(0))
-                .then_some(())?;
-        }
+        cursor.find(key)?;
+        Some(cursor.remove())
     }
 
     fn remove_max(&mut self, depth: u8) -> (K, V) {
