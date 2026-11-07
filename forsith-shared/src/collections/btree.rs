@@ -310,6 +310,15 @@ impl<M, K, V> Cursor<'_, M, K, V> {
 }
 
 impl<K, V> Cursor<'_, Mut, K, V> {
+    pub fn node_mut(&mut self) -> &mut UnkownNode<K, V> {
+        &mut self.node.node
+    }
+
+    pub fn keyval_mut(&mut self) -> Option<(&mut K, &mut V)> {
+        let idx = self.idx.idx();
+        self.node_mut().entries.get_mut(idx)
+    }
+
     pub fn remove(&mut self) -> (K, V)
     where
         K: Ord,
@@ -489,10 +498,35 @@ impl<K, V> UnkownNode<K, V> {
     where
         K: Ord,
     {
-        match depth {
-            0 => self.as_leaf_mut().insert(key, value),
-            _ => unsafe { self.as_internal_mut().insert(key, value, depth) },
+        let mut cursor = self.cursor_mut(ChildIdx::left(0), depth);
+        if cursor.find(&key).is_some() {
+            return Some(core::mem::replace(
+                cursor.keyval_mut().unwrap().1,
+                value,
+            ));
         }
+
+        if cursor.node().is_full() {
+            while cursor.node().is_full() {
+                cursor.ascend().expect("root should never be full");
+            }
+
+            while cursor.node.depth > 0 {
+                let internal = unsafe { cursor.node.node.as_internal_mut() };
+                internal.split_child(cursor.idx, cursor.node.depth);
+
+                cursor.descend(|cursor| ChildIdx::left(cursor.node().partition_point(&key)));
+            }
+
+            let None = cursor.find(&key) else {
+                panic!("key came into existince after splitting node?")
+            };
+        }
+
+        let idx = cursor.idx.idx();
+        cursor.node_mut().as_leaf_mut().entries.insert(idx, (key, value));
+
+        None
     }
 
     fn dealloc(&mut self, depth: u8) {
@@ -739,24 +773,6 @@ impl<K, V> LeafNode<K, V> {
 
     const fn is_full(&self) -> bool {
         self.entries.len == MAX_KEYS
-    }
-
-    fn insert(&mut self, key: K, value: V) -> Option<V>
-    where
-        K: Ord,
-    {
-        let idx = self.partition_point(&key);
-
-        if self.eq_key(idx, &key) {
-            return Some(core::mem::replace(
-                self.entries.get_val_mut(idx).unwrap(),
-                value,
-            ));
-        }
-
-        self.entries.insert(idx, (key, value));
-
-        None
     }
 
     fn partition_point(&self, key: &K) -> u8
