@@ -229,6 +229,14 @@ impl<M, K, V> Cursor<'_, M, K, V> {
         false
     }
 
+    fn descend_with(&mut self, mut idx_chooser: impl FnMut(&Self) -> ChildIdx)
+    where
+        K: Ord,
+    {
+        self.idx = idx_chooser(self);
+        self.descend(idx_chooser);
+    }
+
     fn descend(&mut self, idx_chooser: impl FnOnce(&Self) -> ChildIdx)
     where
         K: Ord,
@@ -310,6 +318,15 @@ impl<M, K, V> Cursor<'_, M, K, V> {
 }
 
 impl<K, V> Cursor<'_, Mut, K, V> {
+    pub const fn node_mut(&mut self) -> &mut UnkownNode<K, V> {
+        &mut self.node.node
+    }
+
+    pub fn keyval_mut(&mut self) -> Option<(&mut K, &mut V)> {
+        let idx = self.idx.idx();
+        self.node_mut().entries.get_mut(idx)
+    }
+
     pub fn remove(&mut self) -> (K, V)
     where
         K: Ord,
@@ -489,10 +506,29 @@ impl<K, V> UnkownNode<K, V> {
     where
         K: Ord,
     {
-        match depth {
-            0 => self.as_leaf_mut().insert(key, value),
-            _ => unsafe { self.as_internal_mut().insert(key, value, depth) },
+        let mut cursor = self.cursor_mut(ChildIdx::left(0), depth);
+        if cursor.find(&key).is_some() {
+            return Some(core::mem::replace(
+                cursor.keyval_mut().unwrap().1,
+                value,
+            ));
         }
+
+        while cursor.node().is_full() {
+            cursor.ascend().expect("root should never be full");
+        }
+
+        while cursor.node.depth > 0 {
+            let internal = unsafe { cursor.node.node.as_internal_mut() };
+            internal.split_child(cursor.idx, cursor.node.depth);
+
+            cursor.descend_with(|cursor| ChildIdx::left(cursor.node().partition_point(&key)));
+        }
+
+        let idx = cursor.idx.idx();
+        cursor.node_mut().as_leaf_mut().entries.insert(idx, (key, value));
+
+        None
     }
 
     fn dealloc(&mut self, depth: u8) {
@@ -665,10 +701,6 @@ impl<K, V> Entries<K, V> {
         );
     }
 
-    fn get_val_mut(&mut self, idx: u8) -> Option<&mut V> {
-        (idx < self.len).then(|| unsafe { self.values.get_mut(idx as usize) })
-    }
-
     fn replace(&mut self, idx: u8, (key, value): (K, V)) -> Option<(K, V)> {
         self.get_mut(idx)
             .map(|(k, v)| (core::mem::replace(k, key), core::mem::replace(v, value)))
@@ -720,13 +752,6 @@ impl<K, V> Default for LeafNode<K, V> {
 }
 
 impl<K, V> LeafNode<K, V> {
-    fn eq_key(&self, idx: u8, key: &K) -> bool
-    where
-        K: Ord,
-    {
-        self.entries.get(idx).is_some_and(|(k, _)| k == key)
-    }
-
     fn split_right(&mut self) -> Self {
         let mut right = Self {
             parent: self.parent,
@@ -739,24 +764,6 @@ impl<K, V> LeafNode<K, V> {
 
     const fn is_full(&self) -> bool {
         self.entries.len == MAX_KEYS
-    }
-
-    fn insert(&mut self, key: K, value: V) -> Option<V>
-    where
-        K: Ord,
-    {
-        let idx = self.partition_point(&key);
-
-        if self.eq_key(idx, &key) {
-            return Some(core::mem::replace(
-                self.entries.get_val_mut(idx).unwrap(),
-                value,
-            ));
-        }
-
-        self.entries.insert(idx, (key, value));
-
-        None
     }
 
     fn partition_point(&self, key: &K) -> u8
@@ -1243,41 +1250,6 @@ impl<K, V> InternalNode<K, V> {
         let middle = child.entries.remove(MIN_KEYS).unwrap();
 
         self.entries.insert(idx.next(), middle, right);
-    }
-
-    fn replace_val(&mut self, idx: u8, value: V) -> Option<V> {
-        self.entries
-            .get_val_mut(idx)
-            .map(|v| core::mem::replace(v, value))
-    }
-
-    fn insert(&mut self, key: K, value: V, depth: u8) -> Option<V>
-    where
-        K: Ord,
-    {
-        let mut idx = self.partition_point(&key);
-
-        if self.eq_key(idx.idx(), &key) {
-            return Some(self.replace_val(idx.idx(), value).unwrap());
-        }
-
-        if self.is_child_full(idx) {
-            self.split_child(idx, depth);
-
-            idx = self.partition_point(&key);
-            if self.eq_key(idx.idx(), &key) {
-                return Some(self.replace_val(idx.idx(), value).unwrap());
-            }
-        }
-
-        self.entries
-            .get_child_mut(idx)
-            .unwrap()
-            .insert(key, value, depth - 1)
-    }
-
-    fn is_child_full(&self, idx: ChildIdx) -> bool {
-        self.entries.get_child(idx).unwrap().is_full()
     }
 
     fn drop(&mut self, depth: u8) {
