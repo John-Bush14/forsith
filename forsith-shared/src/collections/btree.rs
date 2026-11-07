@@ -192,12 +192,24 @@ impl<'btree, K, V> Cursor<'btree, K, V> {
     where
         K: Ord,
     {
-        let (key, _) = self.node().reborrow().entries.get(0).unwrap();
+        let (key, _) = self.node().reborrow().entries.get(0)?;
 
         self.node.ascend()?;
         self.idx = unsafe { self.node().as_internal() }.partition_point(key);
 
         Some(())
+    }
+
+    fn descend_if_possible(&mut self, idx_chooser: impl FnOnce(&Self) -> ChildIdx) -> bool
+    where
+        K: Ord,
+    {
+        if self.node.depth > 0 {
+            self.descend(idx_chooser);
+            return true;
+        }
+
+        false
     }
 
     fn descend(&mut self, idx_chooser: impl FnOnce(&Self) -> ChildIdx)
@@ -212,9 +224,7 @@ impl<'btree, K, V> Cursor<'btree, K, V> {
     where
         K: Ord,
     {
-        while self.node.depth > 0 {
-            self.descend(&mut idx_chooser);
-        }
+        while self.descend_if_possible(&mut idx_chooser) {}
     }
 
     #[allow(clippy::missing_panics_doc)]
@@ -259,6 +269,24 @@ impl<'btree, K, V> Cursor<'btree, K, V> {
         }
 
         Some(self.keyval().unwrap())
+    }
+
+    pub fn remove(&mut self) -> (K, V)
+    where
+        K: Ord,
+    {
+        let kv = match self.node.depth {
+            0 => self.node.node.entries.remove(self.idx.idx()).unwrap(),
+            _ => unsafe { self.node.node.as_internal_mut() }
+                .swap_remove_kv(self.idx, self.node.depth),
+        };
+
+        while self.node().entries.len < MIN_KEYS && self.ascend().is_some() {
+            let internal = unsafe { self.node.node.as_internal_mut() };
+            internal.grow_if_needed(self.idx, self.node.depth);
+        }
+
+        kv
     }
 }
 
@@ -411,11 +439,12 @@ impl<K, V> UnkownNode<K, V> {
 
             match cursor.keyval() {
                 Some((k, v)) if k == key => return Some(v),
-                _ if cursor.node.depth == 0 => return None,
                 _ => {}
             }
 
-            cursor.descend(|_| ChildIdx::left(0));
+            cursor
+                .descend_if_possible(|_| ChildIdx::left(0))
+                .then_some(())?;
         }
     }
 
@@ -484,9 +513,18 @@ impl<K, V> UnkownNode<K, V> {
     where
         K: Ord,
     {
-        match depth {
-            0 => self.as_leaf_mut().remove(key),
-            _ => unsafe { self.as_internal_mut().remove(key, depth) },
+        let mut cursor = self.open_cursor(ChildIdx::left(0), depth);
+
+        loop {
+            cursor.idx = ChildIdx::left(cursor.node().partition_point(key));
+
+            if cursor.node().eq_key(cursor.idx.idx(), key) {
+                return Some(cursor.remove());
+            }
+
+            cursor
+                .descend_if_possible(|_| ChildIdx::left(0))
+                .then_some(())?;
         }
     }
 
@@ -668,19 +706,6 @@ impl<K, V> LeafNode<K, V> {
         K: Ord,
     {
         self.entries.get(idx).is_some_and(|(k, _)| k == key)
-    }
-
-    fn remove(&mut self, key: &K) -> Option<(K, V)>
-    where
-        K: Ord,
-    {
-        let idx = self.partition_point(key);
-
-        if !self.eq_key(idx, key) {
-            return None;
-        }
-
-        Some(self.entries.remove(idx).unwrap())
     }
 
     fn split_right(&mut self) -> Self {
@@ -1124,32 +1149,6 @@ impl<K, V> InternalNode<K, V> {
         } else {
             idx
         }
-    }
-
-    fn remove(&mut self, key: &K, depth: u8) -> Option<(K, V)>
-    where
-        K: Ord,
-    {
-        let idx = self.partition_point(key);
-
-        if self.eq_key(idx.idx(), key) {
-            return Some(self.swap_remove_kv(idx, depth));
-        }
-        let kv = self
-            .entries
-            .get_child_mut(idx)
-            .unwrap()
-            .remove(key, depth - 1);
-
-        let child_idx = self.grow_if_needed(idx, depth);
-
-        let child = self.entries.get_child(child_idx).unwrap();
-        assert!(
-            child.entries.len >= MIN_KEYS,
-            "child must have at least MIN_KEYS after growing"
-        );
-
-        kv
     }
 
     fn biggest_sibling(&mut self, idx: ChildIdx) -> (Side, &mut UnkownNode<K, V>) {
