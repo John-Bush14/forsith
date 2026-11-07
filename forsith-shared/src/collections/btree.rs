@@ -1,6 +1,7 @@
 use crate::collections::inline::InlineArray;
+#[allow(unused_imports)]
+use core::cmp::Ordering;
 use core::{
-    cmp::Ordering,
     fmt::{Debug, Display, Write},
     mem::MaybeUninit,
     ops::{Deref, DerefMut},
@@ -69,10 +70,11 @@ impl<K, V> Btree<K, V> {
     }
 
     fn open_cursor(&self, idx: ChildIdx) -> Cursor<'_, Immut, K, V> {
-        unsafe {Cursor::open(self.root.clone(), idx, self.depth)}
+        unsafe { Cursor::open(self.root.clone(), idx, self.depth) }
     }
 
-    pub fn min(&self) -> Cursor<'_, Immut, K, V>
+    #[allow(dead_code)]
+    fn min(&self) -> Cursor<'_, Immut, K, V>
     where
         K: Ord,
     {
@@ -82,6 +84,7 @@ impl<K, V> Btree<K, V> {
         cursor
     }
 
+    #[allow(dead_code)]
     fn max(&self) -> Cursor<'_, Immut, K, V>
     where
         K: Ord,
@@ -168,14 +171,14 @@ impl<K, V> NodeCursor<'_, K, V> {
 struct Mut;
 struct Immut;
 
-pub struct Cursor<'btree, M, K, V> {
+struct Cursor<'btree, M, K, V> {
     node: NodeCursor<'btree, K, V>,
     idx: ChildIdx,
     _phantom: core::marker::PhantomData<&'btree M>,
 }
 
 impl<'btree, K, V> Cursor<'btree, Immut, K, V> {
-    fn node_longlived(&self) -> &'btree UnkownNode<K, V> {
+    const fn node_longlived(&self) -> &'btree UnkownNode<K, V> {
         unsafe { self.node.node.reborrow() }
     }
 
@@ -184,8 +187,8 @@ impl<'btree, K, V> Cursor<'btree, Immut, K, V> {
     }
 }
 
-impl<'btree, M, K, V> Cursor<'btree, M, K, V> {
-    unsafe fn open(node: UnkownNode<K, V>, idx: ChildIdx, depth: u8) -> Self {
+impl<M, K, V> Cursor<'_, M, K, V> {
+    const unsafe fn open(node: UnkownNode<K, V>, idx: ChildIdx, depth: u8) -> Self {
         Self {
             node: NodeCursor::open(node, depth),
             idx,
@@ -193,7 +196,7 @@ impl<'btree, M, K, V> Cursor<'btree, M, K, V> {
         }
     }
 
-    fn node(&self) -> &UnkownNode<K, V> {
+    const fn node(&self) -> &UnkownNode<K, V> {
         &self.node.node
     }
 
@@ -242,6 +245,7 @@ impl<'btree, M, K, V> Cursor<'btree, M, K, V> {
     }
 
     #[allow(clippy::missing_panics_doc)]
+    #[allow(dead_code)]
     pub fn back_inorder(&mut self) -> Option<(&K, &V)>
     where
         K: Ord,
@@ -263,6 +267,7 @@ impl<'btree, M, K, V> Cursor<'btree, M, K, V> {
     }
 
     #[allow(clippy::missing_panics_doc)]
+    #[allow(dead_code)]
     pub fn next_inorder(&mut self) -> Option<(&K, &V)>
     where
         K: Ord,
@@ -356,7 +361,7 @@ impl<K, V> From<&mut InternalNode<K, V>> for UnkownNode<K, V> {
     fn from(node: &mut InternalNode<K, V>) -> Self {
         unsafe {
             Self(NonNull::new_unchecked(
-                node as *mut _ as *mut LeafNode<K, V>,
+                (&raw mut *node).cast::<LeafNode<K, V>>(),
             ))
         }
     }
@@ -383,6 +388,7 @@ impl<K, V> UnkownNode<K, V> {
         unsafe { self.0.as_ref() }
     }
 
+    #[cfg(test)]
     fn assert_invariants(&self, depth: u8)
     where
         K: Ord,
@@ -447,8 +453,8 @@ impl<K, V> UnkownNode<K, V> {
         }
     }
 
-    const unsafe fn reborrow<'a, 'b>(&'a self) -> &'b Self {
-        unsafe { &*(&raw const *self) }
+    const unsafe fn reborrow<'b>(&self) -> &'b Self {
+        unsafe { core::mem::transmute(self) }
     }
 
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>, depth: u8) -> core::fmt::Result
@@ -640,10 +646,6 @@ impl<K, V> Entries<K, V> {
             .map(|k| unsafe { k.assume_init_ref() })
     }
 
-    fn get_val(&self, idx: u8) -> Option<&V> {
-        (idx < self.len).then(|| unsafe { self.values.get(idx as usize) })
-    }
-
     fn drain_fully(&mut self, other: &mut Self, other_idx: u8) {
         self.drain(0, self.len, other, other_idx);
     }
@@ -796,6 +798,7 @@ impl<K, V> LeafNode<K, V> {
         s
     }
 
+    #[cfg(test)]
     fn assert_invariants(&self)
     where
         K: Ord,
@@ -855,14 +858,8 @@ impl Side {
         }
     }
 
-    fn edge(&self, len: u8) -> u8 {
-        match self {
-            Self::Left => 0,
-            Self::Right => len - 1,
-        }
-    }
-
-    fn choose<T>(&self, left: T, right: T) -> T {
+    #[allow(dead_code)]
+    fn choose<T>(self, left: T, right: T) -> T {
         match self {
             Self::Left => left,
             Self::Right => right,
@@ -1053,6 +1050,7 @@ impl<K, V> ChildEntries<K, V> {
             .move_to_other(range, &mut other.children, other_idx.child_idx() as usize);
     }
 
+    #[allow(dead_code)]
     fn children(&self) -> &[UnkownNode<K, V>] {
         unsafe { self.children.get(0..=self.len() as usize) }
     }
@@ -1359,6 +1357,7 @@ impl<K, V> InternalNode<K, V> {
         }
     }
 
+    #[cfg(test)]
     fn assert_invariants(&self, depth: u8)
     where
         K: Ord,
