@@ -1,8 +1,8 @@
-pub trait StringExt {
+pub trait StrExt {
     fn find_singular_char(&self, c: char) -> Option<usize>;
 }
 
-impl StringExt for str {
+impl StrExt for str {
     /// Returns the byte index of the first occurrence of a character `c` in the string,
     /// where `c` is not preceded or followed by the same character.
     fn find_singular_char(&self, c: char) -> Option<usize> {
@@ -16,6 +16,19 @@ impl StringExt for str {
         }
 
         None
+    }
+}
+
+pub trait StringExt {
+    fn replace_end(&mut self, n: usize, replacement: &str);
+}
+
+impl StringExt for String {
+    /// Replaces the last `n` characters of the string with `replacement`.
+    fn replace_end(&mut self, n: usize, replacement: &str) {
+        let len = self.len();
+        self.truncate(len.checked_sub(n).expect("String length is less than n"));
+        self.push_str(replacement);
     }
 }
 

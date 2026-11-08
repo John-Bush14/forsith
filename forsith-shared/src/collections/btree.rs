@@ -3,10 +3,10 @@ use crate::collections::inline::InlineArray;
 use core::cmp::Ordering;
 use core::{
     fmt::{Debug, Display, Write},
-    mem::MaybeUninit,
     ops::{Deref, DerefMut},
     ptr::NonNull,
 };
+use forsith_base::string::StringExt;
 use forsith_proc::{Deref, DerefMut, IsVariant};
 
 const MAX_KEYS: u8 = 11;
@@ -14,7 +14,7 @@ const MIN_KEYS: u8 = MAX_KEYS / 2;
 const MIDDLE: u8 = MIN_KEYS + 1;
 
 pub struct Btree<K, V> {
-    root: UnkownNode<K, V>,
+    root: RootNode<K, V>,
     depth: u8,
 }
 
@@ -35,11 +35,14 @@ impl<K: Display, V: Display> Display for Btree<K, V> {
 }
 
 impl<K, V> Btree<K, V> {
+    #[allow(clippy::missing_panics_doc)]
     pub fn get(&self, key: &K) -> Option<&V>
     where
         K: Ord,
     {
-        self.root.get(key, self.depth)
+        let mut cursor = self.open_cursor();
+        cursor.find(key)?;
+        Some(cursor.keyval_longlived().unwrap().1)
     }
 
     pub fn insert(&mut self, key: K, value: V) -> Option<V>
@@ -47,7 +50,7 @@ impl<K, V> Btree<K, V> {
         K: Ord,
     {
         self.split_if_needed();
-        self.root.insert(key, value, self.depth)
+        self.open_cursor_mut().insert(key, value)
     }
 
     #[cfg(test)]
@@ -62,15 +65,19 @@ impl<K, V> Btree<K, V> {
     where
         K: Ord,
     {
-        self.root.remove(key, self.depth).map(|(_, v)| {
-            self.flatten_if_needed();
-
-            v
-        })
+        let mut cursor = self.open_cursor_mut();
+        cursor.find(key)?;
+        let v = Some(cursor.remove().1);
+        self.flatten_if_needed();
+        v
     }
 
-    fn open_cursor(&self, idx: ChildIdx) -> Cursor<'_, Immut, K, V> {
-        unsafe { Cursor::open(self.root.clone(), idx, self.depth) }
+    fn open_cursor(&self) -> Cursor<'_, Immut, K, V> {
+        unsafe { Cursor::open(self.root.clone(), ChildIdx::START, self.depth) }
+    }
+
+    fn open_cursor_mut(&mut self) -> Cursor<'_, Mut, K, V> {
+        unsafe { Cursor::open(self.root.clone(), ChildIdx::START, self.depth) }
     }
 
     #[allow(dead_code)]
@@ -78,9 +85,8 @@ impl<K, V> Btree<K, V> {
     where
         K: Ord,
     {
-        let mut cursor = self.open_cursor(ChildIdx::START);
-        cursor.descend_to_leaf(IdxChooser::Left);
-
+        let mut cursor = self.open_cursor();
+        cursor.descend_to_leaf_with(IdxChooser::Left);
         cursor
     }
 
@@ -89,15 +95,14 @@ impl<K, V> Btree<K, V> {
     where
         K: Ord,
     {
-        let mut cursor = self.open_cursor(ChildIdx::right(self.root.entries.len - 1));
-        cursor.descend_to_leaf(IdxChooser::Right);
-
+        let mut cursor = self.open_cursor();
+        cursor.descend_to_leaf_with(IdxChooser::Right);
         cursor
     }
 
     fn flatten_if_needed(&mut self) {
         if self.root.entries.len == 0 && self.depth > 0 {
-            self.root.flatten_as_root(self.depth);
+            self.root.flatten(self.depth);
             self.depth -= 1;
         }
     }
@@ -107,7 +112,7 @@ impl<K, V> Btree<K, V> {
         K: Ord,
     {
         if self.root.entries.len == MAX_KEYS {
-            self.root.split_as_root(self.depth);
+            self.root.split(self.depth);
             self.depth += 1;
         }
     }
@@ -123,7 +128,7 @@ impl<K, V> Drop for Btree<K, V> {
 impl<K, V> Default for Btree<K, V> {
     fn default() -> Self {
         Self {
-            root: InternalNode::default().into(),
+            root: RootNode::default(),
             depth: 0,
         }
     }
@@ -275,6 +280,14 @@ impl<M, K, V> Cursor<'_, M, K, V> {
         self.choose_idx(chooser);
     }
 
+    fn descend_to_leaf_with(&mut self, chooser: IdxChooser<'_, K>)
+    where
+        K: Ord,
+    {
+        self.descend_with(chooser);
+        self.descend_to_leaf(chooser);
+    }
+
     fn descend_to_leaf(&mut self, chooser: IdxChooser<'_, K>)
     where
         K: Ord,
@@ -384,6 +397,34 @@ impl<K, V> Cursor<'_, Mut, K, V> {
         )
     }
 
+    fn insert(&mut self, key: K, value: V) -> Option<V>
+    where
+        K: Ord,
+    {
+        if self.find(&key).is_some() {
+            return Some(core::mem::replace(self.keyval_mut().unwrap().1, value));
+        }
+
+        while self.node().is_full() {
+            self.ascend().expect("root should never be full");
+        }
+
+        while self.node.depth > 0 {
+            let internal = unsafe { self.node.node.as_internal_mut() };
+            internal.split_child(self.idx, self.node.depth);
+
+            self.descend_with(IdxChooser::Partition(&key));
+        }
+
+        let idx = self.idx.idx();
+        self.node_mut()
+            .as_leaf_mut()
+            .entries
+            .insert(idx, (key, value));
+
+        None
+    }
+
     pub fn remove(&mut self) -> (K, V)
     where
         K: Ord,
@@ -395,10 +436,65 @@ impl<K, V> Cursor<'_, Mut, K, V> {
 
         while self.node().entries.len < MIN_KEYS && self.ascend().is_some() {
             let internal = unsafe { self.node.node.as_internal_mut() };
-            internal.grow_if_needed(self.idx, self.node.depth);
+            internal.grow_child(self.idx, self.node.depth);
         }
 
         kv
+    }
+}
+
+#[derive(Deref, DerefMut)]
+struct RootNode<K, V>(UnkownNode<K, V>);
+
+impl<K, V> RootNode<K, V> {
+    fn flatten(&mut self, depth: u8) {
+        let internal = unsafe { self.as_internal_mut() };
+        let mut new_root = internal.entries.take_child(ChildIdx::START);
+
+        if depth == 1 {
+            new_root.entries.drain_fully(&mut internal.entries, 0);
+            new_root.dealloc(depth - 1);
+        } else {
+            self.dealloc(depth);
+            *self = Self(new_root);
+            self.parent = None;
+        }
+    }
+
+    fn split(&mut self, height: u8)
+    where
+        K: Ord,
+    {
+        let (middle, mut right) = match height {
+            0 => self.as_leaf_mut().split(),
+            _ => unsafe { self.as_internal_mut() }.split(),
+        };
+
+        let mut left = if height > 0 {
+            core::mem::replace(&mut self.0, InternalNode::default().into())
+        } else {
+            unsafe {
+                core::mem::transmute_prefix::<_, LeafNode<K, V>>(core::mem::take(
+                    self.as_internal_mut(),
+                ))
+                .into()
+            }
+        };
+
+        let parent = Some(self.0.0.cast::<InternalNode<K, V>>());
+        left.parent = parent;
+        right.parent = parent;
+
+        let root = unsafe { self.as_internal_mut() };
+        root.entries.len = 0;
+        root.entries.set_child(ChildIdx::START, left);
+        root.entries.insert(ChildIdx::right(0), middle, right);
+    }
+}
+
+impl<K, V> Default for RootNode<K, V> {
+    fn default() -> Self {
+        Self(InternalNode::default().into())
     }
 }
 
@@ -472,20 +568,6 @@ impl<K, V> UnkownNode<K, V> {
         }
     }
 
-    fn flatten_as_root(&mut self, depth: u8) {
-        let internal = unsafe { self.as_internal_mut() };
-        let mut new_root = internal.entries.take_child(ChildIdx::START);
-
-        if depth == 1 {
-            new_root.entries.drain_fully(&mut internal.entries, 0);
-            new_root.dealloc(depth - 1);
-        } else {
-            self.dealloc(depth);
-            *self = new_root;
-            self.parent = None;
-        }
-    }
-
     const fn as_leaf_mut(&mut self) -> &mut LeafNode<K, V> {
         unsafe { self.0.as_mut() }
     }
@@ -524,58 +606,11 @@ impl<K, V> UnkownNode<K, V> {
         }
     }
 
-    fn cursor(&self, idx: ChildIdx, depth: u8) -> Cursor<'_, Immut, K, V> {
-        unsafe { Cursor::open(self.clone(), idx, depth) }
-    }
-
-    fn cursor_mut(&mut self, idx: ChildIdx, depth: u8) -> Cursor<'_, Mut, K, V> {
-        unsafe { Cursor::open(self.clone(), idx, depth) }
-    }
-
-    fn get(&self, key: &K, depth: u8) -> Option<&V>
-    where
-        K: Ord,
-    {
-        let mut cursor = self.cursor(ChildIdx::START, depth);
-        cursor.find(key)?;
-        Some(cursor.keyval_longlived().unwrap().1)
-    }
-
-    fn insert(&mut self, key: K, value: V, depth: u8) -> Option<V>
-    where
-        K: Ord,
-    {
-        let mut cursor = self.cursor_mut(ChildIdx::START, depth);
-        if cursor.find(&key).is_some() {
-            return Some(core::mem::replace(cursor.keyval_mut().unwrap().1, value));
-        }
-
-        while cursor.node().is_full() {
-            cursor.ascend().expect("root should never be full");
-        }
-
-        while cursor.node.depth > 0 {
-            let internal = unsafe { cursor.node.node.as_internal_mut() };
-            internal.split_child(cursor.idx, cursor.node.depth);
-
-            cursor.descend_with(IdxChooser::Partition(&key));
-        }
-
-        let idx = cursor.idx.idx();
-        cursor
-            .node_mut()
-            .as_leaf_mut()
-            .entries
-            .insert(idx, (key, value));
-
-        None
-    }
-
     fn dealloc(&mut self, depth: u8) {
         unsafe {
             match depth {
                 0 => drop(Box::from_non_null(self.0)),
-                _ => drop(Box::from_raw(self.0.as_ptr().cast::<InternalNode<K, V>>())),
+                _ => drop(Box::from(self.as_internal_mut())),
             }
         }
     }
@@ -590,45 +625,6 @@ impl<K, V> UnkownNode<K, V> {
     fn drop(&mut self, depth: u8) {
         self.drop_inplace(depth);
         self.dealloc(depth);
-    }
-
-    fn split_as_root(&mut self, height: u8)
-    where
-        K: Ord,
-    {
-        let (middle, mut right) = match height {
-            0 => self.as_leaf_mut().split(),
-            _ => unsafe { self.as_internal_mut() }.split(),
-        };
-
-        let mut left = if height > 0 {
-            core::mem::replace(self, InternalNode::default().into())
-        } else {
-            unsafe {
-                core::mem::transmute_prefix::<_, LeafNode<K, V>>(core::mem::take(
-                    self.as_internal_mut(),
-                ))
-                .into()
-            }
-        };
-
-        let parent = Some(self.0.cast::<InternalNode<K, V>>());
-        left.parent = parent;
-        right.parent = parent;
-
-        let root = unsafe { self.as_internal_mut() };
-        root.entries.len = 0;
-        root.entries.set_child(ChildIdx::START, left);
-        root.entries.insert(ChildIdx::right(0), middle, right);
-    }
-
-    fn remove(&mut self, key: &K, depth: u8) -> Option<(K, V)>
-    where
-        K: Ord,
-    {
-        let mut cursor = self.cursor_mut(ChildIdx::START, depth);
-        cursor.find(key)?;
-        Some(cursor.remove())
     }
 
     fn display(&self, depth: u8) -> String
@@ -674,8 +670,8 @@ struct Entries<K, V> {
 impl<K, V> Default for Entries<K, V> {
     fn default() -> Self {
         Self {
-            keys: unsafe { MaybeUninit::uninit().assume_init() },
-            values: unsafe { MaybeUninit::uninit().assume_init() },
+            keys: InlineArray::default(),
+            values: InlineArray::default(),
             len: 0,
         }
     }
@@ -684,9 +680,7 @@ impl<K, V> Default for Entries<K, V> {
 impl<K, V> Entries<K, V> {
     fn drop(&mut self) {
         for i in 0..self.len {
-            unsafe {
-                both!(self => [i as usize].assume_init_drop(););
-            }
+            unsafe_both!(self => [i as usize].assume_init_drop(););
         }
     }
 
@@ -793,8 +787,10 @@ impl<K, V> LeafNode<K, V> {
             parent: self.parent,
             ..Default::default()
         };
+
         self.entries
             .drain(self.entries.len - MIN_KEYS, MIN_KEYS, &mut right.entries, 0);
+
         right
     }
 
@@ -809,9 +805,7 @@ impl<K, V> LeafNode<K, V> {
         self.entries
             .iter_keys()
             .position(|k| k >= key)
-            .unwrap_or(self.entries.len as usize)
-            .try_into()
-            .unwrap()
+            .map_or(self.entries.len, |i| i.try_into().unwrap())
     }
 
     fn split(&mut self) -> ((K, V), UnkownNode<K, V>)
@@ -836,7 +830,7 @@ impl<K, V> LeafNode<K, V> {
             .map(|(k, v)| format!("{k}: {v}, "))
             .collect_into(&mut s);
 
-        s.replace_range(s.len() - 2..s.len(), "]");
+        s.replace_end(2, "]");
 
         s
     }
@@ -1010,14 +1004,7 @@ impl<K, V> ChildEntries<K, V> {
             .field_with("entries", |f| self.entries.fmt(f))
             .field_with("children", |f| {
                 f.debug_list()
-                    .entry_with(|f| {
-                        for i in 0..=self.entries.len {
-                            self.get_child(ChildIdx::left(i))
-                                .unwrap()
-                                .fmt(f, depth - 1)?;
-                        }
-                        Ok(())
-                    })
+                    .entry_with(|f| self.iter_children().try_for_each(|c| c.fmt(f, depth - 1)))
                     .finish()
             })
             .finish()
@@ -1050,13 +1037,12 @@ impl<K, V> ChildEntries<K, V> {
     }
 
     fn remove(&mut self, idx: ChildIdx) -> (UnkownNode<K, V>, (K, V)) {
-        (
-            unsafe {
-                self.children
-                    .shift_left(idx.child_idx() as usize..self.len() as usize + 1, None)
-            },
-            self.entries.remove(idx.idx()).unwrap(),
-        )
+        let child = unsafe {
+            self.children
+                .shift_left(idx.child_idx() as usize..self.len() as usize + 1, None)
+        };
+
+        (child, self.entries.remove(idx.idx()).unwrap())
     }
 
     fn take_child(&mut self, idx: ChildIdx) -> UnkownNode<K, V> {
@@ -1155,7 +1141,7 @@ impl<K, V> InternalNode<K, V> {
             .map(|(k, v)| format!("{k}: {v} | "))
             .collect_into(&mut s);
 
-        s.replace_range(s.len() - 3..s.len(), "]\n");
+        s.replace_end(3, "]\n");
 
         self.entries
             .iter_children()
@@ -1184,16 +1170,6 @@ impl<K, V> InternalNode<K, V> {
         K: Ord,
     {
         ChildIdx::left(self.as_node().partition_point(key))
-    }
-
-    fn grow_if_needed(&mut self, idx: ChildIdx, depth: u8) -> ChildIdx {
-        let child_len = self.entries.get_child(idx).unwrap().entries.len;
-
-        if child_len < MIN_KEYS {
-            self.grow_child(idx, depth)
-        } else {
-            idx
-        }
     }
 
     fn biggest_sibling(&mut self, idx: ChildIdx) -> (Side, &mut UnkownNode<K, V>) {
@@ -1368,20 +1344,27 @@ impl<K, V> InternalNode<K, V> {
 
         let mut idx = ChildIdx::START;
         while idx.child_idx() <= self.entries.len() {
-            let child = self.entries.get_child(idx).unwrap();
-            let key = self.entries.get(idx.idx()).unwrap().0;
-            let ordering = idx.side.choose(Ordering::Less, Ordering::Greater);
-
-            child
-                .entries
-                .iter_keys()
-                .map(|k| k.cmp(key))
-                .for_each(|ord| {
-                    assert_eq!(ord, ordering, "child's keys are not in the correct range");
-                });
-
+            self.assert_child_ranges(idx);
             idx = idx.next();
         }
+    }
+
+    #[cfg(test)]
+    fn assert_child_ranges(&self, idx: ChildIdx)
+    where
+        K: Ord,
+    {
+        let child = self.entries.get_child(idx).unwrap();
+        let key = self.entries.get(idx.idx()).unwrap().0;
+        let ordering = idx.side.choose(Ordering::Less, Ordering::Greater);
+
+        child
+            .entries
+            .iter_keys()
+            .map(|k| k.cmp(key))
+            .for_each(|ord| {
+                assert_eq!(ord, ordering, "child's keys are not in the correct range");
+            });
     }
 
     fn drain_fully(&mut self, child: &mut Self, dest: ChildIdx) {
