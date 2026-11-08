@@ -190,11 +190,13 @@ impl<'btree, K, V> Cursor<'btree, Immut, K, V> {
 enum IdxChooser<'a, K: Ord> {
     Left,
     Right,
-    Partition(&'a K)
+    Partition(&'a K),
 }
 
 impl<K: Ord> Clone for IdxChooser<'_, K> {
-    fn clone(&self) -> Self { *self }
+    fn clone(&self) -> Self {
+        *self
+    }
 }
 impl<K: Ord> Copy for IdxChooser<'_, K> {}
 
@@ -333,7 +335,6 @@ impl<M, K, V> Cursor<'_, M, K, V> {
         self.choose_idx(IdxChooser::Partition(key));
 
         loop {
-
             match self.keyval() {
                 Some((k, v)) if k == key => return Some((k, v)),
                 _ => {}
@@ -356,14 +357,40 @@ impl<K, V> Cursor<'_, Mut, K, V> {
         self.node_mut().entries.get_mut(idx)
     }
 
+    fn swap_remove(&mut self) -> (K, V)
+    where
+        K: Ord,
+    {
+        assert!(
+            self.node.depth > 0,
+            "swap_remove can only be called on internal nodes"
+        );
+        let swap_kv = unsafe {
+            self.node_mut()
+                .reborrow_mut()
+                .as_internal_mut()
+                .entries
+                .get_mut(self.idx.idx())
+                .unwrap()
+        };
+
+        self.descend_to_leaf(IdxChooser::Right);
+
+        let replacement = self.node.node.entries.remove(self.idx.idx()).unwrap();
+
+        (
+            core::mem::replace(swap_kv.0, replacement.0),
+            core::mem::replace(swap_kv.1, replacement.1),
+        )
+    }
+
     pub fn remove(&mut self) -> (K, V)
     where
         K: Ord,
     {
         let kv = match self.node.depth {
             0 => self.node.node.entries.remove(self.idx.idx()).unwrap(),
-            _ => unsafe { self.node.node.as_internal_mut() }
-                .swap_remove_kv(self.idx, self.node.depth),
+            _ => self.swap_remove(),
         };
 
         while self.node().entries.len < MIN_KEYS && self.ascend().is_some() {
@@ -459,23 +486,6 @@ impl<K, V> UnkownNode<K, V> {
         }
     }
 
-    fn remove_extremity(&mut self, side: Side, depth: u8) -> (K, V) {
-        let idx = side.child_edge(self.entries.len);
-
-        if depth == 0 {
-            return self.as_leaf_mut().entries.remove(idx.idx()).unwrap();
-        }
-
-        let internal = unsafe { self.as_internal_mut() };
-        let child = internal.entries.get_child_mut(idx).unwrap();
-
-        let val = child.remove_extremity(side, depth - 1);
-
-        internal.grow_if_needed(side.child_edge(internal.entries.len), depth);
-
-        val
-    }
-
     const fn as_leaf_mut(&mut self) -> &mut LeafNode<K, V> {
         unsafe { self.0.as_mut() }
     }
@@ -496,6 +506,10 @@ impl<K, V> UnkownNode<K, V> {
     }
 
     const unsafe fn reborrow<'b>(&self) -> &'b Self {
+        unsafe { core::mem::transmute(self) }
+    }
+
+    const unsafe fn reborrow_mut<'b>(&mut self) -> &'b mut Self {
         unsafe { core::mem::transmute(self) }
     }
 
@@ -533,10 +547,7 @@ impl<K, V> UnkownNode<K, V> {
     {
         let mut cursor = self.cursor_mut(ChildIdx::START, depth);
         if cursor.find(&key).is_some() {
-            return Some(core::mem::replace(
-                cursor.keyval_mut().unwrap().1,
-                value,
-            ));
+            return Some(core::mem::replace(cursor.keyval_mut().unwrap().1, value));
         }
 
         while cursor.node().is_full() {
@@ -551,7 +562,11 @@ impl<K, V> UnkownNode<K, V> {
         }
 
         let idx = cursor.idx.idx();
-        cursor.node_mut().as_leaf_mut().entries.insert(idx, (key, value));
+        cursor
+            .node_mut()
+            .as_leaf_mut()
+            .entries
+            .insert(idx, (key, value));
 
         None
     }
@@ -614,10 +629,6 @@ impl<K, V> UnkownNode<K, V> {
         let mut cursor = self.cursor_mut(ChildIdx::START, depth);
         cursor.find(key)?;
         Some(cursor.remove())
-    }
-
-    fn remove_max(&mut self, depth: u8) -> (K, V) {
-        self.remove_extremity(Side::Right, depth)
     }
 
     fn display(&self, depth: u8) -> String
@@ -1173,21 +1184,6 @@ impl<K, V> InternalNode<K, V> {
         K: Ord,
     {
         ChildIdx::left(self.as_node().partition_point(key))
-    }
-
-    fn remove_predecessor(&mut self, idx: ChildIdx, depth: u8) -> (K, V) {
-        let left_child = self.entries.get_child_mut(idx).unwrap();
-
-        left_child.remove_max(depth - 1)
-    }
-
-    fn swap_remove_kv(&mut self, idx: ChildIdx, depth: u8) -> (K, V) {
-        let pred = self.remove_predecessor(idx, depth);
-        let kv = self.entries.replace(idx.idx(), pred).unwrap();
-
-        self.grow_if_needed(idx, depth);
-
-        kv
     }
 
     fn grow_if_needed(&mut self, idx: ChildIdx, depth: u8) -> ChildIdx {
