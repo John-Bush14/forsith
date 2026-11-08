@@ -78,8 +78,8 @@ impl<K, V> Btree<K, V> {
     where
         K: Ord,
     {
-        let mut cursor = self.open_cursor(ChildIdx::left(0));
-        cursor.descend_to_leaf(|_| ChildIdx::left(0));
+        let mut cursor = self.open_cursor(ChildIdx::START);
+        cursor.descend_to_leaf(IdxChooser::Left);
 
         cursor
     }
@@ -90,7 +90,7 @@ impl<K, V> Btree<K, V> {
         K: Ord,
     {
         let mut cursor = self.open_cursor(ChildIdx::right(self.root.entries.len - 1));
-        cursor.descend_to_leaf(|cursor| cursor.node().last_child_idx());
+        cursor.descend_to_leaf(IdxChooser::Right);
 
         cursor
     }
@@ -187,6 +187,27 @@ impl<'btree, K, V> Cursor<'btree, Immut, K, V> {
     }
 }
 
+enum IdxChooser<'a, K: Ord> {
+    Left,
+    Right,
+    Partition(&'a K)
+}
+
+impl<K: Ord> Clone for IdxChooser<'_, K> {
+    fn clone(&self) -> Self { *self }
+}
+impl<K: Ord> Copy for IdxChooser<'_, K> {}
+
+impl<K: Ord> IdxChooser<'_, K> {
+    fn choose<V>(&self, node: &UnkownNode<K, V>) -> ChildIdx {
+        match self {
+            Self::Left => ChildIdx::START,
+            Self::Right => ChildIdx::right(node.entries.len - 1),
+            Self::Partition(key) => ChildIdx::left(node.partition_point(key)),
+        }
+    }
+}
+
 impl<M, K, V> Cursor<'_, M, K, V> {
     const unsafe fn open(node: UnkownNode<K, V>, idx: ChildIdx, depth: u8) -> Self {
         Self {
@@ -208,7 +229,7 @@ impl<M, K, V> Cursor<'_, M, K, V> {
     where
         K: Ord,
     {
-        // ascend shouldn't mutate anything
+        // ascend shouldn't mutate anynodeg
         let (key, _) = unsafe { self.node().reborrow() }.entries.get(0)?;
 
         self.node.ascend()?;
@@ -217,39 +238,46 @@ impl<M, K, V> Cursor<'_, M, K, V> {
         Some(())
     }
 
-    fn descend_if_possible(&mut self, idx_chooser: impl FnOnce(&Self) -> ChildIdx) -> bool
+    fn descend_if_possible(&mut self, chooser: IdxChooser<'_, K>) -> bool
     where
         K: Ord,
     {
         if self.node.depth > 0 {
-            self.descend(idx_chooser);
+            self.descend(chooser);
             return true;
         }
 
         false
     }
 
-    fn descend_with(&mut self, mut idx_chooser: impl FnMut(&Self) -> ChildIdx)
+    fn choose_idx(&mut self, chooser: IdxChooser<'_, K>)
     where
         K: Ord,
     {
-        self.idx = idx_chooser(self);
-        self.descend(idx_chooser);
+        self.idx = chooser.choose(self.node());
     }
 
-    fn descend(&mut self, idx_chooser: impl FnOnce(&Self) -> ChildIdx)
+    fn descend_with(&mut self, chooser: IdxChooser<'_, K>)
+    where
+        K: Ord,
+    {
+        self.choose_idx(chooser);
+        self.descend(chooser);
+    }
+
+    fn descend(&mut self, chooser: IdxChooser<'_, K>)
     where
         K: Ord,
     {
         self.node.descend(self.idx);
-        self.idx = idx_chooser(self);
+        self.choose_idx(chooser);
     }
 
-    fn descend_to_leaf(&mut self, mut idx_chooser: impl FnMut(&Self) -> ChildIdx)
+    fn descend_to_leaf(&mut self, chooser: IdxChooser<'_, K>)
     where
         K: Ord,
     {
-        while self.descend_if_possible(&mut idx_chooser) {}
+        while self.descend_if_possible(chooser) {}
     }
 
     #[allow(clippy::missing_panics_doc)]
@@ -259,11 +287,11 @@ impl<M, K, V> Cursor<'_, M, K, V> {
         K: Ord,
     {
         if self.node.depth > 0 {
-            self.descend_to_leaf(|cursor| cursor.node().last_child_idx());
+            self.descend_to_leaf(IdxChooser::Right);
         } else {
             while self.idx.idx() == 0 {
                 if self.ascend().is_none() {
-                    self.descend_to_leaf(|_| ChildIdx::left(0));
+                    self.descend_to_leaf(IdxChooser::Left);
                     return None;
                 }
             }
@@ -285,14 +313,14 @@ impl<M, K, V> Cursor<'_, M, K, V> {
         let is_internal = self.node.depth > 0;
         while self.idx.idx() >= self.node().entries.len + u8::from(is_internal) {
             if self.ascend().is_none() {
-                self.descend_to_leaf(|cursor| cursor.node().last_child_idx());
+                self.descend_to_leaf(IdxChooser::Right);
 
                 return None;
             }
         }
 
         if is_internal {
-            self.descend_to_leaf(|_| ChildIdx::left(0));
+            self.descend_to_leaf(IdxChooser::Left);
         }
 
         Some(self.keyval().unwrap())
@@ -302,15 +330,16 @@ impl<M, K, V> Cursor<'_, M, K, V> {
     where
         K: Ord,
     {
+        self.choose_idx(IdxChooser::Partition(key));
+
         loop {
-            self.idx = ChildIdx::left(self.node().partition_point(key));
 
             match self.keyval() {
                 Some((k, v)) if k == key => return Some((k, v)),
                 _ => {}
             }
 
-            if !self.descend_if_possible(|_| ChildIdx::left(0)) {
+            if !self.descend_if_possible(IdxChooser::Partition(key)) {
                 return None;
             }
         }
@@ -416,13 +445,9 @@ impl<K, V> UnkownNode<K, V> {
         }
     }
 
-    fn last_child_idx(&self) -> ChildIdx {
-        ChildIdx::right(self.entries.len - 1)
-    }
-
     fn flatten_as_root(&mut self, depth: u8) {
         let internal = unsafe { self.as_internal_mut() };
-        let mut new_root = internal.entries.take_child(ChildIdx::left(0));
+        let mut new_root = internal.entries.take_child(ChildIdx::START);
 
         if depth == 1 {
             new_root.entries.drain_fully(&mut internal.entries, 0);
@@ -497,7 +522,7 @@ impl<K, V> UnkownNode<K, V> {
     where
         K: Ord,
     {
-        let mut cursor = self.cursor(ChildIdx::left(0), depth);
+        let mut cursor = self.cursor(ChildIdx::START, depth);
         cursor.find(key)?;
         Some(cursor.keyval_longlived().unwrap().1)
     }
@@ -506,7 +531,7 @@ impl<K, V> UnkownNode<K, V> {
     where
         K: Ord,
     {
-        let mut cursor = self.cursor_mut(ChildIdx::left(0), depth);
+        let mut cursor = self.cursor_mut(ChildIdx::START, depth);
         if cursor.find(&key).is_some() {
             return Some(core::mem::replace(
                 cursor.keyval_mut().unwrap().1,
@@ -522,7 +547,7 @@ impl<K, V> UnkownNode<K, V> {
             let internal = unsafe { cursor.node.node.as_internal_mut() };
             internal.split_child(cursor.idx, cursor.node.depth);
 
-            cursor.descend_with(|cursor| ChildIdx::left(cursor.node().partition_point(&key)));
+            cursor.descend_with(IdxChooser::Partition(&key));
         }
 
         let idx = cursor.idx.idx();
@@ -578,7 +603,7 @@ impl<K, V> UnkownNode<K, V> {
 
         let root = unsafe { self.as_internal_mut() };
         root.entries.len = 0;
-        root.entries.set_child(ChildIdx::left(0), left);
+        root.entries.set_child(ChildIdx::START, left);
         root.entries.insert(ChildIdx::right(0), middle, right);
     }
 
@@ -586,7 +611,7 @@ impl<K, V> UnkownNode<K, V> {
     where
         K: Ord,
     {
-        let mut cursor = self.cursor_mut(ChildIdx::left(0), depth);
+        let mut cursor = self.cursor_mut(ChildIdx::START, depth);
         cursor.find(key)?;
         Some(cursor.remove())
     }
@@ -846,7 +871,7 @@ enum Side {
 impl Side {
     const fn child_edge(self, len: u8) -> ChildIdx {
         match self {
-            Self::Left => ChildIdx::left(0),
+            Self::Left => ChildIdx::START,
             Self::Right => ChildIdx::right(len - 1),
         }
     }
@@ -897,6 +922,8 @@ impl core::ops::Add<u8> for ChildIdx {
 }
 
 impl ChildIdx {
+    const START: Self = Self::left(0);
+
     const fn idx(self) -> u8 {
         self.idx
     }
@@ -1040,7 +1067,7 @@ impl<K, V> ChildEntries<K, V> {
     }
 
     fn drain_fully(&mut self, other: &mut Self, other_idx: ChildIdx) {
-        self.drain(ChildIdx::left(0), self.len(), other, other_idx);
+        self.drain(ChildIdx::START, self.len(), other, other_idx);
     }
 
     fn drain_children(&mut self, idx: ChildIdx, len: u8, other: &mut Self, other_idx: ChildIdx) {
@@ -1230,7 +1257,7 @@ impl<K, V> InternalNode<K, V> {
             ChildIdx::left(MIDDLE),
             MIN_KEYS,
             &mut right.entries,
-            ChildIdx::left(0),
+            ChildIdx::START,
         );
 
         right
@@ -1343,7 +1370,7 @@ impl<K, V> InternalNode<K, V> {
             c.assert_invariants(depth - 1);
         });
 
-        let mut idx = ChildIdx::left(0);
+        let mut idx = ChildIdx::START;
         while idx.child_idx() <= self.entries.len() {
             let child = self.entries.get_child(idx).unwrap();
             let key = self.entries.get(idx.idx()).unwrap().0;
