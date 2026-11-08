@@ -3,7 +3,7 @@ use crate::collections::inline::InlineArray;
 use core::cmp::Ordering;
 use core::{
     fmt::{Debug, Display, Write},
-    ops::{Deref, DerefMut},
+    ops::{Bound, Deref, DerefMut},
     ptr::NonNull,
 };
 use forsith_base::string::StringExt;
@@ -80,24 +80,24 @@ impl<K, V> Btree<K, V> {
         unsafe { Cursor::open(self.root.clone(), ChildIdx::START, self.depth) }
     }
 
-    #[allow(dead_code)]
-    fn min(&self) -> Cursor<'_, Immut, K, V>
+    #[must_use]
+    pub fn lower_bound(&self, bound: Bound<&K>) -> Option<Cursor<'_, Immut, K, V>>
     where
         K: Ord,
     {
         let mut cursor = self.open_cursor();
-        cursor.descend_to_leaf_with(IdxChooser::Left);
-        cursor
+        cursor.lower_bound(bound)?;
+        Some(cursor)
     }
 
-    #[allow(dead_code)]
-    fn max(&self) -> Cursor<'_, Immut, K, V>
+    #[must_use]
+    pub fn upper_bound(&self, bound: Bound<&K>) -> Option<Cursor<'_, Immut, K, V>>
     where
         K: Ord,
     {
         let mut cursor = self.open_cursor();
-        cursor.descend_to_leaf_with(IdxChooser::Right);
-        cursor
+        cursor.upper_bound(bound)?;
+        Some(cursor)
     }
 
     fn flatten_if_needed(&mut self) {
@@ -174,9 +174,9 @@ impl<K, V> NodeCursor<'_, K, V> {
 }
 
 struct Mut;
-struct Immut;
+pub struct Immut;
 
-struct Cursor<'btree, M, K, V> {
+pub struct Cursor<'btree, M, K, V> {
     node: NodeCursor<'btree, K, V>,
     idx: ChildIdx,
     _phantom: core::marker::PhantomData<&'btree M>,
@@ -195,7 +195,10 @@ impl<'btree, K, V> Cursor<'btree, Immut, K, V> {
 enum IdxChooser<'a, K: Ord> {
     Left,
     Right,
-    Partition(&'a K),
+    GreaterEqual(&'a K),
+    Greater(&'a K),
+    LessEqual(&'a K),
+    Less(&'a K),
 }
 
 impl<K: Ord> Clone for IdxChooser<'_, K> {
@@ -210,7 +213,10 @@ impl<K: Ord> IdxChooser<'_, K> {
         match self {
             Self::Left => ChildIdx::START,
             Self::Right => ChildIdx::right(node.entries.len - 1),
-            Self::Partition(key) => ChildIdx::left(node.partition_point(key)),
+            Self::GreaterEqual(key) => ChildIdx::left(node.greater_equals(key)),
+            Self::Greater(key) => ChildIdx::left(node.greater(key)),
+            Self::LessEqual(key) => ChildIdx::left(node.less_equals(key)),
+            Self::Less(key) => ChildIdx::left(node.less(key)),
         }
     }
 }
@@ -224,11 +230,47 @@ impl<M, K, V> Cursor<'_, M, K, V> {
         }
     }
 
+    fn lower_bound(&mut self, bound: Bound<&K>) -> Option<()>
+    where
+        K: Ord,
+    {
+        self.find_bound(match bound {
+            Bound::Included(key) => IdxChooser::GreaterEqual(key),
+            Bound::Excluded(key) => IdxChooser::Greater(key),
+            Bound::Unbounded => IdxChooser::Left,
+        })
+    }
+
+    fn find_bound(&mut self, chooser: IdxChooser<'_, K>) -> Option<()>
+    where
+        K: Ord,
+    {
+        self.descend_to_leaf_with(chooser);
+
+        while self.idx.idx() >= self.node().entries.len {
+            self.ascend()?;
+        }
+
+        Some(())
+    }
+
+    fn upper_bound(&mut self, bound: Bound<&K>) -> Option<()>
+    where
+        K: Ord,
+    {
+        self.find_bound(match bound {
+            Bound::Included(key) => IdxChooser::LessEqual(key),
+            Bound::Excluded(key) => IdxChooser::Less(key),
+            Bound::Unbounded => IdxChooser::Right,
+        })
+    }
+
     const fn node(&self) -> &UnkownNode<K, V> {
         &self.node.node
     }
 
-    fn keyval(&self) -> Option<(&K, &V)> {
+    #[must_use]
+    pub fn keyval(&self) -> Option<(&K, &V)> {
         self.node().entries.get(self.idx.idx())
     }
 
@@ -236,7 +278,6 @@ impl<M, K, V> Cursor<'_, M, K, V> {
     where
         K: Ord,
     {
-        // ascend shouldn't mutate anynodeg
         let (key, _) = unsafe { self.node().reborrow() }.entries.get(0)?;
 
         self.node.ascend()?;
@@ -296,7 +337,6 @@ impl<M, K, V> Cursor<'_, M, K, V> {
     }
 
     #[allow(clippy::missing_panics_doc)]
-    #[allow(dead_code)]
     pub fn back_inorder(&mut self) -> Option<(&K, &V)>
     where
         K: Ord,
@@ -318,7 +358,6 @@ impl<M, K, V> Cursor<'_, M, K, V> {
     }
 
     #[allow(clippy::missing_panics_doc)]
-    #[allow(dead_code)]
     pub fn next_inorder(&mut self) -> Option<(&K, &V)>
     where
         K: Ord,
@@ -341,11 +380,11 @@ impl<M, K, V> Cursor<'_, M, K, V> {
         Some(self.keyval().unwrap())
     }
 
-    pub fn find<'a>(&'a mut self, key: &K) -> Option<(&'a K, &'a V)>
+    fn find<'a>(&'a mut self, key: &K) -> Option<(&'a K, &'a V)>
     where
         K: Ord,
     {
-        self.choose_idx(IdxChooser::Partition(key));
+        self.choose_idx(IdxChooser::GreaterEqual(key));
 
         loop {
             match self.keyval() {
@@ -353,7 +392,7 @@ impl<M, K, V> Cursor<'_, M, K, V> {
                 _ => {}
             }
 
-            if !self.descend_if_possible(IdxChooser::Partition(key)) {
+            if !self.descend_if_possible(IdxChooser::GreaterEqual(key)) {
                 return None;
             }
         }
@@ -413,7 +452,7 @@ impl<K, V> Cursor<'_, Mut, K, V> {
             let internal = unsafe { self.node.node.as_internal_mut() };
             internal.split_child(self.idx, self.node.depth);
 
-            self.descend_with(IdxChooser::Partition(&key));
+            self.descend_with(IdxChooser::GreaterEqual(&key));
         }
 
         let idx = self.idx.idx();
@@ -425,7 +464,7 @@ impl<K, V> Cursor<'_, Mut, K, V> {
         None
     }
 
-    pub fn remove(&mut self) -> (K, V)
+    fn remove(&mut self) -> (K, V)
     where
         K: Ord,
     {
@@ -705,6 +744,10 @@ impl<K, V> Entries<K, V> {
         (0..self.len).map(|i| unsafe_both!((self => .get(i as usize),)))
     }
 
+    fn keys(&self) -> &[K] {
+        unsafe { self.keys.get(0..self.len as usize) }
+    }
+
     fn iter_keys(&self) -> impl Iterator<Item = &K> {
         self.keys
             .iter()
@@ -798,13 +841,45 @@ impl<K, V> LeafNode<K, V> {
         self.entries.len == MAX_KEYS
     }
 
-    fn partition_point(&self, key: &K) -> u8
+    fn greater_equals(&self, key: &K) -> u8
     where
         K: Ord,
     {
         self.entries
             .iter_keys()
             .position(|k| k >= key)
+            .map_or(self.entries.len, |i| i.try_into().unwrap())
+    }
+
+    fn less_equals(&self, key: &K) -> u8
+    where
+        K: Ord,
+    {
+        self.entries
+            .keys()
+            .iter()
+            .position(|k| key <= k)
+            .map_or(self.entries.len, |i| i.try_into().unwrap())
+    }
+
+    fn less(&self, key: &K) -> u8
+    where
+        K: Ord,
+    {
+        self.entries
+            .keys()
+            .iter()
+            .position(|k| key < k)
+            .map_or(self.entries.len, |i| i.try_into().unwrap())
+    }
+
+    fn greater(&self, key: &K) -> u8
+    where
+        K: Ord,
+    {
+        self.entries
+            .iter_keys()
+            .position(|k| k > key)
             .map_or(self.entries.len, |i| i.try_into().unwrap())
     }
 
@@ -1169,7 +1244,7 @@ impl<K, V> InternalNode<K, V> {
     where
         K: Ord,
     {
-        ChildIdx::left(self.as_node().partition_point(key))
+        ChildIdx::left(self.as_node().greater_equals(key))
     }
 
     fn biggest_sibling(&mut self, idx: ChildIdx) -> (Side, &mut UnkownNode<K, V>) {
@@ -1393,8 +1468,8 @@ mod btree_tests {
             btree.insert(i, i * 10);
         }
 
-        let mut max = btree.max();
-        let mut min = btree.min();
+        let mut max = btree.upper_bound(Bound::Unbounded).unwrap();
+        let mut min = btree.lower_bound(Bound::Unbounded).unwrap();
 
         assert_eq!(max.next_inorder(), None);
         assert_eq!(min.back_inorder(), None);
@@ -1416,7 +1491,7 @@ mod btree_tests {
             btree.insert(i, i * 10);
         }
 
-        let mut cursor = btree.min();
+        let mut cursor = btree.lower_bound(Bound::Unbounded).unwrap();
         let mut i = 0;
         for _ in 0..10000 {
             if SimpleRng::random() % 2 == 0 {
@@ -1441,6 +1516,35 @@ mod btree_tests {
 
             i = i.clamp(0, 999);
         }
+    }
+
+    #[test]
+    fn test_btree_lower_upper_bound() {
+        let mut btree = Btree::default();
+
+        for i in 0..100 {
+            btree.insert(i, i * 10);
+        }
+
+        println!("btree = {btree}");
+
+        for i in 0..100 {
+            let cursor = btree.lower_bound(Bound::Included(&i)).unwrap();
+            assert_eq!(cursor.keyval(), Some((&i, &(i * 10))));
+
+            let cursor = btree.upper_bound(Bound::Included(&i)).unwrap();
+            assert_eq!(cursor.keyval(), Some((&i, &(i * 10))));
+        }
+
+        for i in 0..99 {
+            let cursor = btree.lower_bound(Bound::Excluded(&i)).unwrap();
+            assert_eq!(cursor.keyval(), Some((&(i + 1), &((i + 1) * 10))));
+
+            let cursor = btree.upper_bound(Bound::Excluded(&i)).unwrap();
+            assert_eq!(cursor.keyval(), Some((&(i + 1), &((i + 1) * 10))));
+        }
+
+        assert!(btree.lower_bound(Bound::Excluded(&99)).is_none());
     }
 
     #[test]
