@@ -500,8 +500,6 @@ impl Prober {
         self.group_start &= hashmap.bitmask;
         self.accumulator += 1;
 
-        println!("next group: {}", self.group_start);
-
         hashmap.load_group(self.group_start)
     }
 }
