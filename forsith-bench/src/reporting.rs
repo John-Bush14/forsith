@@ -1,14 +1,16 @@
-use forsith_shared::rng::{Rng, SimpleRng};
+use forsith_shared::{
+    math::{Bootstrapper, SamplingStrategy, slope},
+    rng::{Rng, SimpleRng},
+};
 
 use crate::Bencher;
 use std::time::Duration;
-
-const BOOTSTRAP: usize = 100_000;
 
 pub struct BenchmarkReporter<'a> {
     bench_id: String,
     bencher: &'a Bencher,
     batched: bool,
+    bootstrapper: Bootstrapper<(Duration, usize), Duration>,
 }
 
 impl<'a> BenchmarkReporter<'a> {
@@ -17,6 +19,7 @@ impl<'a> BenchmarkReporter<'a> {
             bench_id: name,
             batched,
             bencher,
+            bootstrapper: Bootstrapper::new(100_000, |_| panic!(), Duration::cmp),
         };
 
         println!("{}", reporter.bench_id);
@@ -50,55 +53,40 @@ impl<'a> BenchmarkReporter<'a> {
         })
     }
 
-    pub fn finished(&self, samples: &[(Duration, usize)]) {
-        let point = Duration::from_nanos(slope(
-            samples
-                .iter()
-                .map(|(duration, iterations)| (*iterations as f64, duration.as_nanos() as f64)),
-        ) as u64);
-
-        let mut resampled = Vec::with_capacity(samples.len());
-        let mut bootstrap = Vec::from_fn(BOOTSTRAP, |_| {
-            resampled.clear();
-            resampled.extend(samples.iter().map(|_| {
-                let index = SimpleRng::random() as usize % samples.len();
-                samples[index]
-            }));
-            slope(
-                resampled
-                    .iter()
-                    .map(|(duration, iterations)| (*iterations as f64, duration.as_nanos() as f64)),
-            )
-        });
-
-        bootstrap.sort_by(f64::total_cmp);
-
-        let percentile = |p: f64| bootstrap[((BOOTSTRAP - 1) as f64 * p) as usize];
-
-        self.log(&format!(
-            "time: [{:#?} - {:#?} - {:#?}]",
-            Duration::from_nanos(percentile(0.025) as u64),
-            point,
-            Duration::from_nanos(percentile(0.975) as u64)
-        ));
+    fn slope(&self, samples: &[(Duration, usize)]) -> Duration {
+        (self.bootstrapper.f)(samples)
     }
-}
 
-fn slope<I>(samples: I) -> f64
-where
-    I: ExactSizeIterator + Iterator<Item = (f64, f64)> + Clone,
-{
-    let n = samples.len() as f64;
+    fn choose_slope_func(&mut self, sampling: SamplingStrategy) {
+        self.bootstrapper.f = match sampling {
+            SamplingStrategy::Linear(_) => |samples| {
+                Duration::from_nanos(slope(
+                    samples
+                        .iter()
+                        .map(|(time, iterations)| (*iterations as f64, time.as_nanos() as f64)),
+                ) as u64)
+            },
+            SamplingStrategy::Constant(_) => |samples| {
+                let (total_time, total_iters) = samples
+                    .iter()
+                    .cloned()
+                    .reduce(|(st, si), (t, i)| (st + t, si + i))
+                    .expect("samples should not be empty");
 
-    let (mean_x, mean_y) = samples
-        .clone()
-        .reduce(|(sum_x, sum_y), (x, y)| (sum_x + x, sum_y + y))
-        .map(|(sum_x, sum_y)| (sum_x / n, sum_y / n))
-        .expect("Cannot compute slope of empty sample set");
+                total_time / total_iters as u32
+            },
+        };
+    }
 
-    samples
-        .map(|(x, y)| ((x - mean_x) * (y - mean_y), (x - mean_x).powi(2)))
-        .reduce(|(sum_xy, sum_x2), (xy, x2)| (sum_xy + xy, sum_x2 + x2))
-        .map(|(numerator, denominator)| numerator / denominator)
-        .unwrap()
+    pub fn finished(&mut self, samples: &[(Duration, usize)], sampling: SamplingStrategy) {
+        self.choose_slope_func(sampling);
+
+        let middle = self.slope(samples);
+
+        let distribution = self.bootstrapper.bootstrap(samples);
+        let lower = *distribution.quantile(0.025);
+        let upper = *distribution.quantile(0.975);
+
+        self.log(&format!("time: [{lower:#?} - {middle:#?} - {upper:#?}]",));
+    }
 }
