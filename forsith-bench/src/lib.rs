@@ -33,7 +33,7 @@ impl Bencher {
     {
         let mut reporter = BenchmarkReporter::start(name.to_string(), false, self);
 
-        let mut iterations = 1;
+        let mut iterations = 1u32;
         let mut elapsed = Duration::ZERO;
         while elapsed < self.warmup_time {
             let start = std::time::Instant::now();
@@ -42,7 +42,9 @@ impl Bencher {
             }
             elapsed += start.elapsed();
 
-            iterations *= 2;
+            iterations = iterations
+                .checked_mul(2)
+                .expect("Tested function is too fast to benchmark");
         }
 
         reporter.warmed_up(elapsed, iterations);
@@ -61,11 +63,7 @@ impl Bencher {
         reporter.finished(&samples, sampling);
     }
 
-    fn choose_sampling_strategy(&self, elapsed: Duration, iterations: usize) -> SamplingStrategy {
-        SamplingStrategy::choose(
-            elapsed / iterations as u32,
-            self.samples,
-            self.measurement_limits,
-        )
+    fn choose_sampling_strategy(&self, elapsed: Duration, iterations: u32) -> SamplingStrategy {
+        SamplingStrategy::choose(elapsed / iterations, self.samples, self.measurement_limits)
     }
 }

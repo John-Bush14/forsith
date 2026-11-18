@@ -35,8 +35,8 @@ impl<'a> BenchmarkReporter<'a> {
         println!("[{}] {}", self.bench_id, message);
     }
 
-    pub fn warmed_up(&self, elapsed: Duration, iterations: usize) {
-        let avg_time = elapsed / iterations as u32;
+    pub fn warmed_up(&self, elapsed: Duration, iterations: u32) {
+        let avg_time = elapsed / iterations;
         let iterations =
             (self.bencher.measurement_limits.as_secs_f64() / avg_time.as_secs_f64()) as usize;
 
