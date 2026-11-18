@@ -24,6 +24,8 @@ pub mod collections;
 
 pub mod int;
 
+pub mod math;
+
 pub mod bit;
 
 pub mod error;
