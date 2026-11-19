@@ -21,7 +21,7 @@ jpeg = ["image"]
 xml = []
 
 [dev-dependencies]
-criterion = { version = "0.8", features = ["html_reports"] }
+forsith-bench = { path = "../forsith-bench" }
 
 [[test]]
 name = "png"

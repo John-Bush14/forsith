@@ -1,15 +1,11 @@
 use std::{fs::DirEntry, path::Path};
 
-use criterion::{
-    BenchmarkGroup, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main,
-    measurement::Measurement,
-};
+use forsith_bench::Bencher;
 use forsith_decoding::image::{ChannelLayout, ImageDecoder, PixelFormat, PngDecoder};
 
-criterion_group!(benches, png_decode_benchmarks);
-criterion_main!(benches);
+fn main() {
+    let mut b = Bencher::new();
 
-fn png_decode_benchmarks(c: &mut Criterion) {
     let asset_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("benches")
         .join("assets");
@@ -26,17 +22,15 @@ fn png_decode_benchmarks(c: &mut Criterion) {
         })
         .collect();
 
-    let mut g = c.benchmark_group("png_decode");
     for entry in &benches {
         let data = std::fs::read(entry.path()).unwrap();
-        benchmark_decoding::<false>(&mut g, entry.file_name().into_string().unwrap(), &data);
-        benchmark_decoding::<true>(&mut g, entry.file_name().into_string().unwrap(), &data);
+        benchmark_decoding::<false>(&mut b, entry.file_name().into_string().unwrap(), &data);
+        benchmark_decoding::<true>(&mut b, entry.file_name().into_string().unwrap(), &data);
     }
-    g.finish();
 }
 
 fn benchmark_decoding<const BUFFERED: bool>(
-    g: &mut BenchmarkGroup<impl Measurement>,
+    b: &mut Bencher,
     filename: String,
     data: &[u8],
 ) {
@@ -51,16 +45,14 @@ fn benchmark_decoding<const BUFFERED: bool>(
     let mut buf = vec![0u8; size];
 
     let dim = info_decoder.image_dimensions();
-    g.throughput(Throughput::Bytes(
-        (dim.0 * dim.1 * info_decoder.pixel_format().bpp() as usize / 8) as u64,
-    ));
-    g.bench_function(
-        BenchmarkId::new(if BUFFERED { "buffered" } else { "full" }, filename),
-        |b| {
-            b.iter(|| {
-                let mut decoder = PngDecoder::open(data, PixelFormat::default()).unwrap();
-                while decoder.read(&mut buf).unwrap() > 0 {}
-            })
+    // g.throughput(Throughput::Bytes(
+    //     (dim.0 * dim.1 * info_decoder.pixel_format().bpp() as usize / 8) as u64,
+    // ));
+    b.bench(
+        &format!("{} ({}x{}) [{}] decoding", filename, dim.0, dim.1, if BUFFERED { "buffered" } else { "full" }),
+        || {
+            let mut decoder = PngDecoder::open(data, PixelFormat::default()).unwrap();
+            while decoder.read(&mut buf).unwrap() > 0 {}
         },
     );
 }
