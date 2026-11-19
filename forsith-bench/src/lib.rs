@@ -9,7 +9,7 @@ mod reporting;
 impl Default for Bencher {
     fn default() -> Self {
         Self {
-            warmup_time: Duration::from_secs(1),
+            warmup_time: Duration::from_secs(3),
             measurement_limits: Duration::from_secs(5),
             samples: 100,
         }

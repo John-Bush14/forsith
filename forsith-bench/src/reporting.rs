@@ -1,5 +1,5 @@
 use forsith_shared::{
-    math::{Bootstrapper, SamplingStrategy, slope},
+    math::{Bootstrapper, SamplingStrategy, least_squares},
     rng::{Rng, SimpleRng},
 };
 
@@ -60,7 +60,7 @@ impl<'a> BenchmarkReporter<'a> {
     fn choose_slope_func(&mut self, sampling: SamplingStrategy) {
         self.bootstrapper.f = match sampling {
             SamplingStrategy::Linear(_) => |samples| {
-                Duration::from_nanos(slope(
+                Duration::from_nanos(least_squares(
                     samples
                         .iter()
                         .map(|(time, iterations)| (*iterations as f64, time.as_nanos() as f64)),

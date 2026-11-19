@@ -82,6 +82,7 @@ pub enum DecodingError {
     #[display("Provided png did not contain a Iend chunk")]
     NoIend,
 }
+
 impl From<DecodingError> for io::Error {
     fn from(err: DecodingError) -> Self {
         Self::other(err)

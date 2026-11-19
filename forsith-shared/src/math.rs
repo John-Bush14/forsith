@@ -9,7 +9,7 @@ use crate::rng::{Rng, SimpleRng};
     clippy::cast_possible_truncation,
     clippy::cast_sign_loss
 )]
-pub fn slope<I>(samples: I) -> f64
+pub fn least_squares<I>(samples: I) -> f64
 where
     I: ExactSizeIterator + Iterator<Item = (f64, f64)> + Clone,
 {
