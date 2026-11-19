@@ -120,7 +120,7 @@ pub type Result<T> = core::result::Result<T, Error>;
 #[derive(Debug)]
 pub struct Error {
     kind: ErrorKind,
-    err: Box<dyn core::error::Error>,
+    err: Box<dyn core::error::Error + Send + Sync>,
 }
 
 impl Error {
