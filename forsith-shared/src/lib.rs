@@ -18,6 +18,8 @@ pub mod arena;
 #[cfg(feature = "std")]
 pub mod buffers;
 
+pub mod escape;
+
 pub mod hashing;
 
 pub mod collections;
