@@ -1,3 +1,5 @@
+pub const RESET: &str = "\x1B[0m";
+
 // Text formatting
 pub const BOLD: &str = "\x1B[1m";
 pub const DIM: &str = "\x1B[2m";

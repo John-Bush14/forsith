@@ -1,6 +1,7 @@
-use crate::Benchmark;
+use crate::{Benchmark, Reporter};
 use forsith_proc::IsVariant;
 use forsith_shared::math::{Bootstrapper, least_squares};
+use forsith_shared::escape::{RESET, BRIGHT_BLACK as GREY, GREEN};
 use std::time::Duration;
 
 pub struct Wallclock {
@@ -27,13 +28,20 @@ impl Wallclock {
     }
 
     fn choose_sampling_strategy(&self, iter_time: usize) -> SamplingStrategy {
-        SamplingStrategy::choose(iter_time, self.measurement_limits.as_nanos().try_into().expect("Measurement limits exceed usize precision"), self.samples)
+        SamplingStrategy::choose(
+            iter_time,
+            self.measurement_limits
+                .as_nanos()
+                .try_into()
+                .expect("Measurement limits exceed usize precision"),
+            self.samples,
+        )
     }
 }
 
 impl Benchmark for Wallclock {
-    fn bench(&mut self, id: &str, mut f: impl FnMut()) {
-        println!("[{id}] Warming up for ~{:?}...", self.warmup_time);
+    fn bench(&mut self, id: &str, mut f: impl FnMut(), reporter: &Reporter) {
+        reporter.start(&format!("Warming up for {:?}...", self.warmup_time));
 
         let mut iterations = 1u32;
         let mut elapsed = Duration::ZERO;
@@ -57,18 +65,12 @@ impl Benchmark for Wallclock {
         let sampling = self.choose_sampling_strategy(iter_time);
 
         let total_runs = sampling.total_runs(self.samples);
-        println!(
+        reporter.update(&format!(
             "Collecting {} samples in estimated {:?} ({} iterations))",
             self.samples,
             Duration::from_nanos((total_runs * iter_time) as u64),
             total_runs
-        );
-
-        if sampling.is_constant() {
-            println!(
-                "Warning! The benchmarked function was too slow to be measured accurately, increase measurement limits or reduce number of samples."
-            );
-        }
+        ));
 
         for iterations in sampling.iter(self.samples) {
             let start = std::time::Instant::now();
@@ -80,13 +82,19 @@ impl Benchmark for Wallclock {
 
         let [l, m, u] = self.analyzer.analyze_samples(&samples, sampling);
 
-        println!(
-            "[{id}] Elapsed time per iteration: {:?} (95% CI: {:?} - {:?})",
-            m, l, u
-        );
+        reporter.finish(&format!(
+            "time: [{GREY}{:?} - {RESET}{:?} {GREY}- {:?}{RESET}]",
+            l, m, u
+        ));
     }
 
-    fn bench_with_setup<T>(&mut self, _id: &str, _setup: impl FnMut() -> T, _f: impl FnMut(T)) {
+    fn bench_with_setup<T>(
+        &mut self,
+        _id: &str,
+        _setup: impl FnMut() -> T,
+        _f: impl FnMut(T),
+        _reporter: &Reporter,
+    ) {
         todo!()
     }
 }
@@ -127,7 +135,11 @@ impl WallclockAnalyzer {
         };
     }
 
-    pub fn analyze_samples(&mut self, samples: &[(Duration, usize)], sampling: SamplingStrategy) -> [Duration; 3] {
+    pub fn analyze_samples(
+        &mut self,
+        samples: &[(Duration, usize)],
+        sampling: SamplingStrategy,
+    ) -> [Duration; 3] {
         self.choose_slope_func(sampling);
 
         let middle = self.slope(samples);
