@@ -1,25 +1,18 @@
 use core::time::Duration;
 
-use forsith_shared::math::SamplingStrategy;
-
-use crate::reporting::BenchmarkReporter;
-
-mod reporting;
-
-impl Default for Bencher {
-    fn default() -> Self {
-        Self {
-            warmup_time: Duration::from_secs(3),
-            measurement_limits: Duration::from_secs(5),
-            samples: 100,
-        }
+pub trait Benchmark {
+    fn bench(&mut self, id: &str, mut f: impl FnMut()) {
+        self.bench_with_setup(id, || (), |()| f());
     }
+
+    fn bench_with_setup<T>(&mut self, id: &str, setup: impl FnMut() -> T, f: impl FnMut(T));
 }
 
+mod wallclock;
+
+#[derive(Default)]
 pub struct Bencher {
-    pub warmup_time: Duration,
-    pub measurement_limits: Duration,
-    pub samples: usize,
+    wallclock: wallclock::Wallclock,
 }
 
 impl Bencher {
@@ -27,43 +20,10 @@ impl Bencher {
         Self::default()
     }
 
-    pub fn bench<F>(&self, name: &str, mut f: F)
+    pub fn bench<F>(&mut self, name: &str, f: F)
     where
         F: FnMut(),
     {
-        let mut reporter = BenchmarkReporter::start(name.to_string(), false, self);
-
-        let mut iterations = 1u32;
-        let mut elapsed = Duration::ZERO;
-        while elapsed < self.warmup_time {
-            let start = std::time::Instant::now();
-            for _ in 0..iterations {
-                f();
-            }
-            elapsed += start.elapsed();
-
-            iterations = iterations
-                .checked_mul(2)
-                .expect("Tested function is too fast to benchmark");
-        }
-
-        reporter.warmed_up(elapsed, iterations);
-
-        let mut samples = Vec::with_capacity(self.samples);
-        let sampling = self.choose_sampling_strategy(elapsed, iterations);
-
-        for iterations in sampling.iter(self.samples) {
-            let start = std::time::Instant::now();
-            for _ in 0..iterations {
-                f();
-            }
-            samples.push((start.elapsed(), iterations));
-        }
-
-        reporter.finished(&samples, sampling);
-    }
-
-    fn choose_sampling_strategy(&self, elapsed: Duration, iterations: u32) -> SamplingStrategy {
-        SamplingStrategy::choose(elapsed / iterations, self.samples, self.measurement_limits)
+        self.wallclock.bench(name, f);
     }
 }

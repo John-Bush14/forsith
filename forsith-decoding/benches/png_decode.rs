@@ -29,11 +29,7 @@ fn main() {
     }
 }
 
-fn benchmark_decoding<const BUFFERED: bool>(
-    b: &mut Bencher,
-    filename: String,
-    data: &[u8],
-) {
+fn benchmark_decoding<const BUFFERED: bool>(b: &mut Bencher, filename: String, data: &[u8]) {
     let info_decoder = PngDecoder::open(data, PixelFormat::default()).unwrap();
 
     let size = if BUFFERED {
@@ -49,7 +45,13 @@ fn benchmark_decoding<const BUFFERED: bool>(
     //     (dim.0 * dim.1 * info_decoder.pixel_format().bpp() as usize / 8) as u64,
     // ));
     b.bench(
-        &format!("{} ({}x{}) [{}] decoding", filename, dim.0, dim.1, if BUFFERED { "buffered" } else { "full" }),
+        &format!(
+            "{} ({}x{}) [{}] decoding",
+            filename,
+            dim.0,
+            dim.1,
+            if BUFFERED { "buffered" } else { "full" }
+        ),
         || {
             let mut decoder = PngDecoder::open(data, PixelFormat::default()).unwrap();
             while decoder.read(&mut buf).unwrap() > 0 {}

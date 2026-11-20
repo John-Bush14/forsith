@@ -203,7 +203,8 @@ impl DeflateDecoder {
         loop {
             let chunk_len = (len - decoded_bytes).min(buf.remaining().saturating_truncate());
 
-            buf.read_from(src, chunk_len as usize).map_err(std::io::Error::other)?;
+            buf.read_from(src, chunk_len as usize)
+                .map_err(std::io::Error::other)?;
 
             decoded_bytes += chunk_len;
 
