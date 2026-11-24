@@ -40,9 +40,13 @@ pub trait BitOperations:
 
 pub trait UInt: Int + From<u8> {}
 pub trait SInt: Int + From<i8> {}
+pub trait Float: ArithmeticOperations + Debug + Display + Copy {}
+
+pub trait Num: ArithmeticOperations + Debug + Display + Copy {}
+impl<I: Int> Num for I {}
 
 macro_rules! num_types {
-    (unsigned: [$($unum:ty),+], signed: [$($snum:ty),+]) => {
+    (unsigned: [$($unum:ty),+], signed: [$($snum:ty),+], float: [$($float:ty),+]) => {
         pub trait Int:
             ArithmeticOperations
             + BitOperations
@@ -68,6 +72,12 @@ macro_rules! num_types {
 
             fn checked_sub(self, rhs: Self) -> Option<Self>;
         }
+
+        $(
+            impl Num for $float {}
+            impl ArithmeticOperations for $float {}
+            impl Float for $float {}
+        )+
 
         $(
             impl ArithmeticOperations for $unum {}
@@ -107,5 +117,6 @@ macro_rules! num_types {
 
 num_types!(
     unsigned: [u8, u16, u32, u64, usize],
-    signed: [i8, i16, i32, i64, isize]
+    signed: [i8, i16, i32, i64, isize],
+    float: [f32, f64]
 );
