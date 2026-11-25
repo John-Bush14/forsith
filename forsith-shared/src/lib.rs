@@ -15,6 +15,8 @@ pub mod interner;
 
 pub mod arena;
 
+pub mod serde;
+
 #[cfg(feature = "std")]
 pub mod buffers;
 
