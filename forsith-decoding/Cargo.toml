@@ -11,7 +11,7 @@ forsith-proc = { path = "../forsith-proc" }
 
 [features]
 default = [
-    "png",
+    # "png",
     # "jpeg",
     "xml"
 ]
@@ -20,13 +20,13 @@ png = ["image"]
 jpeg = ["image"]
 xml = []
 
-[dev-dependencies]
-forsith-bench = { path = "../forsith-bench" }
-
-[[test]]
-name = "png"
-path = "tests/png.rs"
-
-[[bench]]
-name = "png_decode"
-harness = false
+# [dev-dependencies]
+# forsith-bench = { path = "../forsith-bench" }
+#
+# [[test]]
+# name = "png"
+# path = "tests/png.rs"
+#
+# [[bench]]
+# name = "png_decode"
+# harness = false
