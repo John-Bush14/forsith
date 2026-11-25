@@ -31,7 +31,7 @@ impl SerFormat for JsonFormat {
 
     type Error = std::io::Error;
 
-    fn serialize<'a, T, W: Write + 'a>(value: &T, writer: W) -> Result<(), Self::Error>
+    fn serialize<'a, T: ?Sized, W: Write + 'a>(value: &T, writer: W) -> Result<(), Self::Error>
     where
         Self::Serializer<'a, W>: Serialize<T> + Serializer<Error = std::io::Error>,
     {
@@ -83,11 +83,14 @@ where
     }
 }
 
-impl<W: Write> SeqSerialize for JsonSerializer<'_, W> {
-    type Seq<'a>
-        = &'a mut Self
+impl<'a, W: Write + 'a, T> SeqSerialize<T> for JsonSerializer<'a, W>
+where
+    JsonSerializer<'a, W>: Serialize<T> + Serializer<Error = std::io::Error>,
+{
+    type Seq<'b>
+        = &'b mut Self
     where
-        Self: 'a;
+        Self: 'b;
 
     fn serialize_seq(&mut self, _len: Option<usize>) -> Result<Self::Seq<'_>, Self::Error> {
         write!(self.writer, "[").map(|()| self)
@@ -160,13 +163,14 @@ mod tests {
 
     serialize_tests! {
         JsonFormat {
-            test_serialize_string: "Hello, world!".to_string() => b"\"Hello, world!\"".to_vec(),
-            test_serialize_u64: 42u64 => b"42".to_vec(),
-            test_serialize_bool_true: true => b"true".to_vec(),
-            test_serialize_bool_false: false => b"false".to_vec(),
-            test_serialize_unit: () => b"null".to_vec(),
-            test_serialize_option_some: Some(42u64) => b"42".to_vec(),
-            test_serialize_option_none: None::<u64> => b"null".to_vec(),
+            test_serialize_string: &"Hello, world!".to_string() => b"\"Hello, world!\"".to_vec(),
+            test_serialize_u64: &42u64 => b"42".to_vec(),
+            test_serialize_bool_true: &true => b"true".to_vec(),
+            test_serialize_bool_false: &false => b"false".to_vec(),
+            test_serialize_unit: &() => b"null".to_vec(),
+            test_serialize_option_some: &Some(42u64) => b"42".to_vec(),
+            test_serialize_option_none: &None::<u64> => b"null".to_vec(),
+            test_serialize_seq: vec![1u64, 2, 3].as_slice() => b"[1,2,3,]".to_vec(),
         }
     }
 }

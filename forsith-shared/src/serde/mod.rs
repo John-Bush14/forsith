@@ -11,11 +11,11 @@ pub trait SerFormat {
 
     type Error;
 
-    fn serialize<'a, T, W: Write + 'a>(value: &T, writer: W) -> Result<(), Self::Error>
+    fn serialize<'a, T: ?Sized, W: Write + 'a>(value: &T, writer: W) -> Result<(), Self::Error>
     where
         Self::Serializer<'a, W>: Serialize<T> + Serializer<Error = Self::Error>;
 
-    fn serialize_to_vec<'a, T>(value: &T) -> Result<Vec<u8>, Self::Error>
+    fn serialize_to_vec<'a, T: ?Sized>(value: &T) -> Result<Vec<u8>, Self::Error>
     where
         for<'b> Self::Serializer<'b, &'b mut Vec<u8>>: Serialize<T>,
     {
@@ -33,9 +33,8 @@ macro_rules! serialize_tests {
         $(
             #[test]
             fn $name() {
-                let value = $value;
                 let expected = $expected;
-                let serialized = <$format>::serialize_to_vec(&value).unwrap();
+                let serialized = <$format>::serialize_to_vec($value).unwrap();
                 assert_eq!(serialized, expected);
             }
         )*
